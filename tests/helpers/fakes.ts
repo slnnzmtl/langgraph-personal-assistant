@@ -1,9 +1,8 @@
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
-import type { Runnable } from "@langchain/core/runnables";
 
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import type { RoutingChain } from "../../src/connectors/llm-connector.js";
 
-export class FakeRunnable<TInput, TOutput> implements Runnable {
+export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
 
   async invoke(input: TInput): Promise<TOutput> {
@@ -11,15 +10,15 @@ export class FakeRunnable<TInput, TOutput> implements Runnable {
   }
 }
 
-export class FakeLLMConnector implements ILLMConnector {
-  constructor(private readonly handler: (input: unknown) => unknown | Promise<unknown>) {}
+export class FakeLLMConnector {
+  constructor(private readonly handler: (input: any) => any) {}
 
-  getModel() {
+  getModel(): any {
     throw new Error("FakeLLMConnector.getModel is not implemented for tests.");
   }
 
-  bindRoutingTools() {
-    return new FakeRunnable(async (input: unknown) => this.handler(input));
+  bindRoutingTools<TRoute extends Record<string, unknown>>(): RoutingChain<TRoute> {
+    return new FakeRunnable(async (input: any) => this.handler(input)) as RoutingChain<TRoute>;
   }
 }
 

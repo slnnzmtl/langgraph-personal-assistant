@@ -1,5 +1,5 @@
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
@@ -76,26 +76,21 @@ const getLatestUserRequest = (messages: BaseMessage[]): string => {
   throw new Error("No user message found for markdown generation.");
 };
 
-const listMarkdownFiles = async (directory: string, prefix = ""): Promise<string[]> => {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map(async (entry) => {
-      const relativePath = path.posix.join(prefix, entry.name);
-      const absolutePath = path.join(directory, entry.name);
+const formatRoutineFilePath = (date: Date): string => {
+  const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(date);
+  const day = date.getUTCDate();
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date);
 
-      if (entry.isDirectory()) {
-        return listMarkdownFiles(absolutePath, relativePath);
-      }
+  return `routine/${month}/${month} ${day} - ${weekday}.md`;
+};
 
-      if (entry.isFile() && entry.name.endsWith(".md")) {
-        return [relativePath];
-      }
+const formatRoutineHint = (date: Date): string => {
+  const routinePath = formatRoutineFilePath(date);
 
-      return [];
-    }),
-  );
-
-  return files.flat().sort();
+  return [
+    "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
+    `For today, use ${routinePath}.`,
+  ].join(" ");
 };
 
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
@@ -117,32 +112,28 @@ export const resolveVaultPath = (vaultRoot: string, relativePath: string): strin
 
 export const applyMarkdownWrite = async (
   vaultRoot: string,
-  {
-    relativePath,
-    operation,
-    content,
-  }: Extract<MarkdownOperationRequest, { operation: "create_new" | "append" | "overwrite" }>,
+  operationRequest: Extract<MarkdownOperationRequest, { operation: "create_new" | "append" | "overwrite" }>,
 ): Promise<string> => {
-  const targetPath = resolveVaultPath(vaultRoot, relativePath);
+  const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
   await mkdir(path.dirname(targetPath), { recursive: true });
 
-  if (operation === "create_new") {
+  if (operationRequest.operation === "create_new") {
     try {
       await readFile(targetPath, "utf8");
-      throw new Error(`Refusing to overwrite existing markdown file: ${relativePath}`);
+      throw new Error(`Refusing to overwrite existing markdown file: ${operationRequest.relativePath}`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;
       }
     }
 
-    await writeFile(targetPath, `${content.trim()}\n`, "utf8");
-    return relativePath;
+    await writeFile(targetPath, `${operationRequest.content.trim()}\n`, "utf8");
+    return operationRequest.relativePath;
   }
 
-  if (operation === "overwrite") {
-    await writeFile(targetPath, `${content.trim()}\n`, "utf8");
-    return relativePath;
+  if (operationRequest.operation === "overwrite") {
+    await writeFile(targetPath, `${operationRequest.content.trim()}\n`, "utf8");
+    return operationRequest.relativePath;
   }
 
   let existingContent = "";
@@ -157,9 +148,9 @@ export const applyMarkdownWrite = async (
 
   const normalizedExisting = existingContent.replace(/\s*$/, "");
   const appendPrefix = normalizedExisting.length === 0 ? "" : "\n\n";
-  const nextContent = `${normalizedExisting}${appendPrefix}${content.trim()}\n`;
+  const nextContent = `${normalizedExisting}${appendPrefix}${operationRequest.content.trim()}\n`;
   await writeFile(targetPath, nextContent, "utf8");
-  return relativePath;
+  return operationRequest.relativePath;
 };
 
 export const readMarkdownFile = async (
@@ -200,7 +191,11 @@ export const deleteMarkdownFile = async (
 };
 
 export const createObsidianNode = (
-  llmConnector: ILLMConnector,
+  llmConnector: {
+    bindRoutingTools<TRoute extends Record<string, unknown>>(schema: z.ZodType<TRoute>): {
+      invoke(input: unknown): Promise<TRoute>;
+    };
+  },
   vaultRoot: string,
 ) => {
   const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, {
@@ -213,20 +208,16 @@ export const createObsidianNode = (
       await mkdir(vaultRoot, { recursive: true });
 
       const latestUserRequest = getLatestUserRequest(state.messages);
-      const existingFiles = await listMarkdownFiles(vaultRoot);
       const currentDate = new Date().toISOString().slice(0, 10);
       const currentTime = new Date().toISOString();
+      const currentDay = new Date(`${currentDate}T00:00:00.000Z`);
       const writerPrompt = new SystemMessage(
-        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}`,
+        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n${formatRoutineHint(currentDay)}`,
       );
-      const fileContext =
-        existingFiles.length === 0
-          ? "The vault is currently empty."
-          : `Existing markdown files:\n- ${existingFiles.join("\n- ")}`;
 
       const promptMessages = [
         writerPrompt,
-        new HumanMessage(`User request:\n${latestUserRequest}\n\n${fileContext}`),
+        new HumanMessage(`User request:\n${latestUserRequest}`),
       ];
 
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
@@ -235,6 +226,10 @@ export const createObsidianNode = (
 
       switch (operationRequest.operation) {
         case "read": {
+          if (operationRequest.content) {
+            throw new Error("Read operations must not include content.");
+          }
+
           const fileContent = await readMarkdownFile(vaultRoot, operationRequest.relativePath);
 
           return {
@@ -246,6 +241,10 @@ export const createObsidianNode = (
         case "delete": {
           if (!operationRequest.summary) {
             throw new Error("Delete operations must include a summary.");
+          }
+
+          if (operationRequest.content) {
+            throw new Error("Delete operations must not include content.");
           }
 
           const deletedPath = await deleteMarkdownFile(vaultRoot, operationRequest.relativePath);

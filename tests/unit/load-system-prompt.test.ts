@@ -32,7 +32,7 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("# Role & Core Objective");
     expect(prompt).toContain("# System Operational Rules");
     expect(prompt).toContain("Only target markdown files ending strictly with `.md`.");
-    expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/` subdirectory");
+    expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/[Month]/[Month] [Day] - [Weekday].md` pattern.");
   });
 });
 

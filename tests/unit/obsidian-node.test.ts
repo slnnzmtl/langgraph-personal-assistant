@@ -72,7 +72,7 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("# Role & Core Objective");
     expect(prompt).toContain("# System Operational Rules");
     expect(prompt).toContain("Only target markdown files ending strictly with `.md`.");
-    expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/` subdirectory");
+    expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/[Month]/[Month] [Day] - [Weekday].md` pattern.");
   });
 
   it("writes the markdown file returned by the structured output chain", async () => {
@@ -153,11 +153,12 @@ describe("createObsidianNode", () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
-      expect(input[0]).toHaveProperty("content");
-      expect((input[0] as HumanMessage).content).toContain("# System Operational Rules");
-      expect((input[0] as HumanMessage).content).toContain("Only target markdown files ending strictly with `.md`.");
-      expect((input[0] as HumanMessage).content).toContain("Current date:");
-      expect((input[0] as HumanMessage).content).toContain("Current time:");
+      const promptMessages = input as HumanMessage[];
+      expect(promptMessages[0]).toHaveProperty("content");
+      expect(promptMessages[0].content).toContain("# System Operational Rules");
+      expect(promptMessages[0].content).toContain("Only target markdown files ending strictly with `.md`.");
+      expect(promptMessages[0].content).toContain("Current date:");
+      expect(promptMessages[0].content).toContain("Current time:");
 
       return {
         relativePath: "notes/prompt-check.md",
@@ -177,6 +178,46 @@ describe("createObsidianNode", () => {
     const saved = await readFile(path.join(vaultRoot, "notes/prompt-check.md"), "utf8");
 
     expect(saved).toBe("Prompt checked\n");
+  });
+
+  it("includes the current date and routine path hint in the prompt", async () => {
+    const vaultRoot = await createTempVault();
+    const currentDate = new Date().toISOString().slice(0, 10);
+    const currentDay = new Date(`${currentDate}T00:00:00.000Z`);
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(currentDay);
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(currentDay);
+    const day = currentDay.getUTCDate();
+
+    await mkdir(path.join(vaultRoot, "routine", month), { recursive: true });
+    await writeFile(path.join(vaultRoot, `routine/${month}/${month} ${day} - ${weekday}.md`), "# Today\nPlan\n", "utf8");
+
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as HumanMessage[])
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+      const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
+
+      expect(promptContent).toContain("Current date:");
+      expect(promptContent).toContain("Current time:");
+      expect(promptContent).toContain(expectedRoutinePath);
+      expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
+
+      return {
+        relativePath: expectedRoutinePath,
+        operation: "read",
+      };
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("give me a plan for today")],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.messages?.[0]?.content).toContain("Contents of routine/");
   });
 
   it("supports hot-reloading prompt content during development via the shared loader", async () => {

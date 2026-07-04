@@ -80,8 +80,11 @@ test.describe("workflow graph", () => {
 
   test("routes a retrieval request into the obsidian node and reads the existing markdown file", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-read-vault-"));
-    await mkdir(path.join(vaultRoot, "routine"), { recursive: true });
-    await writeFile(path.join(vaultRoot, "routine/2026-07-05.md"), "# Today\nPlan for today\n", "utf8");
+    const currentDate = new Date("2026-07-05T00:00:00.000Z");
+    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(currentDate);
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(currentDate);
+    await mkdir(path.join(vaultRoot, "routine", month), { recursive: true });
+    await writeFile(path.join(vaultRoot, `routine/${month}/${month} 5 - ${weekday}.md`), "# Today\nPlan for today\n", "utf8");
     let invocation = 0;
 
     const connector = new FakeLLMConnector(() => {
@@ -92,7 +95,7 @@ test.describe("workflow graph", () => {
       }
 
       return {
-        relativePath: "routine/2026-07-05.md",
+        relativePath: `routine/${month}/${month} 5 - ${weekday}.md`,
         operation: "read",
       };
     });
@@ -110,7 +113,7 @@ test.describe("workflow graph", () => {
       );
 
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Contents of routine/2026-07-05.md:\n\n# Today\nPlan for today",
+        `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
