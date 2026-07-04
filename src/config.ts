@@ -16,6 +16,9 @@ export interface AppConfig {
   obsidianVaultPath: string;
 }
 
+export const getDefaultVaultPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "src/obsidian-vault");
+
 const getRequiredEnv = (name: RequiredEnvVar): string => {
   const value = process.env[name];
 
@@ -31,7 +34,5 @@ export const loadConfig = (): AppConfig => ({
   allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
   googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
-  obsidianVaultPath:
-    process.env.OBSIDIAN_VAULT_PATH ??
-    path.resolve(process.cwd(), "src/obsidian-vault"),
+  obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
 });

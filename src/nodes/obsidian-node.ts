@@ -45,7 +45,7 @@ Rules:
 - The summary must be a short confirmation for the end user.
 `);
 
-const extractTextContent = (content: BaseMessage["content"]): string => {
+export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
     return content;
   }
@@ -74,7 +74,7 @@ const getLatestUserRequest = (messages: BaseMessage[]): string => {
     const message = messages[index];
 
     if (message instanceof HumanMessage) {
-      return extractTextContent(message.content);
+      return extractMessageTextContent(message.content);
     }
   }
 
@@ -103,7 +103,7 @@ const listMarkdownFiles = async (directory: string, prefix = ""): Promise<string
   return files.flat().sort();
 };
 
-const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
+export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));
 
   if (normalizedPath.startsWith("../") || path.posix.isAbsolute(normalizedPath)) {
@@ -120,7 +120,7 @@ const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   return absolutePath;
 };
 
-const applyMarkdownWrite = async (
+export const applyMarkdownWrite = async (
   vaultRoot: string,
   {
     relativePath,
@@ -160,8 +160,9 @@ const applyMarkdownWrite = async (
     }
   }
 
-  const appendPrefix = existingContent.trim().length === 0 ? "" : "\n\n";
-  const nextContent = `${existingContent}${appendPrefix}${content.trim()}\n`;
+  const normalizedExisting = existingContent.replace(/\s*$/, "");
+  const appendPrefix = normalizedExisting.length === 0 ? "" : "\n\n";
+  const nextContent = `${normalizedExisting}${appendPrefix}${content.trim()}\n`;
   await writeFile(targetPath, nextContent, "utf8");
   return relativePath;
 };
@@ -208,3 +209,5 @@ export const createObsidianNode = (
     }
   };
 };
+
+export type { MarkdownWriteRequest };

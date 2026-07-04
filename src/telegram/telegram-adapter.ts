@@ -14,7 +14,7 @@ export interface ITelegramAdapter {
   launch(): Promise<void>;
 }
 
-const extractTextContent = (content: BaseMessage["content"]): string => {
+export const extractTelegramMessageText = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
     return content;
   }
@@ -107,7 +107,7 @@ export class TelegramAdapter implements ITelegramAdapter {
       return;
     }
 
-    const output = extractTextContent(lastMessage.content);
+    const output = extractTelegramMessageText(lastMessage.content);
 
     if (lastMessage instanceof AIMessage) {
       await ctx.reply(output, { parse_mode: "Markdown" });
