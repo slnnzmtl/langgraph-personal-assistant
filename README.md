@@ -15,6 +15,7 @@ The app requires these environment variables:
 - `ALLOWED_TELEGRAM_USER_ID`
 - `GOOGLE_API_KEY`
 - `GEMINI_MODEL` (optional)
+- `APP_TIMEZONE` (optional, IANA timezone like `UTC` or `America/New_York`; invalid values fall back to `UTC`)
 - `OBSIDIAN_VAULT_PATH` (optional locally, defaults to `src/obsidian-vault`)
 
 The assistant keeps only the last 10 messages per thread in state. Older turns are dropped once the conversation window exceeds that limit.

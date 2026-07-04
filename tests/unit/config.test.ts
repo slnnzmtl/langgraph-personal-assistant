@@ -20,10 +20,12 @@ describe("config", () => {
     vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
     vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
     vi.stubEnv("OBSIDIAN_VAULT_PATH", undefined);
+    vi.stubEnv("APP_TIMEZONE", undefined);
 
     const config = loadConfig();
 
     expect(config.obsidianVaultPath).toBe(getDefaultVaultPath());
+    expect(config.appTimezone).toBe("UTC");
   });
 
   it("prefers an explicit OBSIDIAN_VAULT_PATH", () => {
@@ -37,5 +39,27 @@ describe("config", () => {
     const config = loadConfig();
 
     expect(config.obsidianVaultPath).toBe(customPath);
+  });
+
+  it("uses an explicit valid APP_TIMEZONE", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("APP_TIMEZONE", "America/New_York");
+
+    const config = loadConfig();
+
+    expect(config.appTimezone).toBe("America/New_York");
+  });
+
+  it("falls back to UTC when APP_TIMEZONE is invalid", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("APP_TIMEZONE", "Mars/Base");
+
+    const config = loadConfig();
+
+    expect(config.appTimezone).toBe("UTC");
   });
 });

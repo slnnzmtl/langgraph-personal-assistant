@@ -1,5 +1,5 @@
 import { HumanMessage } from "@langchain/core/messages";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
@@ -7,6 +7,10 @@ import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/state.js";
 import { FakeLLMConnector, makeHumanState } from "../helpers/fakes.js";
 
 describe("createSupervisorNode", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("loads the supervisor system prompt from the markdown file", () => {
     const prompt = loadSupervisorSystemPrompt();
 
@@ -14,6 +18,31 @@ describe("createSupervisorNode", () => {
     expect(prompt).toContain("Use Finance_SG for money, expenses, transactions, budgets, banking, or finance logging.");
     expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, or documentation.");
     expect(prompt).toContain("Use FINISH for general chat, clarifications, or when you can answer directly without a specialized sub-graph.");
+  });
+
+  it("includes the current datetime in the shared system prompt", async () => {
+    const currentInstant = new Date("2026-07-05T12:34:56.000Z");
+    vi.useFakeTimers();
+    vi.setSystemTime(currentInstant);
+
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptMessages = input as HumanMessage[];
+
+      expect(promptMessages[0]?.content).toContain("Routing rules:");
+      expect(promptMessages[0]?.content).toContain("Current datetime: 2026-07-05T12:34:56.000Z");
+
+      return {
+        next: "FINISH",
+        reply: "Datetime checked",
+      };
+    });
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("hello"));
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Datetime checked");
   });
 
   it("appends a direct AI reply for the FINISH path", async () => {

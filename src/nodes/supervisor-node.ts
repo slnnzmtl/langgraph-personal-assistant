@@ -8,10 +8,16 @@ import type { AgentState, AgentStateUpdate } from "../state.js";
 
 export const createSupervisorNode = (llmConnector: ILLMConnector) => {
   const loadSupervisorPrompt = createPromptLoader(SUPERVISOR_SYSTEM_PROMPT_PATH);
-  const supervisorPrompt = new SystemMessage(loadSupervisorPrompt());
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
+    const currentDatetime = new Date().toISOString();
+    const supervisorPrompt = new SystemMessage(
+      `${loadSupervisorPrompt()}
+
+Current datetime: ${currentDatetime}`,
+    );
+
     const promptMessages = [
       supervisorPrompt,
       ...state.messages,

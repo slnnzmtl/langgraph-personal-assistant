@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { HumanMessage } from "@langchain/core/messages";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyMarkdownWrite,
@@ -19,6 +19,7 @@ import { FakeLLMConnector } from "../helpers/fakes.js";
 const tempPaths: string[] = [];
 
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(
     tempPaths.splice(0).map(async (tempPath) => {
       await import("node:fs/promises").then(({ rm }) =>
@@ -83,7 +84,7 @@ describe("createObsidianNode", () => {
       content: "# Test\nBody",
       summary: "Saved the note",
     }));
-    const obsidianNode = createObsidianNode(connector, vaultRoot);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
     const result = await obsidianNode({
       messages: [new HumanMessage("save this note")],
@@ -110,7 +111,7 @@ describe("createObsidianNode", () => {
       relativePath: "notes/read.md",
       operation: "read",
     }));
-    const obsidianNode = createObsidianNode(connector, vaultRoot);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
     const result = await obsidianNode({
       messages: [new HumanMessage("read this note")],
@@ -135,7 +136,7 @@ describe("createObsidianNode", () => {
       operation: "delete",
       summary: "Removed note",
     }));
-    const obsidianNode = createObsidianNode(connector, vaultRoot);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
     const result = await obsidianNode({
       messages: [new HumanMessage("delete this note")],
@@ -167,7 +168,7 @@ describe("createObsidianNode", () => {
         summary: "Prompt used",
       };
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
     await obsidianNode({
       messages: [new HumanMessage("save prompt check")],
@@ -182,12 +183,15 @@ describe("createObsidianNode", () => {
 
   it("includes the current date and routine path hint in the prompt", async () => {
     const vaultRoot = await createTempVault();
-    const currentDate = new Date().toISOString().slice(0, 10);
-    const currentDay = new Date(`${currentDate}T00:00:00.000Z`);
+    const appTimezone = "America/New_York";
+    const currentInstant = new Date("2026-07-05T00:30:00.000Z");
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(currentDay);
-    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(currentDay);
-    const day = currentDay.getUTCDate();
+    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: appTimezone }).format(currentInstant);
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: appTimezone }).format(currentInstant);
+    const day = Number(new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: appTimezone }).format(currentInstant));
+
+    vi.useFakeTimers();
+    vi.setSystemTime(currentInstant);
 
     await mkdir(path.join(vaultRoot, "routine", month), { recursive: true });
     await writeFile(path.join(vaultRoot, `routine/${month}/${month} ${day} - ${weekday}.md`), "# Today\nPlan\n", "utf8");
@@ -209,7 +213,7 @@ describe("createObsidianNode", () => {
         operation: "read",
       };
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, appTimezone);
 
     const result = await obsidianNode({
       messages: [new HumanMessage("give me a plan for today")],

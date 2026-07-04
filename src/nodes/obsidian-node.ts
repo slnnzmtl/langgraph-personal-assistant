@@ -40,6 +40,13 @@ const MarkdownOperationSchema = z.object({
 
 type MarkdownOperationRequest = z.infer<typeof MarkdownOperationSchema>;
 
+type MarkdownWriteOperation = {
+  relativePath: string;
+  operation: "create_new" | "append" | "overwrite";
+  content: string;
+  summary?: string;
+};
+
 export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
     return content;
@@ -76,21 +83,70 @@ const getLatestUserRequest = (messages: BaseMessage[]): string => {
   throw new Error("No user message found for markdown generation.");
 };
 
-const formatRoutineFilePath = (date: Date): string => {
-  const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(date);
-  const day = date.getUTCDate();
-  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date);
+const getFormatterPart = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string => {
+  const part = parts.find((entry) => entry.type === type);
 
-  return `routine/${month}/${month} ${day} - ${weekday}.md`;
+  if (!part) {
+    throw new Error(`Missing formatted date part: ${type}`);
+  }
+
+  return part.value;
 };
 
-const formatRoutineHint = (date: Date): string => {
-  const routinePath = formatRoutineFilePath(date);
+const getZonedDateDetails = (date: Date, timeZone: string) => {
+  const dateParts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(date);
+  const timeParts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  return {
+    year: getFormatterPart(dateParts, "year"),
+    monthNumber: getFormatterPart(dateParts, "month"),
+    dayNumber: getFormatterPart(dateParts, "day"),
+    weekday: getFormatterPart(dateParts, "weekday"),
+    monthName: new Intl.DateTimeFormat("en-US", { month: "long", timeZone }).format(date),
+    hour: getFormatterPart(timeParts, "hour"),
+    minute: getFormatterPart(timeParts, "minute"),
+    second: getFormatterPart(timeParts, "second"),
+  };
+};
+
+const formatRoutineFilePath = (date: Date, timeZone: string): string => {
+  const { monthName, dayNumber, weekday } = getZonedDateDetails(date, timeZone);
+
+  return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
+};
+
+const formatRoutineHint = (date: Date, timeZone: string): string => {
+  const routinePath = formatRoutineFilePath(date, timeZone);
 
   return [
     "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
     `For today, use ${routinePath}.`,
   ].join(" ");
+};
+
+const formatCurrentDate = (date: Date, timeZone: string): string => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
+
+  return `${year}-${monthNumber}-${dayNumber}`;
+};
+
+const formatCurrentTime = (date: Date, timeZone: string): string => {
+  const { year, monthNumber, dayNumber, hour, minute, second } = getZonedDateDetails(date, timeZone);
+
+  return `${year}-${monthNumber}-${dayNumber}T${hour}:${minute}:${second} ${timeZone}`;
 };
 
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
@@ -112,7 +168,7 @@ export const resolveVaultPath = (vaultRoot: string, relativePath: string): strin
 
 export const applyMarkdownWrite = async (
   vaultRoot: string,
-  operationRequest: Extract<MarkdownOperationRequest, { operation: "create_new" | "append" | "overwrite" }>,
+  operationRequest: MarkdownWriteOperation,
 ): Promise<string> => {
   const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
   await mkdir(path.dirname(targetPath), { recursive: true });
@@ -197,6 +253,7 @@ export const createObsidianNode = (
     };
   },
   vaultRoot: string,
+  appTimezone: string,
 ) => {
   const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, {
     hotReload: shouldHotReloadPrompts(),
@@ -208,11 +265,11 @@ export const createObsidianNode = (
       await mkdir(vaultRoot, { recursive: true });
 
       const latestUserRequest = getLatestUserRequest(state.messages);
-      const currentDate = new Date().toISOString().slice(0, 10);
-      const currentTime = new Date().toISOString();
-      const currentDay = new Date(`${currentDate}T00:00:00.000Z`);
+      const now = new Date();
+      const currentDate = formatCurrentDate(now, appTimezone);
+      const currentTime = formatCurrentTime(now, appTimezone);
       const writerPrompt = new SystemMessage(
-        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n${formatRoutineHint(currentDay)}`,
+        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n${formatRoutineHint(now, appTimezone)}`,
       );
 
       const promptMessages = [
@@ -266,7 +323,12 @@ export const createObsidianNode = (
             throw new Error(`Write operations must include a summary for ${operationRequest.operation}.`);
           }
 
-          const writtenPath = await applyMarkdownWrite(vaultRoot, operationRequest);
+          const writtenPath = await applyMarkdownWrite(vaultRoot, {
+            relativePath: operationRequest.relativePath,
+            operation: operationRequest.operation,
+            content: operationRequest.content,
+            summary: operationRequest.summary,
+          });
 
           return {
             messages: [

@@ -9,10 +9,10 @@ import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.
 
 export const createWorkflowGraph = (
   llmConnector: ILLMConnector,
-  config: Pick<AppConfig, "obsidianVaultPath">,
+  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone">,
 ) => {
   const supervisorNode = createSupervisorNode(llmConnector);
-  const obsidianNode = createObsidianNode(llmConnector, config.obsidianVaultPath);
+  const obsidianNode = createObsidianNode(llmConnector, config.obsidianVaultPath, config.appTimezone);
   const memory = new MemorySaver();
 
   return new StateGraph(AgentStateAnnotation)
