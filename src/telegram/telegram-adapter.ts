@@ -122,11 +122,6 @@ export class TelegramAdapter implements ITelegramAdapter {
 
     logTelegramMessage("bot", output);
 
-    if (lastMessage instanceof AIMessage) {
-      await ctx.reply(output, { parse_mode: "Markdown" });
-      return;
-    }
-
     await ctx.reply(output);
   }
 

@@ -82,7 +82,7 @@ describe("TelegramAdapter", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
-  it("sends markdown replies for AI messages", async () => {
+  it("sends plain-text replies for AI messages", async () => {
     const adapter = createAdapter();
     const reply = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -92,7 +92,7 @@ describe("TelegramAdapter", () => {
       [new AIMessage("**done**")],
     );
 
-    expect(reply).toHaveBeenCalledWith("**done**", { parse_mode: "Markdown" });
+    expect(reply).toHaveBeenCalledWith("**done**");
     expect(logSpy).toHaveBeenCalled();
   });
 

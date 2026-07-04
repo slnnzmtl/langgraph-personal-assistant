@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { readFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, readFile, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -72,6 +72,45 @@ test.describe("workflow graph", () => {
       expect(saved).toBe("# E2E\nSaved through the graph\n");
       expect(finalState.messages.at(-1)?.content).toBe(
         "Documented the request Saved to notes/e2e.md.",
+      );
+    } finally {
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("routes a retrieval request into the obsidian node and reads the existing markdown file", async () => {
+    const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-read-vault-"));
+    await mkdir(path.join(vaultRoot, "routine"), { recursive: true });
+    await writeFile(path.join(vaultRoot, "routine/2026-07-05.md"), "# Today\nPlan for today\n", "utf8");
+    let invocation = 0;
+
+    const connector = new FakeLLMConnector(() => {
+      invocation += 1;
+
+      if (invocation === 1) {
+        return { next: "Obsidian_SG" };
+      }
+
+      return {
+        relativePath: "routine/2026-07-05.md",
+        operation: "read",
+      };
+    });
+
+    try {
+      const app = createWorkflowGraph(connector, {
+        obsidianVaultPath: vaultRoot,
+      });
+
+      const finalState = await app.invoke(
+        {
+          messages: [new HumanMessage("give me a plan for today")],
+        },
+        workflowConfig,
+      );
+
+      expect(finalState.messages.at(-1)?.content).toBe(
+        "Contents of routine/2026-07-05.md:\n\n# Today\nPlan for today",
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });

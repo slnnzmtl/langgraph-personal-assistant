@@ -97,6 +97,58 @@ describe("createObsidianNode", () => {
     expect(result.messages?.[0]?.content).toBe("Saved the note Saved to notes/test.md.");
   });
 
+  it("reads the markdown file returned by the structured output chain", async () => {
+    const vaultRoot = await createTempVault();
+    await applyMarkdownWrite(vaultRoot, {
+      relativePath: "notes/read.md",
+      operation: "create_new",
+      content: "# Read\nBody",
+      summary: "Seeded read file",
+    });
+
+    const connector = new FakeLLMConnector(() => ({
+      relativePath: "notes/read.md",
+      operation: "read",
+    }));
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("read this note")],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.messages?.[0]?.content).toBe("Contents of notes/read.md:\n\n# Read\nBody");
+  });
+
+  it("deletes the markdown file returned by the structured output chain", async () => {
+    const vaultRoot = await createTempVault();
+    await applyMarkdownWrite(vaultRoot, {
+      relativePath: "notes/delete.md",
+      operation: "create_new",
+      content: "Delete me",
+      summary: "Seeded delete file",
+    });
+
+    const connector = new FakeLLMConnector(() => ({
+      relativePath: "notes/delete.md",
+      operation: "delete",
+      summary: "Removed note",
+    }));
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("delete this note")],
+      context: {},
+      next: undefined,
+    });
+
+    await expect(readFile(path.join(vaultRoot, "notes/delete.md"), "utf8")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(result.messages?.[0]?.content).toBe("Removed note Deleted notes/delete.md.");
+  });
+
   it("passes the markdown-backed system prompt into the writer chain", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
@@ -104,6 +156,8 @@ describe("createObsidianNode", () => {
       expect(input[0]).toHaveProperty("content");
       expect((input[0] as HumanMessage).content).toContain("# System Operational Rules");
       expect((input[0] as HumanMessage).content).toContain("Only target markdown files ending strictly with `.md`.");
+      expect((input[0] as HumanMessage).content).toContain("Current date:");
+      expect((input[0] as HumanMessage).content).toContain("Current time:");
 
       return {
         relativePath: "notes/prompt-check.md",

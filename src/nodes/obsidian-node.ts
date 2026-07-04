@@ -1,9 +1,7 @@
 import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-
-import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import {
   createPromptLoader,
@@ -12,31 +10,35 @@ import {
 } from "../prompts/load-system-prompt.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 
-const MarkdownWriteSchema = z
-  .object({
-    relativePath: z
-      .string()
-      .min(1)
-      .describe("The destination path relative to the vault root, and it must end in .md."),
-    operation: z
-      .enum(["create_new", "append", "overwrite"])
-      .describe("The file operation to perform inside the vault."),
-    content: z.string().min(1).describe("Markdown content to write into the target file."),
-    summary: z
-      .string()
-      .min(1)
-      .describe("A concise user-facing confirmation explaining what changed."),
-  })
-  .refine((value) => value.relativePath.endsWith(".md"), {
+const MarkdownRelativePathSchema = z
+  .string()
+  .min(1)
+  .describe("The destination path relative to the vault root, and it must end in .md.")
+  .refine((value) => value.endsWith(".md"), {
     message: "relativePath must target a markdown file.",
-    path: ["relativePath"],
   })
-  .refine((value) => !value.relativePath.includes(".."), {
+  .refine((value) => !value.includes(".."), {
     message: "Path traversal is forbidden.",
-    path: ["relativePath"],
   });
 
-type MarkdownWriteRequest = z.infer<typeof MarkdownWriteSchema>;
+const MarkdownContentSchema = z
+  .string()
+  .min(1)
+  .describe("Markdown content to write into the target file.");
+
+const MarkdownSummarySchema = z
+  .string()
+  .min(1)
+  .describe("A concise user-facing confirmation explaining what changed.");
+
+const MarkdownOperationSchema = z.object({
+  relativePath: MarkdownRelativePathSchema,
+  operation: z.enum(["create_new", "append", "overwrite", "read", "delete"]),
+  content: MarkdownContentSchema.optional(),
+  summary: MarkdownSummarySchema.optional(),
+});
+
+type MarkdownOperationRequest = z.infer<typeof MarkdownOperationSchema>;
 
 export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
@@ -119,7 +121,7 @@ export const applyMarkdownWrite = async (
     relativePath,
     operation,
     content,
-  }: MarkdownWriteRequest,
+  }: Extract<MarkdownOperationRequest, { operation: "create_new" | "append" | "overwrite" }>,
 ): Promise<string> => {
   const targetPath = resolveVaultPath(vaultRoot, relativePath);
   await mkdir(path.dirname(targetPath), { recursive: true });
@@ -160,6 +162,43 @@ export const applyMarkdownWrite = async (
   return relativePath;
 };
 
+export const readMarkdownFile = async (
+  vaultRoot: string,
+  relativePath: string,
+): Promise<string> => {
+  const targetPath = resolveVaultPath(vaultRoot, relativePath);
+
+  try {
+    return await readFile(targetPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Cannot read missing markdown file: ${relativePath}`);
+    }
+
+    throw error;
+  }
+};
+
+export const deleteMarkdownFile = async (
+  vaultRoot: string,
+  relativePath: string,
+): Promise<string> => {
+  const targetPath = resolveVaultPath(vaultRoot, relativePath);
+
+  try {
+    await readFile(targetPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Cannot delete missing markdown file: ${relativePath}`);
+    }
+
+    throw error;
+  }
+
+  await unlink(targetPath);
+  return relativePath;
+};
+
 export const createObsidianNode = (
   llmConnector: ILLMConnector,
   vaultRoot: string,
@@ -167,15 +206,19 @@ export const createObsidianNode = (
   const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, {
     hotReload: shouldHotReloadPrompts(),
   });
-  const writerChain = llmConnector.bindRoutingTools<MarkdownWriteRequest>(MarkdownWriteSchema);
+  const writerChain = llmConnector.bindRoutingTools<MarkdownOperationRequest>(MarkdownOperationSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
-      const writerPrompt = new SystemMessage(loadObsidianPrompt());
       await mkdir(vaultRoot, { recursive: true });
 
       const latestUserRequest = getLatestUserRequest(state.messages);
       const existingFiles = await listMarkdownFiles(vaultRoot);
+      const currentDate = new Date().toISOString().slice(0, 10);
+      const currentTime = new Date().toISOString();
+      const writerPrompt = new SystemMessage(
+        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}`,
+      );
       const fileContext =
         existingFiles.length === 0
           ? "The vault is currently empty."
@@ -183,22 +226,56 @@ export const createObsidianNode = (
 
       const promptMessages = [
         writerPrompt,
-        new HumanMessage(
-          `User request:\n${latestUserRequest}\n\n${fileContext}`,
-        ),
+        new HumanMessage(`User request:\n${latestUserRequest}\n\n${fileContext}`),
       ];
 
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
-      const writeRequest = (await writerChain.invoke(promptMessages)) as MarkdownWriteRequest;
+      const operationRequest = (await writerChain.invoke(promptMessages)) as MarkdownOperationRequest;
 
-      const writtenPath = await applyMarkdownWrite(vaultRoot, writeRequest);
+      switch (operationRequest.operation) {
+        case "read": {
+          const fileContent = await readMarkdownFile(vaultRoot, operationRequest.relativePath);
 
-      return {
-        messages: [
-          new AIMessage(`${writeRequest.summary} Saved to ${writtenPath}.`),
-        ],
-      };
+          return {
+            messages: [
+              new AIMessage(`Contents of ${operationRequest.relativePath}:\n\n${fileContent.trimEnd()}`),
+            ],
+          };
+        }
+        case "delete": {
+          if (!operationRequest.summary) {
+            throw new Error("Delete operations must include a summary.");
+          }
+
+          const deletedPath = await deleteMarkdownFile(vaultRoot, operationRequest.relativePath);
+
+          return {
+            messages: [
+              new AIMessage(`${operationRequest.summary} Deleted ${deletedPath}.`),
+            ],
+          };
+        }
+        case "create_new":
+        case "append":
+        case "overwrite": {
+          if (!operationRequest.content) {
+            throw new Error(`Write operations must include content for ${operationRequest.operation}.`);
+          }
+
+          if (!operationRequest.summary) {
+            throw new Error(`Write operations must include a summary for ${operationRequest.operation}.`);
+          }
+
+          const writtenPath = await applyMarkdownWrite(vaultRoot, operationRequest);
+
+          return {
+            messages: [
+              new AIMessage(`${operationRequest.summary} Saved to ${writtenPath}.`),
+            ],
+          };
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown vault write error.";
 
@@ -210,5 +287,3 @@ export const createObsidianNode = (
     }
   };
 };
-
-export type { MarkdownWriteRequest };
