@@ -17,6 +17,8 @@ The app requires these environment variables:
 - `GEMINI_MODEL` (optional)
 - `OBSIDIAN_VAULT_PATH` (optional locally, defaults to `src/obsidian-vault`)
 
+The assistant keeps only the last 10 messages per thread in state. Older turns are dropped once the conversation window exceeds that limit.
+
 ## Docker Compose
 
 The Compose setup supports both production-style and development containers.

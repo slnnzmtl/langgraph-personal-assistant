@@ -12,9 +12,9 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "pnpm test:unit && pnpm test:e2e",
-    "test:unit": "vitest run",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:unit": "ENABLE_PROMPT_LOGS=false vitest run",
+    "test:e2e": "ENABLE_PROMPT_LOGS=false playwright test",
+    "test:e2e:ui": "ENABLE_PROMPT_LOGS=false playwright test --ui"
   },
   "dependencies": {
     "@langchain/core": "^0.3.66",

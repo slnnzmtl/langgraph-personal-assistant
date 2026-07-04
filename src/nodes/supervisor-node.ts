@@ -1,6 +1,7 @@
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
+import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 
@@ -20,10 +21,14 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
-    const response = (await routingChain.invoke([
+    const promptMessages = [
       supervisorPrompt,
       ...state.messages,
-    ])) as RoutingDecision;
+    ];
+
+    await logSystemPromptInvocation("supervisor-system-prompt", promptMessages);
+
+    const response = (await routingChain.invoke(promptMessages)) as RoutingDecision;
 
     if (response.next === "FINISH") {
       return {

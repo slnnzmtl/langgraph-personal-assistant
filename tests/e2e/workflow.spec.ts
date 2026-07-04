@@ -6,6 +6,7 @@ import path from "node:path";
 import { HumanMessage } from "@langchain/core/messages";
 
 import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
+import { MESSAGE_HISTORY_LIMIT } from "../../src/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const workflowConfig = {
@@ -93,5 +94,83 @@ test.describe("workflow graph", () => {
     expect(finalState.messages.at(-1)?.content).toBe(
       "Mock Finance Sub-Graph Executed. Phase 1 only wires routing and Telegram delivery.",
     );
+  });
+
+  test("keeps only the last 10 messages across multi-turn same-thread execution", async () => {
+    const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-history-vault-"));
+    const connector = new FakeLLMConnector((input) => {
+      if (Array.isArray(input)) {
+        const systemPrompt = input[0];
+        const latestMessage = input.at(-1);
+
+        if (
+          systemPrompt &&
+          "content" in systemPrompt &&
+          typeof systemPrompt.content === "string" &&
+          systemPrompt.content.includes("safe markdown file edits")
+        ) {
+          return {
+            relativePath: "notes/turn-6.md",
+            operation: "create_new",
+            content: "Turn 6 saved to the vault",
+            summary: "Saved turn 6",
+          };
+        }
+
+        if (latestMessage instanceof HumanMessage) {
+          const latestText = typeof latestMessage.content === "string"
+            ? latestMessage.content
+            : JSON.stringify(latestMessage.content);
+
+          if (latestText.includes("save turn 6")) {
+            return { next: "Obsidian_SG" };
+          }
+
+          return {
+            next: "FINISH",
+            reply: `Handled ${latestText}`,
+          };
+        }
+      }
+
+      throw new Error("Unexpected fake connector input in multi-turn e2e test.");
+    });
+
+    try {
+      const app = createWorkflowGraph(connector, {
+        obsidianVaultPath: vaultRoot,
+      });
+
+      let finalState = await app.invoke(
+        {
+          messages: [new HumanMessage("turn 1")],
+        },
+        workflowConfig,
+      );
+
+      for (let turn = 2; turn <= 12; turn += 1) {
+        const prompt = turn === 6 ? "please save turn 6" : `turn ${turn}`;
+        finalState = await app.invoke(
+          {
+            messages: [new HumanMessage(prompt)],
+          },
+          workflowConfig,
+        );
+      }
+
+      const saved = await readFile(path.join(vaultRoot, "notes/turn-6.md"), "utf8");
+      const messageContents = finalState.messages.map((message) =>
+        typeof message.content === "string" ? message.content : JSON.stringify(message.content),
+      );
+
+      expect(saved).toBe("Turn 6 saved to the vault\n");
+      expect(finalState.messages).toHaveLength(MESSAGE_HISTORY_LIMIT);
+      expect(messageContents).not.toContain("turn 1");
+      expect(messageContents).not.toContain("Handled turn 1");
+      expect(messageContents).toContain("turn 12");
+      expect(messageContents).toContain("Handled turn 12");
+    } finally {
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
   });
 });

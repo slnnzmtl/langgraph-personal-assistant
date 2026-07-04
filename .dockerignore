@@ -2,6 +2,7 @@
 .git
 .gitignore
 dist
+logs
 node_modules
 src/obsidian-vault
 npm-debug.log*

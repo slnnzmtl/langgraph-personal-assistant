@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
+import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 
 const MarkdownWriteSchema = z
@@ -184,12 +185,16 @@ export const createObsidianNode = (
           ? "The vault is currently empty."
           : `Existing markdown files:\n- ${existingFiles.join("\n- ")}`;
 
-      const writeRequest = (await writerChain.invoke([
+      const promptMessages = [
         writerPrompt,
         new HumanMessage(
           `User request:\n${latestUserRequest}\n\n${fileContext}`,
         ),
-      ])) as MarkdownWriteRequest;
+      ];
+
+      await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
+
+      const writeRequest = (await writerChain.invoke(promptMessages)) as MarkdownWriteRequest;
 
       const writtenPath = await applyMarkdownWrite(vaultRoot, writeRequest);
 
