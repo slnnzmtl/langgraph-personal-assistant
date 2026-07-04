@@ -38,6 +38,13 @@ export const extractTelegramMessageText = (content: BaseMessage["content"]): str
   return JSON.stringify(content);
 };
 
+const truncateForLog = (value: string, maxLength = 500): string =>
+  value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
+
+const logTelegramMessage = (role: "user" | "bot", text: string): void => {
+  console.log(`${role}: ${truncateForLog(text)}`);
+};
+
 export class TelegramAdapter implements ITelegramAdapter {
   private readonly bot: Telegraf<Context>;
   private readonly allowedTelegramUserId: string;
@@ -57,6 +64,8 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
 
     if (ctx.message && "text" in ctx.message) {
+      logTelegramMessage("user", ctx.message.text);
+
       return new HumanMessage(ctx.message.text);
     }
 
@@ -74,6 +83,8 @@ export class TelegramAdapter implements ITelegramAdapter {
 
       const fileLink = await ctx.telegram.getFileLink(photo.file_id);
       const caption = "caption" in ctx.message ? ctx.message.caption : undefined;
+
+      logTelegramMessage("user", caption ?? "Process this image.");
 
       return new HumanMessage({
         content: [
@@ -108,6 +119,8 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
 
     const output = extractTelegramMessageText(lastMessage.content);
+
+    logTelegramMessage("bot", output);
 
     if (lastMessage instanceof AIMessage) {
       await ctx.reply(output, { parse_mode: "Markdown" });

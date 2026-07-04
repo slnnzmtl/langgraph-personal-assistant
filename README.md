@@ -19,6 +19,10 @@ The app requires these environment variables:
 
 The assistant keeps only the last 10 messages per thread in state. Older turns are dropped once the conversation window exceeds that limit.
 
+The supervisor system prompt source of truth is `prompts/supervisor.md`.
+The Obsidian system prompt source of truth is `prompts/obsidian.md`.
+During local development and the dev container, the Obsidian prompt is reloaded on each invocation so prompt edits are picked up without restarting the process.
+
 ## Docker Compose
 
 The Compose setup supports both production-style and development containers.

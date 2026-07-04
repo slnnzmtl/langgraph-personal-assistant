@@ -107,7 +107,7 @@ test.describe("workflow graph", () => {
           systemPrompt &&
           "content" in systemPrompt &&
           typeof systemPrompt.content === "string" &&
-          systemPrompt.content.includes("safe markdown file edits")
+          systemPrompt.content.includes("# System Operational Rules")
         ) {
           return {
             relativePath: "notes/turn-6.md",

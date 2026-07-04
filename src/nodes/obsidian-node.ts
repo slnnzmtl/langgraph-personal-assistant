@@ -5,6 +5,11 @@ import { z } from "zod";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
+import {
+  createPromptLoader,
+  OBSIDIAN_SYSTEM_PROMPT_PATH,
+  shouldHotReloadPrompts,
+} from "../prompts/load-system-prompt.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 
 const MarkdownWriteSchema = z
@@ -32,19 +37,6 @@ const MarkdownWriteSchema = z
   });
 
 type MarkdownWriteRequest = z.infer<typeof MarkdownWriteSchema>;
-
-const writerPrompt = new SystemMessage(`
-You convert note-taking requests into safe markdown file edits inside a local vault.
-
-Rules:
-- Only target markdown files ending in .md.
-- Return a relative path inside the vault, never an absolute path.
-- Choose append when the user wants to add to an existing note.
-- Choose overwrite only when the user explicitly wants replacement.
-- Choose create_new for a new standalone note.
-- Produce clean markdown without redundant explanation outside the file content.
-- The summary must be a short confirmation for the end user.
-`);
 
 export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
@@ -172,10 +164,14 @@ export const createObsidianNode = (
   llmConnector: ILLMConnector,
   vaultRoot: string,
 ) => {
+  const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, {
+    hotReload: shouldHotReloadPrompts(),
+  });
   const writerChain = llmConnector.bindRoutingTools<MarkdownWriteRequest>(MarkdownWriteSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
+      const writerPrompt = new SystemMessage(loadObsidianPrompt());
       await mkdir(vaultRoot, { recursive: true });
 
       const latestUserRequest = getLatestUserRequest(state.messages);
