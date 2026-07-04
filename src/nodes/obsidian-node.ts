@@ -6,8 +6,6 @@ import { z } from "zod";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 
-const vaultRoot = path.resolve(process.cwd(), "src/obsidian-vault");
-
 const MarkdownWriteSchema = z
   .object({
     relativePath: z
@@ -105,7 +103,7 @@ const listMarkdownFiles = async (directory: string, prefix = ""): Promise<string
   return files.flat().sort();
 };
 
-const resolveVaultPath = (relativePath: string): string => {
+const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));
 
   if (normalizedPath.startsWith("../") || path.posix.isAbsolute(normalizedPath)) {
@@ -122,12 +120,15 @@ const resolveVaultPath = (relativePath: string): string => {
   return absolutePath;
 };
 
-const applyMarkdownWrite = async ({
-  relativePath,
-  operation,
-  content,
-}: MarkdownWriteRequest): Promise<string> => {
-  const targetPath = resolveVaultPath(relativePath);
+const applyMarkdownWrite = async (
+  vaultRoot: string,
+  {
+    relativePath,
+    operation,
+    content,
+  }: MarkdownWriteRequest,
+): Promise<string> => {
+  const targetPath = resolveVaultPath(vaultRoot, relativePath);
   await mkdir(path.dirname(targetPath), { recursive: true });
 
   if (operation === "create_new") {
@@ -165,7 +166,10 @@ const applyMarkdownWrite = async ({
   return relativePath;
 };
 
-export const createObsidianNode = (llmConnector: ILLMConnector) => {
+export const createObsidianNode = (
+  llmConnector: ILLMConnector,
+  vaultRoot: string,
+) => {
   const writerChain = llmConnector.bindRoutingTools<MarkdownWriteRequest>(MarkdownWriteSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
@@ -186,7 +190,7 @@ export const createObsidianNode = (llmConnector: ILLMConnector) => {
         ),
       ])) as MarkdownWriteRequest;
 
-      const writtenPath = await applyMarkdownWrite(writeRequest);
+      const writtenPath = await applyMarkdownWrite(vaultRoot, writeRequest);
 
       return {
         messages: [
@@ -201,6 +205,6 @@ export const createObsidianNode = (llmConnector: ILLMConnector) => {
           new AIMessage(`Unable to edit the local markdown vault: ${message}`),
         ],
       };
-      }
+    }
   };
 };

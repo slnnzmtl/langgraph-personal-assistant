@@ -1,0 +1,8 @@
+.env
+.git
+.gitignore
+dist
+node_modules
+src/obsidian-vault
+npm-debug.log*
+pnpm-debug.log*

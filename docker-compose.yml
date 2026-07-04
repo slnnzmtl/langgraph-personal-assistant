@@ -1,0 +1,36 @@
+name: personal-assistant
+
+services:
+  personal-assistant:
+    build:
+      context: .
+      target: production
+    env_file:
+      - .env
+    environment:
+      OBSIDIAN_VAULT_PATH: /data/obsidian-vault
+    volumes:
+      - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+    restart: unless-stopped
+
+  personal-assistant-dev:
+    build:
+      context: .
+      target: development
+    profiles:
+      - dev
+    env_file:
+      - .env
+    environment:
+      OBSIDIAN_VAULT_PATH: /data/obsidian-vault
+    command: sh -c "pnpm install && pnpm dev"
+    volumes:
+      - .:/app
+      - personal-assistant-node-modules:/app/node_modules
+      - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+    restart: unless-stopped
+
+volumes:
+  personal-assistant-node-modules:
+
+# Future services can be added here without changing the bot's mount or env contract.

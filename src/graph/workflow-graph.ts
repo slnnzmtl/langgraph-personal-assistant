@@ -1,14 +1,18 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 
+import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { financeMockNode } from "../nodes/finance-mock-node.js";
 import { createObsidianNode } from "../nodes/obsidian-node.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 
-export const createWorkflowGraph = (llmConnector: ILLMConnector) => {
+export const createWorkflowGraph = (
+  llmConnector: ILLMConnector,
+  config: Pick<AppConfig, "obsidianVaultPath">,
+) => {
   const supervisorNode = createSupervisorNode(llmConnector);
-  const obsidianNode = createObsidianNode(llmConnector);
+  const obsidianNode = createObsidianNode(llmConnector, config.obsidianVaultPath);
   const memory = new MemorySaver();
 
   return new StateGraph(AgentStateAnnotation)

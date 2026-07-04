@@ -1,3 +1,5 @@
+import path from "node:path";
+
 const REQUIRED_ENV_VARS = [
   "TELEGRAM_BOT_TOKEN",
   "ALLOWED_TELEGRAM_USER_ID",
@@ -11,6 +13,7 @@ export interface AppConfig {
   allowedTelegramUserId: string;
   googleApiKey: string;
   geminiModel: string;
+  obsidianVaultPath: string;
 }
 
 const getRequiredEnv = (name: RequiredEnvVar): string => {
@@ -28,4 +31,7 @@ export const loadConfig = (): AppConfig => ({
   allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
   googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+  obsidianVaultPath:
+    process.env.OBSIDIAN_VAULT_PATH ??
+    path.resolve(process.cwd(), "src/obsidian-vault"),
 });
