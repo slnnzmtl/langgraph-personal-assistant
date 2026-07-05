@@ -1,4 +1,4 @@
-import type { BaseMessage } from "@langchain/core/messages";
+import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
 export const ROUTE_NAMES = ["Finance_SG", "Obsidian_SG", "FINISH"] as const;
@@ -20,6 +20,12 @@ export type ObsidianLoopState = {
   lastReadContent?: string;
 };
 
+/**
+ * Returns the last `limit` messages, then advances the start index forward until
+ * the window begins at a clean semantic boundary (HumanMessage or a plain AIMessage
+ * with no pending tool calls).  This prevents a trim from orphaning a ToolMessage
+ * whose paired AIMessage(functionCall) was just sliced off, which Gemini rejects.
+ */
 export const trimMessagesToLast = (
   messages: BaseMessage[],
   limit = MESSAGE_HISTORY_LIMIT,
@@ -28,7 +34,26 @@ export const trimMessagesToLast = (
     return messages;
   }
 
-  return messages.slice(-limit);
+  let sliced = messages.slice(-limit);
+
+  while (sliced.length > 0) {
+    const first = sliced[0];
+    const isOrphanedToolMessage = first instanceof ToolMessage;
+    const isAIWithPendingToolCalls =
+      first instanceof AIMessage &&
+      (
+        (Array.isArray(first.tool_calls) && first.tool_calls.length > 0) ||
+        Boolean(
+          (first as AIMessage & { additional_kwargs?: Record<string, unknown> })
+            .additional_kwargs?.functionCall,
+        )
+      );
+
+    if (!isOrphanedToolMessage && !isAIWithPendingToolCalls) break;
+    sliced = sliced.slice(1);
+  }
+
+  return sliced;
 };
 
 export const reduceAgentMessages = (

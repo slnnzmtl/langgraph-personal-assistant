@@ -22,7 +22,7 @@ describe("named prompt loaders", () => {
 
     expect(prompt).toContain("Routing rules:");
     expect(prompt).toContain("Use Finance_SG for money, expenses, transactions, budgets, banking, or finance logging.");
-    expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, or documentation.");
+    expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, documentation, or task actions");
     expect(prompt).toContain("Use FINISH for general chat, clarifications, or when you can answer directly without a specialized sub-graph.");
   });
 
@@ -32,8 +32,10 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("# Role & Core Objective");
     expect(prompt).toContain("# System Operational Rules");
     expect(prompt).toContain("Only target markdown files ending strictly with `.md`.");
-    expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/[Month]/[Month] [Day] - [Weekday].md` pattern.");
-    expect(prompt).toContain("When writing todos or day plans, always use checkbox list items in the form `- [ ]` for incomplete tasks.");
+    expect(prompt).toContain("You are the dedicated Obsidian Vault Manager agent.");
+    expect(prompt).toContain("A. READ INTENT");
+    expect(prompt).toContain("B. WRITE / MODIFY INTENT");
+    expect(prompt).toContain("'overwrite': To modify existing text, check tasks, or alter structures, call `read_markdown_file` first, apply your modifications to the text content, and overwrite the file completely.");
   });
 });
 

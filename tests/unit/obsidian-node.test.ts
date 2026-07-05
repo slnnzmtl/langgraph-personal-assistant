@@ -11,6 +11,7 @@ import {
   createObsidianNode,
   createObsidianTools,
   resolveVaultPath,
+  readMarkdownFile,
 } from "../../src/nodes/obsidian-node.js";
 import {
   createPromptLoader,
@@ -79,8 +80,29 @@ describe("obsidian node helpers", () => {
         relativePath: "note.md",
         operation: "append",
         summary: "Append note",
+        content: "More content",
       }),
-    ).rejects.toThrow();
+    ).resolves.toContain("Success: Append note");
+  });
+
+  it("reads markdown with plain contents for the model", async () => {
+    const vaultRoot = await createTempVault();
+
+    await applyMarkdownWrite(vaultRoot, {
+      relativePath: "notes/read.md",
+      operation: "create_new",
+      content: "Alpha\nBeta\n",
+      summary: "Created read note",
+    });
+
+    const [readTool] = createObsidianTools(vaultRoot) as Array<{
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+
+    const output = await readTool.invoke({ relativePath: "notes/read.md" });
+
+    expect(output).toContain("Alpha");
+    expect(output).toContain("Beta");
   });
 });
 
@@ -91,10 +113,9 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("# Role & Core Objective");
     expect(prompt).toContain("# System Operational Rules");
     expect(prompt).toContain("The runtime injects today's current date and time into the system prompt.");
-    expect(prompt).toContain("Task Formatting: Always use checkbox list items `- [ ]` for incomplete tasks.");
-    expect(prompt).toContain(
-      "Directory Rules: Keep routine logs, daily plans, and task lists under `routine/[Month]/[Month] [Day] - [Weekday].md`.",
-    );
+    expect(prompt).toContain("A. READ INTENT");
+    expect(prompt).toContain("B. WRITE / MODIFY INTENT");
+    expect(prompt).toContain("'overwrite': To modify existing text, check tasks, or alter structures, call `read_markdown_file` first, apply your modifications to the text content, and overwrite the file completely.");
   });
 
   it("passes the markdown-backed system prompt into the tool-bound model", async () => {
@@ -158,7 +179,7 @@ describe("createObsidianNode", () => {
     });
 
     expect(result.messages?.[0]?.content).toBe(
-      "Unable to edit the local markdown vault: the Obsidian model requested clarification instead of using the injected date and filesystem tools.",
+      "Unable to edit the local markdown vault: the Obsidian model requested clarification instead of using tools.",
     );
   });
 
@@ -188,8 +209,8 @@ describe("createObsidianNode", () => {
       expect(promptContent).toContain("Current time:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
-      expect(promptContent).toContain("Routine note availability:");
-      expect(promptContent).toContain(`- Today: exists at ${expectedRoutinePath}`);
+      expect(promptContent).toContain("For today, use");
+      expect(promptContent).toContain(expectedRoutinePath);
 
       return new AIMessage("Done.");
     });
@@ -212,11 +233,7 @@ describe("createObsidianNode", () => {
         .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
         .join("\n");
 
-      expect(promptContent).toContain("Obsidian loop context:");
-      expect(promptContent).toContain("Original user request: create a note for today, move unchecked todos from yesterday's note");
-      expect(promptContent).toContain("Last tool call: read_markdown_file on routine/July/July 4 - Sat.md.");
       expect(promptContent).toContain("- [ ] Buy milk");
-      expect(promptContent).toContain("The user request still requires a markdown write step. Do not finish yet.");
 
       return new AIMessage("Done.");
     });
@@ -286,6 +303,54 @@ describe("createObsidianNode", () => {
     expect(result.messages?.[0]?.content).toBe(
       "Added sauna to today's tasks. Saved to routine/July/July 5 - Sun.md.",
     );
+  });
+
+  it("waits for the full tool batch before fast-exiting", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector(() => {
+      throw new Error("The model should not be reinvoked after a complete tool batch.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
+
+    const result = await obsidianNode({
+      messages: [
+        new HumanMessage("collect and save today's note"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "read_markdown_file",
+              args: { relativePath: "routine/July/July 5 - Sun.md" },
+              id: "read-today",
+              type: "tool_call",
+            },
+            {
+              name: "write_markdown_file",
+              args: {
+                relativePath: "routine/July/July 5 - Sun.md",
+                operation: "overwrite",
+                content: "# Today\n- [ ] First\n",
+                summary: "Prepared today's note.",
+              },
+              id: "write-today",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          tool_call_id: "read-today",
+          content: "# Today\n- [ ] First\n",
+        }),
+        new ToolMessage({
+          tool_call_id: "write-today",
+          content: "Success: Prepared today's note. Saved to routine/July/July 5 - Sun.md.",
+        }),
+      ],
+      context: { obsidianToolStepCount: 1 },
+      next: undefined,
+    });
+
+    expect(result.messages?.[0]?.content).toBe("Prepared today's note. Saved to routine/July/July 5 - Sun.md.");
   });
 
   it("supports hot-reloading prompt content during development via the shared loader", async () => {

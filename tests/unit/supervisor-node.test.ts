@@ -1,4 +1,4 @@
-import { HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
@@ -16,7 +16,7 @@ describe("createSupervisorNode", () => {
 
     expect(prompt).toContain("Routing rules:");
     expect(prompt).toContain("Use Finance_SG for money, expenses, transactions, budgets, banking, or finance logging.");
-    expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, or documentation.");
+    expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, documentation, or task actions (e.g. mark complete, check off, mark done).");
     expect(prompt).toContain("Use FINISH for general chat, clarifications, or when you can answer directly without a specialized sub-graph.");
   });
 
@@ -70,16 +70,19 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
-    expect(result).toEqual({ next: "Finance_SG" });
+    expect(result.next).toBe("Finance_SG");
+    expect(result.context).toEqual({ latestUserRequest: "log lunch expense" });
   });
 
   it("receives at most the system prompt plus the last 10 state messages", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
-      expect((input as HumanMessage[])).toHaveLength(MESSAGE_HISTORY_LIMIT + 2);
+      expect((input as HumanMessage[])).toHaveLength(2);
       expect((input as HumanMessage[])[0]?.content).toContain("Routing rules:");
-      expect((input as HumanMessage[])[0]?.content).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, or documentation.");
-      expect((input as HumanMessage[]).at(-1)?.content).toContain("Route based primarily on this latest user request:");
+      expect((input as HumanMessage[])[0]?.content).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, documentation, or task actions (e.g. mark complete, check off, mark done).");
+      expect((input as HumanMessage[])[1]?.content).toContain("turn-5");
+      expect((input as HumanMessage[])[1]?.content).toContain("turn-14");
+      expect((input as HumanMessage[])[1]?.content).toContain("Route based primarily on this latest user request:");
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
@@ -106,9 +109,7 @@ describe("createSupervisorNode", () => {
       const promptMessages = input as HumanMessage[];
       const latestMessage = promptMessages.at(-1);
 
-      expect(latestMessage?.content).toBe(
-        "Route based primarily on this latest user request:\ngive me a plan for yesterday",
-      );
+      expect(typeof latestMessage?.content === "string" ? latestMessage.content : "").toContain("Route based primarily on this latest user request:\ngive me a plan for yesterday");
 
       return { next: "Obsidian_SG" };
     });
@@ -123,6 +124,46 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result).toEqual({ next: "Obsidian_SG" });
+    expect(result.next).toBe("Obsidian_SG");
+    expect(result.context).toEqual({ latestUserRequest: "give me a plan for yesterday" });
+  });
+
+  it("sanitizes prior tool messages before routing", async () => {
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptMessages = input as Array<HumanMessage | AIMessage>;
+
+      expect(promptMessages.some((message) => message instanceof ToolMessage)).toBe(false);
+      expect(promptMessages.some((message) => message instanceof AIMessage && Array.isArray(message.tool_calls) && message.tool_calls.length > 0)).toBe(false);
+
+      return { next: "FINISH", reply: "Sanitized" };
+    });
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("add go to shop"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "write_markdown_file",
+              args: { relativePath: "routine/2026-07-05.md" },
+              id: "write-1",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          tool_call_id: "write-1",
+          content: "Success: saved note.",
+        }),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Sanitized");
   });
 });

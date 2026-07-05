@@ -99,4 +99,4 @@ async parseInbound(ctx: Context): Promise<HumanMessage | null> {
 4. **Invoke:** The Adapter calls `app.invoke({ messages: [newHumanMessage] })` on the compiled LangGraph `WorkflowGraph`.
 5. **Await:** LangGraph processes the intent, routes to sub-graphs (Finance/Obsidian), executes tools, and resolves.
 6. **Respond:** The Adapter extracts the last `BaseMessage` from the returned state and uses `ctx.reply()` to send the markdown-formatted response back to your Telegram client.
-7. **Error Fallback:** If the LangGraph execution fails or times out, the Adapter catches the exception and replies with a safe fallback (e.g., _"System Error: Unable to process request."_) to prevent the bot from hanging silently.
+7. **Error Fallback:** If the LangGraph execution fails or times out, the Adapter catches the exception and replies with a real reason explanation. 

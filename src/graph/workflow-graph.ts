@@ -1,5 +1,6 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
+import type { BaseMessage } from "@langchain/core/messages";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
@@ -36,17 +37,31 @@ export const createWorkflowGraph = (
     .addConditionalEdges("obsidian", (state: AgentState) => {
       const lastMessage = state.messages[state.messages.length - 1];
 
-      if (
-        lastMessage &&
-        typeof lastMessage === "object" &&
+      if (!lastMessage || typeof lastMessage !== "object") return "supervisor";
+
+      const hasToolCalls =
         "tool_calls" in lastMessage &&
         Array.isArray(lastMessage.tool_calls) &&
-        lastMessage.tool_calls.length > 0
-      ) {
+        lastMessage.tool_calls.length > 0;
+
+      const hasLegacyFunctionCall = Boolean(
+        (lastMessage as BaseMessage & { additional_kwargs?: Record<string, unknown> })
+          .additional_kwargs?.functionCall,
+      );
+
+      if (hasToolCalls || hasLegacyFunctionCall) {
         return "obsidianTools";
       }
 
-      return END;
+      if (
+        "content" in lastMessage &&
+        typeof lastMessage.content === "string" &&
+        lastMessage.content.startsWith("Unable to edit the local markdown vault:")
+      ) {
+        return END;
+      }
+
+      return "supervisor";
     })
     .addEdge("obsidianTools", "obsidian")
     .compile({ checkpointer: memory, name: "personal-assistant-phase-1" });

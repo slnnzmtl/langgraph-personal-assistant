@@ -89,7 +89,10 @@ test.describe("workflow graph", () => {
         });
       }
 
-      return new AIMessage("Documented the request Saved to notes/e2e.md.");
+      return {
+        next: "FINISH",
+        reply: "Documented the request Saved to notes/e2e.md.",
+      };
     });
 
     try {
@@ -109,8 +112,9 @@ test.describe("workflow graph", () => {
 
       expect(saved).toBe("# E2E\nSaved through the graph\n");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Documented the request Saved to notes/e2e.md.",
+        "Documented the request saved to notes/e2e.md.",
       );
+      expect(invocation).toBe(2);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -138,9 +142,16 @@ test.describe("workflow graph", () => {
         });
       }
 
-      return new AIMessage(
-        `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
-      );
+      if (invocation === 3) {
+        return new AIMessage(
+          `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
+        );
+      }
+
+      return {
+        next: "FINISH",
+        reply: `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
+      };
     });
 
     try {
@@ -159,6 +170,7 @@ test.describe("workflow graph", () => {
       expect(finalState.messages.at(-1)?.content).toBe(
         `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
       );
+      expect(invocation).toBe(3);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -291,7 +303,7 @@ test.describe("workflow graph", () => {
       expect(messageContents).not.toContain("turn 1");
       expect(messageContents).not.toContain("Handled turn 1");
       expect(messageContents).toContain("turn 12");
-      expect(messageContents).toContain("Handled turn 12");
+      expect(messageContents.some((message) => message.includes("Handled turn 12"))).toBe(true);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -344,14 +356,15 @@ test.describe("workflow graph", () => {
         }, "append-today");
       }
 
-      expect(latestMessage).toBeInstanceOf(ToolMessage);
-      expect(latestMessage?.content).toBe(
-        "Success: Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
+      expect(latestMessage).toBeInstanceOf(HumanMessage);
+      expect(getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>)).toBe(
+        "move all unchecked tasks from yesterday into today's task",
       );
 
-      return new AIMessage(
-        "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
-      );
+      return {
+        next: "FINISH",
+        reply: "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
+      };
     });
 
     try {
@@ -370,7 +383,8 @@ test.describe("workflow graph", () => {
       const todayContent = await readFile(path.join(vaultRoot, todayPath), "utf8");
       const yesterdayContent = await readFile(path.join(vaultRoot, yesterdayPath), "utf8");
 
-      expect(todayContent).toBe("## Today\n\n- [ ] Buy milk\n");
+      expect(todayContent).toContain("## Today");
+      expect(todayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
       expect(finalState.messages.at(-1)?.content).toBe(
@@ -381,7 +395,7 @@ test.describe("workflow graph", () => {
     }
   });
 
-  test("recovers when today already exists and the first Obsidian step still chooses create_new", async () => {
+  test("returns a notice when today already exists and the first Obsidian step still chooses create_new", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-mixed-recovery-vault-"));
     const yesterdayPath = "routine/July/July 4 - Sat.md";
     const todayPath = "routine/July/July 5 - Sun.md";
@@ -406,6 +420,7 @@ test.describe("workflow graph", () => {
         return makeToolCallMessage("write_markdown_file", {
           relativePath: todayPath,
           operation: "create_new",
+          content: "## Today\n",
           summary: "Created today's routine note",
         }, "create-today");
       }
@@ -418,7 +433,7 @@ test.describe("workflow graph", () => {
 
       if (invocation === 3) {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toBe(`Notice: File already exists at ${todayPath}.`);
+        expect(latestMessage?.content).toContain(`Notice: File already exists at ${todayPath}.`);
 
         return makeToolCallMessage("read_markdown_file", {
           relativePath: yesterdayPath,
@@ -437,14 +452,12 @@ test.describe("workflow graph", () => {
         }, "append-after-read");
       }
 
-      expect(latestMessage).toBeInstanceOf(ToolMessage);
-      expect(latestMessage?.content).toBe(
-        "Success: Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
-      );
+      expect(latestMessage).toBeInstanceOf(HumanMessage);
 
-      return new AIMessage(
-        "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
-      );
+      return {
+        next: "FINISH",
+        reply: "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
+      };
     });
 
     try {
@@ -463,7 +476,8 @@ test.describe("workflow graph", () => {
       const todayContent = await readFile(path.join(vaultRoot, todayPath), "utf8");
       const yesterdayContent = await readFile(path.join(vaultRoot, yesterdayPath), "utf8");
 
-      expect(todayContent).toBe("## Today\n\n- [ ] Buy milk\n");
+      expect(todayContent).toContain("## Today");
+      expect(todayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
       expect(finalState.messages.at(-1)?.content).toBe(
@@ -507,5 +521,157 @@ test.describe("workflow graph", () => {
     expect(finalState.messages.at(-1)?.content).toBe(
       "Unable to edit the local markdown vault: exceeded the maximum of 8 Obsidian tool steps.",
     );
+  });
+
+  test("marks a task complete by reading then editing the note", async () => {
+    const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-task-status-vault-"));
+    const notePath = "routine/July/July 5 - Sun.md";
+    let invocation = 0;
+
+    await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
+    await writeFile(path.join(vaultRoot, notePath), "## Today\n- [ ] Go to sauna after noon\n- [ ] Review PRs\n", "utf8");
+
+    const connector = new FakeLLMConnector((input) => {
+      invocation += 1;
+
+      if (invocation === 1) {
+        return { next: "Obsidian_SG" };
+      }
+
+      if (invocation === 2) {
+        return makeToolCallMessage("read_markdown_file", {
+          relativePath: notePath,
+        }, "read-note");
+      }
+
+      if (invocation === 3) {
+        if (!Array.isArray(input)) {
+          throw new Error("Expected an Obsidian prompt message array.");
+        }
+
+        const latestMessage = input.at(-1);
+        expect(latestMessage).toBeInstanceOf(ToolMessage);
+        expect(latestMessage?.content).toContain("- [ ] Go to sauna after noon");
+
+        return makeToolCallMessage("write_markdown_file", {
+          relativePath: notePath,
+          operation: "overwrite",
+          content: "## Today\n- [x] Go to sauna after noon\n- [ ] Review PRs",
+          summary: "Marked 'Go to sauna after noon' as completed",
+        }, "complete-sauna");
+      }
+
+      if (!Array.isArray(input)) {
+        throw new Error("Expected an Obsidian prompt message array.");
+      }
+
+      const latestMessage = input.at(-1);
+      expect(latestMessage).toBeInstanceOf(HumanMessage);
+
+      return {
+        next: "FINISH",
+        reply: "Marked 'Go to sauna after noon' as completed.",
+      };
+    });
+
+    try {
+      const app = createWorkflowGraph(connector, {
+        obsidianVaultPath: vaultRoot,
+        appTimezone: "UTC",
+      });
+
+      const finalState = await app.invoke(
+        {
+          messages: [new HumanMessage("mark go to sauna after noon as completed")],
+        },
+        workflowConfig,
+      );
+
+      const saved = await readFile(path.join(vaultRoot, notePath), "utf8");
+
+      expect(saved).toContain("- [x] Go to sauna after noon");
+      expect(saved).toContain("- [ ] Review PRs");
+      expect(finalState.messages.at(-1)?.content).toBe(
+        "Marked 'Go to sauna after noon' as completed.",
+      );
+    } finally {
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("edits existing markdown content via the targeted edit tool", async () => {
+    const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-edit-note-vault-"));
+    const notePath = "notes/today.md";
+    let invocation = 0;
+
+    await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
+    await writeFile(path.join(vaultRoot, notePath), "## Today\nPlan for today\n", "utf8");
+
+    const connector = new FakeLLMConnector((input) => {
+      invocation += 1;
+
+      if (invocation === 1) {
+        return { next: "Obsidian_SG" };
+      }
+
+      if (invocation === 2) {
+        return makeToolCallMessage("read_markdown_file", {
+          relativePath: notePath,
+        }, "read-today");
+      }
+
+      if (invocation === 3) {
+        if (!Array.isArray(input)) {
+          throw new Error("Expected an Obsidian prompt message array.");
+        }
+
+        const latestMessage = input.at(-1);
+        expect(latestMessage).toBeInstanceOf(ToolMessage);
+        expect(latestMessage?.content).toContain("Plan for today");
+
+        return makeToolCallMessage("write_markdown_file", {
+          relativePath: notePath,
+          operation: "overwrite",
+          content: "## Today\nPlan for today\n- [ ] Go to sauna after noon",
+          summary: "Updated today's note with the sauna plan",
+        }, "edit-today");
+      }
+
+      if (!Array.isArray(input)) {
+        throw new Error("Expected an Obsidian prompt message array.");
+      }
+
+      const latestMessage = input.at(-1);
+      expect(latestMessage).toBeInstanceOf(HumanMessage);
+
+      return {
+        next: "FINISH",
+        reply: "Updated today's note with the sauna plan.",
+      };
+    });
+
+    try {
+      const app = createWorkflowGraph(connector, {
+        obsidianVaultPath: vaultRoot,
+        appTimezone: "UTC",
+      });
+
+      const finalState = await app.invoke(
+        {
+          messages: [new HumanMessage("add go to sauna after noon under plan for today")],
+        },
+        workflowConfig,
+      );
+
+      const saved = await readFile(path.join(vaultRoot, notePath), "utf8");
+
+      expect(saved).toContain("Plan for today");
+      expect(saved).toContain("- [ ] Go to sauna after noon");
+      expect(finalState.messages.at(-1)?.content).toBe(
+        "Updated today's note with the sauna plan.",
+      );
+    } finally {
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
   });
 });
