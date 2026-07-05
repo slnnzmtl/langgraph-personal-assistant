@@ -20,6 +20,8 @@ The app requires these environment variables:
 
 The assistant keeps only the last 10 messages per thread in state. Older turns are dropped once the conversation window exceeds that limit.
 
+Within the Obsidian branch, the graph can now execute multiple note-file steps for one user request. It loops inside Obsidian until the task is complete, which allows read-then-write workflows like carrying unchecked tasks from yesterday into today.
+
 The supervisor system prompt source of truth is `prompts/supervisor.md`.
 The Obsidian system prompt source of truth is `prompts/obsidian.md`.
 During local development and the dev container, the Obsidian prompt is reloaded on each invocation so prompt edits are picked up without restarting the process.

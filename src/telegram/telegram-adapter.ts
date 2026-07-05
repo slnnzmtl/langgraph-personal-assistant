@@ -118,7 +118,12 @@ export class TelegramAdapter implements ITelegramAdapter {
       return;
     }
 
-    const output = extractTelegramMessageText(lastMessage.content);
+    const output = extractTelegramMessageText(lastMessage.content).trim();
+
+    if (!output) {
+      await ctx.reply("System Error: Empty response from agent.");
+      return;
+    }
 
     logTelegramMessage("bot", output);
 

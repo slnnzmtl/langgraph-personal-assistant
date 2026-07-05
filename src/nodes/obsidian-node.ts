@@ -1,4 +1,6 @@
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { tool } from "@langchain/core/tools";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
@@ -8,7 +10,7 @@ import {
   OBSIDIAN_SYSTEM_PROMPT_PATH,
   shouldHotReloadPrompts,
 } from "../prompts/load-system-prompt.js";
-import type { AgentState, AgentStateUpdate } from "../state.js";
+import { OBSIDIAN_MAX_STEPS, type AgentState, type AgentStateUpdate } from "../state.js";
 
 const MarkdownRelativePathSchema = z
   .string()
@@ -31,19 +33,26 @@ const MarkdownSummarySchema = z
   .min(1)
   .describe("A concise user-facing confirmation explaining what changed.");
 
-const MarkdownOperationSchema = z.object({
+const ReadMarkdownToolSchema = z.object({
   relativePath: MarkdownRelativePathSchema,
-  operation: z.enum(["create_new", "append", "overwrite", "read", "delete"]),
-  content: MarkdownContentSchema.optional(),
-  summary: MarkdownSummarySchema.optional(),
 });
 
-type MarkdownOperationRequest = z.infer<typeof MarkdownOperationSchema>;
+const WriteMarkdownToolSchema = z.object({
+  relativePath: MarkdownRelativePathSchema,
+  operation: z.enum(["create_new", "append", "overwrite"]),
+  content: MarkdownContentSchema.optional(),
+  summary: MarkdownSummarySchema,
+});
+
+const DeleteMarkdownToolSchema = z.object({
+  relativePath: MarkdownRelativePathSchema,
+  summary: MarkdownSummarySchema,
+});
 
 type MarkdownWriteOperation = {
   relativePath: string;
   operation: "create_new" | "append" | "overwrite";
-  content: string;
+  content?: string;
   summary?: string;
 };
 
@@ -71,13 +80,114 @@ export const extractMessageTextContent = (content: BaseMessage["content"]): stri
   return JSON.stringify(content);
 };
 
-const getLatestUserRequest = (messages: BaseMessage[]): string => {
+const formatTerminalToolResponse = (content: BaseMessage["content"]): string => {
+  return extractMessageTextContent(content).replace(/^(Success|Notice):\s*/u, "");
+};
+
+const OBSIDIAN_TOOL_STEP_COUNT_KEY = "obsidianToolStepCount";
+const OBSIDIAN_ORIGINAL_REQUEST_KEY = "obsidianOriginalRequest";
+
+const writeIntentPattern = /\b(create|save|write|append|overwrite|update|move|copy|add|document|log|record)\b/i;
+
+const getObsidianToolStepCount = (state: AgentState): number => {
+  const value = state.context[OBSIDIAN_TOOL_STEP_COUNT_KEY];
+
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+};
+
+const getLatestToolCallMessage = (messages: BaseMessage[]): AIMessage | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (
+      message instanceof AIMessage
+      && Array.isArray(message.tool_calls)
+      && message.tool_calls.length > 0
+    ) {
+      return message;
+    }
+  }
+
+  return undefined;
+};
+
+const getLatestToolResultMessage = (messages: BaseMessage[]): ToolMessage | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+
+    if (message instanceof ToolMessage) {
+      return message;
+    }
+  }
+
+  return undefined;
+};
+
+const getLatestToolCallName = (messages: BaseMessage[]): string | undefined => {
+  const lastToolCallMessage = getLatestToolCallMessage(messages);
+  return lastToolCallMessage?.tool_calls?.[0]?.name;
+};
+
+const formatObsidianLoopContext = (state: AgentState): string => {
+  const originalUserRequest = getOriginalUserRequest(state);
+  const lastToolCallMessage = getLatestToolCallMessage(state.messages);
+  const lastToolCall = lastToolCallMessage?.tool_calls?.[0];
+  const lastToolResult = getLatestToolResultMessage(state.messages);
+  const stepCount = getObsidianToolStepCount(state);
+  const loopLines = [
+    "Obsidian loop context:",
+    `- Original user request: ${originalUserRequest}`,
+    `- Completed tool steps so far: ${stepCount}`,
+  ];
+
+  if (!lastToolCall) {
+    loopLines.push("- No prior Obsidian tool step has completed yet.");
+    return loopLines.join("\n");
+  }
+
+  const relativePath = typeof lastToolCall.args?.relativePath === "string"
+    ? lastToolCall.args.relativePath
+    : "unknown path";
+
+  loopLines.push(`- Last tool call: ${lastToolCall.name} on ${relativePath}.`);
+
+  if (lastToolResult) {
+    loopLines.push("- Latest tool result:");
+    loopLines.push(extractMessageTextContent(lastToolResult.content));
+  }
+
+  if (writeIntentPattern.test(originalUserRequest) && lastToolCall.name === "read_markdown_file") {
+    loopLines.push(
+      "- The user request still requires a markdown write step. Do not finish yet. Your next response must call write_markdown_file unless the read result proves the request is impossible.",
+    );
+  }
+
+  return loopLines.join("\n");
+};
+
+const findLatestUserRequest = (messages: BaseMessage[]): string | undefined => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
 
     if (message instanceof HumanMessage) {
       return extractMessageTextContent(message.content);
     }
+  }
+
+  return undefined;
+};
+
+const getOriginalUserRequest = (state: AgentState): string => {
+  const latestUserRequest = findLatestUserRequest(state.messages);
+
+  if (latestUserRequest) {
+    return latestUserRequest;
+  }
+
+  const persistedRequest = state.context[OBSIDIAN_ORIGINAL_REQUEST_KEY];
+
+  if (typeof persistedRequest === "string" && persistedRequest.length > 0) {
+    return persistedRequest;
   }
 
   throw new Error("No user message found for markdown generation.");
@@ -149,6 +259,44 @@ const formatCurrentTime = (date: Date, timeZone: string): string => {
   return `${year}-${monthNumber}-${dayNumber}T${hour}:${minute}:${second} ${timeZone}`;
 };
 
+const addDays = (date: Date, days: number): Date => {
+  const nextDate = new Date(date);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate;
+};
+
+const checkMarkdownExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
+  try {
+    await readFile(resolveVaultPath(vaultRoot, relativePath), "utf8");
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
+};
+
+const formatRoutineAvailabilityHint = async (vaultRoot: string, date: Date, timeZone: string): Promise<string> => {
+  const routineChecks = await Promise.all([
+    { label: "Yesterday", path: formatRoutineFilePath(addDays(date, -1), timeZone) },
+    { label: "Today", path: formatRoutineFilePath(date, timeZone) },
+    { label: "Tomorrow", path: formatRoutineFilePath(addDays(date, 1), timeZone) },
+  ].map(async ({ label, path: relativePath }) => ({
+    label,
+    relativePath,
+    exists: await checkMarkdownExists(vaultRoot, relativePath),
+  })));
+
+  return [
+    "Routine note availability:",
+    ...routineChecks.map(({ label, relativePath, exists }) =>
+      `- ${label}: ${exists ? "exists" : "missing"} at ${relativePath}`),
+  ].join("\n");
+};
+
+
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));
 
@@ -183,12 +331,19 @@ export const applyMarkdownWrite = async (
       }
     }
 
-    await writeFile(targetPath, `${operationRequest.content.trim()}\n`, "utf8");
+    const nextContent = operationRequest.content?.trim() ?? "";
+    await writeFile(targetPath, nextContent.length === 0 ? "" : `${nextContent}\n`, "utf8");
     return operationRequest.relativePath;
   }
 
   if (operationRequest.operation === "overwrite") {
-    await writeFile(targetPath, `${operationRequest.content.trim()}\n`, "utf8");
+    const nextContent = operationRequest.content?.trim();
+
+    if (!nextContent) {
+      throw new Error("Overwrite operations must include content.");
+    }
+
+    await writeFile(targetPath, `${nextContent}\n`, "utf8");
     return operationRequest.relativePath;
   }
 
@@ -204,7 +359,13 @@ export const applyMarkdownWrite = async (
 
   const normalizedExisting = existingContent.replace(/\s*$/, "");
   const appendPrefix = normalizedExisting.length === 0 ? "" : "\n\n";
-  const nextContent = `${normalizedExisting}${appendPrefix}${operationRequest.content.trim()}\n`;
+  const appendContent = operationRequest.content?.trim();
+
+  if (!appendContent) {
+    throw new Error("Append operations must include content.");
+  }
+
+  const nextContent = `${normalizedExisting}${appendPrefix}${appendContent}\n`;
   await writeFile(targetPath, nextContent, "utf8");
   return operationRequest.relativePath;
 };
@@ -246,11 +407,70 @@ export const deleteMarkdownFile = async (
   return relativePath;
 };
 
+export const createObsidianTools = (vaultRoot: string) => [
+  tool(
+    async ({ relativePath }) => {
+      return readMarkdownFile(vaultRoot, relativePath);
+    },
+    {
+      name: "read_markdown_file",
+      description: "Read the contents of an existing markdown file in the local vault.",
+      schema: ReadMarkdownToolSchema,
+    },
+  ),
+  tool(
+    async ({ relativePath, operation, content, summary }) => {
+
+      if (operation === "create_new") {
+        const exists = await checkMarkdownExists(vaultRoot, relativePath);
+
+        if (exists) {
+          if (content?.trim()) {
+            await applyMarkdownWrite(vaultRoot, {
+              relativePath,
+              operation: "append",
+              content,
+              summary,
+            });
+
+            return `Success: ${summary} Saved to ${relativePath}.`;
+          }
+
+          return `Notice: File already exists at ${relativePath}.`;
+        }
+      }
+
+      await applyMarkdownWrite(vaultRoot, {
+        relativePath,
+        operation,
+        summary,
+        ...(content ? { content } : {}),
+      });
+
+      return `Success: ${summary} Saved to ${relativePath}.`;
+    },
+    {
+      name: "write_markdown_file",
+      description: "Create, append to, or overwrite a markdown file in the local vault.",
+      schema: WriteMarkdownToolSchema,
+    },
+  ),
+  tool(
+    async ({ relativePath, summary }) => {
+      await deleteMarkdownFile(vaultRoot, relativePath);
+      return `Success: ${summary} Deleted ${relativePath}.`;
+    },
+    {
+      name: "delete_markdown_file",
+      description: "Delete a markdown file from the local vault.",
+      schema: DeleteMarkdownToolSchema,
+    },
+  ),
+];
+
 export const createObsidianNode = (
   llmConnector: {
-    bindRoutingTools<TRoute extends Record<string, unknown>>(schema: z.ZodType<TRoute>): {
-      invoke(input: unknown): Promise<TRoute>;
-    };
+    getModel(): BaseChatModel;
   },
   vaultRoot: string,
   appTimezone: string,
@@ -258,92 +478,122 @@ export const createObsidianNode = (
   const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, {
     hotReload: shouldHotReloadPrompts(),
   });
-  const writerChain = llmConnector.bindRoutingTools<MarkdownOperationRequest>(MarkdownOperationSchema);
+  const model = llmConnector.getModel();
+
+  if (typeof model.bindTools !== "function") {
+    throw new Error("Obsidian tool-bound model must support tool calling.");
+  }
+
+  const modelWithTools = model.bindTools(createObsidianTools(vaultRoot));
+
+  const looksLikeClarification = (text: string): boolean => {
+    const normalized = text.toLowerCase();
+
+    return (
+      normalized.includes("current date") ||
+      normalized.includes("what is") ||
+      normalized.includes("can you clarify") ||
+      normalized.endsWith("?")
+    );
+  };
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
       await mkdir(vaultRoot, { recursive: true });
 
-      const latestUserRequest = getLatestUserRequest(state.messages);
-      const now = new Date();
-      const currentDate = formatCurrentDate(now, appTimezone);
-      const currentTime = formatCurrentTime(now, appTimezone);
-      const writerPrompt = new SystemMessage(
-        `${loadObsidianPrompt()}\n\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n${formatRoutineHint(now, appTimezone)}`,
-      );
+      const stepCount = getObsidianToolStepCount(state);
+      const originalUserRequest = getOriginalUserRequest(state);
+      const lastMessage = state.messages[state.messages.length - 1];
+      const latestToolCallName = getLatestToolCallName(state.messages);
 
-      const promptMessages = [
-        writerPrompt,
-        new HumanMessage(`User request:\n${latestUserRequest}`),
-      ];
+      if (lastMessage instanceof ToolMessage) {
+        const shouldContinueAfterRead = latestToolCallName === "read_markdown_file"
+          && writeIntentPattern.test(originalUserRequest);
 
-      await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
-
-      const operationRequest = (await writerChain.invoke(promptMessages)) as MarkdownOperationRequest;
-
-      switch (operationRequest.operation) {
-        case "read": {
-          if (operationRequest.content) {
-            throw new Error("Read operations must not include content.");
-          }
-
-          const fileContent = await readMarkdownFile(vaultRoot, operationRequest.relativePath);
-
+        if (!shouldContinueAfterRead) {
           return {
-            messages: [
-              new AIMessage(`Contents of ${operationRequest.relativePath}:\n\n${fileContent.trimEnd()}`),
-            ],
-          };
-        }
-        case "delete": {
-          if (!operationRequest.summary) {
-            throw new Error("Delete operations must include a summary.");
-          }
-
-          if (operationRequest.content) {
-            throw new Error("Delete operations must not include content.");
-          }
-
-          const deletedPath = await deleteMarkdownFile(vaultRoot, operationRequest.relativePath);
-
-          return {
-            messages: [
-              new AIMessage(`${operationRequest.summary} Deleted ${deletedPath}.`),
-            ],
-          };
-        }
-        case "create_new":
-        case "append":
-        case "overwrite": {
-          if (!operationRequest.content) {
-            throw new Error(`Write operations must include content for ${operationRequest.operation}.`);
-          }
-
-          if (!operationRequest.summary) {
-            throw new Error(`Write operations must include a summary for ${operationRequest.operation}.`);
-          }
-
-          const writtenPath = await applyMarkdownWrite(vaultRoot, {
-            relativePath: operationRequest.relativePath,
-            operation: operationRequest.operation,
-            content: operationRequest.content,
-            summary: operationRequest.summary,
-          });
-
-          return {
-            messages: [
-              new AIMessage(`${operationRequest.summary} Saved to ${writtenPath}.`),
-            ],
+            messages: [new AIMessage(formatTerminalToolResponse(lastMessage.content))],
+            context: {
+              [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0,
+              [OBSIDIAN_ORIGINAL_REQUEST_KEY]: originalUserRequest,
+            },
           };
         }
       }
+
+      if (stepCount >= OBSIDIAN_MAX_STEPS) {
+        return {
+          messages: [
+            new AIMessage(
+              `Unable to edit the local markdown vault: exceeded the maximum of ${OBSIDIAN_MAX_STEPS} Obsidian tool steps.`,
+            ),
+          ],
+          context: {
+            [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0,
+            [OBSIDIAN_ORIGINAL_REQUEST_KEY]: originalUserRequest,
+          },
+        };
+      }
+
+      const now = new Date();
+      const currentDate = formatCurrentDate(now, appTimezone);
+      const currentTime = formatCurrentTime(now, appTimezone);
+      const routineAvailabilityHint = await formatRoutineAvailabilityHint(vaultRoot, now, appTimezone);
+      const loopContext = formatObsidianLoopContext(state);
+      const writerPrompt = new SystemMessage(
+        `${loadObsidianPrompt()}\nNow: ${currentTime}\n${formatRoutineHint(now, appTimezone)}\n${routineAvailabilityHint}\n\n${loopContext}\n\nTreat the current date above as authoritative. Do not ask the user for today's date. Use the injected current date and current time when deciding which routine note to read or create. You have direct access to filesystem tools. Use them one step at a time when a task requires reading, writing, or deleting markdown. Continue using tools until the task is complete, then answer clearly.`,
+      );
+
+      const promptMessages = [writerPrompt, ...state.messages];
+
+      await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
+
+      const response = await modelWithTools.invoke(promptMessages);
+      if (!(response instanceof AIMessage)) {
+        throw new Error("Obsidian tool-bound model must return an AI message.");
+      }
+
+      const responseText = extractMessageTextContent(response.content).trim();
+      const toolCalls = response.tool_calls ?? [];
+      const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
+
+      if (!hasToolCalls && looksLikeClarification(responseText)) {
+        return {
+          messages: [
+            new AIMessage(
+              "Unable to edit the local markdown vault: the Obsidian model requested clarification instead of using the injected date and filesystem tools.",
+            ),
+          ],
+          context: {
+            [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0,
+            [OBSIDIAN_ORIGINAL_REQUEST_KEY]: originalUserRequest,
+          },
+        };
+      }
+
+      const finalMessage = hasToolCalls || responseText.length > 0
+        ? response
+        : new AIMessage("Completed the Obsidian task.");
+
+      return {
+        messages: [finalMessage],
+        context: {
+          [OBSIDIAN_TOOL_STEP_COUNT_KEY]: hasToolCalls ? stepCount + 1 : 0,
+          [OBSIDIAN_ORIGINAL_REQUEST_KEY]: originalUserRequest,
+        },
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown vault write error.";
+      const latestUserRequest = findLatestUserRequest(state.messages);
 
       return {
         messages: [
           new AIMessage(`Unable to edit the local markdown vault: ${message}`),
         ],
+        context: {
+          [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0,
+          ...(latestUserRequest ? { [OBSIDIAN_ORIGINAL_REQUEST_KEY]: latestUserRequest } : {}),
+        },
       };
     }
   };

@@ -76,9 +76,10 @@ describe("createSupervisorNode", () => {
   it("receives at most the system prompt plus the last 10 state messages", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
-      expect((input as HumanMessage[])).toHaveLength(MESSAGE_HISTORY_LIMIT + 1);
+      expect((input as HumanMessage[])).toHaveLength(MESSAGE_HISTORY_LIMIT + 2);
       expect((input as HumanMessage[])[0]?.content).toContain("Routing rules:");
       expect((input as HumanMessage[])[0]?.content).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, or documentation.");
+      expect((input as HumanMessage[]).at(-1)?.content).toContain("Route based primarily on this latest user request:");
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
@@ -97,5 +98,31 @@ describe("createSupervisorNode", () => {
 
     expect(result.next).toBe("FINISH");
     expect(result.messages?.[0]?.content).toBe("Trimmed reply");
+  });
+
+  it("appends an explicit latest-user routing anchor after the conversation history", async () => {
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptMessages = input as HumanMessage[];
+      const latestMessage = promptMessages.at(-1);
+
+      expect(latestMessage?.content).toBe(
+        "Route based primarily on this latest user request:\ngive me a plan for yesterday",
+      );
+
+      return { next: "Obsidian_SG" };
+    });
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("where is the note?"),
+        new HumanMessage("give me a plan for yesterday"),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result).toEqual({ next: "Obsidian_SG" });
   });
 });

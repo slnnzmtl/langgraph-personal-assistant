@@ -96,6 +96,20 @@ describe("TelegramAdapter", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
+  it("falls back when the outbound response is empty", async () => {
+    const adapter = createAdapter();
+    const reply = vi.fn(async () => undefined);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await adapter.sendOutbound(
+      { reply } as never,
+      [new AIMessage("   ")],
+    );
+
+    expect(reply).toHaveBeenCalledWith("System Error: Empty response from agent.");
+    expect(logSpy).not.toHaveBeenCalledWith("bot: ");
+  });
+
   it("passes the thread id through to workflow invocation", async () => {
     const adapter = createAdapter();
     const message = new HumanMessage("hello");

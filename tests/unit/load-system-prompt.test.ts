@@ -33,6 +33,7 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("# System Operational Rules");
     expect(prompt).toContain("Only target markdown files ending strictly with `.md`.");
     expect(prompt).toContain("Keep routine logs, daily plans, schedules, and task lists organized under the `routine/[Month]/[Month] [Day] - [Weekday].md` pattern.");
+    expect(prompt).toContain("When writing todos or day plans, always use checkbox list items in the form `- [ ]` for incomplete tasks.");
   });
 });
 

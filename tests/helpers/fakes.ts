@@ -1,6 +1,8 @@
 import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { z } from "zod";
 
-import type { RoutingChain } from "../../src/connectors/llm-connector.js";
+import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -10,14 +12,18 @@ export class FakeRunnable<TInput, TOutput> {
   }
 }
 
-export class FakeLLMConnector {
+export class FakeLLMConnector implements ILLMConnector {
   constructor(private readonly handler: (input: any) => any) {}
 
-  getModel(): any {
-    throw new Error("FakeLLMConnector.getModel is not implemented for tests.");
+  getModel(): BaseChatModel {
+    return {
+      bindTools: () => ({
+        invoke: async (input: any) => this.handler(input),
+      }),
+    } as BaseChatModel;
   }
 
-  bindRoutingTools<TRoute extends Record<string, unknown>>(): RoutingChain<TRoute> {
+  bindRoutingTools<TRoute extends Record<string, unknown>>(_schema: z.ZodType<TRoute>): RoutingChain<TRoute> {
     return new FakeRunnable(async (input: any) => this.handler(input)) as RoutingChain<TRoute>;
   }
 }
