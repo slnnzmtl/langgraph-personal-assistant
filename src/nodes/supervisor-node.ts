@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
-import { createPromptLoader, SUPERVISOR_SYSTEM_PROMPT_PATH } from "../prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
 import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { sanitizeHistoryForGemini } from "./message-history.js";
@@ -28,7 +28,6 @@ const getLatestUserRequest = (state: AgentState): string => {
 };
 
 export const createSupervisorNode = (llmConnector: ILLMConnector) => {
-  const loadSupervisorPrompt = createPromptLoader(SUPERVISOR_SYSTEM_PROMPT_PATH);
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
@@ -48,18 +47,14 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
     const latestUserRequest = getLatestUserRequest(state);
     const supervisorPrompt = new SystemMessage(
-      `${loadSupervisorPrompt()}
+      `${loadSupervisorSystemPrompt()}
 
 Current datetime: ${currentDatetime}`,
-    );
-    const routingAnchor = new HumanMessage(
-      `Route based primarily on this latest user request:\n${latestUserRequest}`,
     );
 
     const rawPromptMessages = [
       supervisorPrompt,
       ...state.messages,
-      routingAnchor,
     ];
     const promptMessages = sanitizeHistoryForGemini(rawPromptMessages);
 

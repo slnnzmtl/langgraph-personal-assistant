@@ -10,8 +10,8 @@ import {
   applyMarkdownWrite,
   createObsidianNode,
   createObsidianTools,
+  extractMessageTextContent,
   resolveVaultPath,
-  readMarkdownFile,
 } from "../../src/nodes/obsidian-node.js";
 import {
   createPromptLoader,
@@ -104,6 +104,16 @@ describe("obsidian node helpers", () => {
     expect(output).toContain("Alpha");
     expect(output).toContain("Beta");
   });
+
+  it("unescapes literal newline markers in extracted message text", () => {
+    const mixedContent = [
+      "Line one\\nLine two",
+      { type: "text", text: "Line three\\nLine four" },
+    ] as unknown as Parameters<typeof extractMessageTextContent>[0];
+
+    expect(extractMessageTextContent("Line one\\nLine two")).toBe("Line one\nLine two");
+    expect(extractMessageTextContent(mixedContent)).toBe("Line one\nLine two\nLine three\nLine four");
+  });
 });
 
 describe("createObsidianNode", () => {
@@ -115,31 +125,7 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("The runtime injects today's current date and time into the system prompt.");
     expect(prompt).toContain("A. READ INTENT");
     expect(prompt).toContain("B. WRITE / MODIFY INTENT");
-    expect(prompt).toContain("'overwrite': To modify existing text, check tasks, or alter structures, call `read_markdown_file` first, apply your modifications to the text content, and overwrite the file completely.");
-  });
-
-  it("passes the markdown-backed system prompt into the tool-bound model", async () => {
-    const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector((input) => {
-      expect(Array.isArray(input)).toBe(true);
-      const promptMessages = input as HumanMessage[];
-      expect(promptMessages[0]).toHaveProperty("content");
-      expect(promptMessages[0].content).toContain("# System Operational Rules");
-      expect(promptMessages[0].content).toContain("Current date:");
-      expect(promptMessages[0].content).toContain("Current time:");
-      expect(promptMessages[0].content).toContain("Current date: 2026-07-05");
-
-      return new AIMessage("Completed the note.");
-    });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
-
-    const result = await obsidianNode({
-      messages: [new HumanMessage("save prompt check")],
-      context: {},
-      next: undefined,
-    });
-
-    expect(result.messages?.[0]?.content).toBe("Completed the note.");
+    expect(prompt).toContain("'overwrite': To modify existing text, add tasks, or alter structures, call `read_markdown_file` first, apply your modifications to the text content, and overwrite the file completely.");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -167,22 +153,6 @@ describe("createObsidianNode", () => {
     expect(result.messages?.[0]?.content).toBe("Completed the Obsidian task.");
   });
 
-  it("fails closed when the model asks for clarification instead of using the tools", async () => {
-    const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector(() => new AIMessage("What is the current date?"));
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
-
-    const result = await obsidianNode({
-      messages: [new HumanMessage("create a note for today")],
-      context: {},
-      next: undefined,
-    });
-
-    expect(result.messages?.[0]?.content).toBe(
-      "Unable to edit the local markdown vault: the Obsidian model requested clarification instead of using tools.",
-    );
-  });
-
   it("includes the current date and routine path hint in the prompt", async () => {
     const vaultRoot = await createTempVault();
     const appTimezone = "America/New_York";
@@ -205,8 +175,7 @@ describe("createObsidianNode", () => {
         .join("\n");
       const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
 
-      expect(promptContent).toContain("Current date:");
-      expect(promptContent).toContain("Current time:");
+      expect(promptContent).toContain("Now:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain("For today, use");

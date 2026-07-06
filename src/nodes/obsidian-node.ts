@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { tool } from "@langchain/core/tools";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -6,9 +6,7 @@ import path from "node:path";
 import { z } from "zod";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import {
-  createPromptLoader,
-  OBSIDIAN_SYSTEM_PROMPT_PATH,
-  shouldHotReloadPrompts,
+  loadObsidianSystemPrompt,
 } from "../prompts/load-system-prompt.js";
 import { OBSIDIAN_MAX_STEPS, type AgentState, type AgentStateUpdate } from "../state.js";
 
@@ -44,26 +42,64 @@ const WriteMarkdownToolSchema = z.object({
   summary: MarkdownSummarySchema,
 });
 
-type MarkdownWriteOperation = {
-  relativePath: string;
-  operation: "create_new" | "append" | "overwrite";
-  content?: string;
-  summary?: string;
-};
-
 export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
-  if (typeof content === "string") return content;
+  if (typeof content === "string") return content.replaceAll("\\n", "\n");
   if (Array.isArray(content)) {
-    return content.map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : "")).join("\n");
+    return content
+      .map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : ""))
+      .join("\n")
+      .replaceAll("\\n", "\n");
   }
   return JSON.stringify(content);
 };
 
-const OBSIDIAN_TOOL_STEP_COUNT_KEY = "obsidianToolStepCount";
+export const cleanHistoryForGemini = (messages: BaseMessage[]): BaseMessage[] => {
+  const result: BaseMessage[] = [];
+  
+  for (const msg of messages) {
+    if (result.length === 0) {
+      result.push(msg);
+      continue;
+    }
+    
+    const lastMsg = result[result.length - 1];
+    if (!lastMsg) {
+      result.push(msg);
+      continue;
+    }
 
-const getObsidianToolStepCount = (state: AgentState): number => {
-  const value = state.context[OBSIDIAN_TOOL_STEP_COUNT_KEY];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+    const getMsgType = (m: any) => typeof m.getType === "function" ? m.getType() : m._getType();
+    const msgType = getMsgType(msg);
+    const lastMsgType = getMsgType(lastMsg);
+
+    if (msgType === "ai" && lastMsgType === "ai") {
+      const currentContent = extractMessageTextContent(lastMsg.content);
+      const nextContent = extractMessageTextContent(msg.content);
+      const lastAiMsg = lastMsg as AIMessage;
+      
+      result[result.length - 1] = new AIMessage({
+        content: `${currentContent}\n${nextContent}`.trim(),
+        ...(lastAiMsg.additional_kwargs ? { additional_kwargs: lastAiMsg.additional_kwargs } : {}),
+        ...(lastMsg.response_metadata ? { response_metadata: lastMsg.response_metadata } : {}),
+        ...(lastAiMsg.tool_calls ? { tool_calls: lastAiMsg.tool_calls } : {}),
+      });
+      continue;
+    }
+    
+    if (msgType === "human" && lastMsgType === "human") {
+      const currentContent = extractMessageTextContent(lastMsg.content);
+      const nextContent = extractMessageTextContent(msg.content);
+      
+      result[result.length - 1] = new HumanMessage({
+        content: `${currentContent}\n${nextContent}`.trim(),
+        ...(lastMsg.additional_kwargs ? { additional_kwargs: lastMsg.additional_kwargs } : {}),
+      });
+      continue;
+    }
+    
+    result.push(msg);
+  }
+  return result;
 };
 
 const hasAnyToolCalls = (message: BaseMessage): boolean => {
@@ -108,6 +144,13 @@ const getTrailingToolMessagesCount = (messages: BaseMessage[]): number => {
 
 const getLatestToolCallName = (messages: BaseMessage[]): string | undefined => {
   return getLatestToolCallMessage(messages)?.tool_calls?.at(-1)?.name;
+};
+
+const OBSIDIAN_TOOL_STEP_COUNT_KEY = "obsidianToolStepCount";
+
+const getObsidianToolStepCount = (state: AgentState): number => {
+  const value = state.context[OBSIDIAN_TOOL_STEP_COUNT_KEY];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 };
 
 const getFormatterPart = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string => {
@@ -167,7 +210,7 @@ export const resolveVaultPath = (vaultRoot: string, relativePath: string): strin
   return absolutePath;
 };
 
-export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: MarkdownWriteOperation): Promise<string> => {
+export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: z.infer<typeof WriteMarkdownToolSchema>): Promise<string> => {
   const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
   await mkdir(path.dirname(targetPath), { recursive: true });
 
@@ -232,14 +275,14 @@ export const createObsidianTools = (vaultRoot: string) => [
     { name: "read_markdown_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadMarkdownToolSchema },
   ),
   tool(
-    async ({ relativePath, operation, content, summary }) => {
+    async (args: z.infer<typeof WriteMarkdownToolSchema>) => {
       try {
-        if (operation === "create_new" && await checkMarkdownExists(vaultRoot, relativePath)) {
-          return `Notice: File already exists at ${relativePath}. Use append or overwrite instead.`;
+        if (args.operation === "create_new" && await checkMarkdownExists(vaultRoot, args.relativePath)) {
+          return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
         }
 
-        await applyMarkdownWrite(vaultRoot, { relativePath, operation, content, summary });
-        return `Success: ${summary} saved to ${relativePath}.`;
+        await applyMarkdownWrite(vaultRoot, args);
+        return `Success: ${args.summary} saved to ${args.relativePath}.`;
       } catch (e: any) { return `Error: ${e.message}`; }
     },
     {
@@ -255,7 +298,6 @@ export const createObsidianNode = (
   vaultRoot: string,
   appTimezone: string,
 ) => {
-  const loadObsidianPrompt = createPromptLoader(OBSIDIAN_SYSTEM_PROMPT_PATH, { hotReload: shouldHotReloadPrompts() });
   const model = llmConnector.getModel();
 
   if (typeof model.bindTools !== "function") throw new Error("Obsidian tool-bound model must support tool calling.");
@@ -278,7 +320,6 @@ export const createObsidianNode = (
         const handledToolMessages = getTrailingToolMessagesCount(state.messages);
         const isTerminalWriteTool = latestToolCallName === "write_markdown_file";
 
-        // Fast-exit only after a complete write batch; read-only steps should still flow back through the model.
         if (isSuccessResult && isTerminalWriteTool && toolCallCount > 0 && handledToolMessages >= toolCallCount) {
           return {
             messages: [new AIMessage(extractMessageTextContent(lastMessage.content).replace(/^(Success|Notice):\s*/u, ""))],
@@ -299,10 +340,13 @@ export const createObsidianNode = (
 
       const now = new Date();
       const writerPrompt = new SystemMessage(
-        `${loadObsidianPrompt()}\nCurrent date: ${formatCurrentDate(now, appTimezone)}\nCurrent time: ${formatCurrentTime(now, appTimezone)}\n${formatRoutineHint(now, appTimezone)}\n\nTreat the current date above as authoritative. Do not ask the user for today's date. You have direct access to filesystem tools. Continue using tools until the task is complete, then answer clearly.`
+        `${loadObsidianSystemPrompt()}\nNow: ${formatCurrentTime(now, appTimezone)}\n${formatRoutineHint(now, appTimezone)}\n\nTreat the current date above as authoritative.`
       );
 
-      const promptMessages = [writerPrompt, ...state.messages];
+      const sanitizedHistory = cleanHistoryForGemini(state.messages);
+
+      const promptMessages = [writerPrompt, ...sanitizedHistory];
+      
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
       const response = await modelWithTools.invoke(promptMessages);

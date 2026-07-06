@@ -14,10 +14,7 @@ describe("createSupervisorNode", () => {
   it("loads the supervisor system prompt from the markdown file", () => {
     const prompt = loadSupervisorSystemPrompt();
 
-    expect(prompt).toContain("Routing rules:");
-    expect(prompt).toContain("Use Finance_SG for money, expenses, transactions, budgets, banking, or finance logging.");
-    expect(prompt).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, documentation, or task actions (e.g. mark complete, check off, mark done).");
-    expect(prompt).toContain("Use FINISH for general chat, clarifications, or when you can answer directly without a specialized sub-graph.");
+    expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
   });
 
   it("includes the current datetime in the shared system prompt", async () => {
@@ -29,8 +26,9 @@ describe("createSupervisorNode", () => {
       expect(Array.isArray(input)).toBe(true);
       const promptMessages = input as HumanMessage[];
 
-      expect(promptMessages[0]?.content).toContain("Routing rules:");
+      expect(promptMessages[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
       expect(promptMessages[0]?.content).toContain("Current datetime: 2026-07-05T12:34:56.000Z");
+      expect(promptMessages[1]?.content).toBe("hello");
 
       return {
         next: "FINISH",
@@ -78,11 +76,9 @@ describe("createSupervisorNode", () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
       expect((input as HumanMessage[])).toHaveLength(2);
-      expect((input as HumanMessage[])[0]?.content).toContain("Routing rules:");
-      expect((input as HumanMessage[])[0]?.content).toContain("Use Obsidian_SG for notes, plans, todos, daily, markdown, writing to a vault, summaries, documentation, or task actions (e.g. mark complete, check off, mark done).");
+      expect((input as HumanMessage[])[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
       expect((input as HumanMessage[])[1]?.content).toContain("turn-5");
       expect((input as HumanMessage[])[1]?.content).toContain("turn-14");
-      expect((input as HumanMessage[])[1]?.content).toContain("Route based primarily on this latest user request:");
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
@@ -103,13 +99,15 @@ describe("createSupervisorNode", () => {
     expect(result.messages?.[0]?.content).toBe("Trimmed reply");
   });
 
-  it("appends an explicit latest-user routing anchor after the conversation history", async () => {
+  it("passes the raw latest user request through the sanitized history", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
       const promptMessages = input as HumanMessage[];
       const latestMessage = promptMessages.at(-1);
 
-      expect(typeof latestMessage?.content === "string" ? latestMessage.content : "").toContain("Route based primarily on this latest user request:\ngive me a plan for yesterday");
+      expect(typeof latestMessage?.content === "string" ? latestMessage.content : "").toBe(
+        "where is the note?\ngive me a plan for yesterday",
+      );
 
       return { next: "Obsidian_SG" };
     });

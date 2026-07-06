@@ -42,9 +42,7 @@ const getLatestRoutedUserText = (messages: Array<HumanMessage | AIMessage | Tool
     ? latestMessage.content
     : JSON.stringify(latestMessage.content);
 
-  return latestText.startsWith("Route based primarily on this latest user request:\n")
-    ? latestText.replace("Route based primarily on this latest user request:\n", "")
-    : latestText;
+  return latestText;
 };
 
 test.describe("workflow graph", () => {
