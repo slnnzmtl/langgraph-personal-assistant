@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { tool } from "@langchain/core/tools";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -57,10 +57,6 @@ export const extractMessageTextContent = (content: BaseMessage["content"]): stri
     return content.map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : "")).join("\n");
   }
   return JSON.stringify(content);
-};
-
-const formatTerminalToolResponse = (content: BaseMessage["content"]): string => {
-  return extractMessageTextContent(content).replace(/^(Success|Notice):\s*/u, "");
 };
 
 const OBSIDIAN_TOOL_STEP_COUNT_KEY = "obsidianToolStepCount";
@@ -265,11 +261,6 @@ export const createObsidianNode = (
   if (typeof model.bindTools !== "function") throw new Error("Obsidian tool-bound model must support tool calling.");
   const modelWithTools = model.bindTools(createObsidianTools(vaultRoot));
 
-  const looksLikeClarification = (text: string): boolean => {
-    const normalized = text.toLowerCase();
-    return normalized.includes("current date") || normalized.includes("what is") || normalized.includes("can you clarify");
-  };
-
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
       await mkdir(vaultRoot, { recursive: true });
@@ -290,7 +281,7 @@ export const createObsidianNode = (
         // Fast-exit only after a complete write batch; read-only steps should still flow back through the model.
         if (isSuccessResult && isTerminalWriteTool && toolCallCount > 0 && handledToolMessages >= toolCallCount) {
           return {
-            messages: [new AIMessage(formatTerminalToolResponse(lastMessage.content))],
+            messages: [new AIMessage(extractMessageTextContent(lastMessage.content).replace(/^(Success|Notice):\s*/u, ""))],
             context: {
               [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0,
               obsidianHandoff: true,
@@ -320,13 +311,6 @@ export const createObsidianNode = (
       const responseText = extractMessageTextContent(response.content).trim();
       const toolCalls = response.tool_calls ?? [];
       const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
-
-      if (!hasToolCalls && looksLikeClarification(responseText)) {
-        return {
-          messages: [new AIMessage("Unable to edit the local markdown vault: the Obsidian model requested clarification instead of using tools.")],
-          context: { [OBSIDIAN_TOOL_STEP_COUNT_KEY]: 0 },
-        };
-      }
 
       let finalMessage: AIMessage = response;
       if (!hasToolCalls && responseText.length === 0) {

@@ -8,7 +8,7 @@ export const OBSIDIAN_MAX_STEPS = 8;
 export type RouteName = (typeof ROUTE_NAMES)[number];
 
 export type ObsidianLoopStep = {
-  operation: "create_new" | "append" | "overwrite" | "read" | "delete";
+  operation: "create_new" | "overwrite" | "read" | "delete";
   relativePath: string;
   summary?: string;
 };
