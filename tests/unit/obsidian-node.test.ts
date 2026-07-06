@@ -9,10 +9,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyMarkdownWrite,
   resolveVaultPath,
-} from "../../src/nodes/obsidian/obsidian-vault.js";
+  createObsidianTools,
+} from "../../src/nodes/obsidian/obsidian-tools.js";
 import {
   createObsidianNode,
-  createObsidianTools,
 } from "../../src/nodes/obsidian/obsidian-node.js";
 import { extractMessageTextContent } from "../../src/nodes/message-history.js";
 import {

@@ -1,8 +1,6 @@
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { tool } from "@langchain/core/tools";
 import { mkdir } from "node:fs/promises";
-import { z } from "zod";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import {
   loadObsidianSystemPrompt,
@@ -10,12 +8,8 @@ import {
 import { extractMessageTextContent } from "../message-history.js";
 import { type AgentState, type AgentStateUpdate } from "../../state.js";
 import {
-  ReadMarkdownToolSchema,
-  WriteMarkdownToolSchema,
-  applyMarkdownWrite,
-  checkMarkdownExists,
-  readMarkdownFile,
-} from "./obsidian-vault.js";
+  createObsidianTools,
+} from "./obsidian-tools.js";
 
 
 
@@ -52,35 +46,6 @@ const formatCurrentTime = (date: Date, timeZone: string): string => {
   const { year, monthNumber, dayNumber, hour, minute, second } = getZonedDateDetails(date, timeZone);
   return `${year}-${monthNumber}-${dayNumber}T${hour}:${minute}:${second} ${timeZone}`;
 };
-
-
-
-export const createObsidianTools = (vaultRoot: string) => [
-  tool(
-    async ({ relativePath }) => {
-      try { return await readMarkdownFile(vaultRoot, relativePath); } 
-      catch (e: any) { return `Error: ${e.message}`; }
-    },
-    { name: "read_markdown_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadMarkdownToolSchema },
-  ),
-  tool(
-    async (args: z.infer<typeof WriteMarkdownToolSchema>) => {
-      try {
-        if (args.operation === "create_new" && await checkMarkdownExists(vaultRoot, args.relativePath)) {
-          return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
-        }
-
-        await applyMarkdownWrite(vaultRoot, args);
-        return `Success: ${args.summary} saved to ${args.relativePath}.`;
-      } catch (e: any) { return `Error: ${e.message}`; }
-    },
-    {
-      name: "write_markdown_file",
-      description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
-      schema: WriteMarkdownToolSchema,
-    },
-  ),
-];
 
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },

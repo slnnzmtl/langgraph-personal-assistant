@@ -1,11 +1,12 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import type { BaseMessage } from "@langchain/core/messages";
+import { AIMessage } from "@langchain/core/messages";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { financeMockNode } from "../nodes/finance-mock-node.js";
-import { createObsidianNode, createObsidianTools } from "../nodes/obsidian/obsidian-node.js";
+import { createObsidianNode } from "../nodes/obsidian/obsidian-node.js";
+import { createObsidianTools } from "../nodes/obsidian/obsidian-tools.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 
@@ -33,35 +34,20 @@ export const createWorkflowGraph = (
         FINISH: END,
       } satisfies Record<RouteName, "finance" | "obsidian" | typeof END>,
     )
-    .addEdge("finance", END)
+    .addEdge("finance", "supervisor")
     .addConditionalEdges("obsidian", (state: AgentState) => {
       const lastMessage = state.messages[state.messages.length - 1];
 
-      if (!lastMessage || typeof lastMessage !== "object") return "supervisor";
-
-      const hasToolCalls =
-        "tool_calls" in lastMessage &&
-        Array.isArray(lastMessage.tool_calls) &&
-        lastMessage.tool_calls.length > 0;
-
-      const hasLegacyFunctionCall = Boolean(
-        (lastMessage as BaseMessage & { additional_kwargs?: Record<string, unknown> })
-          .additional_kwargs?.functionCall,
-      );
-
-      if (hasToolCalls || hasLegacyFunctionCall) {
+      if (lastMessage instanceof AIMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
         return "obsidianTools";
       }
 
-      if (
-        "content" in lastMessage &&
-        typeof lastMessage.content === "string" &&
-        lastMessage.content.startsWith("Unable to edit the local markdown vault:")
-      ) {
-        return END;
+      // Legacy fallback guard for Gemini function call format
+      if (lastMessage && typeof lastMessage === "object" && "additional_kwargs" in lastMessage) {
+        if ((lastMessage as any).additional_kwargs?.functionCall) return "obsidianTools";
       }
 
-      return END;
+      return "supervisor";
     })
     .addEdge("obsidianTools", "obsidian")
     .compile({ checkpointer: memory, name: "personal-assistant-phase-1" });

@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 const MarkdownRelativePathSchema = z
@@ -108,3 +109,30 @@ export const checkMarkdownExists = async (vaultRoot: string, relativePath: strin
     throw error;
   }
 };
+
+export const createObsidianTools = (vaultRoot: string) => [
+  tool(
+    async ({ relativePath }) => {
+      try { return await readMarkdownFile(vaultRoot, relativePath); } 
+      catch (e: any) { return `Error: ${e.message}`; }
+    },
+    { name: "read_markdown_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadMarkdownToolSchema },
+  ),
+  tool(
+    async (args: z.infer<typeof WriteMarkdownToolSchema>) => {
+      try {
+        if (args.operation === "create_new" && await checkMarkdownExists(vaultRoot, args.relativePath)) {
+          return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
+        }
+
+        await applyMarkdownWrite(vaultRoot, args);
+        return `Success: ${args.summary} saved to ${args.relativePath}.`;
+      } catch (e: any) { return `Error: ${e.message}`; }
+    },
+    {
+      name: "write_markdown_file",
+      description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
+      schema: WriteMarkdownToolSchema,
+    },
+  ),
+];
