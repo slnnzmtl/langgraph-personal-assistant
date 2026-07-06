@@ -11,11 +11,12 @@ import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 
 export const createWorkflowGraph = (
-  llmConnector: ILLMConnector,
+  supervisorLlmConnector: ILLMConnector,
+  obsidianLlmConnector: ILLMConnector,
   config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone">,
 ) => {
-  const supervisorNode = createSupervisorNode(llmConnector);
-  const obsidianNode = createObsidianNode(llmConnector, config.obsidianVaultPath, config.appTimezone);
+  const supervisorNode = createSupervisorNode(supervisorLlmConnector);
+  const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath, config.appTimezone);
   const obsidianToolsNode = new ToolNode(createObsidianTools(config.obsidianVaultPath));
   const memory = new MemorySaver();
 

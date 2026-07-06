@@ -62,4 +62,60 @@ describe("config", () => {
 
     expect(config.appTimezone).toBe("UTC");
   });
+
+  it("uses the default geminiModel for both supervisor and obsidian when no overrides are set", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("GEMINI_MODEL", undefined);
+    vi.stubEnv("SUPERVISOR_MODEL", undefined);
+    vi.stubEnv("OBSIDIAN_MODEL", undefined);
+
+    const config = loadConfig();
+
+    expect(config.geminiModel).toBe("gemini-1.5-flash");
+    expect(config.supervisorModel).toBe("gemini-1.5-flash");
+    expect(config.obsidianModel).toBe("gemini-1.5-flash");
+  });
+
+  it("allows explicit SUPERVISOR_MODEL override", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("GEMINI_MODEL", "gemini-1.5-flash");
+    vi.stubEnv("SUPERVISOR_MODEL", "gemini-2.5-flash-lite");
+    vi.stubEnv("OBSIDIAN_MODEL", undefined);
+
+    const config = loadConfig();
+
+    expect(config.supervisorModel).toBe("gemini-2.5-flash-lite");
+    expect(config.obsidianModel).toBe("gemini-1.5-flash");
+  });
+
+  it("allows explicit OBSIDIAN_MODEL override", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("GEMINI_MODEL", "gemini-1.5-flash");
+    vi.stubEnv("SUPERVISOR_MODEL", undefined);
+    vi.stubEnv("OBSIDIAN_MODEL", "gemini-1.5-pro");
+
+    const config = loadConfig();
+
+    expect(config.supervisorModel).toBe("gemini-1.5-flash");
+    expect(config.obsidianModel).toBe("gemini-1.5-pro");
+  });
+
+  it("allows independent overrides for both supervisor and obsidian models", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("SUPERVISOR_MODEL", "gemini-2.5-flash-lite");
+    vi.stubEnv("OBSIDIAN_MODEL", "gemini-1.5-pro");
+
+    const config = loadConfig();
+
+    expect(config.supervisorModel).toBe("gemini-2.5-flash-lite");
+    expect(config.obsidianModel).toBe("gemini-1.5-pro");
+  });
 });

@@ -7,8 +7,9 @@ import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 
 const main = async (): Promise<void> => {
 	const config = loadConfig();
-	const llmConnector = new GeminiConnector(config.googleApiKey, config.geminiModel);
-	const app = createWorkflowGraph(llmConnector, config);
+	const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
+	const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
+	const app = createWorkflowGraph(supervisorConnector, obsidianConnector, config);
 	const telegramAdapter = new TelegramAdapter(app, config);
 
 	await telegramAdapter.launch();

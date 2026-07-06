@@ -15,6 +15,8 @@ export interface AppConfig {
   allowedTelegramUserId: string;
   googleApiKey: string;
   geminiModel: string;
+  supervisorModel: string;
+  obsidianModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
 }
@@ -47,11 +49,17 @@ const normalizeAppTimezone = (value: string | undefined): string => {
   }
 };
 
-export const loadConfig = (): AppConfig => ({
-  telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
-  allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
-  googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
-  obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
-  appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
-});
+export const loadConfig = (): AppConfig => {
+  const defaultGeminiModel = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+  
+  return {
+    telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
+    allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
+    googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
+    geminiModel: defaultGeminiModel,
+    supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,
+    obsidianModel: process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
+    obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
+    appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
+  };
+};
