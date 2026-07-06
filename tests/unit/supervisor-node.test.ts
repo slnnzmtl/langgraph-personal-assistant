@@ -69,7 +69,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
     expect(result.next).toBe("Finance_SG");
-    expect(result.context).toEqual({ latestUserRequest: "log lunch expense" });
+    expect(result.context).toBeUndefined();
   });
 
   it("receives at most the system prompt plus the last 10 state messages", async () => {
@@ -123,7 +123,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("Obsidian_SG");
-    expect(result.context).toEqual({ latestUserRequest: "give me a plan for yesterday" });
+    expect(result.context).toBeUndefined();
   });
 
   it("sanitizes prior tool messages before routing", async () => {

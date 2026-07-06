@@ -8,11 +8,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyMarkdownWrite,
+  resolveVaultPath,
+} from "../../src/nodes/obsidian/obsidian-vault.js";
+import {
   createObsidianNode,
   createObsidianTools,
-  extractMessageTextContent,
-  resolveVaultPath,
-} from "../../src/nodes/obsidian-node.js";
+} from "../../src/nodes/obsidian/obsidian-node.js";
+import { extractMessageTextContent } from "../../src/nodes/message-history.js";
 import {
   createPromptLoader,
   loadObsidianSystemPrompt,
@@ -227,17 +229,24 @@ describe("createObsidianNode", () => {
           content: "## Tasks\n\n- [ ] Buy milk\n- [x] Archive receipt\n",
         }),
       ],
-      context: { obsidianToolStepCount: 1 },
+      context: {},
       next: undefined,
     });
 
     expect(result.messages?.[0]?.content).toBe("Done.");
   });
 
-  it("returns the terminal write tool result without reinvoking the model", async () => {
+  it("invokes the model with write-tool result to produce a natural-language summary", async () => {
     const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector(() => {
-      throw new Error("The model should not be reinvoked after a terminal tool result.");
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("Added sauna to today's tasks.");
+
+      return new AIMessage("Added sauna to today's tasks in your routine.");
     });
     const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
@@ -265,19 +274,24 @@ describe("createObsidianNode", () => {
           content: "Success: Added sauna to today's tasks. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: { obsidianToolStepCount: 1 },
+      context: {},
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe(
-      "Added sauna to today's tasks. Saved to routine/July/July 5 - Sun.md.",
-    );
+    expect(result.messages?.[0]?.content).toBe("Added sauna to today's tasks in your routine.");
   });
 
-  it("waits for the full tool batch before fast-exiting", async () => {
+  it("invokes the model after a full tool batch to produce a natural-language summary", async () => {
     const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector(() => {
-      throw new Error("The model should not be reinvoked after a complete tool batch.");
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("Prepared today's note.");
+
+      return new AIMessage("Prepared today's note successfully.");
     });
     const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
 
@@ -315,11 +329,11 @@ describe("createObsidianNode", () => {
           content: "Success: Prepared today's note. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: { obsidianToolStepCount: 1 },
+      context: {},
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Prepared today's note. Saved to routine/July/July 5 - Sun.md.");
+    expect(result.messages?.[0]?.content).toBe("Prepared today's note successfully.");
   });
 
   it("supports hot-reloading prompt content during development via the shared loader", async () => {

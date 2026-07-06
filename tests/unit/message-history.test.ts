@@ -1,9 +1,9 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { cleanHistoryForGemini } from "../../src/nodes/message-history.js";
+import { stripToolsForSupervisor } from "../../src/nodes/message-history.js";
 
-describe("cleanHistoryForGemini", () => {
+describe("stripToolsForSupervisor", () => {
   it("merges consecutive human and ai turns into a single turn each", () => {
     const original = [
       new HumanMessage("first human"),
@@ -12,7 +12,7 @@ describe("cleanHistoryForGemini", () => {
       new AIMessage("second ai"),
     ];
 
-    const cleaned = cleanHistoryForGemini(original);
+    const cleaned = stripToolsForSupervisor(original);
 
     expect(cleaned).toHaveLength(2);
     expect(cleaned[0]).toBeInstanceOf(HumanMessage);
@@ -22,7 +22,7 @@ describe("cleanHistoryForGemini", () => {
   });
 
   it("drops tool messages from the Gemini history", () => {
-    const cleaned = cleanHistoryForGemini([
+    const cleaned = stripToolsForSupervisor([
       new HumanMessage("first human"),
       new ToolMessage({ tool_call_id: "tool-1", content: "raw tool output" }),
       new AIMessage("first ai"),

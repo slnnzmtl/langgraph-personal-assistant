@@ -16,7 +16,7 @@ export interface ITelegramAdapter {
 
 export const extractTelegramMessageText = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
-    return content;
+    return content.replaceAll("\\n", "\n");
   }
 
   if (Array.isArray(content)) {
@@ -32,7 +32,8 @@ export const extractTelegramMessageText = (content: BaseMessage["content"]): str
 
         return "[non-text content omitted]";
       })
-      .join("\n");
+      .join("\n")
+      .replaceAll("\\n", "\n");
   }
 
   return JSON.stringify(content);

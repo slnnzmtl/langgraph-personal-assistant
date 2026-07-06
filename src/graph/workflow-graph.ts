@@ -5,7 +5,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { financeMockNode } from "../nodes/finance-mock-node.js";
-import { createObsidianNode, createObsidianTools } from "../nodes/obsidian-node.js";
+import { createObsidianNode, createObsidianTools } from "../nodes/obsidian/obsidian-node.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 
@@ -61,7 +61,7 @@ export const createWorkflowGraph = (
         return END;
       }
 
-      return "supervisor";
+      return END;
     })
     .addEdge("obsidianTools", "obsidian")
     .compile({ checkpointer: memory, name: "personal-assistant-phase-1" });

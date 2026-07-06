@@ -2,13 +2,14 @@ import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langcha
 
 export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
   if (typeof content === "string") {
-    return content;
+    return content.replaceAll("\\n", "\n");
   }
 
   if (Array.isArray(content)) {
     return content
       .map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : ""))
-      .join("\n");
+      .join("\n")
+      .replaceAll("\\n", "\n");
   }
 
   return content ? JSON.stringify(content) : "[Action completed via internal tool]";
@@ -24,7 +25,7 @@ const mergeMessages = (message: BaseMessage, nextMessage: BaseMessage): BaseMess
   return new AIMessage(mergedContent);
 };
 
-export const cleanHistoryForGemini = (messages: BaseMessage[]): BaseMessage[] => {
+export const stripToolsForSupervisor = (messages: BaseMessage[]): BaseMessage[] => {
   const result: BaseMessage[] = [];
 
   for (const message of messages) {
@@ -65,5 +66,3 @@ export const cleanHistoryForGemini = (messages: BaseMessage[]): BaseMessage[] =>
 
   return result;
 };
-
-export const sanitizeHistoryForGemini = cleanHistoryForGemini;
