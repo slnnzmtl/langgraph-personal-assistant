@@ -17,23 +17,21 @@ const MarkdownRelativePathSchema = z
 const MarkdownContentSchema = z
   .string()
   .min(1)
-  .describe("Markdown content to write into the target file.");
 
 const MarkdownSummarySchema = z
   .string()
   .min(1)
-  .describe("A concise user-facing confirmation explaining what changed.");
 
 export const ReadMarkdownToolSchema = z.object({
   relativePath: MarkdownRelativePathSchema,
-});
+}).describe("Read the full contents of a markdown file.");
 
 export const WriteMarkdownToolSchema = z.object({
   relativePath: MarkdownRelativePathSchema,
   operation: z.enum(["create_new", "append", "overwrite"]),
   content: MarkdownContentSchema,
   summary: MarkdownSummarySchema,
-});
+}).describe("Write or modify a markdown file in the vault.");
 
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));

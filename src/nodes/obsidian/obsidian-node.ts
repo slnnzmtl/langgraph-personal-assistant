@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { mkdir } from "node:fs/promises";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
@@ -10,42 +10,6 @@ import { type AgentState, type AgentStateUpdate } from "../../state.js";
 import {
   createObsidianTools,
 } from "./obsidian-tools.js";
-
-
-
-const getFormatterPart = (parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string => {
-  return parts.find((entry) => entry.type === type)?.value ?? "";
-};
-
-const getZonedDateDetails = (date: Date, timeZone: string) => {
-  const dateParts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" }).formatToParts(date);
-  const timeParts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false, hourCycle: "h23" }).formatToParts(date);
-  return {
-    year: getFormatterPart(dateParts, "year"),
-    monthNumber: getFormatterPart(dateParts, "month"),
-    dayNumber: getFormatterPart(dateParts, "day"),
-    weekday: getFormatterPart(dateParts, "weekday"),
-    monthName: new Intl.DateTimeFormat("en-US", { month: "long", timeZone }).format(date),
-    hour: getFormatterPart(timeParts, "hour"),
-    minute: getFormatterPart(timeParts, "minute"),
-    second: getFormatterPart(timeParts, "second"),
-  };
-};
-
-const formatRoutineFilePath = (date: Date, timeZone: string): string => {
-  const { monthName, dayNumber, weekday } = getZonedDateDetails(date, timeZone);
-  return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
-};
-
-const formatRoutineHint = (date: Date, timeZone: string): string => {
-  return `Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md. For today, use ${formatRoutineFilePath(date, timeZone)}.`;
-};
-
-
-const formatCurrentTime = (date: Date, timeZone: string): string => {
-  const { year, monthNumber, dayNumber, hour, minute, second } = getZonedDateDetails(date, timeZone);
-  return `${year}-${monthNumber}-${dayNumber}T${hour}:${minute}:${second} ${timeZone}`;
-};
 
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },
@@ -61,12 +25,9 @@ export const createObsidianNode = (
     try {
       await mkdir(vaultRoot, { recursive: true });
 
-      const now = new Date();
-      const systemInstructions = new SystemMessage(
-        `${loadObsidianSystemPrompt()}\nNow: ${formatCurrentTime(now, appTimezone)}\n${formatRoutineHint(now, appTimezone)}\n\nTreat the current date above as authoritative.`
-      );
+      const systemInstructions = new SystemMessage(loadObsidianSystemPrompt());
 
-      const promptMessages = [systemInstructions, ...state.messages];
+      const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
       
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 

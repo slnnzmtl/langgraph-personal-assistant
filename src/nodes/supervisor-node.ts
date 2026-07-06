@@ -7,16 +7,11 @@ import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { extractMessageTextContent, stripToolsForSupervisor } from "./message-history.js";
 
-export const createSupervisorNode = (llmConnector: ILLMConnector) => {
+export const createSupervisorNode = (llmConnector: ILLMConnector, appTimezone: string) => {
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
-    const currentDatetime = new Date().toISOString();
-    const supervisorPrompt = new SystemMessage(
-      `${loadSupervisorSystemPrompt()}
-
-Current datetime: ${currentDatetime}`,
-    );
+    const supervisorPrompt = new SystemMessage(loadSupervisorSystemPrompt());
 
     const rawPromptMessages = [
       supervisorPrompt,
@@ -40,12 +35,14 @@ Current datetime: ${currentDatetime}`,
 
     const response = await routingChain.invoke(promptMessages);
 
+    console.log("Supervisor routing decision:", response);
+
     if (response.next === "FINISH") {
       return {
         next: response.next,
         messages: [
           new AIMessage(
-            response.reply ?? "I can help with that once you give me a bit more detail.",
+            response.reply!
           ),
         ],
       };

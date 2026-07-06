@@ -157,12 +157,12 @@ describe("createObsidianNode", () => {
 
   it("includes the current date and routine path hint in the prompt", async () => {
     const vaultRoot = await createTempVault();
-    const appTimezone = "America/New_York";
     const currentInstant = new Date("2026-07-05T00:30:00.000Z");
+    const utcTimezone = "UTC";
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: appTimezone }).format(currentInstant);
-    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: appTimezone }).format(currentInstant);
-    const day = Number(new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: appTimezone }).format(currentInstant));
+    const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: utcTimezone }).format(currentInstant);
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: utcTimezone }).format(currentInstant);
+    const day = Number(new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: utcTimezone }).format(currentInstant));
 
     vi.useFakeTimers();
     vi.setSystemTime(currentInstant);
@@ -177,7 +177,7 @@ describe("createObsidianNode", () => {
         .join("\n");
       const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
 
-      expect(promptContent).toContain("Now:");
+      expect(promptContent).toContain("Current datetime:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain("For today, use");
@@ -185,7 +185,7 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, appTimezone);
+    const obsidianNode = createObsidianNode(connector, vaultRoot, utcTimezone);
 
     const result = await obsidianNode({
       messages: [new HumanMessage("give me a plan for today")],

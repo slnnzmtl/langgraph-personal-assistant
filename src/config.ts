@@ -50,7 +50,7 @@ const normalizeAppTimezone = (value: string | undefined): string => {
 };
 
 export const loadConfig = (): AppConfig => {
-  const defaultGeminiModel = process.env.GEMINI_MODEL ?? "gemini-1.5-flash";
+  const defaultGeminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
   
   return {
     telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),

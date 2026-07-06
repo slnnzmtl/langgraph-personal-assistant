@@ -14,6 +14,18 @@ export const MVPRoutingSchema = z.object({
     .describe(
       "The conversational response sent back to the user. This field is REQUIRED and must not be empty if the 'next' field is set to 'FINISH'. Leave undefined if routing to a sub-graph.",
     ),
-});
+  })
+  .refine(
+    (data) => {
+      if (data.next === "FINISH") {
+        return typeof data.reply === "string" && data.reply.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "The 'reply' field is required and cannot be empty when routing to 'FINISH'",
+      path: ["reply"],
+    }
+  );
 
 export type RoutingDecision = z.infer<typeof MVPRoutingSchema>;
