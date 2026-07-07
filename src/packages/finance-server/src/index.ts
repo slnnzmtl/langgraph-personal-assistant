@@ -1,4 +1,4 @@
-export { createFinanceServer } from "./server.js";
-export { bootstrapFinanceRuntime } from "./runtime.js";
-export { createSupabaseDbClient } from "./supabase-adapter.js";
-export type { DbClient } from "./server.js";
+export { bootstrapFinanceRuntimeWithOfficialMcp } from "./supabase-mcp-runtime.js";
+export { connectSupabaseMcp, buildSupabaseMcpUrl } from "./supabase-mcp-client.js";
+export type { SupabaseMcpConfig, SupabaseMcpSession } from "./supabase-mcp-client.js";
+

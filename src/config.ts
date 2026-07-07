@@ -24,6 +24,10 @@ export interface AppConfig {
   supabaseUrl?: string | undefined;
   supabaseServiceRoleKey?: string | undefined;
   enableFinanceSync?: boolean | undefined;
+  // Optional: Official hosted Supabase MCP server (replaces custom SQL tools)
+  supabaseMcpUrl?: string | undefined;
+  supabaseProjectRef?: string | undefined;
+  supabaseAccessToken?: string | undefined;
 }
 
 export const getDefaultVaultPath = (cwd = process.cwd()): string =>
@@ -71,5 +75,9 @@ export const loadConfig = (): AppConfig => {
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
     enableFinanceSync: process.env.ENABLE_FINANCE_SYNC === "true",
+    // Optional hosted Supabase MCP server
+    supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
+    supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
+    supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,
   };
 };

@@ -1,15 +1,21 @@
-// Implementation of Wise API calls
+/**
+ * Wise API client for fetching transactions.
+ * Relocated from finance-server (no longer wrapped in MCP).
+ */
 
-export interface Transaction {
+export interface WiseTransaction {
   id: string;
   title: string;
   amount: number;
   currency: string;
   date: string;
+  category?: string;
+  paid?: boolean;
+  note?: string;
   [key: string]: unknown;
 }
 
-export async function wiseGetTransactionsHandler(params: { since: string; until: string }): Promise<Transaction[]> {
+export async function fetchWiseTransactions(params: { since: string; until: string }): Promise<WiseTransaction[]> {
   if (!params.until) {
     throw new Error("Validation error: 'until' is required");
   }
@@ -33,6 +39,6 @@ export async function wiseGetTransactionsHandler(params: { since: string; until:
     return [];
   }
 
-  const data = await response.json() as { activities?: Transaction[] };
+  const data = await response.json() as { activities?: WiseTransaction[] };
   return data.activities ?? [];
 }

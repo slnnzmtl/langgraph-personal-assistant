@@ -1,9 +1,7 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { Annotation, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-import { mcpGetLastPaidDateHandler, mcpInsertTransactionsHandler } from "../../../packages/finance-server/src/tools/supabase.js";
-import { wiseGetTransactionsHandler } from "../../../packages/finance-server/src/tools/wise.js";
-import type { Transaction as WiseTransaction } from "../../../packages/finance-server/src/tools/wise.js";
+import type { WiseTransaction } from "./wise-client.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -19,15 +17,6 @@ export interface FinanceRepository {
   getLastPaidDate(): Promise<string>;
   fetchTransactions(since: string, until: string): Promise<WiseTransaction[]>;
   insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }>;
-}
-
-export interface McpTool {
-  invoke(query: string, params?: unknown[]): Promise<string>;
-}
-
-export interface FinancePipelineDeps {
-  dbReadTool: McpTool;
-  dbWriteTool: McpTool;
 }
 
 export interface SyncError {
@@ -182,51 +171,4 @@ const fetchWiseData = async (state: SyncState) => {
     )
     .addEdge("error_recovery", END)
     .compile({ checkpointer: new MemorySaver() });
-}
-
-// ---------------------------------------------------------------------------
-// Adapter: Convert McpTool interface to FinanceRepository interface
-// ---------------------------------------------------------------------------
-
-function createRepositoryFromMcpTools(readTool: McpTool, writeTool: McpTool): FinanceRepository {
-  return {
-    async getLastPaidDate() {
-      return mcpGetLastPaidDateHandler(readTool);
-    },
-    async fetchTransactions(since: string, until: string) {
-      return wiseGetTransactionsHandler({ since, until });
-    },
-    async insertTransactions(transactions: WiseTransaction[]) {
-      const result = await mcpInsertTransactionsHandler(readTool, writeTool, transactions);
-      return result as { inserted: number; skipped: number };
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Public handler — preserves the original SyncMetrics return contract
-// ---------------------------------------------------------------------------
-
-const NO_OP_TOOL: McpTool = {
-  invoke: async () => JSON.stringify({ rows: [] }),
-};
-
-export async function financeSyncPipelineHandler(deps?: FinancePipelineDeps): Promise<SyncMetrics> {
-  const readTool = deps?.dbReadTool  ?? NO_OP_TOOL;
-  const writeTool = deps?.dbWriteTool ?? NO_OP_TOOL;
-
-  const repository = createRepositoryFromMcpTools(readTool, writeTool);
-  const graph = buildFinanceSyncGraph(repository);
-  const result = await graph.invoke({}, { configurable: { thread_id: "finance-sync" } });
-
-  if (result.error) {
-    throw new Error((result.error as SyncError).message);
-  }
-
-  return { processed: result.metrics.processed, skipped: result.metrics.skipped, status: "success" };
-}
-
-export function createFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
-  const repository = createRepositoryFromMcpTools(readTool, writeTool);
-  return buildFinanceSyncGraph(repository);
 }

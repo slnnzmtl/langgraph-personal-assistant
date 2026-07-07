@@ -4,7 +4,7 @@ import { loadConfig, type AppConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createWorkflowGraph } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
-import { bootstrapFinanceRuntime, createSupabaseDbClient } from "./packages/finance-server/src/index.js";
+import { bootstrapFinanceRuntimeWithOfficialMcp } from "./packages/finance-server/src/index.js";
 import type { FinanceRepository } from "./nodes/finance-node/src/index.js";
 
 const main = async (): Promise<void> => {
@@ -13,13 +13,18 @@ const main = async (): Promise<void> => {
 	const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
 	const financeConnector = new GeminiConnector(config.googleApiKey, config.financeModel);
 
-	// Optional: Set up finance runtime if Supabase credentials are provided and enabled
+	// Optional: Set up finance runtime using official hosted Supabase MCP
 	let financeRepository: FinanceRepository | undefined;
-	if (config.enableFinanceSync && config.supabaseUrl && config.supabaseServiceRoleKey) {
+	if (config.enableFinanceSync && config.supabaseProjectRef && config.supabaseAccessToken) {
 		try {
-			const dbClient = createSupabaseDbClient(config.supabaseUrl, config.supabaseServiceRoleKey);
-			financeRepository = await bootstrapFinanceRuntime(dbClient);
-			console.log("Finance runtime bootstrapped with Supabase backend.");
+			financeRepository = await bootstrapFinanceRuntimeWithOfficialMcp({
+				url: config.supabaseMcpUrl ?? "https://mcp.supabase.com/mcp",
+				projectRef: config.supabaseProjectRef,
+				accessToken: config.supabaseAccessToken,
+				// Finance sync needs write access for INSERT
+				readOnly: false,
+			});
+			console.log("Finance runtime bootstrapped with official Supabase MCP.");
 		} catch (error) {
 			console.error("Failed to bootstrap finance runtime:", error);
 			// Continue without finance sync rather than failing the entire app
