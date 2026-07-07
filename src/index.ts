@@ -5,7 +5,7 @@ import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createWorkflowGraph } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { bootstrapFinanceRuntimeWithOfficialMcp } from "./packages/finance-server/src/index.js";
-import type { FinanceRepository } from "./nodes/finance-node/src/index.js";
+import type { SupabaseMcpSession } from "./packages/finance-server/src/index.js";
 
 const main = async (): Promise<void> => {
 	const config = loadConfig();
@@ -13,30 +13,38 @@ const main = async (): Promise<void> => {
 	const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
 	const financeConnector = new GeminiConnector(config.googleApiKey, config.financeModel);
 
-	// Optional: Set up finance runtime using official hosted Supabase MCP
-	let financeRepository: FinanceRepository | undefined;
+	// Optional: Set up Supabase MCP session if finance sync is enabled and credentials provided
+	let supabaseSession: SupabaseMcpSession | undefined;
+	console.log("[Finance Setup] Checking finance sync configuration:");
+	console.log(`  enableFinanceSync: ${config.enableFinanceSync}`);
+	console.log(`  supabaseProjectRef: ${config.supabaseProjectRef ? "SET" : "MISSING"}`);
+	console.log(`  supabaseAccessToken: ${config.supabaseAccessToken ? "SET" : "MISSING"}`);
+	
 	if (config.enableFinanceSync && config.supabaseProjectRef && config.supabaseAccessToken) {
 		try {
-			financeRepository = await bootstrapFinanceRuntimeWithOfficialMcp({
+			console.log("[Finance Setup] All credentials present, creating Supabase MCP session...");
+			supabaseSession = await bootstrapFinanceRuntimeWithOfficialMcp({
 				url: config.supabaseMcpUrl ?? "https://mcp.supabase.com/mcp",
 				projectRef: config.supabaseProjectRef,
 				accessToken: config.supabaseAccessToken,
 				// Finance sync needs write access for INSERT
 				readOnly: false,
 			});
-			console.log("Finance runtime bootstrapped with official Supabase MCP.");
+			console.log("[Finance Setup] ✓ Supabase MCP session created successfully.");
 		} catch (error) {
-			console.error("Failed to bootstrap finance runtime:", error);
+			console.error("[Finance Setup] ✗ Failed to create Supabase session:", error);
 			// Continue without finance sync rather than failing the entire app
 		}
+	} else {
+		console.log("[Finance Setup] ✗ Skipping finance sync setup - missing required configuration.");
 	}
 
-	const graphConfig: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { financeRepository?: FinanceRepository } = {
+	const graphConfig: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { supabaseSession?: SupabaseMcpSession } = {
 		obsidianVaultPath: config.obsidianVaultPath,
 		appTimezone: config.appTimezone,
 	};
-	if (financeRepository) {
-		graphConfig.financeRepository = financeRepository;
+	if (supabaseSession) {
+		graphConfig.supabaseSession = supabaseSession;
 	}
 
 	const app = createWorkflowGraph(supervisorConnector, obsidianConnector, financeConnector, graphConfig);

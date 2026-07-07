@@ -1,174 +1,97 @@
-import { z } from "zod";
+import { AIMessage, SystemMessage, mergeMessageRuns } from "@langchain/core/messages";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { tool } from "@langchain/core/tools";
-import { Annotation, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-import type { WiseTransaction } from "./wise-client.js";
+import { z } from "zod";
+import type { SupabaseMcpSession } from "../../../packages/finance-server/src/index.js";
+import { fetchWiseTransactions } from "./wise-client.js";
+import { extractMessageTextContent } from "../../message-history.js";
+import type { AgentState, AgentStateUpdate } from "../../../state.js";
+import { loadFinanceSystemPrompt } from "../../../prompts/load-system-prompt.js";
 
-// ---------------------------------------------------------------------------
-// Public types
-// ---------------------------------------------------------------------------
-
-export interface SyncMetrics {
-  processed: number;
-  skipped: number;
-  status: "success" | "failed";
-}
-
-export interface FinanceRepository {
-  getLastPaidDate(): Promise<string>;
-  fetchTransactions(since: string, until: string): Promise<WiseTransaction[]>;
-  insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }>;
-}
-
-export interface SyncError {
-  type: "network" | "validation" | "database";
-  message: string;
-}
-
-function classifyError(e: unknown): SyncError {
-  const message = e instanceof Error ? e.message : String(e);
-  if (/5\d{2}|timeout|unavailable|ECONNREFUSED/i.test(message)) {
-    return { type: "network", message };
+/**
+ * Create a finance sync node that uses the LLM to drive SQL queries directly.
+ * 
+ * The LLM receives two tools:
+ * - exec_sql(sql) — Execute any SQL query against Supabase
+ * - fetch_wise_transactions(since, until) — Fetch transactions from Wise API
+ * 
+ * The LLM decides what queries to run and what to do with the results.
+ * 
+ * @param session Direct SQL access to Supabase via official MCP
+ * @param model The LLM to use for finance operations
+ * @returns A node function compatible with LangGraph StateGraph
+ */
+export const createFinanceSubgraphNode = (session: SupabaseMcpSession, model: BaseChatModel) => {
+  if (typeof model.bindTools !== "function") {
+    throw new Error("Finance LLM model must support tool calling.");
   }
-  if (/valid|schema|required|invalid/i.test(message)) {
-    return { type: "validation", message };
-  }
-  return { type: "database", message };
-}
 
-// ---------------------------------------------------------------------------
-// Graph state
-// ---------------------------------------------------------------------------
-
-export const SyncStateAnnotation = Annotation.Root({
-  cursorDate: Annotation<string | undefined>({
-    reducer: (_, b) => b,
-  }),
-  syncUntil: Annotation<string | undefined>({
-    reducer: (_, b) => b,
-  }),
-  transactions: Annotation<WiseTransaction[] | undefined>({
-    reducer: (_, b) => b,
-  }),
-  metrics: Annotation<{ processed: number; skipped: number }>({
-    default: () => ({ processed: 0, skipped: 0 }),
-    reducer: (_, b) => b,
-  }),
-  error: Annotation<SyncError | undefined>({
-    default: () => undefined,
-    reducer: (_, b) => b,
-  }),
-});
-
-type SyncState = typeof SyncStateAnnotation.State;
-
-// ---------------------------------------------------------------------------
-// Graph factory (closes over injected FinanceRepository)
-// ---------------------------------------------------------------------------
-
-export function buildFinanceSyncGraph(repository: FinanceRepository) {
-  // Wrap repository methods with @tool decorator for LangSmith observability
-  const getCursorDate = tool(
-    async () => repository.getLastPaidDate(),
+  // Define exec_sql tool — LLM can execute any SQL
+  const execSql = tool(
+    async (input: { sql: string }) => {
+      try {
+        const result = await session.executeSql(input.sql);
+        return JSON.stringify(result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return JSON.stringify({ error: message });
+      }
+    },
     {
-      name: "get_cursor_date",
-      description: "Retrieve the last paid date from Supabase to establish sync boundary",
-      schema: z.object({}),
+      name: "exec_sql",
+      description: "Execute a SQL query against Supabase. Returns rows as JSON.",
+      schema: z.object({
+        sql: z.string().describe("The SQL query to execute"),
+      }),
     }
   );
 
-  const fetchWiseTransactions = tool(
-    async (input: { since: string; until: string }) =>
-      repository.fetchTransactions(input.since, input.until),
+  // Define fetch_wise_transactions tool — LLM calls when it needs transaction data
+  const fetchWise = tool(
+    async (input: { since: string; until: string }) => {
+      try {
+        const transactions = await fetchWiseTransactions(input);
+        return JSON.stringify(transactions);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return JSON.stringify({ error: message });
+      }
+    },
     {
       name: "fetch_wise_transactions",
-      description: "Fetch new transactions from Wise API within a date range",
+      description: "Fetch transactions from the Wise API for a date range",
       schema: z.object({
-        since: z.string().describe("Start date for transaction query"),
-        until: z.string().describe("End date for transaction query"),
+        since: z.string().describe("Start date (ISO 8601)"),
+        until: z.string().describe("End date (ISO 8601)"),
       }),
     }
   );
 
-  const batchInsertTransactions = tool(
-    async (input: { transactions: WiseTransaction[] }) =>
-      repository.insertTransactions(input.transactions),
-    {
-      name: "batch_insert_transactions",
-      description: "Batch insert transactions into Supabase with deduplication",
-      schema: z.object({
-        transactions: z.array(z.any()).describe("Array of transactions to insert"),
-      }),
-    }
-  );
+  // Bind tools to model
+  const modelWithTools = model.bindTools([execSql, fetchWise]);
 
-  const fetchCursor = async (_state: SyncState) => {
-    const cursorDate = await getCursorDate.invoke({});
-    return { cursorDate };
-  };
-  
-const fetchWiseData = async (state: SyncState) => {
-  try {
-    if (!state.cursorDate) {
-      throw new Error("Validation: cursorDate not populated by fetch_cursor node");
-    }
-
-    // Ensure the baseline cursor date format is padded to full ISO if it was pulled as a plain date from SQL
-    const sinceParam = state.cursorDate.includes("T") 
-      ? state.cursorDate 
-      : `${state.cursorDate}T00:00:00.000Z`;
-
-    // Always keep the full ISO format for the current execution line
-    const untilParam = new Date().toISOString(); 
-
-    const transactions = await fetchWiseTransactions.invoke({ 
-      since: sinceParam, 
-      until: untilParam 
-    });
-    
-    return { transactions };
-  } catch (e) {
-    return { error: classifyError(e) };
-  }
-};
-
-  const batchProcess = async (state: SyncState) => {
+  return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
-      if (!state.transactions || state.transactions.length === 0) {
-        return { metrics: { processed: 0, skipped: 0 }, syncUntil: new Date().toISOString() };
+      // Load the finance system prompt
+      const systemInstructions = new SystemMessage(loadFinanceSystemPrompt());
+
+      // Merge system instructions with agent state messages
+      const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
+
+      // Invoke the model with tools
+      const response = await modelWithTools.invoke(promptMessages);
+      if (!(response instanceof AIMessage)) {
+        throw new Error("Finance LLM model must return an AI message.");
       }
-      const result = await batchInsertTransactions.invoke({ transactions: state.transactions });
-      const { inserted, skipped } = result as { inserted: number; skipped: number };
-      return { metrics: { processed: inserted, skipped }, syncUntil: new Date().toISOString() };
-    } catch (e) {
-      return { error: classifyError(e), syncUntil: new Date().toISOString() };
+
+      return {
+        messages: [response],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error during finance sync";
+      return {
+        messages: [new AIMessage(`Unable to complete finance sync: ${errorMessage}`)],
+      };
     }
   };
-
-  const errorRecovery = (state: SyncState) => {
-    const err = state.error!;
-    if (err.type === "network") {
-      console.error("[finance-sync] Network error (consider retry):", err.message);
-    } else if (err.type === "validation") {
-      console.error("[finance-sync] Validation error (needs human review):", err.message);
-    } else {
-      console.error("[finance-sync] Database error:", err.message);
-    }
-    return { syncUntil: new Date().toISOString() };
-  };
-
-  return new StateGraph(SyncStateAnnotation)
-    .addNode("fetch_cursor", fetchCursor)
-    .addNode("fetch_wise_data", fetchWiseData)
-    .addNode("batch_process", batchProcess)
-    .addNode("error_recovery", errorRecovery)
-    .addEdge(START, "fetch_cursor")
-    .addEdge("fetch_cursor", "fetch_wise_data")
-    .addConditionalEdges("fetch_wise_data", (state: SyncState) =>
-      state.error ? "error_recovery" : "batch_process",
-    )
-    .addConditionalEdges("batch_process", (state: SyncState) =>
-      state.error ? "error_recovery" : END,
-    )
-    .addEdge("error_recovery", END)
-    .compile({ checkpointer: new MemorySaver() });
-}
+};

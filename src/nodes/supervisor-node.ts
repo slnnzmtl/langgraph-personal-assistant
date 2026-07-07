@@ -7,7 +7,7 @@ import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { extractMessageTextContent, stripToolsForSupervisor } from "./message-history.js";
 
-export const createSupervisorNode = (llmConnector: ILLMConnector, appTimezone: string) => {
+export const createSupervisorNode = (llmConnector: ILLMConnector) => {
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {

@@ -4,7 +4,7 @@ import { AIMessage } from "@langchain/core/messages";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
-import type { FinanceRepository } from "../nodes/finance-node/src/index.js";
+import type { SupabaseMcpSession } from "../packages/finance-server/src/index.js";
 import { createFinanceSubgraphNode } from "../nodes/finance-node/src/index.js";
 import { createObsidianNode } from "../nodes/obsidian/obsidian-node.js";
 import { createObsidianTools } from "../nodes/obsidian/obsidian-tools.js";
@@ -15,16 +15,16 @@ export const createWorkflowGraph = (
   supervisorLlmConnector: ILLMConnector,
   obsidianLlmConnector: ILLMConnector,
   financeLlmConnector: ILLMConnector,
-  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { financeRepository?: FinanceRepository },
+  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { supabaseSession?: SupabaseMcpSession },
 ) => {
-  const supervisorNode = createSupervisorNode(supervisorLlmConnector, config.appTimezone);
+  const supervisorNode = createSupervisorNode(supervisorLlmConnector);
   const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath);
   const obsidianToolsNode = new ToolNode(createObsidianTools(config.obsidianVaultPath));
   const memory = new MemorySaver();
 
-  // Create finance node: use real sub-graph if financeRepository is provided, otherwise use fallback
-  const financeNode = config.financeRepository
-    ? createFinanceSubgraphNode(config.financeRepository, financeLlmConnector.getModel())
+  // Create finance node: use real sub-graph if supabaseSession is provided, otherwise use fallback
+  const financeNode = config.supabaseSession
+    ? createFinanceSubgraphNode(config.supabaseSession, financeLlmConnector.getModel())
     : async (_state: AgentState) => ({
         messages: [new AIMessage("Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.")],
       });
