@@ -25,7 +25,7 @@ import {
   mcpGetLastPaidDateHandler,
   mcpInsertTransactionsHandler,
 } from "../../packages/finance-server/src/tools/supabase.js";
-import { wiseGetTransactionsHandler } from "../../packages/finance-server/src/tools/wise.js";
+import { wiseGetTransactionsHandler, type Transaction as WiseTransaction } from "../../packages/finance-server/src/tools/wise.js";
 import { financeSyncPipelineHandler } from "./src/agent.js";
 
 // ---------------------------------------------------------------------------
@@ -126,5 +126,71 @@ describe("financeSyncPipelineHandler", () => {
 
     // Ledger must never be written to
     expect(mockBatchInsert).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SPECIFICATION 1.4: Repository-Based Refactored Interface
+// (Phase 1 RED — Test defines the target interface contract)
+// ---------------------------------------------------------------------------
+
+describe("buildFinanceSyncGraph with FinanceRepository interface", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FROZEN_TODAY));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.resetAllMocks();
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 1.4 — Repository-based interface accepts explicit contract
+  // -------------------------------------------------------------------------
+
+  it("1.4 – given a finance repository, builds and executes sync pipeline with getLastPaidDate → fetchTransactions → insertTransactions", async () => {
+    // PHASE 1 RED: This interface does not exist yet — it will be created during GREEN phase
+    interface FinanceRepository {
+      getLastPaidDate(): Promise<string>;
+      fetchTransactions(since: string, until: string): Promise<WiseTransaction[]>;
+      insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }>;
+    }
+
+    // Mock repository with spied methods
+    const mockRepository: FinanceRepository = {
+      getLastPaidDate: vi.fn().mockResolvedValue(CURSOR_DATE),
+      fetchTransactions: vi.fn().mockResolvedValue(STUB_TRANSACTIONS),
+      insertTransactions: vi.fn().mockResolvedValue({ inserted: 2, skipped: 0 }),
+    };
+
+    // Import buildFinanceSyncGraph — this will need to be refactored to accept repository
+    const { buildFinanceSyncGraph: buildGraphWithRepository } = await import("./src/agent.js");
+
+    // PHASE 1 RED: This call signature does not exist yet
+    // Current signature: buildFinanceSyncGraph(readTool: McpTool, writeTool: McpTool)
+    // Target signature: buildFinanceSyncGraph(repository: FinanceRepository)
+    const graph = buildGraphWithRepository(mockRepository);
+
+    const result = await graph.invoke({}, { configurable: { thread_id: "finance-sync-repo-test" } });
+
+    // --------- ORCHESTRATION VERIFICATION ---------
+    // 1. getLastPaidDate must be called exactly once at the start
+    expect(mockRepository.getLastPaidDate).toHaveBeenCalledOnce();
+
+    // 2. fetchTransactions must be called after getLastPaidDate with correct date bounds
+    expect(mockRepository.fetchTransactions).toHaveBeenCalledAfter(mockRepository.getLastPaidDate as any);
+    expect(mockRepository.fetchTransactions).toHaveBeenCalledWith(CURSOR_DATE, FROZEN_TODAY);
+
+    // 3. insertTransactions must be called after fetchTransactions with the full transaction array
+    expect(mockRepository.insertTransactions).toHaveBeenCalledAfter(mockRepository.fetchTransactions as any);
+    expect(mockRepository.insertTransactions).toHaveBeenCalledWith(STUB_TRANSACTIONS);
+
+    // 4. Verify execution order is maintained
+    expect(mockRepository.getLastPaidDate).toHaveBeenCalledBefore(mockRepository.fetchTransactions as any);
+    expect(mockRepository.fetchTransactions).toHaveBeenCalledBefore(mockRepository.insertTransactions as any);
+
+    // 5. Verify the final result contains correct metrics
+    expect(result.metrics).toEqual({ processed: 2, skipped: 0 });
   });
 });

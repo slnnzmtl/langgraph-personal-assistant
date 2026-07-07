@@ -19,6 +19,10 @@ export interface AppConfig {
   obsidianModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
+  // Optional: Supabase finance integration
+  supabaseUrl?: string | undefined;
+  supabaseServiceRoleKey?: string | undefined;
+  enableFinanceSync?: boolean | undefined;
 }
 
 export const getDefaultVaultPath = (cwd = process.cwd()): string =>
@@ -61,5 +65,9 @@ export const loadConfig = (): AppConfig => {
     obsidianModel: process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
+    // Optional Supabase finance integration
+    supabaseUrl: process.env.SUPABASE_URL,
+    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    enableFinanceSync: process.env.ENABLE_FINANCE_SYNC === "true",
   };
 };

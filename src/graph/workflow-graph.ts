@@ -4,7 +4,8 @@ import { AIMessage } from "@langchain/core/messages";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
-import { financeMockNode } from "../nodes/finance-mock-node.js";
+import type { FinanceRepository } from "../nodes/finance-node/src/index.js";
+import { createFinanceSubgraphNode } from "../nodes/finance-node/src/index.js";
 import { createObsidianNode } from "../nodes/obsidian/obsidian-node.js";
 import { createObsidianTools } from "../nodes/obsidian/obsidian-tools.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
@@ -13,16 +14,23 @@ import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.
 export const createWorkflowGraph = (
   supervisorLlmConnector: ILLMConnector,
   obsidianLlmConnector: ILLMConnector,
-  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone">,
+  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { financeRepository?: FinanceRepository },
 ) => {
   const supervisorNode = createSupervisorNode(supervisorLlmConnector, config.appTimezone);
   const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath);
   const obsidianToolsNode = new ToolNode(createObsidianTools(config.obsidianVaultPath));
   const memory = new MemorySaver();
 
+  // Create finance node: use real sub-graph if financeRepository is provided, otherwise use fallback
+  const financeNode = config.financeRepository
+    ? createFinanceSubgraphNode(config.financeRepository)
+    : async (_state: AgentState) => ({
+        messages: [new AIMessage("Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.")],
+      });
+
   return new StateGraph(AgentStateAnnotation)
     .addNode("supervisor", supervisorNode)
-    .addNode("finance", financeMockNode)
+    .addNode("finance", financeNode)
     .addNode("obsidian", obsidianNode)
     .addNode("obsidianTools", obsidianToolsNode)
     .addEdge(START, "supervisor")

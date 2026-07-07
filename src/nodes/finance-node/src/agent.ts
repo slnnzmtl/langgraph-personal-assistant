@@ -15,7 +15,13 @@ export interface SyncMetrics {
   status: "success" | "failed";
 }
 
-interface McpTool {
+export interface FinanceRepository {
+  getLastPaidDate(): Promise<string>;
+  fetchTransactions(since: string, until: string): Promise<WiseTransaction[]>;
+  insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }>;
+}
+
+export interface McpTool {
   invoke(query: string, params?: unknown[]): Promise<string>;
 }
 
@@ -64,13 +70,13 @@ export const SyncStateAnnotation = Annotation.Root({
 type SyncState = typeof SyncStateAnnotation.State;
 
 // ---------------------------------------------------------------------------
-// Graph factory (closes over injected MCP tool clients)
+// Graph factory (closes over injected FinanceRepository)
 // ---------------------------------------------------------------------------
 
-function buildFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
-  // Wrap MCP handlers with @tool decorator for LangSmith observability
+export function buildFinanceSyncGraph(repository: FinanceRepository) {
+  // Wrap repository methods with @tool decorator for LangSmith observability
   const getCursorDate = tool(
-    async () => mcpGetLastPaidDateHandler(readTool),
+    async () => repository.getLastPaidDate(),
     {
       name: "get_cursor_date",
       description: "Retrieve the last paid date from Supabase to establish sync boundary",
@@ -80,7 +86,7 @@ function buildFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
 
   const fetchWiseTransactions = tool(
     async (input: { since: string; until: string }) =>
-      wiseGetTransactionsHandler(input),
+      repository.fetchTransactions(input.since, input.until),
     {
       name: "fetch_wise_transactions",
       description: "Fetch new transactions from Wise API within a date range",
@@ -93,7 +99,7 @@ function buildFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
 
   const batchInsertTransactions = tool(
     async (input: { transactions: WiseTransaction[] }) =>
-      mcpInsertTransactionsHandler(readTool, writeTool, input.transactions),
+      repository.insertTransactions(input.transactions),
     {
       name: "batch_insert_transactions",
       description: "Batch insert transactions into Supabase with deduplication",
@@ -164,6 +170,25 @@ function buildFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
 }
 
 // ---------------------------------------------------------------------------
+// Adapter: Convert McpTool interface to FinanceRepository interface
+// ---------------------------------------------------------------------------
+
+function createRepositoryFromMcpTools(readTool: McpTool, writeTool: McpTool): FinanceRepository {
+  return {
+    async getLastPaidDate() {
+      return mcpGetLastPaidDateHandler(readTool);
+    },
+    async fetchTransactions(since: string, until: string) {
+      return wiseGetTransactionsHandler({ since, until });
+    },
+    async insertTransactions(transactions: WiseTransaction[]) {
+      const result = await mcpInsertTransactionsHandler(readTool, writeTool, transactions);
+      return result as { inserted: number; skipped: number };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Public handler — preserves the original SyncMetrics return contract
 // ---------------------------------------------------------------------------
 
@@ -175,7 +200,8 @@ export async function financeSyncPipelineHandler(deps?: FinancePipelineDeps): Pr
   const readTool = deps?.dbReadTool  ?? NO_OP_TOOL;
   const writeTool = deps?.dbWriteTool ?? NO_OP_TOOL;
 
-  const graph = buildFinanceSyncGraph(readTool, writeTool);
+  const repository = createRepositoryFromMcpTools(readTool, writeTool);
+  const graph = buildFinanceSyncGraph(repository);
   const result = await graph.invoke({}, { configurable: { thread_id: "finance-sync" } });
 
   if (result.error) {
@@ -186,5 +212,6 @@ export async function financeSyncPipelineHandler(deps?: FinancePipelineDeps): Pr
 }
 
 export function createFinanceSyncGraph(readTool: McpTool, writeTool: McpTool) {
-  return buildFinanceSyncGraph(readTool, writeTool);
+  const repository = createRepositoryFromMcpTools(readTool, writeTool);
+  return buildFinanceSyncGraph(repository);
 }

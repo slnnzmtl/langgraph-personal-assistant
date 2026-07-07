@@ -4,7 +4,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from "@modelconte
 import { wiseGetTransactionsHandler } from "./tools/wise.js";
 import { mcpGetLastPaidDateHandler, mcpInsertTransactionHandler, mcpInsertTransactionsHandler } from "./tools/supabase.js";
 
-interface DbClient {
+export interface DbClient {
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
 }
 
@@ -84,6 +84,16 @@ export function createFinanceServer(dbClient?: DbClient): Server {
 
     if (name === "wise_get_transactions") {
       const transactions = await wiseGetTransactionsHandler(args as { since: string; until: string });
+      if (!transactions || !Array.isArray(transactions)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify([]),
+            },
+          ],
+        };
+      }
       const mapped = transactions.map((t: any) => ({
         id: t.id,
         name: t.details?.merchantName,

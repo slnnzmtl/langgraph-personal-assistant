@@ -17,12 +17,22 @@ export async function wiseGetTransactionsHandler(params: { since: string; until:
   const token = process.env["WISE_API_TOKEN"];
   const profileId = process.env["WISE_PROFILE_ID"];
 
+  if (!token || !profileId) {
+    console.warn("Wise API credentials missing; returning empty transaction list");
+    return [];
+  }
+
   const url = `https://api.transferwise.com/v4/profiles/${profileId}/activities?since=${params.since}&until=${params.until}`;
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  const data = await response.json() as { activities: Transaction[] };
-  return data.activities;
+  if (!response.ok) {
+    console.warn(`Wise API error: ${response.status} ${response.statusText}; returning empty list`);
+    return [];
+  }
+
+  const data = await response.json() as { activities?: Transaction[] };
+  return data.activities ?? [];
 }
