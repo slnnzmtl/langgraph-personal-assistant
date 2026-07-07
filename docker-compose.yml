@@ -23,7 +23,7 @@ services:
       - .env
     environment:
       OBSIDIAN_VAULT_PATH: /data/obsidian-vault
-    command: sh -c "pnpm install && pnpm dev"
+    command: sh -c "yes | pnpm install && pnpm dev"
     volumes:
       - .:/app
       - personal-assistant-node-modules:/app/node_modules
