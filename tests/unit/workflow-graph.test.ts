@@ -9,10 +9,11 @@ import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
-const makeGraph = (supervisorHandler: (input: any) => any, obsidianHandler?: (input: any) => any, financeRepository?: FinanceRepository) =>
+const makeGraph = (supervisorHandler: (input: any) => any, obsidianHandler?: (input: any) => any, financeHandler?: (input: any) => any, financeRepository?: FinanceRepository) =>
   createWorkflowGraph(
     new FakeLLMConnector(supervisorHandler),
     new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
+    new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
     { obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"), appTimezone: "UTC", financeRepository },
   );
 
@@ -58,6 +59,7 @@ describe("createWorkflowGraph", () => {
         calls += 1;
         return { next: "Finance_SG" };
       },
+      undefined,
       undefined,
       mockRepository,
     );

@@ -1,8 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-interface DbClient {
-  query: (sql: string, params?: unknown[]) => Promise<unknown>;
-}
+import type { DbClient } from "./server.js";
 
 export function createSupabaseDbClient(
   supabaseUrl: string,
@@ -14,10 +11,9 @@ export function createSupabaseDbClient(
 
   return {
     async query(sql: string, params?: unknown[]): Promise<unknown> {
-      // 1. Post to the RPC we created in step 1
+      // Call the exec_sql RPC function (see docs/SUPABASE_SETUP.md for installation)
       const { data, error } = await supabase.rpc("exec_sql", {
         sql_query: sql,
-        // If your SQL has placeholder params, map or sanitize them here
         sql_params: params || [], 
       });
 

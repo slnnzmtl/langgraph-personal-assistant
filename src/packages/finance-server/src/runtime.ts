@@ -1,8 +1,21 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { FinanceRepository } from "../../../nodes/finance-node/src/index.js";
+import type { Transaction as WiseTransaction } from "./tools/wise.js";
 import { createFinanceServer } from "./server.js";
 import type { DbClient } from "./server.js";
+
+/**
+ * Extract text content from MCP tool response.
+ * @throws Error if response format is unexpected
+ */
+function extractTextFromToolResponse(response: any, toolName: string): string {
+  const textBlock = (response.content as Array<{ type: string; text?: string }>).find((c) => c.type === "text");
+  if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
+    throw new Error(`Unexpected response format from ${toolName} tool`);
+  }
+  return textBlock.text;
+}
 
 /**
  * Set up the finance MCP server and create an MCP client to access its tools.
@@ -46,40 +59,27 @@ export async function bootstrapFinanceRuntime(dbClient: DbClient): Promise<Finan
         arguments: {},
       });
 
-      const textBlock = (response.content as Array<{ type: string; text?: string }>).find((c) => c.type === "text");
-      if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
-        throw new Error("Unexpected response format from supabase_get_last_paid_date tool");
-      }
-
-      return textBlock.text;
+      return extractTextFromToolResponse(response, "supabase_get_last_paid_date");
     },
 
-    async fetchTransactions(since: string, until: string) {
+    async fetchTransactions(since: string, until: string): Promise<WiseTransaction[]> {
       const response = await client.callTool({
         name: "wise_get_transactions",
         arguments: { since, until },
       });
 
-      const textBlock = (response.content as Array<{ type: string; text?: string }>).find((c) => c.type === "text");
-      if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
-        throw new Error("Unexpected response format from wise_get_transactions tool");
-      }
-
-      return JSON.parse(textBlock.text);
+      const text = extractTextFromToolResponse(response, "wise_get_transactions");
+      return JSON.parse(text);
     },
 
-    async insertTransactions(transactions: any[]) {
+    async insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }> {
       const response = await client.callTool({
         name: "supabase_insert_transaction",
         arguments: { transactions },
       });
 
-      const textBlock = (response.content as Array<{ type: string; text?: string }>).find((c) => c.type === "text");
-      if (!textBlock || textBlock.type !== "text" || !textBlock.text) {
-        throw new Error("Unexpected response format from supabase_insert_transaction tool");
-      }
-
-      return JSON.parse(textBlock.text);
+      const text = extractTextFromToolResponse(response, "supabase_insert_transaction");
+      return JSON.parse(text);
     },
   };
 

@@ -14,6 +14,7 @@ import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.
 export const createWorkflowGraph = (
   supervisorLlmConnector: ILLMConnector,
   obsidianLlmConnector: ILLMConnector,
+  financeLlmConnector: ILLMConnector,
   config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { financeRepository?: FinanceRepository },
 ) => {
   const supervisorNode = createSupervisorNode(supervisorLlmConnector, config.appTimezone);
@@ -23,7 +24,7 @@ export const createWorkflowGraph = (
 
   // Create finance node: use real sub-graph if financeRepository is provided, otherwise use fallback
   const financeNode = config.financeRepository
-    ? createFinanceSubgraphNode(config.financeRepository)
+    ? createFinanceSubgraphNode(config.financeRepository, financeLlmConnector.getModel())
     : async (_state: AgentState) => ({
         messages: [new AIMessage("Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.")],
       });

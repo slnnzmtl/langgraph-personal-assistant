@@ -18,6 +18,17 @@ The app requires these environment variables:
 - `APP_TIMEZONE` (optional, IANA timezone like `UTC` or `America/New_York`; invalid values fall back to `UTC`)
 - `OBSIDIAN_VAULT_PATH` (optional locally, defaults to `src/obsidian-vault`)
 
+### Finance Sync (Optional)
+
+For automated Wise transaction syncing, additional setup is required:
+
+- **Supabase Database:** See [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) for required `exec_sql` RPC function installation
+- **Environment Variables:**
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `WISE_API_TOKEN`
+  - `WISE_PROFILE_ID`
+
 The assistant keeps only the last 10 messages per thread in state. Older turns are dropped once the conversation window exceeds that limit.
 
 Within the Obsidian branch, the graph can now execute multiple note-file steps for one user request. It loops inside Obsidian until the task is complete, which allows read-then-write workflows like carrying unchecked tasks from yesterday into today.

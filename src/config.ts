@@ -17,6 +17,7 @@ export interface AppConfig {
   geminiModel: string;
   supervisorModel: string;
   obsidianModel: string;
+  financeModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
   // Optional: Supabase finance integration
@@ -63,6 +64,7 @@ export const loadConfig = (): AppConfig => {
     geminiModel: defaultGeminiModel,
     supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,
     obsidianModel: process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
+    financeModel: process.env.FINANCE_MODEL ?? defaultGeminiModel,
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     // Optional Supabase finance integration

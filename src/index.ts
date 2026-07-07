@@ -11,6 +11,7 @@ const main = async (): Promise<void> => {
 	const config = loadConfig();
 	const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
 	const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
+	const financeConnector = new GeminiConnector(config.googleApiKey, config.financeModel);
 
 	// Optional: Set up finance runtime if Supabase credentials are provided and enabled
 	let financeRepository: FinanceRepository | undefined;
@@ -33,7 +34,7 @@ const main = async (): Promise<void> => {
 		graphConfig.financeRepository = financeRepository;
 	}
 
-	const app = createWorkflowGraph(supervisorConnector, obsidianConnector, graphConfig);
+	const app = createWorkflowGraph(supervisorConnector, obsidianConnector, financeConnector, graphConfig);
 	const telegramAdapter = new TelegramAdapter(app, config);
 
 	await telegramAdapter.launch();

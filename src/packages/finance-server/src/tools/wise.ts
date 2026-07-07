@@ -22,7 +22,7 @@ export async function wiseGetTransactionsHandler(params: { since: string; until:
     return [];
   }
 
-  const url = `https://api.transferwise.com/v4/profiles/${profileId}/activities?since=${params.since}&until=${params.until}`;
+  const url = `https://api.transferwise.com/v1/profiles/${profileId}/activities?since=${params.since}&until=${params.until}`;
 
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },

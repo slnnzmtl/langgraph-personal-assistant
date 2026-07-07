@@ -54,6 +54,9 @@ export const SyncStateAnnotation = Annotation.Root({
   cursorDate: Annotation<string | undefined>({
     reducer: (_, b) => b,
   }),
+  syncUntil: Annotation<string | undefined>({
+    reducer: (_, b) => b,
+  }),
   transactions: Annotation<WiseTransaction[] | undefined>({
     reducer: (_, b) => b,
   }),
@@ -113,30 +116,42 @@ export function buildFinanceSyncGraph(repository: FinanceRepository) {
     const cursorDate = await getCursorDate.invoke({});
     return { cursorDate };
   };
-
-  const fetchWiseData = async (state: SyncState) => {
-    try {
-      if (!state.cursorDate) {
-        throw new Error("Validation: cursorDate not populated by fetch_cursor node");
-      }
-      const until = new Date().toISOString().slice(0, 10);
-      const transactions = await fetchWiseTransactions.invoke({ since: state.cursorDate, until });
-      return { transactions };
-    } catch (e) {
-      return { error: classifyError(e) };
+  
+const fetchWiseData = async (state: SyncState) => {
+  try {
+    if (!state.cursorDate) {
+      throw new Error("Validation: cursorDate not populated by fetch_cursor node");
     }
-  };
+
+    // Ensure the baseline cursor date format is padded to full ISO if it was pulled as a plain date from SQL
+    const sinceParam = state.cursorDate.includes("T") 
+      ? state.cursorDate 
+      : `${state.cursorDate}T00:00:00.000Z`;
+
+    // Always keep the full ISO format for the current execution line
+    const untilParam = new Date().toISOString(); 
+
+    const transactions = await fetchWiseTransactions.invoke({ 
+      since: sinceParam, 
+      until: untilParam 
+    });
+    
+    return { transactions };
+  } catch (e) {
+    return { error: classifyError(e) };
+  }
+};
 
   const batchProcess = async (state: SyncState) => {
     try {
       if (!state.transactions || state.transactions.length === 0) {
-        return { metrics: { processed: 0, skipped: 0 } };
+        return { metrics: { processed: 0, skipped: 0 }, syncUntil: new Date().toISOString() };
       }
       const result = await batchInsertTransactions.invoke({ transactions: state.transactions });
       const { inserted, skipped } = result as { inserted: number; skipped: number };
-      return { metrics: { processed: inserted, skipped } };
+      return { metrics: { processed: inserted, skipped }, syncUntil: new Date().toISOString() };
     } catch (e) {
-      return { error: classifyError(e) };
+      return { error: classifyError(e), syncUntil: new Date().toISOString() };
     }
   };
 
@@ -149,7 +164,7 @@ export function buildFinanceSyncGraph(repository: FinanceRepository) {
     } else {
       console.error("[finance-sync] Database error:", err.message);
     }
-    return {};
+    return { syncUntil: new Date().toISOString() };
   };
 
   return new StateGraph(SyncStateAnnotation)

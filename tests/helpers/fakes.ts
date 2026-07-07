@@ -17,6 +17,7 @@ export class FakeLLMConnector implements ILLMConnector {
 
   getModel(): BaseChatModel {
     return {
+      invoke: async (input: any) => this.handler(input),
       bindTools: () => ({
         invoke: async (input: any) => this.handler(input),
       }),
