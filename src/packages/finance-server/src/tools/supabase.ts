@@ -56,3 +56,40 @@ export async function mcpInsertTransactionHandler(
   const insertData = JSON.parse(insertRaw) as { rows: [Transaction] };
   return insertData.rows[0]!;
 }
+
+export interface BatchInsertResult {
+  inserted: number;
+  skipped: number;
+  results: Array<Transaction | { status: string; message: string }>;
+}
+
+export async function mcpInsertTransactionsHandler(
+  readTool: McpTool,
+  insertTool: McpTool,
+  transactions: Transaction[]
+): Promise<BatchInsertResult> {
+  const results: Array<Transaction | { status: string; message: string }> = [];
+  let inserted = 0;
+  let skipped = 0;
+
+  // Deduplicate within the batch by (title, date)
+  const seen = new Set<string>();
+  const deduped = transactions.filter((t) => {
+    const key = `${t.title}__${t.date}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  for (const transaction of deduped) {
+    const result = await mcpInsertTransactionHandler(readTool, insertTool, transaction);
+    results.push(result);
+    if ("status" in result && result.status === "skipped") {
+      skipped++;
+    } else {
+      inserted++;
+    }
+  }
+
+  return { inserted, skipped, results };
+}

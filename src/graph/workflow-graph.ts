@@ -16,7 +16,7 @@ export const createWorkflowGraph = (
   config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone">,
 ) => {
   const supervisorNode = createSupervisorNode(supervisorLlmConnector, config.appTimezone);
-  const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath, config.appTimezone);
+  const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath);
   const obsidianToolsNode = new ToolNode(createObsidianTools(config.obsidianVaultPath));
   const memory = new MemorySaver();
 

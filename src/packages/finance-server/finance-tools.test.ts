@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { wiseGetTransactionsHandler } from "./src/tools/wise.js";
-import { mcpGetLastPaidDateHandler, mcpInsertTransactionHandler } from "./src/tools/supabase.js";
+import { mcpGetLastPaidDateHandler, mcpInsertTransactionHandler, mcpInsertTransactionsHandler } from "./src/tools/supabase.js";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -144,5 +144,56 @@ describe("mcpInsertTransactionHandler", () => {
     expect(readTool.invoke).toHaveBeenCalledOnce();
     expect(insertTool.invoke).not.toHaveBeenCalled();
     expect(result).toEqual({ status: "skipped", message: "Duplicate transaction detected." });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TOOL 4: mcpInsertTransactionsHandler (batch)
+// ---------------------------------------------------------------------------
+
+describe("mcpInsertTransactionsHandler", () => {
+  const txA = { title: "Coffee", amount: -3.5, currency: "GBP", date: "2026-07-01" };
+  const txB = { title: "Lunch",  amount: -12.0, currency: "GBP", date: "2026-07-02" };
+
+  it("4.1 – inserts all non-duplicate transactions and returns correct inserted/skipped counts", async () => {
+    // txA: no duplicate → inserted; txB: duplicate exists → skipped
+    const readTool = {
+      invoke: vi.fn()
+        .mockResolvedValueOnce(JSON.stringify({ rows: [] }))          // txA: no dup
+        .mockResolvedValueOnce(JSON.stringify({ rows: [txB] })),      // txB: dup
+    };
+    const insertTool = makeMcpTool(JSON.stringify({ rows: [{ ...txA, db_id: 1 }] }));
+
+    const result = await mcpInsertTransactionsHandler(readTool, insertTool, [txA, txB]);
+
+    expect(result.inserted).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[1]).toEqual({ status: "skipped", message: "Duplicate transaction detected." });
+  });
+
+  it("4.2 – deduplicates within the batch before hitting the DB (same title+date appears twice)", async () => {
+    const readTool   = makeMcpTool(JSON.stringify({ rows: [] }));
+    const insertTool = makeMcpTool(JSON.stringify({ rows: [{ ...txA, db_id: 2 }] }));
+
+    // Pass txA twice – only one DB call should occur
+    const result = await mcpInsertTransactionsHandler(readTool, insertTool, [txA, txA]);
+
+    expect(readTool.invoke).toHaveBeenCalledOnce();
+    expect(insertTool.invoke).toHaveBeenCalledOnce();
+    expect(result.inserted).toBe(1);
+    expect(result.skipped).toBe(0);
+  });
+
+  it("4.3 – returns inserted=0 and skipped=N when all transactions are duplicates", async () => {
+    const readTool   = makeMcpTool(JSON.stringify({ rows: [txA] }));
+    const insertTool = { invoke: vi.fn() };
+
+    const result = await mcpInsertTransactionsHandler(readTool, insertTool, [txA, txB]);
+
+    // Both reads return duplicate-found rows (second call also returns txA-like data)
+    // but readTool.invoke is always called with the respective args
+    expect(insertTool.invoke).not.toHaveBeenCalled();
+    expect(result.inserted).toBe(0);
   });
 });

@@ -142,4 +142,35 @@ describe("Finance MCP Server – tool routing", () => {
     // 30 days before 2026-07-07 is 2026-06-07
     expect(block.text).toBe("2026-06-07");
   });
+
+  it("2.3 – supabase_insert_transaction accepts a transactions array and returns inserted/skipped counts", async () => {
+    const mockDbClient = {
+      query: vi.fn()
+        // first call: duplicate check for txA → no dup
+        .mockResolvedValueOnce({ rows: [] })
+        // second call: insert txA → inserted record
+        .mockResolvedValueOnce({ rows: [{ title: "Coffee", amount: -3.5, date: "2026-07-01", db_id: 1 }] })
+        // third call: duplicate check for txB → dup found
+        .mockResolvedValueOnce({ rows: [{ title: "Lunch", date: "2026-07-02" }] }),
+    };
+
+    const client = await createTestClient(mockDbClient);
+    const response = await client.callTool({
+      name: "supabase_insert_transaction",
+      arguments: {
+        transactions: [
+          { title: "Coffee", amount: -3.5, currency: "GBP", date: "2026-07-01" },
+          { title: "Lunch",  amount: -12.0, currency: "GBP", date: "2026-07-02" },
+        ],
+      },
+    });
+
+    const block = response.content[0] as { type: string; text: string };
+    expect(block.type).toBe("text");
+
+    const parsed = JSON.parse(block.text) as { inserted: number; skipped: number; results: unknown[] };
+    expect(parsed.inserted).toBe(1);
+    expect(parsed.skipped).toBe(1);
+    expect(parsed.results).toHaveLength(2);
+  });
 });

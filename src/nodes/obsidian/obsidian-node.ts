@@ -14,7 +14,6 @@ import {
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },
   vaultRoot: string,
-  appTimezone: string,
 ) => {
   const model = llmConnector.getModel();
 

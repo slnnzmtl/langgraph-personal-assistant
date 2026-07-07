@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { wiseGetTransactionsHandler } from "./tools/wise.js";
-import { mcpGetLastPaidDateHandler, mcpInsertTransactionHandler } from "./tools/supabase.js";
+import { mcpGetLastPaidDateHandler, mcpInsertTransactionHandler, mcpInsertTransactionsHandler } from "./tools/supabase.js";
 
 interface DbClient {
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
@@ -34,16 +34,29 @@ export function createFinanceServer(dbClient?: DbClient): Server {
     },
     {
       name: "supabase_insert_transaction",
-      description: "Insert a transaction into Supabase",
+      description: "Batch-insert one or more transactions into Supabase. Handles deduplication and returns inserted/skipped counts.",
       inputSchema: {
         type: "object",
         properties: {
-          title: { type: "string" },
-          amount: { type: "number" },
-          currency: { type: "string" },
-          date: { type: "string" },
+          transactions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                amount: { type: "number" },
+                currency: { type: "string" },
+                date: { type: "string" },
+                category: { type: "string" },
+                paid: { type: "boolean" },
+                note: { type: "string" },
+              },
+              required: ["title", "date"],
+            },
+            minItems: 1,
+          },
         },
-        required: ["title", "date"],
+        required: ["transactions"],
       },
     },
     {
@@ -117,11 +130,8 @@ export function createFinanceServer(dbClient?: DbClient): Server {
         invoke: async (sql: string, params?: unknown[]) =>
           JSON.stringify(await dbClient.query(sql, params)),
       };
-      const result = await mcpInsertTransactionHandler(
-        adapter,
-        adapter,
-        args as { title: string; amount?: number; currency?: string; date: string }
-      );
+      const { transactions } = args as { transactions: Array<{ title: string; amount?: number; currency?: string; date: string; category?: string; paid?: boolean; note?: string }> };
+      const result = await mcpInsertTransactionsHandler(adapter, adapter, transactions);
       return {
         content: [
           {
