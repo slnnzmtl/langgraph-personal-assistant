@@ -19,9 +19,11 @@ B. WRITE / MODIFY INTENT
 - 'overwrite': Call `read_markdown_file` first, apply changes to content, then overwrite entirely.
 
 C. SEARCH INTENT
-Tool Capability: `search_markdown_files(queries: ["term1", "term2", ...])` executes an OR search — a file matches if it contains ANY of the supplied terms.
+Tool Capability: `search_markdown_files(queries: ["term1", "term2", ...])` executes an OR search — a file matches if it contains ANY of the supplied terms in the note body or the vault-relative path.
 
 IMPORTANT: NEVER pass a multi-word phrase as a single query string (e.g. `["mass gain training"]`). That requires an exact substring match for the full phrase and almost always returns 0 results. Always split into individual terms.
+
+If the user names a note by title, filename, or folder path, include those path-like terms in the search queries so the tool can match them directly.
 
 Mandatory Search Protocol — execute these stages in order; do NOT stop after a single empty result:
 

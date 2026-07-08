@@ -11,6 +11,15 @@ const normalizeRelativePath = (relativePath: string): string => {
   return normalizedPath;
 };
 
+const normalizeSearchText = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/\.md$/i, "")
+    .replace(/[\\/_.-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const resolveSafePath = (rootDir: string, relativePath: string): string => {
   const absolutePath = path.resolve(rootDir, normalizeRelativePath(relativePath));
   const relativeToRoot = path.relative(rootDir, absolutePath);
@@ -75,6 +84,7 @@ export const searchFilesByContent = async (
   options?: { fileExtension?: string },
 ): Promise<string[]> => {
   const lowerQueries = queries.map((query) => query.toLowerCase());
+  const normalizedQueries = queries.map((query) => normalizeSearchText(query));
   const resultSet = new Set<string>();
 
   const walk = async (currentAbsDir: string, currentRelDir: string) => {
@@ -99,8 +109,13 @@ export const searchFilesByContent = async (
 
       const content = await readFile(entryAbsPath, "utf8");
       const lowerContent = content.toLowerCase();
+      const lowerEntryRelPath = entryRelPath.toLowerCase();
+      const normalizedEntryRelPath = normalizeSearchText(entryRelPath);
 
-      if (lowerQueries.some((query) => lowerContent.includes(query))) {
+      if (
+        lowerQueries.some((query) => lowerContent.includes(query) || lowerEntryRelPath.includes(query))
+        || normalizedQueries.some((query) => normalizedEntryRelPath.includes(query))
+      ) {
         resultSet.add(entryRelPath);
       }
     }

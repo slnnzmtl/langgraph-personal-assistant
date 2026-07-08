@@ -359,6 +359,20 @@ describe("createObsidianNode", () => {
     expect(finalText.split("\n")).toHaveLength(2);
   });
 
+  it("finds notes by path terms even when the body does not contain the query", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile } = await import("node:fs/promises");
+
+    await mkdir(path.join(vaultRoot, "events", "potuzhno", "techno-yoga"), { recursive: true });
+    await writeFile(path.join(vaultRoot, "events", "potuzhno", "techno-yoga", "Places.md"), "No matching keywords here", "utf8");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ queries: ["techno yoga"] }) as string;
+
+    expect(result).toContain("events/potuzhno/techno-yoga/Places.md");
+    expect(result).not.toContain("No files matched your search.");
+  });
+
   it("invokes the model with write-tool result to produce a natural-language summary", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {

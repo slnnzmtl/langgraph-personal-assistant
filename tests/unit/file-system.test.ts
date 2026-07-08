@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { searchFilesByContent } from "../../src/utils/file-system.js";
 import { buildDirectoryTree } from "../../src/utils/file-system.js";
 
 const tempPaths: string[] = [];
@@ -41,5 +42,21 @@ describe("buildDirectoryTree", () => {
     await writeFile(path.join(rootDir, "note.md"), "# Note\n", "utf8");
 
     await expect(buildDirectoryTree(rootDir)).resolves.toBe(".");
+  });
+});
+
+describe("searchFilesByContent", () => {
+  it("matches markdown files by content or vault-relative path", async () => {
+    const rootDir = await createTempRoot();
+
+    await mkdir(path.join(rootDir, "events", "potuzhno", "techno-yoga"), { recursive: true });
+    await mkdir(path.join(rootDir, "notes"), { recursive: true });
+    await writeFile(path.join(rootDir, "events", "potuzhno", "techno-yoga", "Places.md"), "Unrelated body text", "utf8");
+    await writeFile(path.join(rootDir, "notes", "routine.md"), "techno yoga in the content", "utf8");
+
+    await expect(searchFilesByContent(rootDir, ["techno yoga"], ".", { fileExtension: ".md" })).resolves.toEqual([
+      "events/potuzhno/techno-yoga/Places.md",
+      "notes/routine.md",
+    ]);
   });
 });

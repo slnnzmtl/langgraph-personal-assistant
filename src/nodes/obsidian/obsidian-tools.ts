@@ -122,7 +122,7 @@ export const ListMarkdownToolSchema = z.object({
 export const SearchMarkdownToolSchema = z.object({
   queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if content contains any term). Terms will be lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Search for .md files whose content matches any of the supplied search terms (OR semantics).");
+}).describe("Search for .md files whose content or vault-relative path matches any of the supplied search terms (OR semantics).");
 
 export const listMarkdownDirContents = async (
   vaultRoot: string,
@@ -194,7 +194,7 @@ export const createObsidianTools = (vaultRoot: string) => [
     },
     {
       name: "search_markdown_files",
-      description: "Search .md files by content across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content contains any of the supplied terms.",
+      description: "Search .md files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
       schema: SearchMarkdownToolSchema,
     },
   ),
