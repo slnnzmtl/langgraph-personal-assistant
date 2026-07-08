@@ -5,9 +5,9 @@ import { AIMessage } from "@langchain/core/messages";
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import type { SupabaseMcpSession } from "../packages/finance-server/src/index.js";
-import { createFinanceTools, createFinanceNode } from "../nodes/finance-node/src/index.js";
-import { createObsidianNode } from "../nodes/obsidian/obsidian-node.js";
-import { createObsidianTools } from "../nodes/obsidian/obsidian-tools.js";
+import { createFinanceTools, createFinanceNode } from "../nodes/finance-node/index.js";
+import { createObsidianNode } from "../nodes/obsidian/obsidian.js";
+import { createObsidianTools } from "../nodes/obsidian/index.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 

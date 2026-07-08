@@ -3,10 +3,10 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
-import type { SupabaseMcpSession } from "../../../packages/finance-server/src/index.js";
+import type { SupabaseMcpSession } from "../../packages/finance-server/src/index.js";
 import { fetchWiseTransactions } from "./wise-client.js";
-import type { AgentState, AgentStateUpdate } from "../../../state.js";
-import { loadFinanceSystemPrompt } from "../../../prompts/load-system-prompt.js";
+import type { AgentState, AgentStateUpdate } from "../../state.js";
+import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
 
 /**
  * Create finance tools that the LLM can use.
