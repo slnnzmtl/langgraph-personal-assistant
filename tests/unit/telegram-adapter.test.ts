@@ -181,7 +181,7 @@ describe("TelegramAdapter", () => {
       [new AIMessage("**done**")],
     );
 
-    expect(sendMessage).toHaveBeenCalledWith(42, "**done**", { parse_mode: "HTML" });
+    expect(sendMessage).toHaveBeenCalledWith(42, "**done**", { parse_mode: "MarkdownV2" });
     expect(logSpy).toHaveBeenCalled();
   });
 
@@ -203,8 +203,8 @@ describe("TelegramAdapter", () => {
 
     // Should be called twice (one for 4096 chars, one for remaining 904)
     expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "a".repeat(4096), { parse_mode: "HTML" });
-    expect(sendMessage).toHaveBeenNthCalledWith(2, 42, "a".repeat(904), { parse_mode: "HTML" });
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "a".repeat(4096), { parse_mode: "MarkdownV2" });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 42, "a".repeat(904), { parse_mode: "MarkdownV2" });
     expect(logSpy).toHaveBeenCalled();
   });
 
@@ -221,8 +221,32 @@ describe("TelegramAdapter", () => {
       [new AIMessage("   ")],
     );
 
-    expect(sendMessage).toHaveBeenCalledWith(42, "System Error: Empty response from agent.", { parse_mode: "HTML" });
+    expect(sendMessage).toHaveBeenCalledWith(42, "System Error: Empty response from agent.");
     expect(logSpy).not.toHaveBeenCalledWith("bot: ");
+  });
+
+  it("falls back to plain text when MarkdownV2 parse fails", async () => {
+    const adapter = createAdapter();
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    // First call throws the Telegram MarkdownV2 parse error; second call succeeds
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("Bad Request: can't parse entities: Character '.' is reserved"), { code: 400 }))
+      .mockResolvedValueOnce(undefined);
+
+    await adapter.sendOutbound(
+      {
+        chat: { id: 42 },
+        telegram: { sendMessage },
+      } as never,
+      [new AIMessage("No matching notes found. Would you like to create one?")],
+    );
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "No matching notes found. Would you like to create one?", { parse_mode: "MarkdownV2" });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 42, "No matching notes found. Would you like to create one?");
+    expect(logSpy).toHaveBeenCalled();
   });
 
   it("passes the thread id through to workflow invocation", async () => {

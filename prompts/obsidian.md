@@ -38,6 +38,8 @@ Mandatory Search Protocol — execute these stages in order; do NOT stop after a
 
 - Failure (only after all three stages): Report "No matching notes found after searching for [list every term tried]." Then ask to check a specific folder or create a note.
 
+- Search result post-processing: If a search returns many matches, compress the final answer to the shortest useful subset. Prefer at most 3 relevant paths and do not echo the full raw match list.
+
 FORBIDDEN: Returning "I couldn't find..." after only one search call. You MUST complete at least Stage 1 and Stage 2 before declaring failure.
 
 D. DELETE INTENT

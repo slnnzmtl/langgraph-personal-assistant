@@ -48,7 +48,7 @@ const logTelegramMessage = (role: "user" | "bot", text: string): void => {
 
 /**
  * Split a message into chunks that fit within Telegram's 4096 character limit.
- * Prefers to split on newline boundaries to preserve readability and avoid breaking HTML tags.
+ * Prefers to split on newline boundaries to preserve readability and avoid breaking MarkdownV2 tags.
  * Falls back to hard character split if a single line exceeds the limit.
  */
 export const splitMessage = (text: string, maxLength = 4096): string[] => {
@@ -93,6 +93,33 @@ export const splitMessage = (text: string, maxLength = 4096): string[] => {
   }
 
   return chunks;
+};
+
+const sendSystemError = async (ctx: Context, text: string): Promise<void> => {
+  const chatId = ctx.chat?.id;
+
+  if (!chatId) {
+    console.error("Unable to determine chat ID for system error message.");
+    return;
+  }
+
+  await ctx.telegram.sendMessage(chatId, text);
+};
+
+const sendChunk = async (telegram: Context["telegram"], chatId: number, chunk: string): Promise<void> => {
+  try {
+    await telegram.sendMessage(chatId, chunk, { parse_mode: "MarkdownV2" });
+  } catch (error) {
+    const isParseError =
+      error instanceof Error &&
+      error.message.includes("can't parse entities");
+
+    if (isParseError) {
+      await telegram.sendMessage(chatId, chunk);
+    } else {
+      throw error;
+    }
+  }
 };
 
 export class TelegramAdapter implements ITelegramAdapter {
@@ -170,14 +197,14 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
 
     if (!lastMessage) {
-      await ctx.telegram.sendMessage(chatId, "System Error: No response was produced.", { parse_mode: "HTML" });
+      await ctx.telegram.sendMessage(chatId, "System Error: No response was produced.");
       return;
     }
 
     const output = extractTelegramMessageText(lastMessage.content).trim();
 
     if (!output) {
-      await ctx.telegram.sendMessage(chatId, "System Error: Empty response from agent.", { parse_mode: "HTML" });
+      await ctx.telegram.sendMessage(chatId, "System Error: Empty response from agent.");
       return;
     }
 
@@ -186,7 +213,7 @@ export class TelegramAdapter implements ITelegramAdapter {
     // Split message into chunks that fit within Telegram's 4096 character limit
     const chunks = splitMessage(output);
     for (const chunk of chunks) {
-      await ctx.telegram.sendMessage(chatId, chunk, { parse_mode: "HTML" });
+      await sendChunk(ctx.telegram, chatId, chunk);
     }
   }
 
@@ -211,7 +238,7 @@ export class TelegramAdapter implements ITelegramAdapter {
         await this.sendOutbound(ctx, finalState.messages);
       } catch (error) {
         console.error("Agent execution error:", error);
-        await ctx.telegram.sendMessage(ctx.chat.id, "System Error: Unable to process request.", { parse_mode: "HTML" });
+        await sendSystemError(ctx, "System Error: Unable to process request.");
       }
     });
 

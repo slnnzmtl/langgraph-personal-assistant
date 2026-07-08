@@ -109,3 +109,28 @@ export const searchFilesByContent = async (
   await walk(resolveSafePath(rootDir, relativeDir), relativeDir);
   return Array.from(resultSet).sort();
 };
+
+export const buildDirectoryTree = async (rootDir: string, relativeDir = "."): Promise<string> => {
+  const rootPath = resolveSafePath(rootDir, relativeDir);
+
+  const walk = async (currentAbsDir: string, currentRelDir: string, depth: number): Promise<string[]> => {
+    const entries = await readdir(currentAbsDir, { withFileTypes: true });
+    const directories = entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right));
+
+    const lines: string[] = [];
+
+    for (const directory of directories) {
+      const nextRelDir = path.posix.join(currentRelDir, directory);
+      lines.push(`${"  ".repeat(depth)}${nextRelDir}`);
+      lines.push(...await walk(path.join(currentAbsDir, directory), nextRelDir, depth + 1));
+    }
+
+    return lines;
+  };
+
+  const lines = [relativeDir, ...await walk(rootPath, relativeDir, 1)];
+  return lines.join("\n");
+};

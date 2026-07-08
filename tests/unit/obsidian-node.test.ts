@@ -155,6 +155,7 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("Current datetime:");
     expect(prompt).toContain("A. READ INTENT");
     expect(prompt).toContain("B. WRITE / MODIFY INTENT");
+    expect(prompt).toContain("Search result post-processing:");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -225,6 +226,40 @@ describe("createObsidianNode", () => {
     expect(firstMessage?.content).toBe("Done.");
   });
 
+  it("injects the vault directory tree without file names", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile } = await import("node:fs/promises");
+
+    await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
+    await mkdir(path.join(vaultRoot, "projects", "alpha"), { recursive: true });
+    await writeFile(path.join(vaultRoot, "routine", "July", "July 5 - Sun.md"), "# Today\n", "utf8");
+    await writeFile(path.join(vaultRoot, "inbox.md"), "# Inbox\n", "utf8");
+
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("Vault directory tree (folders only):");
+      expect(promptContent).toContain(".\n  projects\n    projects/alpha\n  routine\n    routine/July");
+      expect(promptContent).not.toContain("July 5 - Sun.md");
+      expect(promptContent).not.toContain("inbox.md");
+
+      return new AIMessage("Done.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("show me the vault structure")],
+      context: {},
+      next: undefined,
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Done.");
+  });
+
   it("injects prior tool-result context and a pending write instruction after a read step", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
@@ -264,6 +299,64 @@ describe("createObsidianNode", () => {
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
+  });
+
+  it("compresses broad search results into a shorter final answer", async () => {
+    const vaultRoot = await createTempVault();
+    const rawSearchResult = [
+      "events/potuzhno/techno-yoga/Places.md",
+      "routine 1/July/July 3 - Fri.md",
+      "routine 1/July/July 4 - Sat.md",
+      "routine/July/July 3 - Fri.md",
+      "routine/July/July 4 - Sat.md",
+      "routine/July/July 5 - Sun.md",
+    ].join("\n");
+
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("Post-process the markdown search results into the shortest useful answer.");
+      expect(promptContent).toContain(rawSearchResult);
+
+      return new AIMessage("Best matches:\nroutine/July/July 3 - Fri.md\nroutine/July/July 4 - Sat.md");
+    });
+
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
+
+    const result = await obsidianNode({
+      messages: [
+        new HumanMessage("find routine note matches for potuzhno event note"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "search_markdown_files",
+              args: { queries: ["potuzhno", "event", "note"] },
+              id: "search-1",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          name: "search_markdown_files",
+          tool_call_id: "search-1",
+          content: rawSearchResult,
+        }),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const finalText = typeof firstMessage?.content === "string" ? firstMessage.content : JSON.stringify(firstMessage?.content ?? "");
+
+    expect(finalText).toContain("routine/July/July 3 - Fri.md");
+    expect(finalText).toContain("routine/July/July 4 - Sat.md");
+    expect(finalText).not.toContain("routine/July/July 5 - Sun.md");
+    expect(finalText.split("\n")).toHaveLength(2);
   });
 
   it("invokes the model with write-tool result to produce a natural-language summary", async () => {

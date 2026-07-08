@@ -7,9 +7,41 @@ import {
 } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { type AgentState, type AgentStateUpdate } from "../../state.js";
+import { buildDirectoryTree } from "../../utils/file-system.js";
 import {
   createObsidianTools,
 } from "./obsidian-tools.js";
+
+const SEARCH_POST_PROCESS_INSTRUCTION = "Post-process the markdown search results into the shortest useful answer. Return at most 3 relevant paths, prefer the most specific matches, and do not repeat the entire raw result list.";
+
+const formatSearchResultFallback = (toolContent: string): string => {
+  const matches = toolContent
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 3);
+
+  return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
+};
+
+const normalizeSearchResponseText = (responseText: string, toolContent: string): string => {
+  const responseLines = responseText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const pathLines = responseLines.filter((line) => line.includes(".md") && line.includes("/"));
+  if (pathLines.length > 0) {
+    return pathLines.slice(0, 3).join("\n");
+  }
+
+  return responseText.length > 0 ? responseText : formatSearchResultFallback(toolContent);
+};
+
+const formatObsidianSystemPrompt = async (vaultRoot: string): Promise<string> => {
+  const vaultDirectoryTree = await buildDirectoryTree(vaultRoot);
+  return `${loadObsidianSystemPrompt()}\n\nVault directory tree (folders only):\n${vaultDirectoryTree}`;
+};
 
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },
@@ -24,7 +56,8 @@ export const createObsidianNode = (
     try {
       await mkdir(vaultRoot, { recursive: true });
 
-      const systemInstructions = new SystemMessage(loadObsidianSystemPrompt());
+      const systemPrompt = await formatObsidianSystemPrompt(vaultRoot);
+      const systemInstructions = new SystemMessage(systemPrompt);
 
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
       
@@ -46,6 +79,27 @@ export const createObsidianNode = (
             messages: [new AIMessage(extractedSummary)],
           };
         }
+      }
+
+      if (lastMessage instanceof ToolMessage && lastMessage.name === "search_markdown_files") {
+        const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content);
+        const searchPromptMessages = [
+          new SystemMessage(`${systemPrompt}
+
+${SEARCH_POST_PROCESS_INSTRUCTION}`),
+          ...state.messages,
+        ];
+
+        const searchResponse = await model.invoke(searchPromptMessages);
+        const searchResponseText = searchResponse instanceof AIMessage
+          ? extractMessageTextContent(searchResponse.content).trim()
+          : "";
+
+        const compactSearchText = normalizeSearchResponseText(searchResponseText, toolContent);
+
+        return {
+          messages: [new AIMessage(compactSearchText)],
+        };
       }
 
       const response = await modelWithTools.invoke(promptMessages);
