@@ -124,6 +124,15 @@ export const SearchMarkdownToolSchema = z.object({
   relativeDir: RelativeDirSchema,
 }).describe("Search for .md files whose content or vault-relative path matches any of the supplied search terms (OR semantics).");
 
+const normalizeSearchQueries = (queries: string[]): string[] => {
+  const normalized = queries
+    .flatMap((query) => query.split(/[\s/._-]+/g))
+    .map((query) => query.trim())
+    .filter((query) => query.length > 0);
+
+  return Array.from(new Set(normalized));
+};
+
 export const listMarkdownDirContents = async (
   vaultRoot: string,
   relativeDir: string,
@@ -136,7 +145,7 @@ export const searchMarkdownFiles = async (
   queries: string[],
   relativeDir: string,
 ): Promise<string[]> => {
-  return searchFilesByContent(vaultRoot, queries, relativeDir, { fileExtension: ".md" });
+  return searchFilesByContent(vaultRoot, normalizeSearchQueries(queries), relativeDir, { fileExtension: ".md" });
 };
 
 export const createObsidianTools = (vaultRoot: string) => [

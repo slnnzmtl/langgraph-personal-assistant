@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { searchFilesByContent } from "../../src/utils/file-system.js";
 import { buildDirectoryTree } from "../../src/utils/file-system.js";
+import { searchMarkdownFiles } from "../../src/nodes/obsidian/obsidian-tools.js";
 
 const tempPaths: string[] = [];
 
@@ -57,6 +58,19 @@ describe("searchFilesByContent", () => {
     await expect(searchFilesByContent(rootDir, ["techno yoga"], ".", { fileExtension: ".md" })).resolves.toEqual([
       "events/potuzhno/techno-yoga/Places.md",
       "notes/routine.md",
+    ]);
+  });
+});
+
+describe("searchMarkdownFiles", () => {
+  it("splits multi-word query phrases into atomic terms before searching", async () => {
+    const rootDir = await createTempRoot();
+
+    await mkdir(path.join(rootDir, "events", "potuzhno", "techno-yoga"), { recursive: true });
+    await writeFile(path.join(rootDir, "events", "potuzhno", "techno-yoga", "Places.md"), "No matching keywords here", "utf8");
+
+    await expect(searchMarkdownFiles(rootDir, ["techno yoga places note"], ".")).resolves.toEqual([
+      "events/potuzhno/techno-yoga/Places.md",
     ]);
   });
 });

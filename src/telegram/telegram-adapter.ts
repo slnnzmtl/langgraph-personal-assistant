@@ -46,6 +46,32 @@ const logTelegramMessage = (role: "user" | "bot", text: string): void => {
   console.log(`${role}: ${truncateForLog(text)}`);
 };
 
+const TELEGRAM_MARKDOWN_V2_RESERVED_CHARACTERS = /[\\_*\[\]()~`>#+\-=|{}.!]/g;
+
+const escapeTelegramMarkdownV2Text = (text: string): string =>
+  text.replace(TELEGRAM_MARKDOWN_V2_RESERVED_CHARACTERS, "\\$&");
+
+const escapeTelegramMarkdownV2Url = (text: string): string => text.replace(/[\\)]/g, "\\$&");
+
+export const formatTelegramMarkdownV2 = (text: string): string => {
+  const tokens: string[] = [];
+  const createToken = (value: string): string => {
+    tokens.push(value);
+
+    return `\u0000${tokens.length - 1}\u0000`;
+  };
+
+  const withTokens = text
+    .replace(/\*\*(.+?)\*\*/g, (_match, boldText: string) => createToken(`*${escapeTelegramMarkdownV2Text(boldText)}*`))
+    .replace(/\[((?:\\.|[^\]])+?)\]\(((?:\\.|[^)])+?)\)/g, (_match, linkText: string, url: string) =>
+      createToken(`[${escapeTelegramMarkdownV2Text(linkText)}](${escapeTelegramMarkdownV2Url(url)})`),
+    );
+
+  const escapedText = escapeTelegramMarkdownV2Text(withTokens);
+
+  return escapedText.replace(/\u0000(\d+)\u0000/g, (_match, tokenIndex: string) => tokens[Number(tokenIndex)] ?? "");
+};
+
 /**
  * Split a message into chunks that fit within Telegram's 4096 character limit.
  * Prefers to split on newline boundaries to preserve readability and avoid breaking MarkdownV2 tags.
@@ -108,7 +134,7 @@ const sendSystemError = async (ctx: Context, text: string): Promise<void> => {
 
 const sendChunk = async (telegram: Context["telegram"], chatId: number, chunk: string): Promise<void> => {
   try {
-    await telegram.sendMessage(chatId, chunk, { parse_mode: "MarkdownV2" });
+    await telegram.sendMessage(chatId, formatTelegramMarkdownV2(chunk), { parse_mode: "MarkdownV2" });
   } catch (error) {
     const isParseError =
       error instanceof Error &&

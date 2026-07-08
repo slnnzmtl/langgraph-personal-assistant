@@ -2,14 +2,23 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "../../src/config.js";
-import { TelegramAdapter, extractTelegramMessageText, splitMessage } from "../../src/telegram/telegram-adapter.js";
+import {
+  formatTelegramMarkdownV2,
+  TelegramAdapter,
+  extractTelegramMessageText,
+  splitMessage,
+} from "../../src/telegram/telegram-adapter.js";
 
 const config: AppConfig = {
   telegramBotToken: "123:abc",
   allowedTelegramUserId: "42",
   googleApiKey: "key",
   geminiModel: "gemini-1.5-flash",
+  supervisorModel: "gemini-1.5-flash",
+  obsidianModel: "gemini-1.5-flash",
+  financeModel: "gemini-1.5-flash",
   obsidianVaultPath: "/tmp/vault",
+  appTimezone: "UTC",
 };
 
 const app = {
@@ -34,6 +43,14 @@ describe("extractTelegramMessageText", () => {
         { type: "image_url", image_url: { url: "https://example.com/image.jpg" } },
       ]),
     ).toBe("hello\n[non-text content omitted]");
+  });
+});
+
+describe("formatTelegramMarkdownV2", () => {
+  it("preserves bold text and links while escaping plain text", () => {
+    expect(
+      formatTelegramMarkdownV2("- **Address:** 30 Chính Hữu. [Google Maps](https://maps.app.goo.gl/test)")
+    ).toBe("\\- *Address:* 30 Chính Hữu\\. [Google Maps](https://maps.app.goo.gl/test)");
   });
 });
 
@@ -181,7 +198,7 @@ describe("TelegramAdapter", () => {
       [new AIMessage("**done**")],
     );
 
-    expect(sendMessage).toHaveBeenCalledWith(42, "**done**", { parse_mode: "MarkdownV2" });
+    expect(sendMessage).toHaveBeenCalledWith(42, "*done*", { parse_mode: "MarkdownV2" });
     expect(logSpy).toHaveBeenCalled();
   });
 
@@ -244,7 +261,7 @@ describe("TelegramAdapter", () => {
     );
 
     expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "No matching notes found. Would you like to create one?", { parse_mode: "MarkdownV2" });
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "No matching notes found\\. Would you like to create one?", { parse_mode: "MarkdownV2" });
     expect(sendMessage).toHaveBeenNthCalledWith(2, 42, "No matching notes found. Would you like to create one?");
     expect(logSpy).toHaveBeenCalled();
   });
