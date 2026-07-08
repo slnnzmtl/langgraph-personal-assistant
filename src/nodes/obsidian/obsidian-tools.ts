@@ -1,7 +1,14 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import {
+  fileExists,
+  listDirectoryContents,
+  readTextFile,
+  resolveSafePath,
+  searchFilesByContent,
+  writeTextFile,
+} from "../../utils/file-system.js";
 
 const MarkdownRelativePathSchema = z
   .string()
@@ -16,11 +23,11 @@ const MarkdownRelativePathSchema = z
 
 const MarkdownContentSchema = z
   .string()
-  .min(1)
+  .min(1);
 
 const MarkdownSummarySchema = z
   .string()
-  .min(1)
+  .min(1);
 
 export const ReadMarkdownToolSchema = z.object({
   relativePath: MarkdownRelativePathSchema,
@@ -33,42 +40,36 @@ export const WriteMarkdownToolSchema = z.object({
   summary: MarkdownSummarySchema,
 }).describe("Write or modify a markdown file in the vault.");
 
-// TODO: Refactor the following functions to use a more robust file system abstraction that can handle errors and edge cases more gracefully, and consider adding logging for better traceability of file operations.
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
-  const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));
-  if (normalizedPath.startsWith("../") || path.posix.isAbsolute(normalizedPath)) throw new Error("Markdown path must stay inside the local vault.");
-  const absolutePath = path.resolve(vaultRoot, normalizedPath);
-  const relativeToRoot = path.relative(vaultRoot, absolutePath);
-  if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) throw new Error("Resolved markdown path escapes the local vault.");
-  return absolutePath;
+  try {
+    return resolveSafePath(vaultRoot, relativePath);
+  } catch {
+    throw new Error("Markdown path must stay inside the local vault.");
+  }
 };
 
 export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: z.infer<typeof WriteMarkdownToolSchema>): Promise<string> => {
   const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
-  await mkdir(path.dirname(targetPath), { recursive: true });
 
   if (operationRequest.operation === "create_new") {
-    try {
-      await readFile(targetPath, "utf8");
+    if (await fileExists(vaultRoot, operationRequest.relativePath)) {
       throw new Error(`Refusing to overwrite existing markdown file: ${operationRequest.relativePath}`);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     const nextContent = operationRequest.content?.trim() ?? "";
-    await writeFile(targetPath, nextContent.length === 0 ? "" : `${nextContent}\n`, "utf8");
+    await writeTextFile(vaultRoot, operationRequest.relativePath, nextContent.length === 0 ? "" : `${nextContent}\n`);
     return operationRequest.relativePath;
   }
 
   if (operationRequest.operation === "overwrite") {
     const nextContent = operationRequest.content?.trim();
     if (!nextContent) throw new Error("Overwrite operations must include content.");
-    await writeFile(targetPath, `${nextContent}\n`, "utf8");
+    await writeTextFile(vaultRoot, operationRequest.relativePath, `${nextContent}\n`);
     return operationRequest.relativePath;
   }
 
   let existingContent = "";
   try {
-    existingContent = await readFile(targetPath, "utf8");
+    existingContent = await readTextFile(vaultRoot, operationRequest.relativePath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -86,13 +87,13 @@ export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: z.
   const appendContent = operationRequest.content?.trim();
   if (!appendContent) throw new Error("Append operations must include content.");
 
-  await writeFile(targetPath, `${normalizedExisting}${appendPrefix}${appendContent}\n`, "utf8");
+  await writeTextFile(vaultRoot, operationRequest.relativePath, `${normalizedExisting}${appendPrefix}${appendContent}\n`);
   return operationRequest.relativePath;
 };
 
 export const readMarkdownFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
   try {
-    return await readFile(resolveVaultPath(vaultRoot, relativePath), "utf8");
+    return await readTextFile(vaultRoot, relativePath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Cannot read missing markdown file: ${relativePath}`);
     throw error;
@@ -100,22 +101,13 @@ export const readMarkdownFile = async (vaultRoot: string, relativePath: string):
 };
 
 export const checkMarkdownExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
-  try {
-    await readFile(resolveVaultPath(vaultRoot, relativePath), "utf8");
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
+  return fileExists(vaultRoot, relativePath);
 };
 
 export const listMarkdownFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
-  const dirPath = resolveVaultPath(vaultRoot, relativeDir);
-  const entries = await readdir(dirPath, { withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .map((entry) => path.posix.join(relativeDir, entry.name));
-}
+  const { files } = await listDirectoryContents(vaultRoot, relativeDir, { fileExtension: ".md" });
+  return files;
+};
 
 const RelativeDirSchema = z
   .string()
@@ -136,15 +128,7 @@ export const listMarkdownDirContents = async (
   vaultRoot: string,
   relativeDir: string,
 ): Promise<{ files: string[]; dirs: string[] }> => {
-  const dirPath = resolveVaultPath(vaultRoot, relativeDir);
-  const entries = await readdir(dirPath, { withFileTypes: true });
-  const files = entries
-    .filter((e) => e.isFile() && e.name.endsWith(".md"))
-    .map((e) => path.posix.join(relativeDir, e.name));
-  const dirs = entries
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name);
-  return { files, dirs };
+  return listDirectoryContents(vaultRoot, relativeDir, { fileExtension: ".md" });
 };
 
 export const searchMarkdownFiles = async (
@@ -152,29 +136,7 @@ export const searchMarkdownFiles = async (
   queries: string[],
   relativeDir: string,
 ): Promise<string[]> => {
-  const lowerQueries = queries.map((q) => q.toLowerCase());
-  const resultSet = new Set<string>();
-
-  const walk = async (currentAbsDir: string, currentRelDir: string) => {
-    const entries = await readdir(currentAbsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const entryRelPath = path.posix.join(currentRelDir, entry.name);
-      const entryAbsPath = path.join(currentAbsDir, entry.name);
-      if (entry.isDirectory()) {
-        await walk(entryAbsPath, entryRelPath);
-      } else if (entry.isFile() && entry.name.endsWith(".md")) {
-        const content = await readFile(entryAbsPath, "utf8");
-        const lowerContent = content.toLowerCase();
-        // Match if any query term appears in the content (OR semantics)
-        if (lowerQueries.some((query) => lowerContent.includes(query))) {
-          resultSet.add(entryRelPath);
-        }
-      }
-    }
-  };
-
-  await walk(resolveVaultPath(vaultRoot, relativeDir), relativeDir);
-  return Array.from(resultSet).sort();
+  return searchFilesByContent(vaultRoot, queries, relativeDir, { fileExtension: ".md" });
 };
 
 export const createObsidianTools = (vaultRoot: string) => [

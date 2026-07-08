@@ -37,7 +37,7 @@ export const createObsidianNode = (
         if (toolContent.startsWith("Success:")) {
           // Parse "Success: {summary} saved to {path}." → extract just the summary part
           const match = toolContent.match(/^Success:\s*(.+?)\s+saved to\s+/);
-          let extractedSummary = match ? match[1] : toolContent;
+          let extractedSummary = match?.[1] ?? toolContent;
           // Ensure summary ends with a period
           if (!extractedSummary.endsWith(".")) {
             extractedSummary += ".";

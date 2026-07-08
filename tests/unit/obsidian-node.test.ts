@@ -8,8 +8,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyMarkdownWrite,
+  listMarkdownDirContents,
+  listMarkdownFiles,
   resolveVaultPath,
   createObsidianTools,
+  searchMarkdownFiles,
 } from "../../src/nodes/obsidian/obsidian-tools.js";
 import {
   createObsidianNode,
@@ -46,6 +49,31 @@ describe("obsidian node helpers", () => {
     expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
       "Markdown path must stay inside the local vault.",
     );
+  });
+
+  it("lists and searches only markdown files", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile } = await import("node:fs/promises");
+
+    await mkdir(path.join(vaultRoot, "daily"), { recursive: true });
+    await writeFile(path.join(vaultRoot, "daily", "note.md"), "alpha beta", "utf8");
+    await writeFile(path.join(vaultRoot, "daily", "note.txt"), "alpha beta", "utf8");
+    await mkdir(path.join(vaultRoot, "daily", "nested"), { recursive: true });
+    await writeFile(path.join(vaultRoot, "daily", "nested", "deep.md"), "gamma", "utf8");
+
+    await expect(listMarkdownFiles(vaultRoot, "daily")).resolves.toEqual([
+      "daily/note.md",
+    ]);
+
+    await expect(listMarkdownDirContents(vaultRoot, "daily")).resolves.toEqual({
+      files: ["daily/note.md"],
+      dirs: ["nested"],
+    });
+
+    await expect(searchMarkdownFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
+      "daily/nested/deep.md",
+      "daily/note.md",
+    ]);
   });
 
   it("creates and appends markdown content safely", async () => {
@@ -122,12 +150,11 @@ describe("createObsidianNode", () => {
   it("loads the Obsidian system prompt from markdown", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Core Objective");
-    expect(prompt).toContain("# System Operational Rules");
-    expect(prompt).toContain("The runtime injects today's current date and time into the system prompt.");
+    expect(prompt).toContain("# Role & Objective");
+    expect(prompt).toContain("# Strict Constraints");
+    expect(prompt).toContain("Current datetime:");
     expect(prompt).toContain("A. READ INTENT");
     expect(prompt).toContain("B. WRITE / MODIFY INTENT");
-    expect(prompt).toContain("'overwrite': To modify existing text, add tasks, or alter structures, call `read_markdown_file` first, apply your modifications to the text content, and overwrite the file completely.");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -136,7 +163,7 @@ describe("createObsidianNode", () => {
       getModel: () => ({}) as BaseChatModel,
     };
 
-    expect(() => createObsidianNode(connector, vaultRoot, "UTC")).toThrow(
+    expect(() => createObsidianNode(connector, vaultRoot)).toThrow(
       "Obsidian tool-bound model must support tool calling.",
     );
   });
@@ -144,7 +171,7 @@ describe("createObsidianNode", () => {
   it("falls back to a non-empty completion when the model returns blank text", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector(() => new AIMessage(""));
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
 
     const result = await obsidianNode({
       messages: [new HumanMessage("create a note for today")],
@@ -152,7 +179,8 @@ describe("createObsidianNode", () => {
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Completed the Obsidian task.");
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Completed the Obsidian task.");
   });
 
   it("includes the current date and routine path hint in the prompt", async () => {
@@ -172,7 +200,7 @@ describe("createObsidianNode", () => {
 
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
-      const promptContent = (input as HumanMessage[])
+      const promptContent = (input as Array<{ content: unknown }>)
         .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
         .join("\n");
       const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
@@ -185,7 +213,7 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, utcTimezone);
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
 
     const result = await obsidianNode({
       messages: [new HumanMessage("give me a plan for today")],
@@ -193,14 +221,15 @@ describe("createObsidianNode", () => {
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Done.");
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Done.");
   });
 
   it("injects prior tool-result context and a pending write instruction after a read step", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
-      const promptContent = (input as HumanMessage[])
+      const promptContent = (input as Array<{ content: unknown }>)
         .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
         .join("\n");
 
@@ -208,7 +237,7 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
 
     const result = await obsidianNode({
       messages: [
@@ -233,7 +262,8 @@ describe("createObsidianNode", () => {
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Done.");
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Done.");
   });
 
   it("invokes the model with write-tool result to produce a natural-language summary", async () => {
@@ -248,7 +278,7 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Added sauna to today's tasks in your routine.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
 
     const result = await obsidianNode({
       messages: [
@@ -278,7 +308,8 @@ describe("createObsidianNode", () => {
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Added sauna to today's tasks in your routine.");
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Added sauna to today's tasks in your routine.");
   });
 
   it("invokes the model after a full tool batch to produce a natural-language summary", async () => {
@@ -293,7 +324,7 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Prepared today's note successfully.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, "UTC");
+    const obsidianNode = createObsidianNode(connector, vaultRoot);
 
     const result = await obsidianNode({
       messages: [
@@ -333,7 +364,8 @@ describe("createObsidianNode", () => {
       next: undefined,
     });
 
-    expect(result.messages?.[0]?.content).toBe("Prepared today's note successfully.");
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Prepared today's note successfully.");
   });
 
   it("supports hot-reloading prompt content during development via the shared loader", async () => {
