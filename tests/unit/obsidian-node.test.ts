@@ -403,14 +403,29 @@ describe("obsidian tool: list_markdown_files", () => {
 // ---------------------------------------------------------------------------
 
 describe("obsidian tool: search_markdown_files", () => {
-  it("finds files whose content matches the query (case-insensitive)", async () => {
+  it("finds files whose content matches any query term (OR semantics)", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "a.md"), "Hello World");
+    await wf(path.join(vaultRoot, "b.md"), "goodbye");
+    await wf(path.join(vaultRoot, "c.md"), "hello typescript");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ queries: ["HELLO", "goodbye"] }) as string;
+
+    expect(result).toContain("a.md");
+    expect(result).toContain("b.md");
+    expect(result).toContain("c.md");
+  });
+
+  it("finds files whose content matches a single query term", async () => {
     const vaultRoot = await createTempVault();
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "a.md"), "Hello World");
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
 
     const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ query: "HELLO" }) as string;
+    const result = await tools[3].invoke({ queries: ["HELLO"] }) as string;
 
     expect(result).toContain("a.md");
     expect(result).not.toContain("b.md");
@@ -425,21 +440,33 @@ describe("obsidian tool: search_markdown_files", () => {
     await wf(path.join(vaultRoot, "other", "nomatch.md"), "alpha");
 
     const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ query: "alpha", relativeDir: "notes" }) as string;
+    const result = await tools[3].invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
 
     expect(result).toContain("notes/match.md");
     expect(result).not.toContain("other/nomatch.md");
   });
 
-  it("formats query to lowercase before matching", async () => {
+  it("lowercases queries before matching", async () => {
     const vaultRoot = await createTempVault();
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "x.md"), "TypeScript");
 
     const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ query: "TYPESCRIPT" }) as string;
+    const result = await tools[3].invoke({ queries: ["TYPESCRIPT"] }) as string;
 
     expect(result).toContain("x.md");
+  });
+
+  it("de-duplicates results when multiple query terms match the same file", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "both.md"), "hello world");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ queries: ["hello", "world"] }) as string;
+
+    const lines = (result as string).split("\n");
+    expect(lines.filter((line) => line.includes("both.md"))).toHaveLength(1);
   });
 
   it("returns an empty-result message when nothing matches", async () => {
@@ -448,7 +475,7 @@ describe("obsidian tool: search_markdown_files", () => {
     await wf(path.join(vaultRoot, "empty.md"), "nothing here");
 
     const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ query: "zzznomatch" }) as string;
+    const result = await tools[3].invoke({ queries: ["zzznomatch"] }) as string;
 
     const lower = result.toLowerCase();
     expect(

@@ -30,6 +30,24 @@ export const createObsidianNode = (
       
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
+      // Early return on successful write operations — extract summary and skip LLM re-invocation
+      const lastMessage = state.messages[state.messages.length - 1];
+      if (lastMessage instanceof ToolMessage && lastMessage.name === "write_markdown_file") {
+        const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content);
+        if (toolContent.startsWith("Success:")) {
+          // Parse "Success: {summary} saved to {path}." → extract just the summary part
+          const match = toolContent.match(/^Success:\s*(.+?)\s+saved to\s+/);
+          let extractedSummary = match ? match[1] : toolContent;
+          // Ensure summary ends with a period
+          if (!extractedSummary.endsWith(".")) {
+            extractedSummary += ".";
+          }
+          return {
+            messages: [new AIMessage(extractedSummary)],
+          };
+        }
+      }
+
       const response = await modelWithTools.invoke(promptMessages);
       if (!(response instanceof AIMessage)) throw new Error("Obsidian tool-bound model must return an AI message.");
 

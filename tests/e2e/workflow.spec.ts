@@ -110,7 +110,7 @@ test.describe("workflow graph", () => {
 
       expect(saved).toBe("# E2E\nSaved through the graph\n");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Documented the request saved to notes/e2e.md.",
+        "Documented the request.",
       );
       expect(invocation).toBe(2);
     } finally {
@@ -668,6 +668,114 @@ test.describe("workflow graph", () => {
       expect(finalState.messages.at(-1)?.content).toBe(
         "Updated today's note with the sauna plan.",
       );
+    } finally {
+      await rm(vaultRoot, { recursive: true, force: true });
+    }
+  });
+
+  test("broadens search queries across multiple steps when initial search returns no results (try-fail-broaden loop)", async () => {
+    const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-search-broaden-vault-"));
+    let invocation = 0;
+
+    await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
+    await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
+    // File contains "gym" and "exercise" but not "workout"
+    await writeFile(
+      path.join(vaultRoot, "notes/fitness-log.md"),
+      "# Fitness Log\nJuly 5: Went to gym\nDid morning exercise routine\n",
+      "utf8",
+    );
+    // File contains "meeting" but not "sync"
+    await writeFile(
+      path.join(vaultRoot, "routine/July/July 5 - Sun.md"),
+      "## Today\nHad a meeting with team at 2pm\n",
+      "utf8",
+    );
+
+    const connector = new FakeLLMConnector((input) => {
+      invocation += 1;
+
+      if (invocation === 1) {
+        // Supervisor routes to Obsidian
+        return { next: "Obsidian_SG" };
+      }
+
+      if (!Array.isArray(input)) {
+        throw new Error("Expected an Obsidian prompt message array in search broaden test.");
+      }
+
+      const latestMessage = input.at(-1);
+
+      if (invocation === 2) {
+        // First Obsidian invocation: model tries exact search "workout", gets no results
+        expect(latestMessage).toBeInstanceOf(HumanMessage);
+        return new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "search_markdown_files",
+              args: { queries: ["workout"] },
+              id: "search-exact",
+              type: "tool_call",
+            },
+          ],
+        });
+      }
+
+      if (invocation === 3) {
+        // Tool returns no results, model sees "No files matched your search."
+        // Model now broadens with variants
+        expect(latestMessage).toBeInstanceOf(ToolMessage);
+        expect(latestMessage?.content).toContain("No files matched");
+
+        return new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "search_markdown_files",
+              args: { queries: ["gym", "exercise", "fitness"] },
+              id: "search-broaden-1",
+              type: "tool_call",
+            },
+          ],
+        });
+      }
+
+      if (invocation === 4) {
+        // Broadened search succeeds and finds fitness-log.md
+        expect(latestMessage).toBeInstanceOf(ToolMessage);
+        expect(latestMessage?.content).toContain("fitness-log.md");
+
+        return new AIMessage(
+          "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
+        );
+      }
+
+      // Final supervisor handoff
+      expect(latestMessage).toBeInstanceOf(HumanMessage);
+      return {
+        next: "FINISH",
+        reply: "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
+      };
+    });
+
+    try {
+      const app = createWorkflowGraph(connector, connector, connector, {
+        obsidianVaultPath: vaultRoot,
+        appTimezone: "UTC",
+      });
+
+      const finalState = await app.invoke(
+        {
+          messages: [new HumanMessage("find my workout notes from July 5")],
+        },
+        workflowConfig,
+      );
+
+      expect(finalState.messages.at(-1)?.content).toBe(
+        "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
+      );
+      expect(invocation).toBe(4);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }

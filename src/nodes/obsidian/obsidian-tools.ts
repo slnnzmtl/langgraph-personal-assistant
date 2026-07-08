@@ -128,9 +128,9 @@ export const ListMarkdownToolSchema = z.object({
 }).describe("List .md files and subdirectories in a vault directory.");
 
 export const SearchMarkdownToolSchema = z.object({
-  query: z.string().min(1).describe("Search query (will be lowercased before matching)."),
+  queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if content contains any term). Terms will be lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Search for .md files whose content matches a query.");
+}).describe("Search for .md files whose content matches any of the supplied search terms (OR semantics).");
 
 export const listMarkdownDirContents = async (
   vaultRoot: string,
@@ -149,11 +149,11 @@ export const listMarkdownDirContents = async (
 
 export const searchMarkdownFiles = async (
   vaultRoot: string,
-  query: string,
+  queries: string[],
   relativeDir: string,
 ): Promise<string[]> => {
-  const lowerQuery = query.toLowerCase();
-  const results: string[] = [];
+  const lowerQueries = queries.map((q) => q.toLowerCase());
+  const resultSet = new Set<string>();
 
   const walk = async (currentAbsDir: string, currentRelDir: string) => {
     const entries = await readdir(currentAbsDir, { withFileTypes: true });
@@ -164,15 +164,17 @@ export const searchMarkdownFiles = async (
         await walk(entryAbsPath, entryRelPath);
       } else if (entry.isFile() && entry.name.endsWith(".md")) {
         const content = await readFile(entryAbsPath, "utf8");
-        if (content.toLowerCase().includes(lowerQuery)) {
-          results.push(entryRelPath);
+        const lowerContent = content.toLowerCase();
+        // Match if any query term appears in the content (OR semantics)
+        if (lowerQueries.some((query) => lowerContent.includes(query))) {
+          resultSet.add(entryRelPath);
         }
       }
     }
   };
 
   await walk(resolveVaultPath(vaultRoot, relativeDir), relativeDir);
-  return results;
+  return Array.from(resultSet).sort();
 };
 
 export const createObsidianTools = (vaultRoot: string) => [
@@ -220,9 +222,9 @@ export const createObsidianTools = (vaultRoot: string) => [
     },
   ),
   tool(
-    async ({ query, relativeDir }: z.infer<typeof SearchMarkdownToolSchema>) => {
+    async ({ queries, relativeDir }: z.infer<typeof SearchMarkdownToolSchema>) => {
       try {
-        const matches = await searchMarkdownFiles(vaultRoot, query, relativeDir);
+        const matches = await searchMarkdownFiles(vaultRoot, queries, relativeDir);
         return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
       } catch (e: any) {
         return `Error: ${e.message}`;
@@ -230,7 +232,7 @@ export const createObsidianTools = (vaultRoot: string) => [
     },
     {
       name: "search_markdown_files",
-      description: "Search .md files by content across the vault or within a directory. Query is lowercased before matching.",
+      description: "Search .md files by content across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content contains any of the supplied terms.",
       schema: SearchMarkdownToolSchema,
     },
   ),
