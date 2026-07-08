@@ -35,7 +35,7 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
     const response = await routingChain.invoke(promptMessages);
 
-    console.log("Supervisor routing decision:", response);
+    console.log("Supervisor routing decision:", response.next, response.reply);
 
     if (response.next === "FINISH") {
       return {

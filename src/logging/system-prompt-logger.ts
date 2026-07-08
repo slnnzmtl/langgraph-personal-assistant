@@ -58,7 +58,7 @@ export const logSystemPromptInvocation = async (
       "",
     ].join("\n");
 
-    console.log(`[system-prompt:${promptName}]\n${logEntry}`);
+    // console.log(`[system-prompt:${promptName}]\n${logEntry}`);
     await appendFile(logFilePath, logEntry, "utf8");
   } catch (error) {
     console.error(`Failed to write system prompt log for ${promptName}:`, error);

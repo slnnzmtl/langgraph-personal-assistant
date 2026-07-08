@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { mkdir } from "node:fs/promises";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
@@ -37,9 +37,19 @@ export const createObsidianNode = (
       const toolCalls = response.tool_calls ?? [];
       const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
 
+      console.log("Obsidian node response:", responseText);
+      console.log("Tool calls:", toolCalls.map((call) => `${call.name}: ${JSON.stringify(call.args)}`).join(", "));
+
       let finalMessage: AIMessage = response;
       if (!hasToolCalls && responseText.length === 0) {
-        finalMessage = new AIMessage("Completed the Obsidian task.");
+        const hasToolResults = state.messages.some(m => m instanceof ToolMessage);
+        if (hasToolResults) {
+          // Model returned empty after tool execution — re-invoke without tools to force narration
+          const narrationResponse = await model.invoke(promptMessages);
+          finalMessage = narrationResponse instanceof AIMessage ? narrationResponse : new AIMessage("Completed the Obsidian task.");
+        } else {
+          finalMessage = new AIMessage("Completed the Obsidian task.");
+        }
       }
 
       return {

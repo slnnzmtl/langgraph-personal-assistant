@@ -33,8 +33,6 @@ function normalizeToIso8601(dateString: string): string {
 function normalizeWiseTransaction(raw: Record<string, unknown>): WiseTransaction {
   let name = String(raw.title).replace(/<[^>]*>/g, ""); // Remove HTML tags
 
-  console.log({...raw})
-  
   return {
     name,
     amount: raw.secondaryAmount ? String(raw.secondaryAmount) : String(raw.primaryAmount),

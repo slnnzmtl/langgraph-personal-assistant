@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
@@ -33,6 +33,7 @@ export const WriteMarkdownToolSchema = z.object({
   summary: MarkdownSummarySchema,
 }).describe("Write or modify a markdown file in the vault.");
 
+// TODO: Refactor the following functions to use a more robust file system abstraction that can handle errors and edge cases more gracefully, and consider adding logging for better traceability of file operations.
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const normalizedPath = path.posix.normalize(relativePath.replaceAll("\\", "/"));
   if (normalizedPath.startsWith("../") || path.posix.isAbsolute(normalizedPath)) throw new Error("Markdown path must stay inside the local vault.");
@@ -108,6 +109,72 @@ export const checkMarkdownExists = async (vaultRoot: string, relativePath: strin
   }
 };
 
+export const listMarkdownFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
+  const dirPath = resolveVaultPath(vaultRoot, relativeDir);
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => path.posix.join(relativeDir, entry.name));
+}
+
+const RelativeDirSchema = z
+  .string()
+  .optional()
+  .default(".")
+  .refine((v) => !v.includes(".."), { message: "Path traversal is forbidden." });
+
+export const ListMarkdownToolSchema = z.object({
+  relativeDir: RelativeDirSchema,
+}).describe("List .md files and subdirectories in a vault directory.");
+
+export const SearchMarkdownToolSchema = z.object({
+  query: z.string().min(1).describe("Search query (will be lowercased before matching)."),
+  relativeDir: RelativeDirSchema,
+}).describe("Search for .md files whose content matches a query.");
+
+export const listMarkdownDirContents = async (
+  vaultRoot: string,
+  relativeDir: string,
+): Promise<{ files: string[]; dirs: string[] }> => {
+  const dirPath = resolveVaultPath(vaultRoot, relativeDir);
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const files = entries
+    .filter((e) => e.isFile() && e.name.endsWith(".md"))
+    .map((e) => path.posix.join(relativeDir, e.name));
+  const dirs = entries
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
+  return { files, dirs };
+};
+
+export const searchMarkdownFiles = async (
+  vaultRoot: string,
+  query: string,
+  relativeDir: string,
+): Promise<string[]> => {
+  const lowerQuery = query.toLowerCase();
+  const results: string[] = [];
+
+  const walk = async (currentAbsDir: string, currentRelDir: string) => {
+    const entries = await readdir(currentAbsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryRelPath = path.posix.join(currentRelDir, entry.name);
+      const entryAbsPath = path.join(currentAbsDir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(entryAbsPath, entryRelPath);
+      } else if (entry.isFile() && entry.name.endsWith(".md")) {
+        const content = await readFile(entryAbsPath, "utf8");
+        if (content.toLowerCase().includes(lowerQuery)) {
+          results.push(entryRelPath);
+        }
+      }
+    }
+  };
+
+  await walk(resolveVaultPath(vaultRoot, relativeDir), relativeDir);
+  return results;
+};
+
 export const createObsidianTools = (vaultRoot: string) => [
   tool(
     async ({ relativePath }) => {
@@ -131,6 +198,40 @@ export const createObsidianTools = (vaultRoot: string) => [
       name: "write_markdown_file",
       description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
       schema: WriteMarkdownToolSchema,
+    },
+  ),
+  tool(
+    async ({ relativeDir }: z.infer<typeof ListMarkdownToolSchema>) => {
+      try {
+        const { files, dirs } = await listMarkdownDirContents(vaultRoot, relativeDir);
+        const lines = [
+          ...files.map((f) => `file: ${f}`),
+          ...dirs.map((d) => `dir: ${d}`),
+        ];
+        return lines.length > 0 ? lines.join("\n") : "No files or directories found.";
+      } catch (e: any) {
+        return `Error: ${e.message}`;
+      }
+    },
+    {
+      name: "list_markdown_files",
+      description: "List .md files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
+      schema: ListMarkdownToolSchema,
+    },
+  ),
+  tool(
+    async ({ query, relativeDir }: z.infer<typeof SearchMarkdownToolSchema>) => {
+      try {
+        const matches = await searchMarkdownFiles(vaultRoot, query, relativeDir);
+        return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
+      } catch (e: any) {
+        return `Error: ${e.message}`;
+      }
+    },
+    {
+      name: "search_markdown_files",
+      description: "Search .md files by content across the vault or within a directory. Query is lowercased before matching.",
+      schema: SearchMarkdownToolSchema,
     },
   ),
 ];

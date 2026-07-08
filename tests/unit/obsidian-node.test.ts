@@ -13,7 +13,7 @@ import {
 } from "../../src/nodes/obsidian/obsidian-tools.js";
 import {
   createObsidianNode,
-} from "../../src/nodes/obsidian/obsidian-node.js";
+} from "../../src/nodes/obsidian/obsidian.js";
 import { extractMessageTextContent } from "../../src/nodes/message-history.js";
 import {
   createPromptLoader,
@@ -350,5 +350,109 @@ describe("createObsidianNode", () => {
     await writeFile(promptPath, "Prompt two\n", "utf8");
 
     expect(loadPrompt()).toBe("Prompt two");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// list_markdown_files tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: list_markdown_files", () => {
+  it("lists .md files and subdirectories in a given directory", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile: wf } = await import("node:fs/promises");
+    await mkdir(path.join(vaultRoot, "notes", "sub"), { recursive: true });
+    await wf(path.join(vaultRoot, "notes", "a.md"), "# A");
+    await wf(path.join(vaultRoot, "notes", "b.md"), "# B");
+    await wf(path.join(vaultRoot, "notes", "sub", "c.md"), "# C");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[2].invoke({ relativeDir: "notes" }) as string;
+
+    expect(result).toContain("notes/a.md");
+    expect(result).toContain("notes/b.md");
+    expect(result).toContain("sub");
+    expect(result).not.toContain("notes/sub/c.md");
+  });
+
+  it("defaults to vault root when relativeDir is omitted", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile: wf } = await import("node:fs/promises");
+    await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
+    await wf(path.join(vaultRoot, "readme.md"), "# Readme");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[2].invoke({}) as string;
+
+    expect(result).toContain("readme.md");
+    expect(result).toContain("notes");
+  });
+
+  it("returns an error string for a non-existent directory", async () => {
+    const vaultRoot = await createTempVault();
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[2].invoke({ relativeDir: "no-such-dir" }) as string;
+
+    expect(result).toContain("Error:");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search_markdown_files tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: search_markdown_files", () => {
+  it("finds files whose content matches the query (case-insensitive)", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "a.md"), "Hello World");
+    await wf(path.join(vaultRoot, "b.md"), "goodbye");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ query: "HELLO" }) as string;
+
+    expect(result).toContain("a.md");
+    expect(result).not.toContain("b.md");
+  });
+
+  it("searches only within relativeDir when provided", async () => {
+    const vaultRoot = await createTempVault();
+    const { mkdir, writeFile: wf } = await import("node:fs/promises");
+    await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
+    await mkdir(path.join(vaultRoot, "other"), { recursive: true });
+    await wf(path.join(vaultRoot, "notes", "match.md"), "alpha");
+    await wf(path.join(vaultRoot, "other", "nomatch.md"), "alpha");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ query: "alpha", relativeDir: "notes" }) as string;
+
+    expect(result).toContain("notes/match.md");
+    expect(result).not.toContain("other/nomatch.md");
+  });
+
+  it("formats query to lowercase before matching", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "x.md"), "TypeScript");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ query: "TYPESCRIPT" }) as string;
+
+    expect(result).toContain("x.md");
+  });
+
+  it("returns an empty-result message when nothing matches", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "empty.md"), "nothing here");
+
+    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
+    const result = await tools[3].invoke({ query: "zzznomatch" }) as string;
+
+    const lower = result.toLowerCase();
+    expect(
+      lower.includes("no files") || lower.includes("no results") || lower.includes("no matches") || result.trim() === "",
+    ).toBe(true);
   });
 });
