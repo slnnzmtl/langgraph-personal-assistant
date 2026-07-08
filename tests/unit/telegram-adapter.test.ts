@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppConfig } from "../../src/config.js";
-import { TelegramAdapter, extractTelegramMessageText } from "../../src/telegram/telegram-adapter.js";
+import { TelegramAdapter, extractTelegramMessageText, splitMessage } from "../../src/telegram/telegram-adapter.js";
 
 const config: AppConfig = {
   telegramBotToken: "123:abc",
@@ -34,6 +34,92 @@ describe("extractTelegramMessageText", () => {
         { type: "image_url", image_url: { url: "https://example.com/image.jpg" } },
       ]),
     ).toBe("hello\n[non-text content omitted]");
+  });
+});
+
+describe("splitMessage", () => {
+  it("returns a single chunk for messages under 4096 characters", () => {
+    const text = "Hello, this is a short message.";
+    const chunks = splitMessage(text);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe(text);
+  });
+
+  it("returns a single chunk for messages exactly 4096 characters", () => {
+    const text = "a".repeat(4096);
+    const chunks = splitMessage(text);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toBe(text);
+  });
+
+  it("splits messages exceeding 4096 characters on newline boundaries", () => {
+    const line1 = "a".repeat(2000);
+    const line2 = "b".repeat(2000);
+    const line3 = "c".repeat(2000);
+    const text = `${line1}\n${line2}\n${line3}`;
+    
+    const chunks = splitMessage(text);
+    expect(chunks.length).toBeGreaterThan(1);
+    chunks.forEach((chunk) => {
+      expect(chunk.length).toBeLessThanOrEqual(4096);
+    });
+  });
+
+  it("hard-splits a single line that exceeds 4096 characters", () => {
+    const longLine = "x".repeat(5000);
+    const chunks = splitMessage(longLine);
+    
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]).toBe("x".repeat(4096));
+    expect(chunks[1]).toBe("x".repeat(904));
+  });
+
+  it("preserves HTML tags across chunk boundaries", () => {
+    const text = `<b>Bold text</b>\n${"a".repeat(4090)}\n<i>Italic text</i>`;
+    const chunks = splitMessage(text);
+    
+    chunks.forEach((chunk) => {
+      expect(chunk.length).toBeLessThanOrEqual(4096);
+    });
+    // Verify tags are preserved in the output
+    const full = chunks.join("");
+    expect(full).toContain("<b>Bold text</b>");
+    expect(full).toContain("<i>Italic text</i>");
+  });
+
+  it("handles multiple hard-splits for very long single lines", () => {
+    const longLine = "y".repeat(12000);
+    const chunks = splitMessage(longLine);
+    
+    expect(chunks.length).toBe(3);
+    chunks.forEach((chunk, idx) => {
+      if (idx < 2) {
+        expect(chunk).toHaveLength(4096);
+      } else {
+        expect(chunk.length).toBeLessThanOrEqual(4096);
+      }
+    });
+  });
+
+  it("respects custom maxLength parameter", () => {
+    const text = "a".repeat(300);
+    const chunks = splitMessage(text, 100);
+    
+    expect(chunks.length).toBeGreaterThan(1);
+    chunks.forEach((chunk) => {
+      expect(chunk.length).toBeLessThanOrEqual(100);
+    });
+  });
+
+  it("handles empty strings", () => {
+    const chunks = splitMessage("");
+    expect(chunks).toEqual([""]);
+  });
+
+  it("handles text with only newlines", () => {
+    const text = "\n\n\n";
+    const chunks = splitMessage(text);
+    expect(chunks).toEqual([text]);
   });
 });
 
@@ -82,31 +168,60 @@ describe("TelegramAdapter", () => {
     expect(logSpy).toHaveBeenCalled();
   });
 
-  it("sends plain-text replies for AI messages", async () => {
+  it("sends plain-text replies for AI messages via telegram API", async () => {
     const adapter = createAdapter();
-    const reply = vi.fn(async () => undefined);
+    const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     await adapter.sendOutbound(
-      { reply } as never,
+      { 
+        chat: { id: 42 },
+        telegram: { sendMessage },
+      } as never,
       [new AIMessage("**done**")],
     );
 
-    expect(reply).toHaveBeenCalledWith("**done**");
+    expect(sendMessage).toHaveBeenCalledWith(42, "**done**", { parse_mode: "HTML" });
+    expect(logSpy).toHaveBeenCalled();
+  });
+
+  it("splits long messages into multiple chunks when sending", async () => {
+    const adapter = createAdapter();
+    const sendMessage = vi.fn(async () => undefined);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    // Create a message that exceeds 4096 characters
+    const longMessage = "a".repeat(5000);
+
+    await adapter.sendOutbound(
+      { 
+        chat: { id: 42 },
+        telegram: { sendMessage },
+      } as never,
+      [new AIMessage(longMessage)],
+    );
+
+    // Should be called twice (one for 4096 chars, one for remaining 904)
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenNthCalledWith(1, 42, "a".repeat(4096), { parse_mode: "HTML" });
+    expect(sendMessage).toHaveBeenNthCalledWith(2, 42, "a".repeat(904), { parse_mode: "HTML" });
     expect(logSpy).toHaveBeenCalled();
   });
 
   it("falls back when the outbound response is empty", async () => {
     const adapter = createAdapter();
-    const reply = vi.fn(async () => undefined);
+    const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     await adapter.sendOutbound(
-      { reply } as never,
+      { 
+        chat: { id: 42 },
+        telegram: { sendMessage },
+      } as never,
       [new AIMessage("   ")],
     );
 
-    expect(reply).toHaveBeenCalledWith("System Error: Empty response from agent.");
+    expect(sendMessage).toHaveBeenCalledWith(42, "System Error: Empty response from agent.", { parse_mode: "HTML" });
     expect(logSpy).not.toHaveBeenCalledWith("bot: ");
   });
 

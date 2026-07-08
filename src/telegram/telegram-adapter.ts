@@ -46,6 +46,55 @@ const logTelegramMessage = (role: "user" | "bot", text: string): void => {
   console.log(`${role}: ${truncateForLog(text)}`);
 };
 
+/**
+ * Split a message into chunks that fit within Telegram's 4096 character limit.
+ * Prefers to split on newline boundaries to preserve readability and avoid breaking HTML tags.
+ * Falls back to hard character split if a single line exceeds the limit.
+ */
+export const splitMessage = (text: string, maxLength = 4096): string[] => {
+  if (text.length <= maxLength) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  const lines = text.split("\n");
+  let currentChunk = "";
+
+  for (const line of lines) {
+    // If a single line exceeds max length, hard-split it
+    if (line.length > maxLength) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = "";
+      }
+      // Hard-split the oversized line
+      for (let i = 0; i < line.length; i += maxLength) {
+        chunks.push(line.slice(i, i + maxLength));
+      }
+      continue;
+    }
+
+    // Try to add the line to the current chunk
+    const testChunk = currentChunk ? currentChunk + "\n" + line : line;
+    if (testChunk.length <= maxLength) {
+      currentChunk = testChunk;
+    } else {
+      // Current chunk is full, flush it and start a new one
+      if (currentChunk) {
+        chunks.push(currentChunk);
+      }
+      currentChunk = line;
+    }
+  }
+
+  // Flush remaining chunk
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
+};
+
 export class TelegramAdapter implements ITelegramAdapter {
   private readonly bot: Telegraf<Context>;
   private readonly allowedTelegramUserId: string;
@@ -113,22 +162,32 @@ export class TelegramAdapter implements ITelegramAdapter {
 
   async sendOutbound(ctx: Context, stateMessages: BaseMessage[]): Promise<void> {
     const lastMessage = stateMessages[stateMessages.length - 1];
+    const chatId = ctx.chat?.id;
+
+    if (!chatId) {
+      console.error("Unable to determine chat ID for outbound message.");
+      return;
+    }
 
     if (!lastMessage) {
-      await ctx.reply("System Error: No response was produced.");
+      await ctx.telegram.sendMessage(chatId, "System Error: No response was produced.", { parse_mode: "HTML" });
       return;
     }
 
     const output = extractTelegramMessageText(lastMessage.content).trim();
 
     if (!output) {
-      await ctx.reply("System Error: Empty response from agent.");
+      await ctx.telegram.sendMessage(chatId, "System Error: Empty response from agent.", { parse_mode: "HTML" });
       return;
     }
 
     logTelegramMessage("bot", output);
 
-    await ctx.reply(output);
+    // Split message into chunks that fit within Telegram's 4096 character limit
+    const chunks = splitMessage(output);
+    for (const chunk of chunks) {
+      await ctx.telegram.sendMessage(chatId, chunk, { parse_mode: "HTML" });
+    }
   }
 
   async launch(): Promise<void> {
@@ -152,7 +211,7 @@ export class TelegramAdapter implements ITelegramAdapter {
         await this.sendOutbound(ctx, finalState.messages);
       } catch (error) {
         console.error("Agent execution error:", error);
-        await ctx.reply("System Error: Unable to process request.");
+        await ctx.telegram.sendMessage(ctx.chat.id, "System Error: Unable to process request.", { parse_mode: "HTML" });
       }
     });
 
