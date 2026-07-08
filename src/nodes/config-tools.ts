@@ -1,0 +1,120 @@
+import { tool, type StructuredToolInterface } from "@langchain/core/tools";
+import { z } from "zod";
+
+import type { CronJobRepository } from "../cron/cron-job-repository.js";
+import type { CronJobDefinition } from "../cron/cron-launcher.js";
+import { isSchedulerTargetRoute } from "../cron/scheduler-trigger.js";
+
+const CreateCronJobToolSchema = z.object({
+  jobName: z.string().min(1),
+  schedule: z.string().min(1),
+  targetRoute: z.string().min(1),
+  timezone: z.string().min(1).optional(),
+  payload: z.string().min(1).optional(),
+});
+
+const DeleteCronJobToolSchema = z.object({
+  jobName: z.string().min(1),
+});
+
+const ListCronJobsToolSchema = z.object({});
+
+export { DeleteCronJobToolSchema };
+
+export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
+  const lines = [
+    `Job name: ${job.jobName}`,
+    `Schedule: ${job.schedule}`,
+    `Target route: ${job.targetRoute}`,
+  ];
+
+  if (job.timezone) {
+    lines.push(`Timezone: ${job.timezone}`);
+  }
+
+  if (job.payload) {
+    lines.push(`Payload: ${job.payload}`);
+  }
+
+  return lines.join("\n");
+};
+
+export const createCronConfigTools = (repository: CronJobRepository): StructuredToolInterface[] => {
+  const listCronJobs = tool(
+    async () => {
+      try {
+        const jobs = await repository.loadJobs();
+        return jobs.length > 0 ? jobs.map(formatCronJobForDisplay).join("\n\n") : "No cron jobs configured.";
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "list_cron_jobs",
+      description: "List all configured cron jobs.",
+      schema: ListCronJobsToolSchema,
+    },
+  );
+
+  const createCronJob = tool(
+    async (input: z.infer<typeof CreateCronJobToolSchema>) => {
+      try {
+        if (!isSchedulerTargetRoute(input.targetRoute)) {
+          throw new Error(`Unknown target route: ${input.targetRoute}`);
+        }
+
+        const jobs = await repository.loadJobs();
+        if (jobs.some((job) => job.jobName === input.jobName)) {
+          throw new Error(`Cron job already exists: ${input.jobName}`);
+        }
+
+        const nextJob: CronJobDefinition = {
+          jobName: input.jobName,
+          schedule: input.schedule,
+          targetRoute: input.targetRoute,
+          ...(input.timezone ? { timezone: input.timezone } : {}),
+          ...(input.payload ? { payload: input.payload } : {}),
+        };
+
+        await repository.saveJobs([...jobs, nextJob]);
+        return `Created cron job ${input.jobName} targeting ${input.targetRoute}.\n\n${formatCronJobForDisplay(nextJob)}`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "create_cron_job",
+      description: "Create and persist a cron job definition for later scheduling.",
+      schema: CreateCronJobToolSchema,
+    },
+  );
+
+  const deleteCronJob = tool(
+    async (input: z.infer<typeof DeleteCronJobToolSchema>) => {
+      try {
+        const jobs = await repository.loadJobs();
+        const found = jobs.find((job) => job.jobName === input.jobName);
+
+        if (!found) {
+          throw new Error(`Cron job not found: ${input.jobName}`);
+        }
+
+        const remaining = jobs.filter((job) => job.jobName !== input.jobName);
+        await repository.saveJobs(remaining);
+        return `Deleted cron job ${input.jobName}`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "delete_cron_job",
+      description: "Delete a persisted cron job definition.",
+      schema: DeleteCronJobToolSchema,
+    },
+  );
+
+  return [listCronJobs, createCronJob, deleteCronJob];
+};

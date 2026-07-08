@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultVaultPath, loadConfig } from "../../src/config.js";
+import { getDefaultCronJobsPath, getDefaultVaultPath, loadConfig } from "../../src/config.js";
 
 const REQUIRED_ENV = {
   TELEGRAM_BOT_TOKEN: "123:abc",
@@ -117,5 +117,51 @@ describe("config", () => {
 
     expect(config.supervisorModel).toBe("gemini-2.5-flash-lite");
     expect(config.obsidianModel).toBe("gemini-1.5-pro");
+  });
+
+  it("keeps the in-process scheduler disabled by default", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("ENABLE_SCHEDULER", undefined);
+
+    const config = loadConfig();
+
+    expect(config.schedulerEnabled).toBe(false);
+  });
+
+  it("enables the in-process scheduler when ENABLE_SCHEDULER is truthy", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("ENABLE_SCHEDULER", "1");
+
+    const config = loadConfig();
+
+    expect(config.schedulerEnabled).toBe(true);
+  });
+
+  it("uses the default cron jobs file path when CRON_JOBS_FILE_PATH is unset", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("CRON_JOBS_FILE_PATH", undefined);
+
+    const config = loadConfig();
+
+    expect(config.cronJobsFilePath).toBe(getDefaultCronJobsPath());
+  });
+
+  it("prefers an explicit CRON_JOBS_FILE_PATH", () => {
+    const customPath = path.resolve("/tmp/personal-assistant-cron-jobs.json");
+
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("CRON_JOBS_FILE_PATH", customPath);
+
+    const config = loadConfig();
+
+    expect(config.cronJobsFilePath).toBe(customPath);
   });
 });

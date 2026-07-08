@@ -1,0 +1,8 @@
+[
+  {
+    "jobName": "sync-wise-transactions",
+    "schedule": "0 7 * * *",
+    "targetRoute": "Finance_SG",
+    "payload": "sync wise transactions for yesterday with supabase"
+  }
+]

@@ -6,3 +6,4 @@ logs/
 .github/agents/
 .pnpm-store/
 test-results/
+.tmp

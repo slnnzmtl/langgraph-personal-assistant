@@ -1,9 +1,14 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "@langchain/core/messages";
+import path from "node:path";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
+import { createCronJobRepository } from "../cron/cron-job-repository.js";
+import { createConfigurationNode } from "../nodes/config-node.js";
+import { createCronConfigTools } from "../nodes/config-tools.js";
+import type { RuntimeSchedulerService } from "../cron/runtime-scheduler-service.js";
 import type { SupabaseMcpSession } from "../packages/finance-server/src/index.js";
 import { createFinanceTools, createFinanceNode } from "../nodes/finance-node/index.js";
 import { createObsidianNode } from "../nodes/obsidian/obsidian.js";
@@ -11,13 +16,44 @@ import { createObsidianTools } from "../nodes/obsidian/index.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
 
+export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
+  supabaseSession?: SupabaseMcpSession;
+  runtimeScheduler?: RuntimeSchedulerService;
+};
+
+const isLlmConnector = (value: unknown): value is ILLMConnector => {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && "getModel" in value
+    && typeof (value as ILLMConnector).getModel === "function"
+    && "bindRoutingTools" in value
+    && typeof (value as ILLMConnector).bindRoutingTools === "function",
+  );
+};
+
 export const createWorkflowGraph = (
   supervisorLlmConnector: ILLMConnector,
   obsidianLlmConnector: ILLMConnector,
   financeLlmConnector: ILLMConnector,
-  config: Pick<AppConfig, "obsidianVaultPath" | "appTimezone"> & { supabaseSession?: SupabaseMcpSession },
+  configLlmConnectorOrConfig: ILLMConnector | WorkflowGraphConfig,
+  maybeConfig?: WorkflowGraphConfig,
 ) => {
+  const configLlmConnector = isLlmConnector(configLlmConnectorOrConfig)
+    ? configLlmConnectorOrConfig
+    : obsidianLlmConnector;
+  const config = isLlmConnector(configLlmConnectorOrConfig)
+    ? maybeConfig!
+    : configLlmConnectorOrConfig;
+
   const supervisorNode = createSupervisorNode(supervisorLlmConnector);
+  const cronJobRepository = createCronJobRepository(process.cwd(), path.relative(process.cwd(), config.cronJobsFilePath));
+  const configurationTools = createCronConfigTools(cronJobRepository);
+  const configurationNode = createConfigurationNode(configLlmConnector.getModel(), configurationTools, {
+    repository: cronJobRepository,
+    runtimeScheduler: config.runtimeScheduler,
+  });
+  const configurationToolsNode = new ToolNode(configurationTools);
   const obsidianNode = createObsidianNode(obsidianLlmConnector, config.obsidianVaultPath);
   const obsidianToolsNode = new ToolNode(createObsidianTools(config.obsidianVaultPath));
   const memory = new MemorySaver();
@@ -35,6 +71,8 @@ export const createWorkflowGraph = (
   // Build graph - add all nodes upfront
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode("supervisor", supervisorNode)
+    .addNode("configuration", configurationNode)
+    .addNode("configurationTools", configurationToolsNode)
     .addNode("finance", financeNode)
     .addNode("obsidian", obsidianNode)
     .addNode("obsidianTools", obsidianToolsNode);
@@ -53,9 +91,21 @@ export const createWorkflowGraph = (
       {
         Finance_SG: "finance",
         Obsidian_SG: "obsidian",
+        Config_SG: "configuration",
         FINISH: END,
-      } satisfies Record<RouteName, "finance" | "obsidian" | typeof END>,
+      } satisfies Record<RouteName, "finance" | "obsidian" | "configuration" | typeof END>,
     );
+
+  graph.addConditionalEdges("configuration", (state: AgentState) => {
+    const lastMessage = state.messages[state.messages.length - 1];
+
+    if (lastMessage instanceof AIMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+      return "configurationTools";
+    }
+
+    return "supervisor";
+  });
+  graph.addEdge("configurationTools", "configuration");
 
   // Add finance tool loop if session is configured
   if (financeToolsNode) {

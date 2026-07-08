@@ -126,6 +126,20 @@ describe("createSupervisorNode", () => {
     expect(result.context).toBeUndefined();
   });
 
+  it("can route scheduling requests to the configuration branch", async () => {
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+
+      return { next: "Config_SG" };
+    });
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("set up a cron message every weekday at 9am"));
+
+    expect(result.next).toBe("Config_SG");
+    expect(result.context).toBeUndefined();
+  });
+
   it("sanitizes prior tool messages before routing", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
@@ -163,5 +177,66 @@ describe("createSupervisorNode", () => {
 
     expect(result.next).toBe("FINISH");
     expect(result.messages?.[0]?.content).toBe("Sanitized");
+  });
+
+  it("routes reserved scheduler finance triggers without invoking the LLM", async () => {
+    const invokeSpy = vi.fn(() => {
+      throw new Error("LLM must not run for scheduler trigger");
+    });
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:finance-sync"));
+
+    expect(result.next).toBe("Finance_SG");
+    expect(result.messages).toBeUndefined();
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it("routes route-derived scheduler finance triggers without invoking the LLM", async () => {
+    const invokeSpy = vi.fn(() => {
+      throw new Error("LLM must not run for scheduler trigger");
+    });
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync"));
+
+    expect(result.next).toBe("Finance_SG");
+    expect(result.messages).toBeUndefined();
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it("only treats the latest message as a scheduler trigger", async () => {
+    const invokeSpy = vi.fn(() => ({ next: "FINISH", reply: "Handled by LLM" }));
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"),
+        new HumanMessage("tell me what changed today"),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Handled by LLM");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes reserved scheduler obsidian triggers without invoking the LLM", async () => {
+    const invokeSpy = vi.fn(() => {
+      throw new Error("LLM must not run for scheduler trigger");
+    });
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:obsidian-daily-note"));
+
+    expect(result.next).toBe("Obsidian_SG");
+    expect(result.messages).toBeUndefined();
+    expect(invokeSpy).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,9 @@ export interface AppConfig {
   financeModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
+  schedulerEnabled: boolean;
+  financeSyncCron: string;
+  cronJobsFilePath: string;
   // Optional: Supabase finance integration
   supabaseUrl?: string | undefined;
   supabaseServiceRoleKey?: string | undefined;
@@ -32,6 +35,12 @@ export interface AppConfig {
 
 export const getDefaultVaultPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "src/obsidian-vault");
+
+export const getDefaultCronJobsPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "data/cron-jobs.json");
+
+const isTruthyEnv = (value: string | undefined): boolean =>
+  value !== undefined && value !== "false" && value !== "0";
 
 const getRequiredEnv = (name: RequiredEnvVar): string => {
   const value = process.env[name];
@@ -76,10 +85,13 @@ export const loadConfig = (): AppConfig => {
     financeModel: process.env.FINANCE_MODEL ?? defaultGeminiModel,
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
+    schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
+    financeSyncCron: process.env.FINANCE_SYNC_CRON ?? "59 23 * * *",
+    cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     // Optional Supabase finance integration
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    enableFinanceSync: process.env.ENABLE_FINANCE_SYNC !== undefined && process.env.ENABLE_FINANCE_SYNC !== "false" && process.env.ENABLE_FINANCE_SYNC !== "0",
+    enableFinanceSync: isTruthyEnv(process.env.ENABLE_FINANCE_SYNC),
     // Optional hosted Supabase MCP server
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,

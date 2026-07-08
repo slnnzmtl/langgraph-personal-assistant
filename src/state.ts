@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
-export const ROUTE_NAMES = ["Finance_SG", "Obsidian_SG", "FINISH"] as const;
+export const ROUTE_NAMES = ["Finance_SG", "Obsidian_SG", "Config_SG", "FINISH"] as const;
 export const MESSAGE_HISTORY_LIMIT = 10;
 export const OBSIDIAN_MAX_STEPS = 8;
 

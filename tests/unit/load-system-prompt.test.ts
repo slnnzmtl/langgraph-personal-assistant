@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPromptLoader,
+  loadConfiguratorSystemPrompt,
   loadObsidianSystemPrompt,
   loadSupervisorSystemPrompt,
   loadSystemPromptMarkdown,
@@ -26,7 +27,14 @@ describe("named prompt loaders", () => {
   it("loads the Obsidian prompt from prompts/obsidian.md", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Core Objective");
+    expect(prompt).toContain("# Role & Objective");
+  });
+
+  it("loads the configurator prompt from prompts/configurator.md", () => {
+    const prompt = loadConfiguratorSystemPrompt();
+
+    expect(prompt).toContain("When the user asks to schedule a daily note");
+    expect(prompt).toContain("in 5 minutes");
   });
 });
 

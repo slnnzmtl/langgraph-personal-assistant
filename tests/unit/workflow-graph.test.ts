@@ -3,18 +3,33 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildSchedulerTrigger } from "../../src/cron/scheduler-trigger.js";
 import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
 import type { SupabaseMcpSession } from "../../src/packages/finance-server/src/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
-const makeGraph = (supervisorHandler: (input: any) => any, obsidianHandler?: (input: any) => any, financeHandler?: (input: any) => any, supabaseSession?: SupabaseMcpSession) =>
+const makeCronJobsFilePath = () => path.join(process.cwd(), ".tmp", `workflow-graph-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
+
+const makeGraph = (
+  supervisorHandler: (input: any) => any,
+  obsidianHandler?: (input: any) => any,
+  financeHandler?: (input: any) => any,
+  supabaseSession?: SupabaseMcpSession,
+  configHandler?: (input: any) => any,
+) =>
   createWorkflowGraph(
     new FakeLLMConnector(supervisorHandler),
     new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
     new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
-    { obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"), appTimezone: "UTC", supabaseSession },
+    new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven scheduler setup."))),
+    {
+      obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
+      appTimezone: "UTC",
+      cronJobsFilePath: makeCronJobsFilePath(),
+      supabaseSession,
+    },
   );
 
 describe("createWorkflowGraph", () => {
@@ -85,5 +100,77 @@ describe("createWorkflowGraph", () => {
     // Supervisor routes once; obsidian runs; supervisor then auto-FINISHes via isSubAgentComplete
     expect(supervisorCalls).toBe(1);
     expect(state.messages.at(-1)?.content).toBe("obsidian result");
+  });
+
+  it("visits the configuration node on Config_SG route", async () => {
+    let supervisorCalls = 0;
+    const app = makeGraph(() => {
+      supervisorCalls += 1;
+      return { next: "Config_SG" };
+    });
+
+    const state = await app.invoke({ messages: [new HumanMessage("schedule a daily reminder")] }, threadConfig);
+
+    expect(supervisorCalls).toBe(1);
+    expect(state.messages.at(-1)?.content).toContain("Cron configuration");
+  });
+
+  it("executes config tool calls before returning to the supervisor", async () => {
+    let supervisorCalls = 0;
+    const app = makeGraph(
+      () => {
+        supervisorCalls += 1;
+        return { next: "Config_SG" };
+      },
+      undefined,
+      undefined,
+      undefined,
+      () => new AIMessage({
+        content: "",
+        tool_calls: [
+          {
+            name: "create_cron_job",
+            args: {
+              jobName: "daily-note",
+              schedule: "0 6 * * *",
+              targetRoute: "Obsidian_SG",
+              payload: "Create my daily note",
+            },
+            id: "config-tool-1",
+            type: "tool_call",
+          },
+        ],
+      }),
+    );
+
+    const state = await app.invoke({ messages: [new HumanMessage("set up a cron job for daily notes")] }, threadConfig);
+
+    expect(supervisorCalls).toBe(1);
+    expect(state.messages.at(-1)?.content).toContain("Created cron job");
+  });
+
+  it("routes scheduled finance triggers to the finance node without supervisor LLM routing", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue({ rows: [] }),
+      close: vi.fn(),
+    };
+    let supervisorCalls = 0;
+    const app = makeGraph(
+      () => {
+        supervisorCalls += 1;
+        return { next: "FINISH", reply: "LLM should not route scheduled triggers" };
+      },
+      undefined,
+      () => new AIMessage("Finance sync completed successfully"),
+      mockSession,
+    );
+
+    const state = await app.invoke(
+      { messages: [new HumanMessage(buildSchedulerTrigger("finance-sync"))] },
+      threadConfig,
+    );
+
+    expect(supervisorCalls).toBe(0);
+    expect(state.messages.at(-1)?.content).toContain("Finance sync completed successfully");
   });
 });

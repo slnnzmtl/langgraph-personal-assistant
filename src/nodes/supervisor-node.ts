@@ -1,6 +1,7 @@
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
+import { resolveSchedulerTriggerRoute } from "../cron/scheduler-trigger.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
 import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
@@ -12,6 +13,11 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     const supervisorPrompt = new SystemMessage(loadSupervisorSystemPrompt());
+    const schedulerRoute = resolveSchedulerTriggerRoute(state.messages[state.messages.length - 1]);
+
+    if (schedulerRoute) {
+      return { next: schedulerRoute };
+    }
 
     const rawPromptMessages = [
       supervisorPrompt,
