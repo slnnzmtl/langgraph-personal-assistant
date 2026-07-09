@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type { CronJobRepository } from "../cron/cron-job-repository.js";
 import type { CronJobDefinition } from "../cron/cron-launcher.js";
-import { isSchedulerTargetRoute } from "../cron/scheduler-trigger.js";
+import { isSchedulerTargetRoute } from "../cron/cron-launcher.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -18,8 +18,6 @@ const DeleteCronJobToolSchema = z.object({
 });
 
 const ListCronJobsToolSchema = z.object({});
-
-export { DeleteCronJobToolSchema };
 
 export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   const lines = [
