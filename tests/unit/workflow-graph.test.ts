@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSchedulerTrigger } from "../../src/cron/scheduler-trigger.js";
+import { buildSchedulerTrigger } from "../../src/cron/cron-launcher.js";
 import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
@@ -43,6 +43,29 @@ describe("createWorkflowGraph", () => {
     const state = await app.invoke({ messages: [new HumanMessage("hi")] }, threadConfig);
 
     expect(state.messages.at(-1)?.content).toBe("Direct answer");
+  });
+
+  it("recovers from an incomplete FINISH route for a time question in a threaded conversation", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-05T12:34:56.000Z"));
+
+    const app = makeGraph(() => ({ next: "FINISH" } as any));
+
+    const state = await app.invoke(
+      {
+        messages: [
+          new HumanMessage("list yesterday's expenses"),
+          new AIMessage("Here are yesterday's expenses:\n\n* Grab: 7 USD - Food\n* Grab: 7 USD - Food"),
+          new HumanMessage("give todays"),
+          new AIMessage("Here are today's expenses:\n\n* Moonmilk: 1 USD - Shop\n* Grab: 21 USD - Food"),
+          new HumanMessage("what time is it"),
+        ],
+      },
+      threadConfig,
+    );
+
+    expect(state.messages.at(-1)?.content).toBe("It is currently 2026-07-05T12:34:56 UTC.");
+    vi.useRealTimers();
   });
 
   it("visits the finance node on Finance_SG route (fallback when no repository)", async () => {

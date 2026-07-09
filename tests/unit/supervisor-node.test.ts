@@ -1,7 +1,9 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
+import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/state.js";
 import { FakeLLMConnector, makeHumanState } from "../helpers/fakes.js";
@@ -55,6 +57,48 @@ describe("createSupervisorNode", () => {
     expect(result.next).toBe("FINISH");
     expect(result.messages).toHaveLength(1);
     expect(result.messages?.[0]?.content).toBe("Direct answer");
+  });
+
+  it("generates a model-written final reply when structured routing fails", async () => {
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => {
+          throw new Error("schema parse failed");
+        },
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("Final explanatory answer"),
+      } as BaseChatModel),
+    };
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("hello"));
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Final explanatory answer");
+  });
+
+  it("generates a model-written final reply when FINISH omits a reply", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "FINISH",
+    } as any));
+    const modelInvoke = vi.fn(async () => new AIMessage("Final explanation for missing reply"));
+
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke,
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as BaseChatModel),
+    };
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("hello"));
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Final explanation for missing reply");
+    expect(modelInvoke).toHaveBeenCalledTimes(1);
   });
 
   it("returns a route without appending a message for specialized branches", async () => {
@@ -259,4 +303,5 @@ describe("createSupervisorNode", () => {
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
+
 });

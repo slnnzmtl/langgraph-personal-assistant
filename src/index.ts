@@ -7,7 +7,7 @@ import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createCronJobRepository } from "./cron/cron-job-repository.js";
 import { startCronBootstrap } from "./cron/cron-bootstrap.js";
 import { createLazySchedulerService, createRuntimeSchedulerService } from "./cron/runtime-scheduler-service.js";
-import { createSchedulerRunner } from "./cron/scheduler-runner.js";
+import { createSchedulerRunner, type SchedulerJobRun } from "./cron/scheduler-runner.js";
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { setupFinanceDatabaseSession } from "./nodes/finance-node/session.js";
@@ -38,7 +38,7 @@ const main = async (): Promise<void> => {
 	const app = createWorkflowGraph(supervisorConnector, obsidianConnector, financeConnector, graphConfig);
 
 	// Create runner and runtime scheduler service
-	const onJobError = (error: unknown, context: { jobName: string; trigger: string }): void => {
+	const onJobError = (error: unknown, context: SchedulerJobRun): void => {
 		console.error(`[Scheduler] Job failed: ${context.jobName}`, error);
 	};
 

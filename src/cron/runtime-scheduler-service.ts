@@ -17,19 +17,20 @@ export type RuntimeSchedulerService = {
  * @returns Service with addJob, removeJob, and listActiveJobs methods
  */
 export const createRuntimeSchedulerService = (options: {
-  runner: (job: { jobName: string; trigger: string; payload?: string }) => Promise<void>;
+  // runner accepts payloads that may be string or structured JSON
+  runner: (job: { jobName: string; trigger: string; payload?: unknown }) => Promise<void>;
   timezone?: string;
 }): RuntimeSchedulerService => {
   const activeJobs = new Map<string, { job: CronJobDefinition; task: ScheduledTask }>();
 
-  const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
+    const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
     const trigger = buildSchedulerTriggerForJob(job.targetRoute, job.jobName);
     const task = cron.schedule(job.schedule, async () => {
       try {
         await options.runner({
           jobName: job.jobName,
           trigger,
-          ...(job.payload ? { payload: job.payload } : {}),
+            ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
       } catch (error) {
         console.error(`[RuntimeScheduler] Failed to execute job "${job.jobName}":`, error);

@@ -3,6 +3,22 @@
     "jobName": "sync-finance",
     "schedule": "1 0 * * *",
     "targetRoute": "Finance_SG",
-    "payload": "sync yesterday transaction using fetch_wise_transactions  for getting transactions and exec_sql for saving a records into supabase public.expenses table"
+    "payload": {
+      "action": "sync_finance",
+      "when": "yesterday",
+      "steps": ["fetch_wise_transactions", "exec_sql"],
+      "targetTable": "public.expenses"
+    }
+  },
+  {
+    "jobName": "routine-note-creation",
+    "schedule": "0 7 * * *",
+    "targetRoute": "Obsidian_SG",
+    "payload": {
+      "action": "create_daily_routine_note",
+      "template": "## Summary\n- [ ] Task 1\n- [ ] Task 2\n\n## Events\n- Event 1: Description\n\n## Notes\n- Note 1: Description",
+      "moveUnresolvedFrom": "yesterday",
+      "saveLocation": "vault/daily-routines"
+    }
   }
 ]

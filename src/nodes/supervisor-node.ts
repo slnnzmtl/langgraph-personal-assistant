@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { resolveSchedulerTriggerRoute } from "../cron/cron-launcher.js";
@@ -8,11 +8,34 @@ import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { extractMessageTextContent, stripToolsForSupervisor } from "./message-history.js";
 
+const buildFailureReply = async (
+  llmConnector: ILLMConnector,
+  promptMessages: BaseMessage[],
+  supervisorPromptText: string,
+  failureContext: string,
+): Promise<string> => {
+  const fallbackResponse = await llmConnector.getModel().invoke([
+    new SystemMessage(
+      `${supervisorPromptText}\nThe normal supervisor routing failed. Produce the final user-facing reply in plain text. Explain the issue briefly and helpfully, and do not output JSON or call tools. Failure context: ${failureContext}`,
+    ),
+    ...promptMessages.slice(1),
+  ]);
+
+  const fallbackText = extractMessageTextContent(fallbackResponse.content).trim();
+
+  if (fallbackText.length > 0) {
+    return fallbackText;
+  }
+
+  throw new Error("Supervisor final reply model returned an empty response.");
+};
+
 export const createSupervisorNode = (llmConnector: ILLMConnector) => {
   const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
-    const supervisorPrompt = new SystemMessage(loadSupervisorSystemPrompt());
+    const supervisorPromptText = loadSupervisorSystemPrompt();
+    const supervisorPrompt = new SystemMessage(supervisorPromptText);
     const schedulerRoute = resolveSchedulerTriggerRoute(state.messages[state.messages.length - 1]);
 
     if (schedulerRoute) {
@@ -39,11 +62,50 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
     await logSystemPromptInvocation("supervisor-system-prompt", rawPromptMessages);
 
-    const response = await routingChain.invoke(promptMessages);
+    let response: RoutingDecision;
+
+    try {
+      response = await routingChain.invoke(promptMessages);
+    } catch (error) {
+      console.warn("Supervisor routing structured output failed:", error);
+      const failureMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        next: "FINISH",
+        messages: [
+          new AIMessage(
+            await buildFailureReply(
+              llmConnector,
+              promptMessages,
+              supervisorPromptText,
+              `Structured routing failed: ${failureMessage}`,
+            ),
+          ),
+        ],
+      };
+    }
 
     console.log("Supervisor routing decision:", response.next, response.reply);
 
     if (response.next === "FINISH") {
+      if (typeof response.reply !== "string" || response.reply.trim().length === 0) {
+        const failureContext = "The routing model returned FINISH without a reply.";
+
+        return {
+          next: "FINISH",
+          messages: [
+            new AIMessage(
+              await buildFailureReply(
+                llmConnector,
+                promptMessages,
+                supervisorPromptText,
+                failureContext,
+              ),
+            ),
+          ],
+        };
+      }
+
       return {
         next: response.next,
         messages: [

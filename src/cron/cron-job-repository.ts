@@ -17,7 +17,8 @@ const cronJobSchema = z.object({
   }),
   enabled: z.boolean().optional(),
   timezone: z.string().min(1).optional(),
-  payload: z.string().min(1).optional(),
+  // payload may be a string or a structured JSON object depending on the job
+  payload: z.any().optional(),
 });
 
 const cronJobsSchema = z.array(cronJobSchema);

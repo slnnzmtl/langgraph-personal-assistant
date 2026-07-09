@@ -65,7 +65,8 @@ export type CronJobDefinition = {
   targetRoute: SchedulerTargetRoute;
   enabled?: boolean;
   timezone?: string;
-  payload?: string;
+  // payload can be a plain string or a structured JSON object
+  payload?: unknown;
 };
 
 export type SetupCronOptions = {
@@ -118,7 +119,7 @@ export const setupCron = (options: SetupCronOptions): void => {
         await options.runner.run({
           jobName: job.jobName,
           trigger: buildSchedulerTriggerForJob(job.targetRoute, job.jobName),
-          ...(job.payload ? { payload: job.payload } : {}),
+          ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
       },
       { timezone: job.timezone ?? options.defaultTimezone },

@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 export type SchedulerJobRun = {
   jobName: string;
   trigger: string;
-  payload?: string;
+  // payload may be a string or structured JSON object
+  payload?: unknown;
 };
 
 export type SchedulerRunner = {
@@ -23,11 +24,14 @@ type SchedulerRunnerOptions = {
 const createThreadId = (jobName: string): string => `scheduler:${jobName}:${randomUUID()}`;
 
 const buildSchedulerInputMessage = (job: SchedulerJobRun): HumanMessage => {
-  if (!job.payload) {
+  if (job.payload === undefined || job.payload === null) {
     return new HumanMessage(job.trigger);
   }
 
-  return new HumanMessage(`${job.trigger}\n\nPayload:\n${job.payload}`);
+  // If payload is a string, embed it as-is. Otherwise stringify JSON with indentation so consumers can parse it.
+  const payloadText = typeof job.payload === "string" ? job.payload : JSON.stringify(job.payload, null, 2);
+
+  return new HumanMessage(`${job.trigger}\n\nPayload:\n${payloadText}`);
 };
 
 export const createSchedulerRunner = (options: SchedulerRunnerOptions): SchedulerRunner => {

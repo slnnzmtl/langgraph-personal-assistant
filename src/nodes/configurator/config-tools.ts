@@ -30,8 +30,9 @@ export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
     lines.push(`Timezone: ${job.timezone}`);
   }
 
-  if (job.payload) {
-    lines.push(`Payload: ${job.payload}`);
+  if (job.payload !== undefined && job.payload !== null) {
+    const payloadText = typeof job.payload === "string" ? job.payload : JSON.stringify(job.payload, null, 2);
+    lines.push(`Payload: ${payloadText}`);
   }
 
   return lines.join("\n");
