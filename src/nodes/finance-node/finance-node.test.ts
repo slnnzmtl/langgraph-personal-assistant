@@ -1,77 +1,45 @@
-// ============================================================================
-// TDD SPEC: Finance Sync Graph with FinanceRepository
-// Architecture: LangGraph Sync Pipeline (Repository Interface)
-// Testing Target: Vitest unit suite
-// Strategy: Mock the FinanceRepository interface to test orchestration logic
-// ============================================================================
+import { readFile, rm } from "node:fs/promises";
+import path from "node:path";
 
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import type { WiseTransaction } from "./wise-client.js";
+import { AIMessage } from "@langchain/core/messages";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Shared fixtures
-// ---------------------------------------------------------------------------
+import { createFinanceNode } from "./agent.js";
+import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { FakeLLMConnector, makeHumanState } from "../../../tests/helpers/fakes.js";
 
-const CURSOR_DATE = "2026-07-01";
-const FROZEN_TODAY = "2026-07-07";
-
-const STUB_TRANSACTIONS: WiseTransaction[] = [
-  { id: "txn-1", title: "Coffee",  amount: -3.5,  currency: "GBP", date: "2026-07-02" },
-  { id: "txn-2", title: "Salary",  amount: 2000,  currency: "GBP", date: "2026-07-05" },
-];
-
-// ---------------------------------------------------------------------------
-// Repository-Based Interface Tests
-// ---------------------------------------------------------------------------
-
-describe("buildFinanceSyncGraph with FinanceRepository interface", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(FROZEN_TODAY));
+describe("createFinanceNode", () => {
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    await rm(path.join(process.cwd(), "logs", "finance-system-prompt.txt"), { force: true });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.resetAllMocks();
+  it("loads the finance system prompt from markdown", () => {
+    const prompt = loadFinanceSystemPrompt();
+
+    expect(prompt).toContain("You are an intelligent Financial Data Assistant and Sync Agent.");
+    expect(prompt).toContain("Current datetime:");
   });
 
-  it("1.1 – given a finance repository, builds and executes sync pipeline with getLastPaidDate → fetchTransactions → insertTransactions", async () => {
-    interface FinanceRepository {
-      getLastPaidDate(): Promise<string>;
-      fetchTransactions(since: string, until: string): Promise<WiseTransaction[]>;
-      insertTransactions(transactions: WiseTransaction[]): Promise<{ inserted: number; skipped: number }>;
-    }
+  it("logs the finance system prompt before invoking the model", async () => {
+    vi.stubEnv("ENABLE_PROMPT_LOGS", "true");
 
-    const mockRepository: FinanceRepository = {
-      getLastPaidDate: vi.fn().mockResolvedValue(CURSOR_DATE),
-      fetchTransactions: vi.fn().mockResolvedValue(STUB_TRANSACTIONS),
-      insertTransactions: vi.fn().mockResolvedValue({ inserted: 2, skipped: 0 }),
-    };
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      return new AIMessage("Finance response");
+    });
 
-    const { buildFinanceSyncGraph } = await import("./agent.js");
-    const graph = buildFinanceSyncGraph(mockRepository);
+    const financeNode = createFinanceNode(connector.getModel(), []);
 
-    const result = await graph.invoke({}, { configurable: { thread_id: "finance-sync-repo-test" } });
+    const result = await financeNode(makeHumanState("sync yesterday transactions"));
 
-    // 1. getLastPaidDate must be called exactly once
-    expect(mockRepository.getLastPaidDate).toHaveBeenCalledOnce();
+    const logFilePath = path.join(process.cwd(), "logs", "finance-system-prompt.txt");
+    const loggedContent = await readFile(logFilePath, "utf8");
 
-    // 2. fetchTransactions called with date range (note: dates are normalized to ISO format)
-    expect(mockRepository.fetchTransactions).toHaveBeenCalledAfter(mockRepository.getLastPaidDate as any);
-    expect(mockRepository.fetchTransactions).toHaveBeenCalledWith(
-      `${CURSOR_DATE}T00:00:00.000Z`,
-      new Date(FROZEN_TODAY).toISOString()
-    );
-
-    // 3. insertTransactions called with fetched transactions
-    expect(mockRepository.insertTransactions).toHaveBeenCalledAfter(mockRepository.fetchTransactions as any);
-    expect(mockRepository.insertTransactions).toHaveBeenCalledWith(STUB_TRANSACTIONS);
-
-    // 4. Verify execution order
-    expect(mockRepository.getLastPaidDate).toHaveBeenCalledBefore(mockRepository.fetchTransactions as any);
-    expect(mockRepository.fetchTransactions).toHaveBeenCalledBefore(mockRepository.insertTransactions as any);
-
-    // 5. Final metrics
-    expect(result.metrics).toEqual({ processed: 2, skipped: 0 });
+    expect(loggedContent).toContain("=== ");
+    expect(loggedContent).toContain("type=system");
+    expect(loggedContent).toContain("You are an intelligent Financial Data Assistant and Sync Agent.");
+    expect(result.messages?.[0]?.content).toBe("Finance response");
   });
 });

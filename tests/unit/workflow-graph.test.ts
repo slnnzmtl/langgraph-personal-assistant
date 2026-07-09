@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildSchedulerTrigger } from "../../src/cron/scheduler-trigger.js";
 import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
-import type { SupabaseMcpSession } from "../../src/packages/finance-server/src/index.js";
+import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };

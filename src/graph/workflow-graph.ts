@@ -8,7 +8,7 @@ import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { createCronJobRepository } from "../cron/cron-job-repository.js";
 import { createConfigurationNode, createCronConfigTools } from "../nodes/configurator/index.js";
 import type { RuntimeSchedulerService } from "../cron/runtime-scheduler-service.js";
-import type { SupabaseMcpSession } from "../packages/finance-server/src/index.js";
+import type { SupabaseMcpSession } from "../mcp/supabase/index.js";
 import { createFinanceTools, createFinanceNode } from "../nodes/finance-node/index.js";
 import { createObsidianNode } from "../nodes/obsidian/obsidian.js";
 import { createObsidianTools } from "../nodes/obsidian/index.js";

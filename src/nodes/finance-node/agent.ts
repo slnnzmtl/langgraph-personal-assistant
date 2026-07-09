@@ -3,7 +3,8 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
-import type { SupabaseMcpSession } from "../../packages/finance-server/src/index.js";
+import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
+import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
 import { fetchWiseTransactions } from "./wise-client.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
@@ -77,6 +78,8 @@ export const createFinanceNode = (model: BaseChatModel, tools: StructuredToolInt
     try {
       const systemInstructions = new SystemMessage(loadFinanceSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
+
+      await logSystemPromptInvocation("finance-system-prompt", promptMessages);
 
       const response = await modelWithTools.invoke(promptMessages);
       if (!(response instanceof AIMessage)) {

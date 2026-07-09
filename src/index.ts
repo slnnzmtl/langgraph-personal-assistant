@@ -10,32 +10,10 @@ import { createLazySchedulerService, createRuntimeSchedulerService } from "./cro
 import { createSchedulerRunner } from "./cron/scheduler-runner.js";
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
-import { bootstrapFinanceRuntimeWithOfficialMcp } from "./packages/finance-server/src/index.js";
-import type { SupabaseMcpSession } from "./packages/finance-server/src/index.js";
+import { setupFinanceDatabaseSession } from "./nodes/finance-node/session.js";
+import type { SupabaseMcpSession } from "./mcp/supabase/index.js";
 
-const setupFinanceDatabaseSession = async (config: AppConfig): Promise<SupabaseMcpSession | undefined> => {
-	if (config.enableFinanceSync && config.supabaseProjectRef && config.supabaseAccessToken) {
-		try {
-			console.log("[Finance Setup] All credentials present, creating Supabase MCP session...");
-			const session = await bootstrapFinanceRuntimeWithOfficialMcp({
-				url: config.supabaseMcpUrl ?? "https://mcp.supabase.com/mcp",
-				projectRef: config.supabaseProjectRef,
-				accessToken: config.supabaseAccessToken,
-				// Finance sync needs write access for INSERT
-				readOnly: false,
-			});
-			console.log("[Finance Setup] ✓ Supabase MCP session created successfully.");
-			return session;
-		} catch (error) {
-			console.error("[Finance Setup] ✗ Failed to create Supabase session:", error);
-			// Continue without finance sync rather than failing the entire app
-			return undefined;
-		}
-	} else {
-		console.log("[Finance Setup] ✗ Skipping finance sync setup - missing required configuration.");
-		return undefined;
-	}
-};
+// Finance session setup moved to `src/nodes/finance-node/session.ts`
 
 const main = async (): Promise<void> => {
 	const config = loadConfig();

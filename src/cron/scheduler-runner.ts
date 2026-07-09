@@ -42,6 +42,8 @@ export const createSchedulerRunner = (options: SchedulerRunnerOptions): Schedule
 
       inFlightJobs.add(job.jobName);
 
+      console.log(`[Scheduler] Running job: ${job.jobName} with trigger: ${job.trigger}`);
+
       try {
         await options.graph.invoke(
           { messages: [buildSchedulerInputMessage(job)] },

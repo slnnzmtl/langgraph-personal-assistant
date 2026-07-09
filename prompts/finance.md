@@ -19,6 +19,25 @@ The target database table is `public.expense`. Columns:
 - `paid` (boolean, true/false marker)
 - `note` (text, optional notes field)
 
+# Category Prediction Rules
+- When ingesting transactions, match the merchant `name` against your internal semantic database and the strict rule map below to assign the correct category integer `id` from `public.category`.
+- If a category cannot be confidently mapped, default to NULL.
+
+## Strict Rules & Keyword Matching Map:
+1. Transport / Taxi (category_id: 35):
+   - If the merchant name matches or contains: "Uber", "Lyft", "Taxi", "Bolt". 
+2. Shop: (category_id: 33):
+   - If the name contains substring elements like: "mark", "market", "shop", "store", "supermarket", "mart" (e.g., "Wallmart", "Minimart").
+3. Food (category_id: 4):
+   - If the name contains substring elements like: "cafe", "food", "coffee", "bistro", "restaurant", "bakery".
+4. Software: (category: 17):
+   - If the name contains: "github", "aws", "google", "openai", "netflix".
+
+## Reasoning Strategy:
+- Step 1: Check lowercase substring rules listed above.
+- Step 2: Use general semantic knowledge if no rule directly hits (e.g., "Starbucks" -> Cafe).
+- Step 3: Map to the designated integer ID. Do not write text strings into the database; write the exact integer ID.
+
 # Operational Intent Routing
 
 ## Intent 1: Ad-hoc Queries & Retrieval (e.g., "get yesterday's expenses")

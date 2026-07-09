@@ -12,8 +12,9 @@ type DefaultCronJobConfig = {
 export const buildDefaultCronJobs = (config: DefaultCronJobConfig): CronJobDefinition[] => [
 	{
 		jobName: "finance-sync",
-		schedule: config.financeSyncCron,
+		schedule: "1 00 * * *",
 		targetRoute: "Finance_SG",
+		payload: "sync yesterday transaction using fetch_wise_transactions  for getting transactions and exec_sql for saving a records into supabase public.expenses table",
 	},
 ];
 
