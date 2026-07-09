@@ -1,9 +1,9 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import type { CronJobRepository } from "../cron/cron-job-repository.js";
-import type { CronJobDefinition } from "../cron/cron-launcher.js";
-import { isSchedulerTargetRoute } from "../cron/cron-launcher.js";
+import type { CronJobRepository } from "../../cron/cron-job-repository.js";
+import type { CronJobDefinition } from "../../cron/cron-launcher.js";
+import { isSchedulerTargetRoute } from "../../cron/cron-launcher.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
