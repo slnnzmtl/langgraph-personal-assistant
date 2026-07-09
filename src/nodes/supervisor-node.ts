@@ -1,7 +1,7 @@
 import { AIMessage, SystemMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
-import { resolveSchedulerTriggerRoute } from "../cron/scheduler-trigger.js";
+import { resolveSchedulerTriggerRoute } from "../cron/cron-launcher.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
 import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";

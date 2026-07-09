@@ -2,7 +2,7 @@ import type { CronJobDefinition } from "./cron-launcher.js";
 import { z } from "zod";
 
 import { fileExists, readTextFile, writeTextFile } from "../utils/file-system.js";
-import { isSchedulerTargetRoute } from "./scheduler-trigger.js";
+import { isSchedulerTargetRoute } from "./cron-launcher.js";
 
 export type CronJobRepository = {
   loadJobs(): Promise<CronJobDefinition[]>;
