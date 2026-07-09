@@ -20,6 +20,8 @@ describe("createFinanceNode", () => {
 
     expect(prompt).toContain("You are an intelligent Financial Data Assistant and Sync Agent.");
     expect(prompt).toContain("Current datetime:");
+    expect(prompt).toContain("Intent 4: Wise Date Boundaries");
+    expect(prompt).toContain("since=2026-07-09T00:00:00Z and until=2026-07-10T00:00:00Z");
   });
 
   it("logs the finance system prompt before invoking the model", async () => {

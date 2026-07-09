@@ -43,6 +43,7 @@ const formatPromptMessages = (messages: BaseMessage[]): string =>
 export const logSystemPromptInvocation = async (
   promptName: string,
   messages: BaseMessage[],
+  modelResponse?: BaseMessage[] | string,
 ): Promise<void> => {
   if (!isLoggingEnabled()) {
     return;
@@ -52,11 +53,29 @@ export const logSystemPromptInvocation = async (
     await mkdir(defaultLogsRoot, { recursive: true });
 
     const logFilePath = path.join(defaultLogsRoot, `${promptName}.txt`);
+
+    const inputSection = [
+      "[Input]",
+      formatPromptMessages(messages),
+    ].join("\n\n");
+
+    let outputSection = "";
+    if (modelResponse) {
+      if (typeof modelResponse === "string") {
+        outputSection = ["[Model Output]", modelResponse].join("\n\n");
+      } else {
+        outputSection = ["[Model Output]", formatPromptMessages(modelResponse)].join("\n\n");
+      }
+    }
+
     const logEntry = [
       `=== ${new Date().toISOString()} ===`,
-      formatPromptMessages(messages),
+      inputSection,
+      outputSection,
       "",
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     // console.log(`[system-prompt:${promptName}]\n${logEntry}`);
     await appendFile(logFilePath, logEntry, "utf8");

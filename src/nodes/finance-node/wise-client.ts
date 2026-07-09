@@ -14,16 +14,21 @@ export interface WiseTransaction {
   createdOn: string;
 }
 
+function formatUtcIsoWithoutMilliseconds(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 function normalizeToIso8601(dateString: string): string {
-  // If already in ISO format with time, return as-is
-  if (dateString.includes("T")) {
-    return dateString;
-  }
-  // If just a date (YYYY-MM-DD), add start of day
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     return `${dateString}T00:00:00Z`;
   }
-  throw new Error(`Invalid date format: ${dateString}. Expected YYYY-MM-DD or ISO 8601`);
+
+  const parsedDate = new Date(dateString);
+  if (Number.isNaN(parsedDate.getTime())) {
+    throw new Error(`Invalid date format: ${dateString}. Expected YYYY-MM-DD or ISO 8601`);
+  }
+
+  return formatUtcIsoWithoutMilliseconds(parsedDate);
 }
 
 /**
