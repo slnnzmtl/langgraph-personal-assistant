@@ -1,4 +1,4 @@
-import cron from "node-cron";
+import cron, { type ScheduledTask } from "node-cron";
 
 import type { CronJobDefinition } from "./cron-launcher.js";
 import { buildSchedulerTriggerForJob } from "./cron-launcher.js";
@@ -17,16 +17,20 @@ export type RuntimeSchedulerService = {
  * @returns Service with addJob, removeJob, and listActiveJobs methods
  */
 export const createRuntimeSchedulerService = (options: {
-  runner: (trigger: string) => Promise<void>;
+  runner: (job: { jobName: string; trigger: string; payload?: string }) => Promise<void>;
   timezone?: string;
 }): RuntimeSchedulerService => {
-  const activeJobs = new Map<string, { job: CronJobDefinition; task: cron.ScheduledTask }>();
+  const activeJobs = new Map<string, { job: CronJobDefinition; task: ScheduledTask }>();
 
-  const scheduleJob = (job: CronJobDefinition): cron.ScheduledTask => {
+  const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
     const trigger = buildSchedulerTriggerForJob(job.targetRoute, job.jobName);
     const task = cron.schedule(job.schedule, async () => {
       try {
-        await options.runner(trigger);
+        await options.runner({
+          jobName: job.jobName,
+          trigger,
+          ...(job.payload ? { payload: job.payload } : {}),
+        });
       } catch (error) {
         console.error(`[RuntimeScheduler] Failed to execute job "${job.jobName}":`, error);
       }

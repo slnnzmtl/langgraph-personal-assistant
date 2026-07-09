@@ -32,11 +32,12 @@ export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): 
   }
 
   const text = extractTextContent(message);
-  if (!text?.startsWith(SCHEDULER_TRIGGER_PREFIX)) {
+  const triggerText = text?.split(/\r?\n/, 1)[0]?.trim();
+  if (!triggerText?.startsWith(SCHEDULER_TRIGGER_PREFIX)) {
     return null;
   }
 
-  const triggerName = text.slice(SCHEDULER_TRIGGER_PREFIX.length).trim();
+  const triggerName = triggerText.slice(SCHEDULER_TRIGGER_PREFIX.length).trim();
   const legacyRoute = SCHEDULER_TRIGGER_ROUTES[triggerName];
   if (legacyRoute) {
     return legacyRoute;
@@ -117,6 +118,7 @@ export const setupCron = (options: SetupCronOptions): void => {
         await options.runner.run({
           jobName: job.jobName,
           trigger: buildSchedulerTriggerForJob(job.targetRoute, job.jobName),
+          ...(job.payload ? { payload: job.payload } : {}),
         });
       },
       { timezone: job.timezone ?? options.defaultTimezone },

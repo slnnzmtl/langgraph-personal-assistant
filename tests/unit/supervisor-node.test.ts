@@ -239,4 +239,24 @@ describe("createSupervisorNode", () => {
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
+
+  it("routes scheduled triggers even when payload text is appended after the trigger line", async () => {
+    const invokeSpy = vi.fn(() => {
+      throw new Error("LLM must not run for scheduler trigger");
+    });
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync\n\nPayload:\nSync the Wise transactions for yesterday."),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("Finance_SG");
+    expect(result.messages).toBeUndefined();
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
 });

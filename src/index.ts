@@ -70,9 +70,8 @@ const main = async (): Promise<void> => {
 	});
 
 	const runtimeSchedulerService = createRuntimeSchedulerService({
-		runner: async (trigger: string) => {
-			const jobName = trigger.split(":")[2] || "unknown";
-			await schedulerRunner.run({ jobName, trigger });
+		runner: async (job) => {
+			await schedulerRunner.run(job);
 		},
 		timezone: config.appTimezone,
 	});

@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -35,6 +35,7 @@ describe("named prompt loaders", () => {
 
     expect(prompt).toContain("When the user asks to schedule a daily note");
     expect(prompt).toContain("in 5 minutes");
+    expect(prompt).toContain("If the user asks to list, show, view, or inspect existing cron jobs, call `list_cron_jobs` only");
   });
 });
 
@@ -88,9 +89,9 @@ describe("loadSystemPromptMarkdown", () => {
   });
 
   it("mirrors prompt logs to stdout when enabled", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "pa-prompt-log-"));
     const promptPath = path.join(tempDir, "system-prompt.md");
+    const logFilePath = path.join(process.cwd(), "logs", "prompt-log-test.txt");
 
     try {
       await writeFile(promptPath, "Prompt logging test\n", "utf8");
@@ -101,8 +102,10 @@ describe("loadSystemPromptMarkdown", () => {
         { _getType: () => "system", content: "Prompt logging test" } as never,
       ]);
 
-      expect(logSpy).toHaveBeenCalled();
+      const loggedContent = await readFile(logFilePath, "utf8");
+      expect(loggedContent).toContain("Prompt logging test");
     } finally {
+      await rm(logFilePath, { force: true });
       await rm(tempDir, { recursive: true, force: true });
     }
   });

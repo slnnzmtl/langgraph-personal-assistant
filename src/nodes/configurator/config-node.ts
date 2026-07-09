@@ -9,6 +9,7 @@ import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js
 import { loadConfiguratorSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
+import { formatCronJobForDisplay } from "./config-tools.js";
 
 type ConfigurationNodeOptions = {
   repository: CronJobRepository;
@@ -40,6 +41,12 @@ const reconcileRuntimeScheduler = async (
   }
 };
 
+const isCronJobListRequest = (text: string): boolean => {
+  const normalized = text.toLowerCase().replaceAll(/\s+/g, " ").trim();
+
+  return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
+};
+
 export const createConfigurationNode = (
   model: BaseChatModel,
   tools: StructuredToolInterface[],
@@ -53,6 +60,18 @@ export const createConfigurationNode = (
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
+      const latestMessage = state.messages[state.messages.length - 1];
+      const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
+
+      if (latestMessageText && isCronJobListRequest(latestMessageText)) {
+        const jobs = await options.repository.loadJobs();
+        const content = jobs.length > 0
+          ? jobs.map(formatCronJobForDisplay).join("\n\n")
+          : "No cron jobs configured.";
+
+        return { messages: [new AIMessage(content)] };
+      }
+
       await reconcileRuntimeScheduler(options.repository, options.runtimeScheduler);
 
       const systemInstructions = new SystemMessage(loadConfiguratorSystemPrompt());

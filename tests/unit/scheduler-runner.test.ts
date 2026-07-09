@@ -46,6 +46,23 @@ describe("createSchedulerRunner", () => {
     expect(input?.messages[0]?.content).toBe("SYSTEM_CRON_TRIGGER:finance-sync");
   });
 
+  it("includes cron payload text in the llm input without changing the trigger line", async () => {
+    const invoke = vi.fn().mockResolvedValue(undefined);
+    const runner = createSchedulerRunner({ graph: { invoke }, onError: vi.fn() });
+
+    await runner.run({
+      jobName: "finance-sync",
+      trigger: "SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync",
+      payload: "Sync the Wise transactions for yesterday.",
+    });
+
+    const input = invoke.mock.calls[0]?.[0];
+    expect(input?.messages).toHaveLength(1);
+    expect(input?.messages[0]?.content).toContain("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync");
+    expect(input?.messages[0]?.content).toContain("Payload:");
+    expect(input?.messages[0]?.content).toContain("Sync the Wise transactions for yesterday.");
+  });
+
   it("skips overlapping runs for the same job while a prior run is still active", async () => {
     const inFlight = deferred<void>();
     const invoke = vi.fn().mockReturnValue(inFlight.promise);

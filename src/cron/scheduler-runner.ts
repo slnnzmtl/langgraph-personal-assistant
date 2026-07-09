@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 export type SchedulerJobRun = {
   jobName: string;
   trigger: string;
+  payload?: string;
 };
 
 export type SchedulerRunner = {
@@ -21,6 +22,14 @@ type SchedulerRunnerOptions = {
 
 const createThreadId = (jobName: string): string => `scheduler:${jobName}:${randomUUID()}`;
 
+const buildSchedulerInputMessage = (job: SchedulerJobRun): HumanMessage => {
+  if (!job.payload) {
+    return new HumanMessage(job.trigger);
+  }
+
+  return new HumanMessage(`${job.trigger}\n\nPayload:\n${job.payload}`);
+};
+
 export const createSchedulerRunner = (options: SchedulerRunnerOptions): SchedulerRunner => {
   const inFlightJobs = new Set<string>();
 
@@ -35,7 +44,7 @@ export const createSchedulerRunner = (options: SchedulerRunnerOptions): Schedule
 
       try {
         await options.graph.invoke(
-          { messages: [new HumanMessage(job.trigger)] },
+          { messages: [buildSchedulerInputMessage(job)] },
           { configurable: { thread_id: createThreadId(job.jobName) } },
         );
       } catch (error) {

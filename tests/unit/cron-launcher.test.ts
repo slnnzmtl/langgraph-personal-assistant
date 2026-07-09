@@ -111,6 +111,37 @@ describe("setupCron", () => {
     });
   });
 
+  it("forwards payload to the scheduler runner when present", async () => {
+    const schedule = vi.fn();
+    const run = vi.fn().mockResolvedValue(undefined);
+
+    setupCron({
+      enabled: true,
+      defaultTimezone: "UTC",
+      schedule,
+      runner: { run },
+      jobs: [
+        {
+          jobName: "finance-sync",
+          schedule: "59 23 * * *",
+          targetRoute: "Finance_SG",
+          payload: "Sync the Wise transactions for yesterday.",
+        },
+      ],
+    });
+
+    const scheduledCallback = schedule.mock.calls[0]?.[1];
+    expect(typeof scheduledCallback).toBe("function");
+
+    await scheduledCallback();
+
+    expect(run).toHaveBeenCalledWith({
+      jobName: "finance-sync",
+      trigger: "SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync",
+      payload: "Sync the Wise transactions for yesterday.",
+    });
+  });
+
   it("rejects duplicate job names before registering schedules", () => {
     const schedule = vi.fn();
 
