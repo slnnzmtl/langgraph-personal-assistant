@@ -19,8 +19,13 @@ const formatRoutineFilePath = (date: Date): string => {
   return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
 };
 
+const shiftDateByDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+
 const injectObsidianRoutineHint = (prompt: string) => (date: Date = new Date()): string => {
-  return `${prompt}\nRoutine files live under routine/[Month]/[Month] [Day] - [Weekday].md. For today, use ${formatRoutineFilePath(date)}.`;
+  const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
+  const todayPath = formatRoutineFilePath(date);
+
+  return `${prompt}\nRoutine files live under routine/[Month]/[Month] [Day] - [Weekday].md.\nYesterday: ${yesterdayPath}\nToday: ${todayPath}`;
 };
 
 export const loadSystemPromptMarkdown = (filePath: string): string => {

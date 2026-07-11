@@ -10,6 +10,7 @@ import { createLazySchedulerService, createRuntimeSchedulerService } from "./cro
 import { createSchedulerRunner, type SchedulerJobRun } from "./cron/scheduler-runner.js";
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
+import { createTelegramCronReporter } from "./telegram/telegram-cron-reporter.js";
 import { setupFinanceDatabaseSession } from "./nodes/finance-node/session.js";
 import type { SupabaseMcpSession } from "./mcp/supabase/index.js";
 
@@ -42,9 +43,15 @@ const main = async (): Promise<void> => {
 		console.error(`[Scheduler] Job failed: ${context.jobName}`, error);
 	};
 
+	const cronReporter = createTelegramCronReporter({
+		telegramBotToken: config.telegramBotToken,
+		chatId: config.allowedTelegramUserId,
+	});
+
 	const schedulerRunner = createSchedulerRunner({
 		graph: app,
 		onError: onJobError,
+		reporter: cronReporter,
 	});
 
 	const runtimeSchedulerService = createRuntimeSchedulerService({

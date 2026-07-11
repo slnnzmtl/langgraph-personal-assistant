@@ -101,6 +101,40 @@ describe("createSchedulerRunner", () => {
     );
   });
 
+  it("reports cron lifecycle events around a successful run", async () => {
+    const invoke = vi.fn().mockResolvedValue({ messages: [] });
+    const reporter = {
+      onStart: vi.fn(async () => undefined),
+      onProgress: vi.fn(async () => undefined),
+      onSuccess: vi.fn(async () => undefined),
+      onError: vi.fn(async () => undefined),
+    };
+    const runner = createSchedulerRunner({ graph: { invoke }, onError: vi.fn(), reporter });
+
+    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+
+    expect(reporter.onStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: "finance-sync",
+        trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+      }),
+    );
+    expect(reporter.onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: "finance-sync",
+      }),
+      "Dispatching scheduled workflow.",
+    );
+    expect(reporter.onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobName: "finance-sync",
+        trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+        messages: [],
+      }),
+    );
+    expect(reporter.onError).not.toHaveBeenCalled();
+  });
+
   it("allows later runs after an in-flight execution settles", async () => {
     const inFlight = deferred<void>();
     const invoke = vi

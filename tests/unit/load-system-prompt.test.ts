@@ -30,6 +30,21 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("# Role & Objective");
   });
 
+  it("includes yesterday and today routine note paths in the Obsidian prompt", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    try {
+      const prompt = loadObsidianSystemPrompt();
+
+      expect(prompt).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
+      expect(prompt).toContain("Yesterday: routine/July/July 9 - Thu.md");
+      expect(prompt).toContain("Today: routine/July/July 10 - Fri.md");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("loads the configurator prompt from prompts/configurator.md", () => {
     const prompt = loadConfiguratorSystemPrompt();
 
