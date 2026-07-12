@@ -50,6 +50,7 @@ const main = async (): Promise<void> => {
 
 	const schedulerRunner = createSchedulerRunner({
 		graph: app,
+		summaryModel: supervisorConnector.getModel(),
 		onError: onJobError,
 		reporter: cronReporter,
 	});

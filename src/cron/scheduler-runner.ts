@@ -1,5 +1,8 @@
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { randomUUID } from "node:crypto";
+
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { extractMessageTextContent } from "../nodes/message-history.js";
 
 export type SchedulerJobRun = {
   jobName: string;
@@ -10,6 +13,7 @@ export type SchedulerJobRun = {
 
 export type SchedulerJobResult = SchedulerJobRun & {
   messages?: BaseMessage[];
+  summary?: string;
 };
 
 export type SchedulerRunner = {
@@ -22,6 +26,7 @@ type GraphInvoker = {
 
 type SchedulerRunnerOptions = {
   graph: GraphInvoker;
+  summaryModel: BaseChatModel;
   onError(error: unknown, context: SchedulerJobRun): void;
   reporter?: SchedulerExecutionReporter;
 };
@@ -44,6 +49,32 @@ const buildSchedulerInputMessage = (job: SchedulerJobRun): HumanMessage => {
   const payloadText = typeof job.payload === "string" ? job.payload : JSON.stringify(job.payload, null, 2);
 
   return new HumanMessage(`${job.trigger}\n\nPayload:\n${payloadText}`);
+};
+
+const summarizeJobResult = async (
+  model: BaseChatModel,
+  job: SchedulerJobRun,
+  messages: BaseMessage[],
+): Promise<string> => {
+  const result = await model.invoke([
+    new SystemMessage(
+      "Write a concise, user-facing summary of the completed scheduled job. " +
+      "State what was done and any important result or issue. Do not mention internal routing, " +
+      "cron triggers, tool calls, or that you are summarizing. Return plain text only.",
+    ),
+    new HumanMessage(
+      `Job: ${job.jobName}\n\nCompleted workflow messages:\n${
+        messages.map((message) => extractMessageTextContent(message.content).trim()).filter(Boolean).join("\n\n")
+      }`,
+    ),
+  ]);
+  const summary = extractMessageTextContent(result.content).trim();
+
+  if (!summary) {
+    throw new Error(`Summary model returned an empty response for job: ${job.jobName}`);
+  }
+
+  return summary;
 };
 
 export const createSchedulerRunner = (options: SchedulerRunnerOptions): SchedulerRunner => {
@@ -86,7 +117,9 @@ export const createSchedulerRunner = (options: SchedulerRunnerOptions): Schedule
         );
 
         const resultObject = typeof result === "object" && result !== null ? (result as Partial<SchedulerJobResult>) : {};
-        await report(() => options.reporter?.onSuccess?.({ ...job, ...resultObject }));
+        const messages = Array.isArray(resultObject.messages) ? resultObject.messages : [];
+        const summary = await summarizeJobResult(options.summaryModel, job, messages);
+        await report(() => options.reporter?.onSuccess?.({ ...job, ...resultObject, summary }));
       } catch (error) {
         options.onError(error, job);
         await report(() => options.reporter?.onError?.(error, job));

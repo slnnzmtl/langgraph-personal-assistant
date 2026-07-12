@@ -1,7 +1,6 @@
 import { Telegraf } from "telegraf";
 
 import type { SchedulerExecutionReporter, SchedulerJobResult, SchedulerJobRun } from "../cron/scheduler-runner.js";
-import { extractMessageTextContent } from "../nodes/message-history.js";
 
 type TelegramCronReporterOptions = {
   telegramBotToken: string;
@@ -11,14 +10,10 @@ type TelegramCronReporterOptions = {
 const formatJobHeader = (job: SchedulerJobRun): string => `Cron job: ${job.jobName}`;
 
 const summarizeResult = (job: SchedulerJobResult): string => {
-  const lastMessage = job.messages?.at(-1);
-  const lastMessageText = lastMessage ? extractMessageTextContent(lastMessage.content).trim() : "";
-
-  if (!lastMessageText) {
-    return "Completed without a textual result.";
+  if (!job.summary?.trim()) {
+    throw new Error(`Missing summary for completed cron job: ${job.jobName}`);
   }
-
-  return lastMessageText;
+  return job.summary.trim();
 };
 
 export const createTelegramCronReporter = (options: TelegramCronReporterOptions): SchedulerExecutionReporter => {

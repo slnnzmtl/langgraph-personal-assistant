@@ -6,20 +6,15 @@ import type { SchedulerRunner } from "./scheduler-runner.js";
 const SCHEDULER_TRIGGER_PREFIX = "SYSTEM_CRON_TRIGGER:";
 const ROUTE_TRIGGER_SEPARATOR = ":";
 
-export type SchedulerTargetRoute = Exclude<RouteName, "FINISH">;
-export type SchedulerResolvedRoute = RouteName | 'Supervise_SG';
+export const SUPERVISE_SCHEDULER_ROUTE = "Supervise_SG" as const;
+export type SchedulerTargetRoute = Exclude<RouteName, "FINISH"> | typeof SUPERVISE_SCHEDULER_ROUTE;
 
 const SCHEDULER_TRIGGER_ROUTES: Record<string, SchedulerTargetRoute> = {
   "finance-sync": "Finance_SG",
   "obsidian-daily-note": "Obsidian_SG",
 };
 
-const SCHEDULER_TARGET_ROUTES = new Set<string>([
-  "Finance_SG",
-  "Obsidian_SG",
-  "Config_SG",
-  "Supervise_SG",
-]);
+const SCHEDULER_TARGET_ROUTES = new Set<string>(["Finance_SG", "Obsidian_SG", "Config_SG", SUPERVISE_SCHEDULER_ROUTE]);
 
 const extractTextContent = (message: BaseMessage): string | null => {
   if (!(message instanceof HumanMessage)) {
@@ -29,10 +24,10 @@ const extractTextContent = (message: BaseMessage): string | null => {
   return typeof message.content === "string" ? message.content.trim() : null;
 };
 
-export const isSchedulerTargetRoute = (value: string): value is SchedulerTargetRoute | typeof SUPERVISE_SCHEDULER_ROUTE =>
+export const isSchedulerTargetRoute = (value: string): value is SchedulerTargetRoute =>
   SCHEDULER_TARGET_ROUTES.has(value);
 
-export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): SchedulerResolvedRoute | null => {
+export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): SchedulerTargetRoute | null => {
   if (!message) {
     return null;
   }
