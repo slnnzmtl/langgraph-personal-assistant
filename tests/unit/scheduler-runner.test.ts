@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import { createSchedulerRunner } from "../../src/cron/scheduler-runner.js";
@@ -160,6 +160,33 @@ describe("createSchedulerRunner", () => {
 
     await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
     expect(invoke).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("cron summary context", () => {
+  it("sends the full sanitized dialog to the summary model", async () => {
+    const graphInvoke = vi.fn().mockResolvedValue({
+      messages: [
+        new HumanMessage("SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation\n\nPayload:\nCreate today\'s routine note."),
+        new AIMessage({ content: "", tool_calls: [{ name: "read_markdown_file", args: {}, id: "read-1" }] }),
+        new ToolMessage({ content: "Yesterday tasks: - [ ] Review inbox", tool_call_id: "read-1", name: "read_markdown_file" }),
+        new AIMessage({ content: "", tool_calls: [{ name: "write_markdown_file", args: {}, id: "write-1" }] }),
+        new ToolMessage({ content: "Success: Updated today\'s note.", tool_call_id: "write-1", name: "write_markdown_file" }),
+        new AIMessage("Updated today\'s routine note with carried-forward tasks."),
+      ],
+    });
+    const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("The routine note was updated."));
+    const runner = createSchedulerRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+
+    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation" });
+
+    const summaryInput = summaryInvoke.mock.calls[0]?.[0]?.[1]?.content as string;
+    expect(summaryInput).toContain("Create today's routine note.");
+    expect(summaryInput).toContain("Yesterday tasks: - [ ] Review inbox");
+    expect(summaryInput).toContain("Success: Updated today's note.");
+    expect(summaryInput).toContain("Updated today's routine note with carried-forward tasks.");
+    expect(summaryInput).not.toContain("SYSTEM_CRON_TRIGGER:");
+    expect(summaryInput).not.toContain("read-1");
   });
 });
 

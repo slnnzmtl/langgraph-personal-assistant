@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { randomUUID } from "node:crypto";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -51,25 +51,48 @@ const buildSchedulerInputMessage = (job: SchedulerJobRun): HumanMessage => {
   return new HumanMessage(`${job.trigger}\n\nPayload:\n${payloadText}`);
 };
 
+const stripSchedulerTrigger = (text: string): string => {
+  const lines = text.split(/\r?\n/);
+  return lines[0]?.startsWith("SYSTEM_CRON_TRIGGER:") ? lines.slice(1).join("\n").trim() : text.trim();
+};
+
+const formatDialogMessage = (message: BaseMessage): string | null => {
+  const text = extractMessageTextContent(message.content).trim();
+
+  if (message instanceof HumanMessage) {
+    const sanitizedText = stripSchedulerTrigger(text);
+    return sanitizedText ? `User:\n${sanitizedText}` : null;
+  }
+
+  if (message instanceof ToolMessage) {
+    const toolName = message.name ?? message.tool_call_id ?? "tool";
+    return `Tool result (${toolName}):\n${text}`;
+  }
+
+  if (message instanceof AIMessage) {
+    return text ? `Assistant:\n${text}` : null;
+  }
+
+  return text ? `Message:\n${text}` : null;
+};
+
+const buildSummaryDialog = (messages: BaseMessage[]): string =>
+  messages.map(formatDialogMessage).filter((message): message is string => Boolean(message)).join("\n\n");
+
 const summarizeJobResult = async (
   model: BaseChatModel,
   job: SchedulerJobRun,
   messages: BaseMessage[],
 ): Promise<string> => {
+  const dialog = buildSummaryDialog(messages);
   const result = await model.invoke([
     new SystemMessage(
       "Write a concise, user-facing summary of the completed scheduled job. " +
-      "State what was done and any important result or issue. Do not mention internal routing, " +
-      "cron triggers, tool calls, or that you are summarizing. Return plain text only.",
+      "Use the full dialog to explain what was requested, what tools actually did, and the final outcome. " +
+      "Do not mention internal routing, scheduler protocol markers, raw function-call metadata, or that you are summarizing. " +
+      "Return plain text only.",
     ),
-    new HumanMessage(
-      `Job: ${job.jobName}\n\nCompleted workflow result:\n${
-        messages.filter((message) => message instanceof AIMessage && !message.tool_calls?.length)
-          .map((message) => extractMessageTextContent(message.content).trim())
-          .filter(Boolean)
-          .at(-1) ?? ""
-      }`,
-    ),
+    new HumanMessage(`Job: ${job.jobName}\n\nCompleted dialog:\n${dialog}`),
   ]);
   const summary = extractMessageTextContent(result.content).trim();
 
