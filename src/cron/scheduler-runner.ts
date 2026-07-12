@@ -1,4 +1,4 @@
-import { HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import { randomUUID } from "node:crypto";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
@@ -63,8 +63,11 @@ const summarizeJobResult = async (
       "cron triggers, tool calls, or that you are summarizing. Return plain text only.",
     ),
     new HumanMessage(
-      `Job: ${job.jobName}\n\nCompleted workflow messages:\n${
-        messages.map((message) => extractMessageTextContent(message.content).trim()).filter(Boolean).join("\n\n")
+      `Job: ${job.jobName}\n\nCompleted workflow result:\n${
+        messages.filter((message) => message instanceof AIMessage && !message.tool_calls?.length)
+          .map((message) => extractMessageTextContent(message.content).trim())
+          .filter(Boolean)
+          .at(-1) ?? ""
       }`,
     ),
   ]);
@@ -75,6 +78,16 @@ const summarizeJobResult = async (
   }
 
   return summary;
+};
+
+export const MAX_GRAPH_CONTINUATIONS = 3;
+
+const hasPendingToolCall = (message: BaseMessage | undefined): boolean =>
+  message instanceof AIMessage && Boolean(message.tool_calls?.length || (message.additional_kwargs as { functionCall?: unknown } | undefined)?.functionCall);
+
+const isTerminalGraphResult = (messages: BaseMessage[]): boolean => {
+  const lastMessage = messages.at(-1);
+  return lastMessage instanceof AIMessage && !hasPendingToolCall(lastMessage) && extractMessageTextContent(lastMessage.content).trim().length > 0;
 };
 
 export const createSchedulerRunner = (options: SchedulerRunnerOptions): SchedulerRunner => {
@@ -111,13 +124,29 @@ export const createSchedulerRunner = (options: SchedulerRunnerOptions): Schedule
       }
 
       try {
-        const result = await options.graph.invoke(
+        const config = { configurable: { thread_id: createThreadId(job.jobName) } };
+        let result = await options.graph.invoke(
           { messages: [buildSchedulerInputMessage(job)] },
-          { configurable: { thread_id: createThreadId(job.jobName) } },
+          config,
         );
+        let resultObject = typeof result === "object" && result !== null ? (result as Partial<SchedulerJobResult>) : {};
+        let messages = Array.isArray(resultObject.messages) ? resultObject.messages : [];
+        let continuationCount = 0;
 
-        const resultObject = typeof result === "object" && result !== null ? (result as Partial<SchedulerJobResult>) : {};
-        const messages = Array.isArray(resultObject.messages) ? resultObject.messages : [];
+        while (!isTerminalGraphResult(messages) && continuationCount < MAX_GRAPH_CONTINUATIONS) {
+          if (!hasPendingToolCall(messages.at(-1))) {
+            break;
+          }
+          continuationCount += 1;
+          result = await options.graph.invoke({ messages: [] }, config);
+          resultObject = typeof result === "object" && result !== null ? (result as Partial<SchedulerJobResult>) : {};
+          messages = Array.isArray(resultObject.messages) ? resultObject.messages : [];
+        }
+
+        if (!isTerminalGraphResult(messages)) {
+          throw new Error(`Scheduled workflow did not reach a terminal result for job: ${job.jobName}`);
+        }
+
         const summary = await summarizeJobResult(options.summaryModel, job, messages);
         await report(() => options.reporter?.onSuccess?.({ ...job, ...resultObject, summary }));
       } catch (error) {

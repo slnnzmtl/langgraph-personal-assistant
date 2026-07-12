@@ -16,7 +16,7 @@ const deferred = <T>() => {
 
 describe("createSchedulerRunner", () => {
   it("creates a unique thread id for each scheduled run", async () => {
-    const invoke = vi.fn().mockResolvedValue(undefined);
+    const invoke = vi.fn().mockResolvedValue({ messages: [new AIMessage("Completed")] });
     const runner = createSchedulerRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
     await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
@@ -142,7 +142,7 @@ describe("createSchedulerRunner", () => {
     const invoke = vi
       .fn()
       .mockReturnValueOnce(inFlight.promise)
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce({ messages: [new AIMessage("Completed")] });
     const runner = createSchedulerRunner({
       graph: { invoke },
       summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never,
@@ -160,5 +160,21 @@ describe("createSchedulerRunner", () => {
 
     await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
     expect(invoke).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("cron summary ordering", () => {
+  it("continues a pending tool-call result before summarizing", async () => {
+    const graphInvoke = vi.fn()
+      .mockResolvedValueOnce({ messages: [new AIMessage({ content: "", tool_calls: [{ name: "read_markdown_file", args: {}, id: "1" }] })] })
+      .mockResolvedValueOnce({ messages: [new AIMessage("Completed note update")] });
+    const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("Updated the routine note."));
+    const runner = createSchedulerRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+
+    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation" });
+
+    expect(graphInvoke).toHaveBeenCalledTimes(2);
+    expect(summaryInvoke).toHaveBeenCalledTimes(1);
+    expect(summaryInvoke.mock.calls[0]?.[0]?.[1]?.content).toContain("Completed note update");
   });
 });
