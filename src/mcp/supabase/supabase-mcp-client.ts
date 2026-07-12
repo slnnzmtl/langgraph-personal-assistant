@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { normalizeExecSqlOutput } from "../../utils/exec-sql.js";
 
 /**
  * Scaffolding for connecting to the official hosted Supabase MCP server.
@@ -101,7 +102,15 @@ export async function connectSupabaseMcp(config: SupabaseMcpConfig): Promise<Sup
     if (!textBlock?.text) {
       throw new Error("Unexpected response format from execute_sql tool");
     }
-    return JSON.parse(textBlock.text);
+
+    let parsedResponse: unknown;
+    try {
+      parsedResponse = JSON.parse(textBlock.text.trim());
+    } catch {
+      throw new Error("execute_sql response was not valid JSON");
+    }
+
+    return normalizeExecSqlOutput(parsedResponse);
   };
 
   const close = async (): Promise<void> => {

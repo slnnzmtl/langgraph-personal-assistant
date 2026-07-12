@@ -8,74 +8,7 @@ import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
 import { fetchWiseTransactions } from "./wise-client.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
-
-const UNTRUSTED_DATA_BLOCK_PATTERN = /(?:^|\n)<untrusted-data-[^>]+>\n([\s\S]*?)\n<\/untrusted-data-[^>]+>(?:\n|$)/m;
-
-const tryParseJson = (input: string): unknown | undefined => {
-  try {
-    return JSON.parse(input);
-  } catch {
-    return undefined;
-  }
-};
-
-const extractJsonPayload = (input: string): string | undefined => {
-  const untrustedBlock = input.match(UNTRUSTED_DATA_BLOCK_PATTERN)?.[1]?.trim();
-  if (untrustedBlock) {
-    return untrustedBlock;
-  }
-
-  const trimmed = input.trim();
-  if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
-    return trimmed;
-  }
-
-  return undefined;
-};
-
-const normalizeExecSqlOutput = (value: unknown, depth = 0): unknown => {
-  if (depth > 4) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsedDirectly = tryParseJson(value.trim());
-    if (parsedDirectly !== undefined) {
-      return normalizeExecSqlOutput(parsedDirectly, depth + 1);
-    }
-
-    const jsonPayload = extractJsonPayload(value);
-    if (jsonPayload) {
-      const parsedPayload = tryParseJson(jsonPayload);
-      if (parsedPayload !== undefined) {
-        return normalizeExecSqlOutput(parsedPayload, depth + 1);
-      }
-      return jsonPayload;
-    }
-
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    return value;
-  }
-
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-
-    if (typeof record.result === "string") {
-      return normalizeExecSqlOutput(record.result, depth + 1);
-    }
-
-    if (Array.isArray(record.rows)) {
-      return record.rows;
-    }
-
-    return value;
-  }
-
-  return value;
-};
+import { normalizeExecSqlOutput } from "../../utils/exec-sql.js";
 
 /**
  * Create finance tools that the LLM can use.
