@@ -38,7 +38,7 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
     const schedulerRoute = resolveSchedulerTriggerRoute(state.messages[state.messages.length - 1]);
 
-    if (schedulerRoute) {
+    if (schedulerRoute && schedulerRoute !== "Supervise_SG") {
       return { next: schedulerRoute };
     }
 

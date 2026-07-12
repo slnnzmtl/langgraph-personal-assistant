@@ -7,13 +7,19 @@ const SCHEDULER_TRIGGER_PREFIX = "SYSTEM_CRON_TRIGGER:";
 const ROUTE_TRIGGER_SEPARATOR = ":";
 
 export type SchedulerTargetRoute = Exclude<RouteName, "FINISH">;
+export type SchedulerResolvedRoute = RouteName | 'Supervise_SG';
 
 const SCHEDULER_TRIGGER_ROUTES: Record<string, SchedulerTargetRoute> = {
   "finance-sync": "Finance_SG",
   "obsidian-daily-note": "Obsidian_SG",
 };
 
-const SCHEDULER_TARGET_ROUTES = new Set<RouteName>(["Finance_SG", "Obsidian_SG", "Config_SG", "Supervise_SG", "FINISH"].filter((routeName) => routeName !== "FINISH") as RouteName[]);
+const SCHEDULER_TARGET_ROUTES = new Set<string>([
+  "Finance_SG",
+  "Obsidian_SG",
+  "Config_SG",
+  "Supervise_SG",
+]);
 
 const extractTextContent = (message: BaseMessage): string | null => {
   if (!(message instanceof HumanMessage)) {
@@ -23,10 +29,10 @@ const extractTextContent = (message: BaseMessage): string | null => {
   return typeof message.content === "string" ? message.content.trim() : null;
 };
 
-export const isSchedulerTargetRoute = (value: string): value is SchedulerTargetRoute =>
-  SCHEDULER_TARGET_ROUTES.has(value as RouteName);
+export const isSchedulerTargetRoute = (value: string): value is SchedulerTargetRoute | typeof SUPERVISE_SCHEDULER_ROUTE =>
+  SCHEDULER_TARGET_ROUTES.has(value);
 
-export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): RouteName | null => {
+export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): SchedulerResolvedRoute | null => {
   if (!message) {
     return null;
   }
@@ -45,7 +51,7 @@ export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): 
 
   const derivedRoute = triggerName.split(ROUTE_TRIGGER_SEPARATOR, 1)[0];
   if (derivedRoute && isSchedulerTargetRoute(derivedRoute)) {
-    return derivedRoute as SchedulerTargetRoute;
+    return derivedRoute;
   }
 
   return null;

@@ -284,6 +284,23 @@ describe("createSupervisorNode", () => {
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
+  it("lets Supervise_SG scheduler triggers continue through normal LLM routing", async () => {
+    const invokeSpy = vi.fn(() => ({
+      next: "FINISH",
+      reply: "Handled by the main supervisor",
+    }));
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(
+      makeHumanState("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review\n\nPayload:\nReview today's priorities."),
+    );
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Handled by the main supervisor");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("routes scheduled triggers even when payload text is appended after the trigger line", async () => {
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for scheduler trigger");

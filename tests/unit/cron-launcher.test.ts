@@ -1,8 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { setupCron } from "../../src/cron/cron-launcher.js";
+import { HumanMessage } from "@langchain/core/messages";
+
+import {
+  buildSchedulerTriggerForJob,
+  isSchedulerTargetRoute,
+  resolveSchedulerTriggerRoute,
+  setupCron,
+  SUPERVISE_SCHEDULER_ROUTE,
+} from "../../src/cron/cron-launcher.js";
 
 describe("setupCron", () => {
+  it("accepts the main supervisor as a cron target", () => {
+    expect(isSchedulerTargetRoute(SUPERVISE_SCHEDULER_ROUTE)).toBe(true);
+    expect(buildSchedulerTriggerForJob(SUPERVISE_SCHEDULER_ROUTE, "morning-review")).toBe(
+      "SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review",
+    );
+    expect(resolveSchedulerTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"))).toBe(
+      SUPERVISE_SCHEDULER_ROUTE,
+    );
+  });
+
   it("registers enabled declarative jobs with the default timezone", () => {
     const schedule = vi.fn();
     const run = vi.fn();
