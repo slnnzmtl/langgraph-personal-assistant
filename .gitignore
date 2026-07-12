@@ -7,4 +7,5 @@ logs/
 .pnpm-store/
 test-results/
 .tmp
-data/
+data/*
+cron-jobs.json
