@@ -1,8 +1,20 @@
 import { StructuredToolInterface, tool } from "@langchain/core/tools";
 import { SupabaseMcpSession } from "../../../mcp/supabase/index.js";
+import { formatRecord } from "../../../mcp/supabase/response-parser.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { fetchWiseTransactions } from "./wise/index.js";
 import { z } from "zod";
+
+const serializeResult = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) =>
+        item && typeof item === "object" ? formatRecord(item as Record<string, unknown>) : String(item)
+      )
+      .join("\n");
+  }
+  return typeof value === "string" ? value : JSON.stringify(value);
+};
 
 const TOOL_OUTPUT_MAX_CHARS = 8_000;
 const truncateOutput = (output: string): string =>
@@ -16,12 +28,7 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
       try {
         const result = await mcpSession.executeSql(input.sql);
         const normalizedResult = normalizeToolOutput(result);
-
-        if (typeof normalizedResult === "string") {
-          return truncateOutput(normalizedResult);
-        }
-
-        return truncateOutput(JSON.stringify(normalizedResult));
+        return truncateOutput(serializeResult(normalizedResult));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });
@@ -41,11 +48,7 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
       try {
         const transactions = await fetchWiseTransactions(input);
         const normalizedTransactions = normalizeToolOutput(transactions);
-        return truncateOutput(
-          typeof normalizedTransactions === "string"
-            ? normalizedTransactions
-            : JSON.stringify(normalizedTransactions),
-        );
+        return truncateOutput(serializeResult(normalizedTransactions));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });
@@ -66,12 +69,7 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
       try {
         const result = await mcpSession.executeSql("SELECT id, name, note FROM public.category;");
         const normalizedResult = normalizeToolOutput(result);
-
-        if (typeof normalizedResult === "string") {
-          return truncateOutput(normalizedResult);
-        }
-
-        return truncateOutput(JSON.stringify(normalizedResult));
+        return truncateOutput(serializeResult(normalizedResult));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });
