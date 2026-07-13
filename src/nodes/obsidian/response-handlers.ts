@@ -5,26 +5,6 @@
  */
 
 /**
- * Extract the summary from a successful write_markdown_file response.
- * Format: "Success: {summary} saved to {path}."
- * Returns the extracted summary or the full content if parsing fails.
- */
-export const handleWriteMarkdownResult = (
-  toolContent: string,
-): { summary: string; success: boolean } => {
-  const match = toolContent.match(/^Success:\s*(.+?)\s+saved to\s+/);
-  if (match?.[1]) {
-    let summary = match[1];
-    // Ensure summary ends with a period
-    if (!summary.endsWith(".")) {
-      summary += ".";
-    }
-    return { summary, success: true };
-  }
-  return { summary: toolContent, success: false };
-};
-
-/**
  * Normalize search_markdown_files results into concise paths.
  * Extracts markdown paths from response text, limits to 3 most relevant matches.
  * Falls back to the raw response or a default message.

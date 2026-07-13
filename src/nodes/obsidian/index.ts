@@ -1,5 +1,6 @@
 import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { Runnable } from "@langchain/core/runnables";
 import { Annotation } from "@langchain/langgraph";
 import { mkdir } from "node:fs/promises";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
@@ -13,7 +14,6 @@ import {
 } from "./tools.js";
 import { reduceAgentMessages } from "../../state.js";
 import {
-  handleWriteMarkdownResult,
   normalizeSearchResponseText,
 } from "./response-handlers.js";
 
@@ -38,6 +38,57 @@ export const buildObsidianSystemPrompt = async (vaultRoot: string): Promise<stri
   return `${loadObsidianSystemPrompt()}\n\nVault directory tree (folders only):\n${vaultDirectoryTree}`;
 };
 
+const getMessageText = (message: BaseMessage): string =>
+  typeof message.content === "string" ? message.content : String(message.content);
+
+const isToolResult = (message: BaseMessage | undefined, toolName: string): message is ToolMessage =>
+  message instanceof ToolMessage && message.name === toolName;
+
+const postProcessSearchResult = async (
+  model: BaseChatModel,
+  systemPrompt: string,
+  messages: BaseMessage[],
+  searchResult: ToolMessage,
+): Promise<AIMessage> => {
+  const searchPromptMessages = [
+    new SystemMessage(`${systemPrompt}\n\n${SEARCH_POST_PROCESS_INSTRUCTION}`),
+    ...messages,
+  ];
+  const searchResponse = await model.invoke(searchPromptMessages);
+  const searchResponseText = searchResponse instanceof AIMessage
+    ? extractMessageTextContent(searchResponse.content).trim()
+    : "";
+  return new AIMessage(normalizeSearchResponseText(searchResponseText, getMessageText(searchResult)));
+};
+
+/**
+ * Run the tool-bound model. When it returns neither tool calls nor text,
+ * fall back to a plain narration so the node always emits a non-empty AI message.
+ */
+const invokeToolBoundModel = async (
+  model: BaseChatModel,
+  modelWithTools: Runnable,
+  promptMessages: BaseMessage[],
+  messages: BaseMessage[],
+): Promise<AIMessage> => {
+  const response = await modelWithTools.invoke(promptMessages);
+  if (!(response instanceof AIMessage)) throw new Error("Obsidian tool-bound model must return an AI message.");
+
+  const responseText = extractMessageTextContent(response.content).trim();
+  const toolCalls = response.tool_calls ?? [];
+
+  console.log("Obsidian node response:", responseText);
+  console.log("Tool calls:", toolCalls.map((call) => `${call.name}: ${JSON.stringify(call.args)}`).join(", "));
+
+  if (toolCalls.length > 0 || responseText.length > 0) return response;
+
+  const hasToolResults = messages.some((message) => message instanceof ToolMessage);
+  if (!hasToolResults) return new AIMessage("Completed the Obsidian task.");
+
+  const narration = await model.invoke(promptMessages);
+  return narration instanceof AIMessage ? narration : new AIMessage("Completed the Obsidian task.");
+};
+
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },
   vaultRoot: string,
@@ -55,63 +106,15 @@ export const createObsidianNode = (
 
       const systemPrompt = await buildObsidianSystemPrompt(vaultRoot);
       const promptMessages = mergeMessageRuns([new SystemMessage(systemPrompt), ...state.messages]);
-      
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
-      // Handle early-exit conditions for specific tool results
       const lastMessage = state.messages[state.messages.length - 1];
 
-      // Write result: extract summary and return immediately
-      if (lastMessage instanceof ToolMessage && lastMessage.name === "write_markdown_file") {
-        const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content);
-        if (toolContent.startsWith("Success:")) {
-          const { summary } = handleWriteMarkdownResult(toolContent);
-          return { messages: [new AIMessage(summary)] };
-        }
+      if (isToolResult(lastMessage, "search_markdown_files")) {
+        return { messages: [await postProcessSearchResult(model, systemPrompt, state.messages, lastMessage)] };
       }
 
-      // Search result: post-process and compress for concise answer
-      if (lastMessage instanceof ToolMessage && lastMessage.name === "search_markdown_files") {
-        const toolContent = typeof lastMessage.content === "string" ? lastMessage.content : String(lastMessage.content);
-        const searchPromptMessages = [
-          new SystemMessage(`${systemPrompt}
-
-${SEARCH_POST_PROCESS_INSTRUCTION}`),
-          ...state.messages,
-        ];
-
-        const searchResponse = await model.invoke(searchPromptMessages);
-        const searchResponseText = searchResponse instanceof AIMessage
-          ? extractMessageTextContent(searchResponse.content).trim()
-          : "";
-
-        const compactSearchText = normalizeSearchResponseText(searchResponseText, toolContent);
-        return { messages: [new AIMessage(compactSearchText)] };
-      }
-
-      // Normal path: invoke the tool-bound model
-      const response = await modelWithTools.invoke(promptMessages);
-      if (!(response instanceof AIMessage)) throw new Error("Obsidian tool-bound model must return an AI message.");
-
-      const responseText = extractMessageTextContent(response.content).trim();
-      const toolCalls = response.tool_calls ?? [];
-      const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
-
-      console.log("Obsidian node response:", responseText);
-      console.log("Tool calls:", toolCalls.map((call) => `${call.name}: ${JSON.stringify(call.args)}`).join(", "));
-
-      // Fallback: if model returned empty after tools, re-invoke without tools to force narration
-      let finalMessage: AIMessage = response;
-      if (!hasToolCalls && responseText.length === 0) {
-        const hasToolResults = state.messages.some(m => m instanceof ToolMessage);
-        if (hasToolResults) {
-          const narrationResponse = await model.invoke(promptMessages);
-          finalMessage = narrationResponse instanceof AIMessage ? narrationResponse : new AIMessage("Completed the Obsidian task.");
-        } else {
-          finalMessage = new AIMessage("Completed the Obsidian task.");
-        }
-      }
-
+      const finalMessage = await invokeToolBoundModel(model, modelWithTools, promptMessages, state.messages);
       return { messages: [finalMessage] };
     } catch (error) {
       return {

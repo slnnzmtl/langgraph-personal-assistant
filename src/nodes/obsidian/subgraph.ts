@@ -1,12 +1,11 @@
 import { AIMessage, type BaseMessage } from "@langchain/core/messages";
-import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import { Annotation, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { Annotation } from "@langchain/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
-import { createObsidianNode, ObsidianStateAnnotation as BaseObsidianStateAnnotation } from "./index.js";
+import { createObsidianNode } from "./index.js";
 import { createObsidianTools } from "./tools.js";
 
 export const OBSIDIAN_MAX_STEPS = 8;
@@ -21,25 +20,28 @@ export const ObsidianSubgraphStateAnnotation = Annotation.Root({
     default: () => [],
   }),
   obsidianStepCount: Annotation<number>({
-    reducer: (current: number, _update: number) => current,
+    reducer: (_current: number, update: number) => update,
     default: () => 0,
   }),
 });
 
 export type ObsidianSubgraphState = typeof ObsidianSubgraphStateAnnotation.State;
 
+const lastMessageHasToolCalls = (state: ObsidianSubgraphState): boolean => {
+  const lastMessage = state.messages[state.messages.length - 1];
+  return lastMessage instanceof AIMessage && (lastMessage.tool_calls?.length ?? 0) > 0;
+};
+
 /**
  * Create a compiled Obsidian sub-graph with internal tool loop.
  * The sub-graph has its own StateGraph with step tracking to enforce max-step limits.
  */
 export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseChatModel }, vaultRoot: string) => {
-  // Create tools once and reuse across node and ToolNode
   const tools = createObsidianTools(vaultRoot);
   
   const obsidianNode = createObsidianNode(llmConnector, vaultRoot, tools);
   const obsidianToolsNode = new ToolNode(tools);
 
-  // Step counter node: increments after tool execution
   const incrementStepCounter = async (state: ObsidianSubgraphState) => {
     return { obsidianStepCount: state.obsidianStepCount + 1 };
   };
@@ -50,20 +52,8 @@ export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseC
     .addNode("incrementCounter", incrementStepCounter)
     .addEdge(START, "llm")
     .addConditionalEdges("llm", (state: ObsidianSubgraphState) => {
-      const lastMessage = state.messages[state.messages.length - 1];
-      const hasToolCalls = 
-        (lastMessage instanceof AIMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) ||
-        (lastMessage && typeof lastMessage === "object" && "additional_kwargs" in lastMessage && (lastMessage as any).additional_kwargs?.functionCall);
-
-      if (!hasToolCalls) {
-        return END;
-      }
-
-      // Enforce max-step limit
-      if (state.obsidianStepCount >= OBSIDIAN_MAX_STEPS) {
-        return END;
-      }
-
+      if (!lastMessageHasToolCalls(state)) return END;
+      if (state.obsidianStepCount >= OBSIDIAN_MAX_STEPS) return END;
       return "tools";
     })
     .addEdge("tools", "incrementCounter")
@@ -90,29 +80,22 @@ export const createObsidianSubgraphWrapper = (
 
   return async (parentState: AgentState): Promise<AgentStateUpdate> => {
     try {
-      // Transform: parent state → obsidian sub-graph state
       const obsidianStateInput: ObsidianSubgraphState = {
         messages: parentState.messages,
         obsidianStepCount: 0,
       };
 
-      // Invoke the compiled sub-graph
       const result = await compiledSubgraph.invoke(obsidianStateInput);
 
-      // Check if we hit the max-step limit
       if (result.obsidianStepCount >= OBSIDIAN_MAX_STEPS) {
         return {
           messages: [new AIMessage(`Unable to edit the local markdown vault: exceeded the maximum of ${OBSIDIAN_MAX_STEPS} Obsidian tool steps.`)],
         };
       }
 
-      // Extract the final AI message from the sub-graph
       const lastMessage = result.messages[result.messages.length - 1];
-      const finalAIMessage = lastMessage instanceof AIMessage ? lastMessage : new AIMessage("Obsidian task completed.");
-
-      // Return: only the final AI message to parent
       return {
-        messages: [finalAIMessage],
+        messages: [lastMessage as AIMessage],
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
