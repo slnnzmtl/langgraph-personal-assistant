@@ -13,10 +13,10 @@ import {
   resolveVaultPath,
   createObsidianTools,
   searchMarkdownFiles,
-} from "../../src/nodes/obsidian/obsidian-tools.js";
+} from "../../src/nodes/obsidian/tools.js";
 import {
   createObsidianNode,
-} from "../../src/nodes/obsidian/obsidian.js";
+} from "../../src/nodes/obsidian/index.js";
 import { extractMessageTextContent } from "../../src/nodes/message-history.js";
 import {
   createPromptLoader,

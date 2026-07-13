@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { searchFilesByContent } from "../../src/utils/file-system.js";
 import { buildDirectoryTree } from "../../src/utils/file-system.js";
-import { searchMarkdownFiles } from "../../src/nodes/obsidian/obsidian-tools.js";
+import { searchMarkdownFiles } from "../../src/nodes/obsidian/tools.js";
 
 const tempPaths: string[] = [];
 
