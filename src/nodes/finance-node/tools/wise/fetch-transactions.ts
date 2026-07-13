@@ -3,16 +3,7 @@
  * Relocated from finance-server (no longer wrapped in MCP).
  */
 
-/**
- * Normalized Wise transaction for LLM consumption.
- * Only includes essential fields for financial sync logic.
- */
-export interface WiseTransaction {
-  name: string;
-  amount: string;
-  status: string;
-  createdOn: string;
-}
+import type { WiseClient, WiseTransaction, WiseTransactionParams } from "./types.js";
 
 function formatUtcIsoWithoutMilliseconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -46,17 +37,12 @@ function normalizeWiseTransaction(raw: Record<string, unknown>): WiseTransaction
   };
 }
 
-export async function fetchWiseTransactions(params: { since: string; until: string }): Promise<WiseTransaction[]> {
+export async function fetchWiseTransactions(
+  params: WiseTransactionParams,
+  client: WiseClient
+): Promise<WiseTransaction[]> {
   if (!params.since || !params.until) {
     throw new Error("Validation error: both 'since' and 'until' are required");
-  }
-
-  const token = process.env["WISE_API_TOKEN"];
-  const profileId = process.env["WISE_PROFILE_ID"];
-
-  if (!token || !profileId) {
-    console.warn("Wise API credentials missing; returning empty transaction list");
-    return [];
   }
 
   // Normalize dates to ISO 8601 format
@@ -65,11 +51,7 @@ export async function fetchWiseTransactions(params: { since: string; until: stri
 
   console.debug(`Fetching Wise transactions: since=${since}, until=${until}`);
 
-  const url = `https://api.transferwise.com/v1/profiles/${profileId}/activities?since=${since}&until=${until}`;
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await client.fetchActivities(since, until);
 
   if (!response.ok) {
     console.warn(`Wise API error: ${response.status} ${response.statusText}; returning empty list`);

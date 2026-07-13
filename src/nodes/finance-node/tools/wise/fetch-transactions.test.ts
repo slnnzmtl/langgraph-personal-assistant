@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { fetchWiseTransactions } from "./wise-client.js";
+import { fetchWiseTransactions } from "./index.js";
 
 describe("fetchWiseTransactions", () => {
   afterEach(() => {

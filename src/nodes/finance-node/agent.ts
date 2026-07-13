@@ -5,7 +5,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
-import { fetchWiseTransactions } from "./wise-client.js";
+import { fetchWiseTransactions } from "./tools/wise/index.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
