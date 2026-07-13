@@ -8,7 +8,7 @@ import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
 import { fetchWiseTransactions } from "./wise-client.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
-import { normalizeExecSqlOutput } from "../../utils/exec-sql.js";
+import { normalizeToolOutput } from "../../utils/exec-sql.js";
 
 /**
  * Create finance tools that the LLM can use.
@@ -22,7 +22,7 @@ export const createFinanceTools = (session: SupabaseMcpSession): StructuredToolI
     async (input: { sql: string }) => {
       try {
         const result = await session.executeSql(input.sql);
-        const normalizedResult = normalizeExecSqlOutput(result);
+        const normalizedResult = normalizeToolOutput(result);
 
         if (typeof normalizedResult === "string") {
           return normalizedResult;
@@ -47,7 +47,10 @@ export const createFinanceTools = (session: SupabaseMcpSession): StructuredToolI
     async (input: { since: string; until: string }) => {
       try {
         const transactions = await fetchWiseTransactions(input);
-        return JSON.stringify(transactions);
+        const normalizedTransactions = normalizeToolOutput(transactions);
+        return typeof normalizedTransactions === "string"
+          ? normalizedTransactions
+          : JSON.stringify(normalizedTransactions);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });

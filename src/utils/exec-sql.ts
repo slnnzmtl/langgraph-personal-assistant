@@ -23,7 +23,7 @@ const extractJsonPayload = (input: string): string | undefined => {
   return undefined;
 };
 
-export const normalizeExecSqlOutput = (value: unknown, depth = 0): unknown => {
+export const normalizeToolOutput = (value: unknown, depth = 0): unknown => {
   if (depth > 4) {
     return value;
   }
@@ -31,14 +31,14 @@ export const normalizeExecSqlOutput = (value: unknown, depth = 0): unknown => {
   if (typeof value === "string") {
     const parsedDirectly = tryParseJson(value.trim());
     if (parsedDirectly !== undefined) {
-      return normalizeExecSqlOutput(parsedDirectly, depth + 1);
+      return normalizeToolOutput(parsedDirectly, depth + 1);
     }
 
     const jsonPayload = extractJsonPayload(value);
     if (jsonPayload) {
       const parsedPayload = tryParseJson(jsonPayload);
       if (parsedPayload !== undefined) {
-        return normalizeExecSqlOutput(parsedPayload, depth + 1);
+        return normalizeToolOutput(parsedPayload, depth + 1);
       }
       return jsonPayload;
     }
@@ -54,7 +54,7 @@ export const normalizeExecSqlOutput = (value: unknown, depth = 0): unknown => {
     const record = value as Record<string, unknown>;
 
     if (typeof record.result === "string") {
-      return normalizeExecSqlOutput(record.result, depth + 1);
+      return normalizeToolOutput(record.result, depth + 1);
     }
 
     if (Array.isArray(record.rows)) {
@@ -66,3 +66,5 @@ export const normalizeExecSqlOutput = (value: unknown, depth = 0): unknown => {
 
   return value;
 };
+
+export const normalizeExecSqlOutput = normalizeToolOutput;
