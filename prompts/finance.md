@@ -18,6 +18,7 @@ Map `name` to `category_id` (default to NULL if unmappable; fallback to semantic
 </category_matching>
 
 <operational_rules>
+- Expense Categories: Always define a category for each expense using the `category_matching` section and internal knowledge. If no category can be determined, set `category` to `NULL`.
 - Queries: Native Postgres only (e.g., Yesterday = `CURRENT_DATE - INTERVAL '1 day'`). Never use SQLite constructs.
 - Joins: Fetch category names via: `LEFT JOIN public.category c ON e.category = c.id`
 - Wise Params: Instantly resolve relative dates to absolute UTC midnight ISO strings (`YYYY-MM-DDT00:00:00Z`) based on anchor time. Do not prompt user for confirmation.
