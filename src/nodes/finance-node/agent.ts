@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { tool } from "@langchain/core/tools";
 import type { StructuredToolInterface } from "@langchain/core/tools";
@@ -9,6 +9,12 @@ import { fetchWiseTransactions } from "./tools/wise/index.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
+
+const TOOL_OUTPUT_MAX_CHARS = 8_000;
+const truncateOutput = (output: string): string =>
+  output.length <= TOOL_OUTPUT_MAX_CHARS
+    ? output
+    : `${output.slice(0, TOOL_OUTPUT_MAX_CHARS)}\u2026[truncated, ${output.length - TOOL_OUTPUT_MAX_CHARS} chars omitted]`;
 
 // An expense row must have an id, a name, and a paid_date (which category rows lack).
 type ExpenseRecord = { id: string | number; name: string; paid_date: string; [key: string]: unknown };
@@ -68,10 +74,10 @@ export const createFinanceTools = (session: SupabaseMcpSession): StructuredToolI
         const normalizedResult = normalizeToolOutput(result);
 
         if (typeof normalizedResult === "string") {
-          return normalizedResult;
+          return truncateOutput(normalizedResult);
         }
 
-        return JSON.stringify(normalizedResult);
+        return truncateOutput(JSON.stringify(normalizedResult));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });
@@ -91,9 +97,11 @@ export const createFinanceTools = (session: SupabaseMcpSession): StructuredToolI
       try {
         const transactions = await fetchWiseTransactions(input);
         const normalizedTransactions = normalizeToolOutput(transactions);
-        return typeof normalizedTransactions === "string"
-          ? normalizedTransactions
-          : JSON.stringify(normalizedTransactions);
+        return truncateOutput(
+          typeof normalizedTransactions === "string"
+            ? normalizedTransactions
+            : JSON.stringify(normalizedTransactions),
+        );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return JSON.stringify({ error: message });
@@ -129,6 +137,12 @@ export const createFinanceNode = (model: BaseChatModel, tools: StructuredToolInt
 
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     try {
+      const lastMessage = state.messages[state.messages.length - 1];
+      const isLoopContinuation = lastMessage instanceof ToolMessage;
+      const financeStepCount = isLoopContinuation
+        ? ((state.context.financeStepCount as number | undefined) ?? 0) + 1
+        : 1;
+
       const continuation = getExpenseContinuation(state);
       const systemInstructions = new SystemMessage(buildFinanceSystemInstructions(continuation));
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
@@ -142,7 +156,10 @@ export const createFinanceNode = (model: BaseChatModel, tools: StructuredToolInt
 
       return {
         messages: [response],
-        ...(continuation ? { context: { financeExpenseSelection: continuation } } : {}),
+        context: {
+          financeStepCount,
+          ...(continuation ? { financeExpenseSelection: continuation } : {}),
+        },
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error during finance sync";

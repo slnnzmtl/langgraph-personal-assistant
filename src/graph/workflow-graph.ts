@@ -13,7 +13,7 @@ import { createFinanceTools, createFinanceNode } from "../nodes/finance-node/ind
 import { createObsidianNode } from "../nodes/obsidian/obsidian.js";
 import { createObsidianTools } from "../nodes/obsidian/index.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
-import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
+import { AgentStateAnnotation, type AgentState, type RouteName, FINANCE_MAX_STEPS } from "../state.js";
 
 export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
   supabaseSession?: SupabaseMcpSession;
@@ -111,7 +111,13 @@ export const createWorkflowGraph = (
     // TypeScript doesn't track conditional node additions well, so we use type assertions
     (graph as any).addConditionalEdges("finance", (state: AgentState) => {
       const lastMessage = state.messages[state.messages.length - 1];
-      if (lastMessage instanceof AIMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+      const stepCount = (state.context.financeStepCount as number | undefined) ?? 0;
+      if (
+        lastMessage instanceof AIMessage &&
+        lastMessage.tool_calls &&
+        lastMessage.tool_calls.length > 0 &&
+        stepCount < FINANCE_MAX_STEPS
+      ) {
         return "financeTools";
       }
       return "supervisor";

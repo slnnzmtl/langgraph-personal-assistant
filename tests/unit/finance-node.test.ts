@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/finance-node/agent.js";
+import { FINANCE_MAX_STEPS } from "../../src/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [
@@ -109,7 +110,7 @@ describe("finance tools", () => {
     const update = await financeNode({ messages, context: {}, next: undefined });
 
     expect(update.messages).toEqual([expect.objectContaining({ content: "I will categorize the selected expenses." })]);
-    expect(update.context).toEqual({ financeExpenseSelection: expenses });
+    expect(update.context).toEqual(expect.objectContaining({ financeExpenseSelection: expenses }));
   });
 
   it("does not treat category rows as an expense selection", () => {
@@ -137,6 +138,87 @@ describe("finance tools", () => {
       next: undefined,
     });
 
-    expect(update.context).toEqual({ financeExpenseSelection: expenses });
+    expect(update.context).toEqual(expect.objectContaining({ financeExpenseSelection: expenses }));
+  });
+
+  describe("step counter", () => {
+    it("resets financeStepCount to 1 on initial entry (last message is HumanMessage)", async () => {
+      const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
+      const financeNode = createFinanceNode(model, []);
+
+      const update = await financeNode({
+        messages: [new HumanMessage("sync finances")],
+        context: { financeStepCount: 7 },
+        next: undefined,
+      });
+
+      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(1);
+    });
+
+    it("increments financeStepCount when last message is a ToolMessage (loop continuation)", async () => {
+      const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
+      const financeNode = createFinanceNode(model, []);
+
+      const update = await financeNode({
+        messages: [
+          new HumanMessage("sync finances"),
+          new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
+        ],
+        context: { financeStepCount: 3 },
+        next: undefined,
+      });
+
+      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(4);
+    });
+
+    it("starts financeStepCount at 1 from zero on first loop continuation", async () => {
+      const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
+      const financeNode = createFinanceNode(model, []);
+
+      const update = await financeNode({
+        messages: [
+          new HumanMessage("sync finances"),
+          new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
+        ],
+        context: {},
+        next: undefined,
+      });
+
+      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(1);
+    });
+  });
+
+  describe("tool output truncation", () => {
+    it("truncates exec_sql output exceeding 8000 chars and appends a notice", async () => {
+      const largeRows = Array.from({ length: 500 }, (_, i) => ({
+        id: i,
+        name: `expense-${i}`,
+        paid_date: "2026-01-01",
+      }));
+      const largeJson = JSON.stringify(largeRows);
+
+      const session: SupabaseMcpSession = {
+        executeSql: vi.fn().mockResolvedValue(largeRows),
+        close: vi.fn(),
+      };
+      const execSqlTool = createFinanceTools(session).find((t) => t.name === "exec_sql");
+      const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM expenses;" }));
+
+      expect(result.length).toBeLessThanOrEqual(8_000 + 60); // truncated + notice overhead
+      expect(result).toContain("[truncated,");
+      expect(result.length).toBeLessThan(largeJson.length);
+    });
+
+    it("does not truncate exec_sql output within 8000 chars", async () => {
+      const session: SupabaseMcpSession = {
+        executeSql: vi.fn().mockResolvedValue(categories),
+        close: vi.fn(),
+      };
+      const execSqlTool = createFinanceTools(session).find((t) => t.name === "exec_sql");
+      const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM category;" }));
+
+      expect(result).not.toContain("[truncated,");
+      expect(JSON.parse(result)).toEqual(categories);
+    });
   });
 });
