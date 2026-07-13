@@ -12,7 +12,7 @@ export const FINANCE_MAX_STEPS = 10;
 
 /**
  * Create a compiled Finance sub-graph with internal tool loop.
- * The sub-graph has its own StateGraph with private financeStepCount and financeExpenseSelection.
+ * The sub-graph has its own StateGraph with private financeStepCount.
  */
 export const createCompiledFinanceSubgraph = (model: BaseChatModel, tools: ReturnType<typeof createFinanceTools>) => {
   const financeNode = createFinanceNode(model, tools);
@@ -56,26 +56,17 @@ export const createFinanceSubgraphWrapper = (session: SupabaseMcpSession, model:
 
   return async (parentState: AgentState): Promise<AgentStateUpdate> => {
     try {
-      // Transform: parent state → finance sub-graph state
       const financeStateInput = {
         messages: parentState.messages,
         financeStepCount: 0,
-        financeExpenseSelection: (parentState.context.financeExpenseSelection as any[] | undefined) ?? [],
       };
 
-      // Invoke the compiled sub-graph
       const result = await compiledSubgraph.invoke(financeStateInput);
 
-      // Extract the final AI message from the sub-graph
       const lastMessage = result.messages[result.messages.length - 1];
-      const finalAIMessage = lastMessage instanceof AIMessage ? lastMessage : new AIMessage("Finance sync completed.");
 
-      // Return: only the final AI message to parent; preserve financeExpenseSelection in context for cross-turn survival
       return {
-        messages: [finalAIMessage],
-        context: {
-          financeExpenseSelection: result.financeExpenseSelection,
-        },
+        messages: [lastMessage as AIMessage],
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

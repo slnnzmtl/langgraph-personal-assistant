@@ -61,5 +61,28 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
     }
   );
 
-  return [execSql, fetchWise];
+  const getCategories = tool(
+    async () => {
+      try {
+        const result = await mcpSession.executeSql("SELECT id, name, note FROM public.category;");
+        const normalizedResult = normalizeToolOutput(result);
+
+        if (typeof normalizedResult === "string") {
+          return truncateOutput(normalizedResult);
+        }
+
+        return truncateOutput(JSON.stringify(normalizedResult));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return JSON.stringify({ error: message });
+      }
+    },
+    {
+      name: "get_categories",
+      description: "Fetch all expense categories from the database. Always call this before syncing or classifying expenses.",
+      schema: z.object({}),
+    }
+  );
+
+  return [execSql, fetchWise, getCategories];
 };

@@ -2,20 +2,21 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
-import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/financist/node.js";
-import { FINANCE_MAX_STEPS } from "../../src/nodes/financist/index.js";
+import { createFinanceNode } from "../../src/nodes/financist/index.js";
+import { createFinanceTools } from "../../src/nodes/financist/tools/index.js";
+import { FINANCE_MAX_STEPS } from "../../src/nodes/financist/subgraph.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [
   {
     name: "Mpos Kokojimart",
-    amount: "0.47 USD",
+    amount: "0.47",
     status: "COMPLETED",
     createdOn: "2026-07-12T16:31:37.354Z",
   },
   {
     name: "Mpos Poke Sake Wow",
-    amount: "9.19 USD",
+    amount: "9.19",
     status: "COMPLETED",
     createdOn: "2026-07-12T15:59:05.023Z",
   },
@@ -86,60 +87,19 @@ describe("finance tools", () => {
     expect(JSON.parse(String(result))).toEqual({ error: "database unavailable" });
   });
 
-  it("uses the latest identifiable expense query as continuation context", async () => {
-    const expenses = [
-      { id: 1533, name: "Vnpay Divinecrepes", amount: 5, paid_date: "2026-07-12", category: 4 },
-      { id: 1534, name: "Mpos Poke Sake Wow", amount: 9, paid_date: "2026-07-12", category: 33 },
-    ];
-    const model = new FakeLLMConnector((messages) => {
-      expect(messages[0].content).toContain("<latest_expense_selection>");
-      expect(messages[0].content).toContain(JSON.stringify(expenses));
-      expect(messages.at(-1)?.content).toBe("define a category for each expense");
-      return new AIMessage("I will categorize the selected expenses.");
-    }).getModel();
-    const financeNode = createFinanceNode(model, []);
-    const messages = [
-      new HumanMessage("for yesterday"),
-      new ToolMessage({ tool_call_id: "expenses-query", name: "exec_sql", content: JSON.stringify(expenses) }),
-      new AIMessage("Here are the expenses from yesterday."),
-      new HumanMessage("define a category for each expense"),
-    ];
+  it("returns all expense categories with a zero-argument tool", async () => {
+    const session: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
+      close: vi.fn(),
+    };
+    const getCategoriesTool = createFinanceTools(session).find((tool) => tool.name === "get_categories");
 
-    expect(findLatestExpenseContinuation(messages)).toEqual(expenses);
+    const result = await getCategoriesTool?.invoke({});
 
-    const update = await financeNode({ messages, financeStepCount: 0, financeExpenseSelection: [] });
-
-    expect(update.messages).toEqual([expect.objectContaining({ content: "I will categorize the selected expenses." })]);
-    expect(update.financeExpenseSelection).toEqual(expenses);
+    expect(JSON.parse(String(result))).toEqual(categories);
   });
 
-  it("does not treat category rows as an expense selection", () => {
-    const expenses = [{ id: 1533, name: "Vnpay Divinecrepes", amount: 5, paid_date: "2026-07-12" }];
-    // categories have id+name but no paid_date — shape check excludes them
-    const messages = [
-      new ToolMessage({ tool_call_id: "expenses-query", name: "exec_sql", content: JSON.stringify(expenses) }),
-      new ToolMessage({ tool_call_id: "categories-query", name: "exec_sql", content: JSON.stringify(categories) }),
-    ];
 
-    expect(findLatestExpenseContinuation(messages)).toEqual(expenses);
-  });
-
-  it("uses the persisted expense selection after history trimming", async () => {
-    const expenses = [{ id: 1533, name: "Vnpay Divinecrepes", amount: 5, paid_date: "2026-07-12" }];
-    const model = new FakeLLMConnector((messages) => {
-      expect(messages[0].content).toContain(JSON.stringify(expenses));
-      return new AIMessage("I will update the selected expense.");
-    }).getModel();
-    const financeNode = createFinanceNode(model, []);
-
-    const update = await financeNode({
-      messages: [new HumanMessage("change their categories")],
-      financeStepCount: 0,
-      financeExpenseSelection: expenses,
-    });
-
-    expect(update.financeExpenseSelection).toEqual(expenses);
-  });
 
   describe("step counter", () => {
     it("resets financeStepCount to 1 on initial entry (last message is HumanMessage)", async () => {
@@ -149,7 +109,6 @@ describe("finance tools", () => {
       const update = await financeNode({
         messages: [new HumanMessage("sync finances")],
         financeStepCount: 7,
-        financeExpenseSelection: [],
       });
 
       expect(update.financeStepCount).toBe(1);
@@ -165,7 +124,6 @@ describe("finance tools", () => {
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
         financeStepCount: 3,
-        financeExpenseSelection: [],
       });
 
       expect(update.financeStepCount).toBe(4);
@@ -181,7 +139,6 @@ describe("finance tools", () => {
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
         financeStepCount: 0,
-        financeExpenseSelection: [],
       });
 
       expect(update.financeStepCount).toBe(1);

@@ -22,18 +22,20 @@ function normalizeToIso8601(dateString: string): string {
   return formatUtcIsoWithoutMilliseconds(parsedDate);
 }
 
-/**
- * Normalize raw Wise API response to clean transaction objects.
- * Extracts only: name, amount, status, createdOn
- */
+function extractNumericAmount(amountStr: string): string {
+  const match = amountStr.match(/^[\d.]+/);
+  return match ? match[0] : amountStr;
+}
+
 function normalizeWiseTransaction(raw: Record<string, unknown>): WiseTransaction {
-  let name = String(raw.title).replace(/<[^>]*>/g, ""); // Remove HTML tags
+  const name = String(raw.title).replace(/<[^>]*>/g, ""); // Remove HTML tags
+  const rawAmount = raw.secondaryAmount ? String(raw.secondaryAmount) : String(raw.primaryAmount);
 
   return {
     name,
-    amount: raw.secondaryAmount ? String(raw.secondaryAmount) : String(raw.primaryAmount),
+    amount: extractNumericAmount(rawAmount),
     status: String(raw.status),
-    createdOn: String(raw.createdOn)
+    createdOn: String(raw.createdOn),
   };
 }
 
