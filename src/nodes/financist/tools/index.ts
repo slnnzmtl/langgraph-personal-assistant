@@ -1,7 +1,7 @@
 import { StructuredToolInterface, tool } from "@langchain/core/tools";
 import { SupabaseMcpSession } from "../../../mcp/supabase/index.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
-import { fetchWiseTransactions } from "../tools/wise/index.js";
+import { fetchWiseTransactions } from "./wise/index.js";
 import { z } from "zod";
 
 const TOOL_OUTPUT_MAX_CHARS = 8_000;

@@ -2,8 +2,8 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
-import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/finance-node/node.js";
-import { FINANCE_MAX_STEPS } from "../../src/nodes/finance-node/index.js";
+import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/financist/node.js";
+import { FINANCE_MAX_STEPS } from "../../src/nodes/financist/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [
