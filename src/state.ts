@@ -21,10 +21,9 @@ export type ObsidianLoopState = {
 };
 
 /**
- * Returns the last `limit` messages, then advances the start index forward until
- * the window begins at a clean semantic boundary (HumanMessage or a plain AIMessage
- * with no pending tool calls).  This prevents a trim from orphaning a ToolMessage
- * whose paired AIMessage(functionCall) was just sliced off, which Gemini rejects.
+ * Returns a bounded history beginning at a clean semantic boundary. An active
+ * assistant tool-call message and its trailing tool results are retained as one
+ * atomic suffix, even when that suffix is larger than `limit`.
  */
 export const trimMessagesToLast = (
   messages: BaseMessage[],
@@ -34,9 +33,34 @@ export const trimMessagesToLast = (
     return messages;
   }
 
-  let sliced = messages.slice(-limit);
+  let activeToolCallIndex = -1;
 
-  while (sliced.length > 0) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!(message instanceof AIMessage) || !message.tool_calls?.length) {
+      continue;
+    }
+
+    const toolCallIds = new Set(message.tool_calls.map((toolCall) => toolCall.id));
+    const followingMessages = messages.slice(index + 1);
+    const isActiveToolCall = followingMessages.every(
+      (followingMessage) =>
+        followingMessage instanceof ToolMessage &&
+        toolCallIds.has(followingMessage.tool_call_id),
+    );
+
+    if (isActiveToolCall) {
+      activeToolCallIndex = index;
+      break;
+    }
+  }
+
+  const startIndex = activeToolCallIndex >= 0
+    ? Math.min(Math.max(0, messages.length - limit), activeToolCallIndex)
+    : Math.max(0, messages.length - limit);
+  let sliced = messages.slice(startIndex);
+
+  while (sliced.length > 0 && startIndex !== activeToolCallIndex) {
     const first = sliced[0];
     const isOrphanedToolMessage = first instanceof ToolMessage;
     const isAIWithPendingToolCalls =

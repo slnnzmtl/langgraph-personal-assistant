@@ -108,6 +108,47 @@ describe("createWorkflowGraph", () => {
     // The LLM has access to the session but chooses when to invoke tools
   });
 
+  it("preserves every finance tool result when the model emits a six-call batch", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue({ rows: [] }),
+      close: vi.fn(),
+    };
+    let financeCalls = 0;
+    const app = makeGraph(
+      () => ({ next: "Finance_SG" }),
+      undefined,
+      (input) => {
+        financeCalls += 1;
+
+        if (financeCalls === 1) {
+          return new AIMessage({
+            content: "",
+            tool_calls: Array.from({ length: 6 }, (_, index) => ({
+              name: "exec_sql",
+              args: { sql: `SELECT ${index + 1};` },
+              id: `finance-tool-${index + 1}`,
+              type: "tool_call" as const,
+            })),
+          });
+        }
+
+        const toolResults = input.filter((message: { _getType?: () => string }) => message._getType?.() === "tool");
+        expect(toolResults).toHaveLength(6);
+        expect(toolResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
+          Array.from({ length: 6 }, (_, index) => `finance-tool-${index + 1}`),
+        );
+
+        return new AIMessage("Finance sync completed successfully");
+      },
+      mockSession,
+    );
+
+    const state = await app.invoke({ messages: [new HumanMessage("sync yesterday's transactions")] }, threadConfig);
+
+    expect(financeCalls).toBe(2);
+    expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
+  });
+
   it("visits the obsidian node on Obsidian_SG route", async () => {
     let supervisorCalls = 0;
     const app = makeGraph(
