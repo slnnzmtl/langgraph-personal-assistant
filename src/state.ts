@@ -3,23 +3,8 @@ import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
 export const ROUTE_NAMES = ["Finance_SG", "Obsidian_SG", "Config_SG", "FINISH"] as const;
 export const MESSAGE_HISTORY_LIMIT = 10;
-export const OBSIDIAN_MAX_STEPS = 8;
-export const FINANCE_MAX_STEPS = 10;
 
 export type RouteName = (typeof ROUTE_NAMES)[number];
-
-export type ObsidianLoopStep = {
-  operation: "create_new" | "overwrite" | "read" | "delete";
-  relativePath: string;
-  summary?: string;
-};
-
-export type ObsidianLoopState = {
-  originalUserRequest: string;
-  stepCount: number;
-  lastOperation?: ObsidianLoopStep;
-  lastReadContent?: string;
-};
 
 /**
  * Returns a bounded history beginning at a clean semantic boundary. An active

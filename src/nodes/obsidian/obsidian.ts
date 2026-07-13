@@ -1,5 +1,6 @@
-import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { Annotation } from "@langchain/langgraph";
 import { mkdir } from "node:fs/promises";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import {
@@ -11,8 +12,19 @@ import { buildDirectoryTree } from "../../utils/file-system.js";
 import {
   createObsidianTools,
 } from "./obsidian-tools.js";
+import { reduceAgentMessages } from "../../state.js";
 
 const SEARCH_POST_PROCESS_INSTRUCTION = "Post-process the markdown search results into the shortest useful answer. Return at most 3 relevant paths, prefer the most specific matches, and do not repeat the entire raw result list.";
+
+export const ObsidianStateAnnotation = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({
+    reducer: reduceAgentMessages,
+    default: () => [],
+  }),
+});
+
+export type ObsidianState = typeof ObsidianStateAnnotation.State;
+export type ObsidianStateUpdate = typeof ObsidianStateAnnotation.Update;
 
 const formatSearchResultFallback = (toolContent: string): string => {
   const matches = toolContent
@@ -52,7 +64,7 @@ export const createObsidianNode = (
   if (typeof model.bindTools !== "function") throw new Error("Obsidian tool-bound model must support tool calling.");
   const modelWithTools = model.bindTools(createObsidianTools(vaultRoot));
 
-  return async (state: AgentState): Promise<AgentStateUpdate> => {
+  return async (state: ObsidianState): Promise<ObsidianStateUpdate> => {
     try {
       await mkdir(vaultRoot, { recursive: true });
 

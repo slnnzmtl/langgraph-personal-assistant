@@ -9,10 +9,27 @@ export const OBSIDIAN_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "obsidian.md"
 export const FINANCE_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "finance.md");
 export const CONFIGURATOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "configurator.md");
 
+const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
+  return {
+    since: `${year}-${monthNumber}-${dayNumber}T00:00:00Z`,
+    until: `${year}-${monthNumber}-${dayNumber}T23:59:59Z`,
+  };
+};
+
 const injectCurrentDatetime = (content: string): string => {
-  const currentDatetime = formatCurrentTime(new Date());
-  return `${content}\nCurrent datetime: ${currentDatetime}`;
-}
+  const now = new Date();
+  const currentDatetime = formatCurrentTime(now);
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const today = toUtcDayRange(now);
+  const yesterday = toUtcDayRange(yesterdayDate);
+  const header = [
+    `⏰ CURRENT DATETIME: ${currentDatetime}`,
+    `📅 TODAY    → since: ${today.since}, until: ${today.until}`,
+    `📅 YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
+  ].join("\n");
+  return `${header}\n\n${content}`;
+};
 
 const formatRoutineFilePath = (date: Date): string => {
   const { monthName, dayNumber, weekday } = getZonedDateDetails(date);

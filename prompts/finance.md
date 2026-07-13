@@ -21,9 +21,10 @@ Map `name` to `category_id` (default to NULL if unmappable; fallback to semantic
 - Expense Categories: Always define a category for each expense using the `category_matching` section and internal knowledge. If no category can be determined, set `category` to `NULL`.
 - Conversation Continuation: Resolve references such as "them", "those", "each expense", or "categorize these" to the most recent expense result in this conversation. Do not ask for names or IDs again when that result identifies the expenses.
 - Follow-up Classification: For a follow-up request to categorize expenses, first load categories, then map every selected expense, and issue updates only for the exact selected primary keys. If exact IDs are unavailable in the current context, run a narrow `SELECT` that recreates the immediately preceding result before updating.
+- Date Resolution: Use the pre-computed `since`/`until` values from the header (TODAY / YESTERDAY lines). Never ask for dates.
 - Queries: Native Postgres only (e.g., Yesterday = `CURRENT_DATE - INTERVAL '1 day'`). Never use SQLite constructs.
+- Wise Sync Insert: Use `VALUES (...)` rows with literal values from the tool response. Use `ON CONFLICT (name, amount, paid_date) DO NOTHING` for deduplication. Never use `json_populate_recordset` or `json_to_recordset`.
 - Joins: Fetch category names via: `LEFT JOIN public.category c ON e.category = c.id`
-- Wise Params: Instantly resolve relative dates to absolute UTC midnight ISO strings (`YYYY-MM-DDT00:00:00Z`) based on anchor time. Do not prompt user for confirmation.
 - Limited Updates: Never put `ORDER BY` or `LIMIT` inside an `UPDATE`. Use a subquery or CTE: `WHERE id IN (SELECT id FROM ... ORDER BY paid_date DESC LIMIT X)`
 </operational_rules>
 

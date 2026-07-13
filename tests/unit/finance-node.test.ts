@@ -2,8 +2,8 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
-import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/finance-node/agent.js";
-import { FINANCE_MAX_STEPS } from "../../src/state.js";
+import { createFinanceNode, createFinanceTools, findLatestExpenseContinuation } from "../../src/nodes/finance-node/node.js";
+import { FINANCE_MAX_STEPS } from "../../src/nodes/finance-node/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [
@@ -107,10 +107,10 @@ describe("finance tools", () => {
 
     expect(findLatestExpenseContinuation(messages)).toEqual(expenses);
 
-    const update = await financeNode({ messages, context: {}, next: undefined });
+    const update = await financeNode({ messages, financeStepCount: 0, financeExpenseSelection: [] });
 
     expect(update.messages).toEqual([expect.objectContaining({ content: "I will categorize the selected expenses." })]);
-    expect(update.context).toEqual(expect.objectContaining({ financeExpenseSelection: expenses }));
+    expect(update.financeExpenseSelection).toEqual(expenses);
   });
 
   it("does not treat category rows as an expense selection", () => {
@@ -134,11 +134,11 @@ describe("finance tools", () => {
 
     const update = await financeNode({
       messages: [new HumanMessage("change their categories")],
-      context: { financeExpenseSelection: expenses },
-      next: undefined,
+      financeStepCount: 0,
+      financeExpenseSelection: expenses,
     });
 
-    expect(update.context).toEqual(expect.objectContaining({ financeExpenseSelection: expenses }));
+    expect(update.financeExpenseSelection).toEqual(expenses);
   });
 
   describe("step counter", () => {
@@ -148,11 +148,11 @@ describe("finance tools", () => {
 
       const update = await financeNode({
         messages: [new HumanMessage("sync finances")],
-        context: { financeStepCount: 7 },
-        next: undefined,
+        financeStepCount: 7,
+        financeExpenseSelection: [],
       });
 
-      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(1);
+      expect(update.financeStepCount).toBe(1);
     });
 
     it("increments financeStepCount when last message is a ToolMessage (loop continuation)", async () => {
@@ -164,11 +164,11 @@ describe("finance tools", () => {
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
-        context: { financeStepCount: 3 },
-        next: undefined,
+        financeStepCount: 3,
+        financeExpenseSelection: [],
       });
 
-      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(4);
+      expect(update.financeStepCount).toBe(4);
     });
 
     it("starts financeStepCount at 1 from zero on first loop continuation", async () => {
@@ -180,11 +180,11 @@ describe("finance tools", () => {
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
-        context: {},
-        next: undefined,
+        financeStepCount: 0,
+        financeExpenseSelection: [],
       });
 
-      expect((update.context as Record<string, unknown>)?.financeStepCount).toBe(1);
+      expect(update.financeStepCount).toBe(1);
     });
   });
 

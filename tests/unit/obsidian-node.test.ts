@@ -176,8 +176,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("create a note for today")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -218,8 +216,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("give me a plan for today")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -252,8 +248,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("show me the vault structure")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -293,8 +287,6 @@ describe("createObsidianNode", () => {
           content: "## Tasks\n\n- [ ] Buy milk\n- [x] Archive receipt\n",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -346,8 +338,6 @@ describe("createObsidianNode", () => {
           content: rawSearchResult,
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -411,8 +401,6 @@ describe("createObsidianNode", () => {
           content: "Success: Added sauna to today's tasks. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -467,8 +455,6 @@ describe("createObsidianNode", () => {
           content: "Success: Prepared today's note. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
