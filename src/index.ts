@@ -11,7 +11,7 @@ import { createSchedulerRunner, type SchedulerJobRun } from "./cron/scheduler-ru
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { createTelegramCronReporter } from "./telegram/telegram-cron-reporter.js";
-import { setupFinanceDatabaseSession } from "./nodes/finance-node/session.js";
+import { setupFinanceDatabase } from "./nodes/finance-node/tools/supabase/index.js";
 import type { SupabaseMcpSession } from "./mcp/supabase/index.js";
 
 // Finance session setup moved to `src/nodes/finance-node/session.ts`
@@ -22,7 +22,7 @@ const main = async (): Promise<void> => {
 	const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
 	const financeConnector = new GeminiConnector(config.googleApiKey, config.financeModel);
 
-	const supabaseSession: SupabaseMcpSession | undefined = await setupFinanceDatabaseSession(config);
+	const supabaseSession: SupabaseMcpSession | undefined = await setupFinanceDatabase(config);
 
 	// Use lazy scheduler since graph is built before runner is ready
 	const lazySchedulerService = createLazySchedulerService();

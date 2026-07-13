@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { normalizeToolOutput } from "../../utils/exec-sql.js";
+import { parseExecuteSqlResponse } from "./response-parser.js";
 
 /**
  * Scaffolding for connecting to the official hosted Supabase MCP server.
@@ -41,12 +41,11 @@ export interface SupabaseMcpConfig {
  * `executeSql` is the single boundary the finance repository will depend on.
  */
 export interface SupabaseMcpSession {
-  client: Client;
   /**
    * Execute raw SQL via the official `execute_sql` tool and return the parsed
    * rows. Parameter binding semantics will be finalized during logic migration.
    */
-  executeSql(sql: string): Promise<unknown>;
+  executeSql<T = unknown>(sql: string): Promise<T>;
   /** Close the underlying transport/session. */
   close(): Promise<void>;
 }
@@ -91,31 +90,18 @@ export async function connectSupabaseMcp(config: SupabaseMcpConfig): Promise<Sup
 
   await client.connect(transport as Transport);
 
-  const executeSql = async (sql: string): Promise<unknown> => {
+  const executeSql = async <T = unknown>(sql: string): Promise<T> => {
     const response = await client.callTool({
       name: "execute_sql",
       arguments: { query: sql },
     });
 
-    const content = response.content as Array<{ type: string; text?: string }> | undefined;
-    const textBlock = content?.find((c) => c.type === "text");
-    if (!textBlock?.text) {
-      throw new Error("Unexpected response format from execute_sql tool");
-    }
-
-    let parsedResponse: unknown;
-    try {
-      parsedResponse = JSON.parse(textBlock.text.trim());
-    } catch {
-      throw new Error("execute_sql response was not valid JSON");
-    }
-
-    return normalizeToolOutput(parsedResponse);
+    return parseExecuteSqlResponse(response) as T;
   };
 
   const close = async (): Promise<void> => {
     await client.close();
   };
 
-  return { client, executeSql, close };
+  return { executeSql, close };
 }
