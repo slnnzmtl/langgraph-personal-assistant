@@ -6,7 +6,7 @@ export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
 
 export const SUPERVISOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "supervisor.md");
 export const OBSIDIAN_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "obsidian.md");
-export const FINANCE_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "finance.md");
+export const FINANCE_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "finance/system.md");
 export const CONFIGURATOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "configurator.md");
 
 const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {

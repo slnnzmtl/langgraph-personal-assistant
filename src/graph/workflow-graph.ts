@@ -9,7 +9,7 @@ import { createCronJobRepository } from "../cron/cron-job-repository.js";
 import { createConfigurationNode, createCronConfigTools } from "../nodes/configurator/index.js";
 import type { RuntimeSchedulerService } from "../cron/runtime-scheduler-service.js";
 import type { SupabaseMcpSession } from "../mcp/supabase/index.js";
-import { createFinanceSubgraphWrapper } from "../nodes/financist/subgraph.js";
+import { createFinanceSubgraphWrapper } from "../nodes/finance/subgraph.js";
 import { createObsidianSubgraphWrapper } from "../nodes/obsidian/subgraph.js";
 import { createSupervisorNode } from "../nodes/supervisor-node.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";

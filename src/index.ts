@@ -11,7 +11,7 @@ import { createSchedulerRunner, type SchedulerJobRun } from "./cron/scheduler-ru
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { createTelegramCronReporter } from "./telegram/telegram-cron-reporter.js";
-import { setupFinanceDatabase } from "./nodes/financist/tools/supabase/index.js";
+import { setupFinanceDatabase } from "./nodes/finance/tools/supabase/index.js";
 import type { SupabaseMcpSession } from "./mcp/supabase/index.js";
 
 const main = async (): Promise<void> => {
