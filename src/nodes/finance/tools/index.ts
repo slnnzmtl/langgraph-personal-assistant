@@ -3,6 +3,8 @@ import { SupabaseMcpSession } from "../../../mcp/supabase/index.js";
 import { formatRecord } from "../../../mcp/supabase/response-parser.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { fetchWiseTransactions } from "./wise/index.js";
+import { FINANCE_SKILLS_DIR } from "../../../prompts/load-system-prompt.js";
+import { listSkills, readSkillContent } from "../../../prompts/skills-loader.js";
 import { z } from "zod";
 
 const serializeResult = (value: unknown): string => {
@@ -82,5 +84,27 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
     }
   );
 
-  return [execSql, fetchWise, getCategories];
+  const readSkill = tool(
+    async (input: { name: string }) => {
+      try {
+        const content = readSkillContent(FINANCE_SKILLS_DIR, input.name);
+        return truncateOutput(content);
+      } catch (error) {
+        const availableSkills = listSkills(FINANCE_SKILLS_DIR);
+        const skillNames = availableSkills.map((s) => s.name).join(", ");
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error reading skill: ${message}\nAvailable skills: ${skillNames || "none"}`;
+      }
+    },
+    {
+      name: "read_skill",
+      description:
+        "Load the full step-by-step instructions for a named skill before performing it. Pass the skill name exactly.",
+      schema: z.object({
+        name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
+      }),
+    }
+  );
+
+  return [execSql, fetchWise, getCategories, readSkill];
 };

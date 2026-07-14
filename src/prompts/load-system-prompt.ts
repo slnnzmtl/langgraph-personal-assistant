@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { formatCurrentTime, getZonedDateDetails } from "../utils/datetime.js";
+import { formatSkillsForPrompt, listSkills } from "./skills-loader.js";
 
 export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
 
 export const SUPERVISOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "supervisor.md");
 export const OBSIDIAN_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "obsidian.md");
 export const FINANCE_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "finance/system.md");
+export const FINANCE_SKILLS_DIR = path.join(PROMPTS_ROOT, "finance/skills");
 export const CONFIGURATOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "configurator.md");
 
 const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {
@@ -45,6 +47,18 @@ const injectObsidianRoutineHint = (prompt: string) => (date: Date = new Date()):
   return `${prompt}\nRoutine files live under routine/[Month]/[Month] [Day] - [Weekday].md.\nYesterday: ${yesterdayPath}\nToday: ${todayPath}`;
 };
 
+const injectFinanceSkills = (prompt: string): string => {
+  const skills = listSkills(FINANCE_SKILLS_DIR);
+  const skillsBlock = formatSkillsForPrompt(skills);
+  
+  if (skillsBlock.length === 0) {
+    return prompt;
+  }
+
+  const skillsHint = "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
+  return `${prompt}\n\n${skillsBlock}\n\n${skillsHint}`;
+};
+
 export const loadSystemPromptMarkdown = (filePath: string): string => {
   const content = readFileSync(filePath, "utf8").trim();
 
@@ -63,7 +77,7 @@ export const loadObsidianSystemPrompt = (): string =>
   injectObsidianRoutineHint(injectCurrentDatetime(loadSystemPromptMarkdown(OBSIDIAN_SYSTEM_PROMPT_PATH)))();
 
 export const loadFinanceSystemPrompt = (): string =>
-  injectCurrentDatetime(loadSystemPromptMarkdown(FINANCE_SYSTEM_PROMPT_PATH));
+  injectCurrentDatetime(injectFinanceSkills((loadSystemPromptMarkdown(FINANCE_SYSTEM_PROMPT_PATH))));
 
 export const loadConfiguratorSystemPrompt = (): string =>
   injectCurrentDatetime(loadSystemPromptMarkdown(CONFIGURATOR_SYSTEM_PROMPT_PATH));

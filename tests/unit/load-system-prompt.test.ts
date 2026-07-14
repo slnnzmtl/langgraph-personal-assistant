@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createPromptLoader,
   loadConfiguratorSystemPrompt,
+  loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
   loadSupervisorSystemPrompt,
   loadSystemPromptMarkdown,
@@ -28,6 +29,17 @@ describe("named prompt loaders", () => {
     const prompt = loadObsidianSystemPrompt();
 
     expect(prompt).toContain("# Role & Objective");
+  });
+
+  it("loads the Finance prompt from prompts/finance/system.md and includes skills listing", () => {
+    const prompt = loadFinanceSystemPrompt();
+
+    expect(prompt).toContain("Financial Assistant & Sync Agent");
+    // Check for skills section if any skills exist
+    const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
+    if (skillsSection) {
+      expect(prompt).toContain("sync-expenses");
+    }
   });
 
   it("includes yesterday and today routine note paths in the Obsidian prompt", () => {
