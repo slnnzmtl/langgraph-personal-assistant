@@ -7,7 +7,8 @@ import { createLazyScheduler, startScheduler } from "./cron/scheduler-bootstrap.
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { TelegramFileSender } from "./telegram/file-sender.js";
-import { setupSupabaseSession, SupabaseMcpSession } from "./services/supabase/index.js";
+import { setupSupabaseSession } from "./services/supabase/index.js";
+import type { SupabaseMcpSession } from "./mcp/supabase.js";
 
 const main = async (): Promise<void> => {
 	const config = loadConfig();

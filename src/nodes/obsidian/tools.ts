@@ -1,14 +1,15 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import {
-  fileExists,
-  listDirectoryContents,
-  readTextFile,
-  resolveSafePath,
-  searchFilesByContent,
-  writeTextFile,
-} from "../../utils/file-system.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
+import {
+  resolveVaultPath,
+  applyFileWrite,
+  readVaultFile,
+  checkFileExists,
+  listDirContents,
+  searchFiles,
+  searchFilesByName,
+} from "../../services/obsidian.js";
 
 const RelativePathSchema = z
   .string()
@@ -37,75 +38,6 @@ export const WriteFileToolSchema = z.object({
   summary: MarkdownSummarySchema,
 }).describe("Write or modify a file in the vault.");
 
-export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
-  try {
-    return resolveSafePath(vaultRoot, relativePath);
-  } catch {
-    throw new Error("Path must stay inside the local vault.");
-  }
-};
-
-export const applyFileWrite = async (vaultRoot: string, operationRequest: z.infer<typeof WriteFileToolSchema>): Promise<string> => {
-  const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
-
-  if (operationRequest.operation === "create_new") {
-    if (await fileExists(vaultRoot, operationRequest.relativePath)) {
-      throw new Error(`Refusing to overwrite existing markdown file: ${operationRequest.relativePath}`);
-    }
-    const nextContent = operationRequest.content?.trim() ?? "";
-    await writeTextFile(vaultRoot, operationRequest.relativePath, nextContent.length === 0 ? "" : `${nextContent}\n`);
-    return operationRequest.relativePath;
-  }
-
-  if (operationRequest.operation === "overwrite") {
-    const nextContent = operationRequest.content?.trim();
-    if (!nextContent) throw new Error("Overwrite operations must include content.");
-    await writeTextFile(vaultRoot, operationRequest.relativePath, `${nextContent}\n`);
-    return operationRequest.relativePath;
-  }
-
-  let existingContent = "";
-  try {
-    existingContent = await readTextFile(vaultRoot, operationRequest.relativePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-
-  const normalizedExisting = existingContent.replace(/\s*$/, "");
-  let appendPrefix = "\n\n";
-
-  if (
-    normalizedExisting.length === 0
-    || normalizedExisting.endsWith("\n")
-    || normalizedExisting.trim().split("\n").pop()?.trim().startsWith("-")
-  ) {
-    appendPrefix = "\n";
-  }
-  const appendContent = operationRequest.content?.trim();
-  if (!appendContent) throw new Error("Append operations must include content.");
-
-  await writeTextFile(vaultRoot, operationRequest.relativePath, `${normalizedExisting}${appendPrefix}${appendContent}\n`);
-  return operationRequest.relativePath;
-};
-
-export const readVaultFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
-  try {
-    return await readTextFile(vaultRoot, relativePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Cannot read missing file: ${relativePath}`);
-    throw error;
-  }
-};
-
-export const checkFileExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
-  return fileExists(vaultRoot, relativePath);
-};
-
-export const listFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
-  const { files } = await listDirectoryContents(vaultRoot, relativeDir);
-  return files;
-};
-
 const RelativeDirSchema = z
   .string()
   .optional()
@@ -130,82 +62,6 @@ export const SendFileToolSchema = z.object({
   relativePath: RelativePathSchema,
   caption: z.string().optional().describe("Optional caption to attach to the file."),
 }).describe("Send a file from the vault as a Telegram document.");
-
-const normalizeSearchQueries = (queries: string[]): string[] => {
-  const normalized = queries
-    .flatMap((query) => query.split(/[\s/._-]+/g))
-    .map((query) => query.trim())
-    .filter((query) => query.length > 0);
-
-  return Array.from(new Set(normalized));
-};
-
-export const listDirContents = async (
-  vaultRoot: string,
-  relativeDir: string,
-): Promise<{ files: string[]; dirs: string[] }> => {
-  return listDirectoryContents(vaultRoot, relativeDir);
-};
-
-// Recursively walk directory and collect all .md files
-const walkFilesRecursive = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
-  try {
-    const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
-    let allFiles = files;
-
-    for (const dir of dirs) {
-      const nestedPath = relativeDir === "." ? dir : `${relativeDir}/${dir}`;
-      const nestedFiles = await walkFilesRecursive(vaultRoot, nestedPath);
-      allFiles = [...allFiles, ...nestedFiles];
-    }
-
-    return allFiles;
-  } catch {
-    return [];
-  }
-};
-
-export const searchFiles = async (
-  vaultRoot: string,
-  queries: string[],
-  relativeDir: string,
-): Promise<string[]> => {
-  const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
-
-  // Search by content (assumes searchFilesByContent is recursive)
-  const contentMatches = await searchFilesByContent(vaultRoot, normalizeSearchQueries(queries), relativeDir);
-
-  // Search by filename recursively
-  const allFiles = await walkFilesRecursive(vaultRoot, relativeDir);
-  const filenameMatches = allFiles.filter((file) =>
-    normalizedQueries.some((query) => file.toLowerCase().includes(query))
-  );
-
-  // Combine and deduplicate results
-  const allMatches = Array.from(new Set([...contentMatches, ...filenameMatches]));
-  return allMatches;
-};
-
-export const searchFilesByName = async (
-  vaultRoot: string,
-  queries: string[],
-  relativeDir: string,
-): Promise<string[]> => {
-  const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
-
-  const allFiles = await walkFilesRecursive(vaultRoot, relativeDir);
-  const matches = allFiles.filter((file) => {
-    const lowerFile = file.toLowerCase();
-    // AND semantics with word-boundary matching: each query term must appear as a whole
-    // word/token, so "1" matches "July 1 -" but not "July 10" or "July 11"
-    return normalizedQueries.every((query) => {
-      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(`(?<![\\w\\d])${escaped}(?![\\w\\d])`, "i").test(lowerFile);
-    });
-  });
-
-  return matches;
-};
 
 export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender) => {
   const baseTools = [

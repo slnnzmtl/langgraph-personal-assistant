@@ -1,8 +1,6 @@
 import type { AppConfig } from "../../config.js";
 import { connectSupabaseMcp, SupabaseMcpSession } from "../../mcp/supabase.js";
 
-export { SupabaseMcpSession } from "../../mcp/supabase.js";
-
 export const setupSupabaseSession = async (
   config: AppConfig
 ): Promise<SupabaseMcpSession | undefined> => {
