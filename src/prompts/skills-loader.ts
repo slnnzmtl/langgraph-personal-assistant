@@ -10,6 +10,8 @@ export interface SkillMeta {
   fileName: string;
 }
 
+export type SkillDisplayStatus = "Created" | "Updated" | "Deleted" | "Listed" | "Previewed" | "Read";
+
 /**
  * Result of parsing frontmatter from raw markdown.
  */
@@ -254,6 +256,36 @@ export const deleteSkillFile = (skillsDir: string, name: string): string => {
   const { meta, filePath } = resolveSkillMeta(skillsDir, name);
   unlinkSync(filePath);
   return meta.fileName;
+};
+
+/**
+ * Format a single skill using the configuration skill_output_template.
+ */
+export const formatSkillForDisplay = (
+  owner: string,
+  skill: Pick<SkillMeta, "name" | "description">,
+  status: SkillDisplayStatus,
+): string =>
+  [
+    `Owner: ${owner}`,
+    `Skill Name: ${skill.name}`,
+    `Description: ${skill.description}`,
+    `Status: ${status}`,
+  ].join("\n");
+
+/**
+ * Format a skill list for user-facing LIST responses.
+ */
+export const formatSkillsForDisplay = (
+  owner: string,
+  skills: SkillMeta[],
+  status: SkillDisplayStatus = "Listed",
+): string => {
+  if (skills.length === 0) {
+    return `No skills configured for ${owner}.`;
+  }
+
+  return skills.map((skill) => formatSkillForDisplay(owner, skill, status)).join("\n\n");
 };
 
 /**

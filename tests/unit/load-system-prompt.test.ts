@@ -61,6 +61,8 @@ describe("named prompt loaders", () => {
     const prompt = loadConfigurationSystemPrompt();
 
     expect(prompt).toContain("Configuration Manager");
+    expect(prompt).toContain("<tool_access>");
+    expect(prompt).toContain("read_skill(\"skill-management\")");
     expect(prompt).toContain("read_skill(skill_name)");
     expect(prompt).toContain("<output_template>");
     expect(prompt).toContain("<skill_output_template>");

@@ -6,6 +6,7 @@ import {
   createSkillFile,
   deleteSkillFile,
   formatSkillFile,
+  formatSkillsForDisplay,
   listSkills,
   readFullSkill,
   readSkillContent,
@@ -79,11 +80,7 @@ const resolveOwnerSkillsDir = (
 
 const formatSkillList = (owner: SkillOwner, skillsDir: string): string => {
   const skills = listSkills(skillsDir);
-  if (skills.length === 0) {
-    return `No skills configured for ${owner}.`;
-  }
-
-  return skills.map((skill) => `${skill.name}: ${skill.description}`).join("\n");
+  return formatSkillsForDisplay(owner, skills, "Listed");
 };
 
 const formatSkillPreview = (skillsDir: string, name: string): string => {

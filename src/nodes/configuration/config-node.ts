@@ -1,7 +1,8 @@
 import { AIMessage, HumanMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
-import { loadConfigurationSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { getSkillsDir, loadConfigurationSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
@@ -51,6 +52,33 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
+const mentionsSkillOwner = (text: string): boolean =>
+  /\b(finance|obsidian|configuration)\b/.test(text);
+
+export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
+  const normalized = text.toLowerCase().replaceAll(/\s+/g, " ").trim();
+
+  if (mentionsSkillOwner(normalized)) {
+    return false;
+  }
+
+  if (/\bcron jobs?\b/.test(normalized)) {
+    return false;
+  }
+
+  return (
+    /\b(list|show|view|what|which|available)\b/.test(normalized)
+    && /\b(skills?|capabilities)\b/.test(normalized)
+  );
+};
+
+export const formatConfigurationSkillCatalog = (): string => {
+  const skillsDir = getSkillsDir("configuration", "md");
+  const skills = listSkills(skillsDir);
+
+  return formatSkillsForDisplay("configuration", skills, "Listed");
+};
+
 const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): string | undefined => {
   if (!latestMessage?.name || !READ_ONLY_SKILL_TOOLS.has(latestMessage.name)) {
     return undefined;
@@ -58,6 +86,35 @@ const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): str
 
   const toolContent = extractMessageTextContent(latestMessage.content).trim();
   return toolContent.length > 0 ? toolContent : undefined;
+};
+
+const sanitizeResponseToolCalls = (
+  response: AIMessage,
+  allowedToolNames: Set<string>,
+): AIMessage => {
+  const toolCalls = response.tool_calls ?? [];
+  if (toolCalls.length === 0) {
+    return response;
+  }
+
+  const validCalls = toolCalls.filter((call) => call.name && allowedToolNames.has(call.name));
+  if (validCalls.length === toolCalls.length) {
+    return response;
+  }
+
+  if (validCalls.length > 0) {
+    return new AIMessage({
+      content: response.content,
+      tool_calls: validCalls,
+    });
+  }
+
+  const responseText = extractMessageTextContent(response.content).trim();
+  return new AIMessage(
+    responseText.length > 0
+      ? responseText
+      : "That tool is not available yet. Call read_skill with the matching configuration skill name first.",
+  );
 };
 
 export const createConfigurationNode = (
@@ -89,6 +146,14 @@ export const createConfigurationNode = (
         return { messages: [new AIMessage(content)] };
       }
 
+      if (
+        latestMessage instanceof HumanMessage
+        && latestMessageText
+        && isConfigurationSkillCatalogRequest(latestMessageText)
+      ) {
+        return { messages: [new AIMessage(formatConfigurationSkillCatalog())] };
+      }
+
       await reconcileRuntimeCron(options.repository, options.runtimeCron);
 
       if (hasPendingToolCalls(state.messages)) {
@@ -109,6 +174,7 @@ export const createConfigurationNode = (
       const toolsForTurn = isSkillScopedToolContext(tools)
         ? resolveTurnTools(tools, state.messages)
         : tools;
+      const allowedToolNames = new Set(toolsForTurn.map((tool) => tool.name));
 
       const systemInstructions = new SystemMessage(loadConfigurationSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
@@ -120,15 +186,16 @@ export const createConfigurationNode = (
         throw new Error("Configuration LLM model must return an AI message.");
       }
 
-      const responseText = extractMessageTextContent(response.content).trim();
-      const toolCalls = response.tool_calls ?? [];
+      const sanitizedResponse = sanitizeResponseToolCalls(response, allowedToolNames);
+      const responseText = extractMessageTextContent(sanitizedResponse.content).trim();
+      const toolCalls = sanitizedResponse.tool_calls ?? [];
       const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
 
       if (!hasToolCalls && responseText.length === 0) {
         return { messages: [new AIMessage("Completed the configuration task.")], stepCount };
       }
 
-      return { messages: [response], stepCount };
+      return { messages: [sanitizedResponse], stepCount };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error during configuration";
       return { messages: [new AIMessage(`Unable to update cron configuration: ${message}`)] };

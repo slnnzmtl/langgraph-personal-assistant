@@ -6,6 +6,7 @@ import {
   listSkills,
   readSkillContent,
   formatSkillsForPrompt,
+  formatSkillsForDisplay,
   createSkillFile,
   updateSkillFile,
   deleteSkillFile,
@@ -241,6 +242,29 @@ Content`
       expect(() => readSkillContent(skillsDir, "../secret")).toThrow(
         /not found|Path traversal/i
       );
+    });
+  });
+
+  describe("formatSkillsForDisplay", () => {
+    it("formats skills using the skill_output_template", () => {
+      const skills = [
+        {
+          name: "sync-expenses",
+          description: "Sync Wise transactions",
+          fileName: "sync-expenses.md",
+        },
+      ];
+
+      const result = formatSkillsForDisplay("finance", skills, "Listed");
+
+      expect(result).toContain("Owner: finance");
+      expect(result).toContain("Skill Name: sync-expenses");
+      expect(result).toContain("Description: Sync Wise transactions");
+      expect(result).toContain("Status: Listed");
+    });
+
+    it("returns an empty-owner message when no skills exist", () => {
+      expect(formatSkillsForDisplay("configuration", [])).toBe("No skills configured for configuration.");
     });
   });
 

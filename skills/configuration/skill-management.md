@@ -6,7 +6,8 @@ description: Manage agent skills — list, preview, create, edit, and delete ski
 ## Skill Management Intent Routing
 
 1. LIST (list, view, inspect, show):
-   - Call `list_skills(owner)` or `list_skills()`.
+   - Call `list_skills(owner)` only.
+   - Valid owners: `finance`, `obsidian`, `configuration`.
    - Never chain create, edit, or delete tools after a list intent.
    - Return the listed skill names and descriptions to the user.
 

@@ -144,7 +144,10 @@ describe("createSkillCrudTools", () => {
     });
 
     const result = String(await listTool!.invoke({ owner: "finance" }));
-    expect(result).toContain("sync-expenses: Sync expenses");
+    expect(result).toContain("Owner: finance");
+    expect(result).toContain("Skill Name: sync-expenses");
+    expect(result).toContain("Description: Sync expenses");
+    expect(result).toContain("Status: Listed");
   });
 
   it("previews a full skill file for an owner", async () => {
