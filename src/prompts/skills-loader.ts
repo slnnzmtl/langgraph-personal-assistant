@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -98,52 +98,162 @@ export const listSkills = (skillsDir: string): SkillMeta[] => {
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 };
 
+export interface ResolvedSkill {
+  meta: SkillMeta;
+  filePath: string;
+}
+
+const assertPathWithinDir = (filePath: string, dir: string): string => {
+  const resolved = path.resolve(filePath);
+  const dirResolved = path.resolve(dir);
+
+  if (!resolved.startsWith(dirResolved)) {
+    throw new Error(`Path traversal detected: ${filePath}`);
+  }
+
+  return resolved;
+};
+
+const validateSkillFields = (name: string, description: string): void => {
+  if (!name.trim()) {
+    throw new Error("Skill name is required.");
+  }
+
+  if (!description.trim()) {
+    throw new Error("Skill description is required.");
+  }
+};
+
+/**
+ * Find a skill by frontmatter name (case-insensitive) or filename.
+ * Path-safe: ensures resolved path stays within skillsDir.
+ * Throws on not found or path traversal attempt.
+ */
+export const resolveSkillMeta = (skillsDir: string, name: string): ResolvedSkill => {
+  const skills = listSkills(skillsDir);
+
+  const byName = skills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
+  if (byName) {
+    const filePath = assertPathWithinDir(path.join(skillsDir, byName.fileName), skillsDir);
+    return { meta: byName, filePath };
+  }
+
+  const byFile = skills.find(
+    (skill) => skill.fileName.toLowerCase() === `${name.toLowerCase()}.md`,
+  );
+  if (byFile) {
+    const filePath = assertPathWithinDir(path.join(skillsDir, byFile.fileName), skillsDir);
+    return { meta: byFile, filePath };
+  }
+
+  const availableSkills = skills.map((skill) => skill.name).join(", ");
+  throw new Error(`Skill not found: ${name}. Available: ${availableSkills || "none"}`);
+};
+
+/**
+ * Serialize skill frontmatter and body into a markdown file.
+ */
+export const formatSkillFile = (
+  frontmatter: Pick<SkillMeta, "name" | "description">,
+  body: string,
+): string =>
+  `---\nname: ${frontmatter.name}\ndescription: ${frontmatter.description}\n---\n\n${body.trim()}\n`;
+
 /**
  * Read a skill's body content by name (case-insensitive match on frontmatter name)
  * or fileName. Path-safe: ensures resolved path stays within skillsDir.
  * Throws on not found or path traversal attempt.
  */
 export const readSkillContent = (skillsDir: string, name: string): string => {
-  const skills = listSkills(skillsDir);
-  
-  // Try exact name match first (case-insensitive)
-  const byName = skills.find((s) => s.name.toLowerCase() === name.toLowerCase());
-  if (byName) {
-    const filePath = path.join(skillsDir, byName.fileName);
-    const resolved = path.resolve(filePath);
-    const dirResolved = path.resolve(skillsDir);
+  const { filePath } = resolveSkillMeta(skillsDir, name);
+  const content = readFileSync(filePath, "utf8");
+  const { body } = parseFrontmatter(content);
+  return body;
+};
 
-    if (!resolved.startsWith(dirResolved)) {
-      throw new Error(`Path traversal detected: ${name}`);
-    }
+/**
+ * Read a skill's full frontmatter and body.
+ */
+export const readFullSkill = (
+  skillsDir: string,
+  name: string,
+): SkillMeta & { body: string } => {
+  const { meta, filePath } = resolveSkillMeta(skillsDir, name);
+  const content = readFileSync(filePath, "utf8");
+  const { data, body } = parseFrontmatter(content);
 
-    const content = readFileSync(resolved, "utf8");
-    const { body } = parseFrontmatter(content);
-    return body;
+  return {
+    name: data.name ?? meta.name,
+    description: data.description ?? meta.description,
+    fileName: meta.fileName,
+    body,
+  };
+};
+
+/**
+ * Write a skill file to disk, creating the directory if needed.
+ */
+export const writeSkillFile = (
+  skillsDir: string,
+  fileName: string,
+  name: string,
+  description: string,
+  body: string,
+): string => {
+  validateSkillFields(name, description);
+
+  const filePath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
+  mkdirSync(skillsDir, { recursive: true });
+  writeFileSync(filePath, formatSkillFile({ name, description }, body), "utf8");
+  return filePath;
+};
+
+/**
+ * Create a new skill file. Throws if the skill already exists.
+ */
+export const createSkillFile = (
+  skillsDir: string,
+  name: string,
+  description: string,
+  body: string,
+): string => {
+  validateSkillFields(name, description);
+
+  const existingSkills = listSkills(skillsDir);
+  if (existingSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error(`Skill already exists: ${name}`);
   }
 
-  // Fallback: try filename match (case-insensitive)
-  const byFile = skills.find(
-    (s) => s.fileName.toLowerCase() === `${name.toLowerCase()}.md`
-  );
-  if (byFile) {
-    const filePath = path.join(skillsDir, byFile.fileName);
-    const resolved = path.resolve(filePath);
-    const dirResolved = path.resolve(skillsDir);
-
-    if (!resolved.startsWith(dirResolved)) {
-      throw new Error(`Path traversal detected: ${name}`);
-    }
-
-    const content = readFileSync(resolved, "utf8");
-    const { body } = parseFrontmatter(content);
-    return body;
+  const fileName = `${name}.md`;
+  const targetPath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
+  if (existsSync(targetPath)) {
+    throw new Error(`Skill file already exists: ${fileName}`);
   }
 
-  const availableSkills = skills.map((s) => s.name).join(", ");
-  throw new Error(
-    `Skill not found: ${name}. Available: ${availableSkills || "none"}`
-  );
+  return writeSkillFile(skillsDir, fileName, name, description, body);
+};
+
+/**
+ * Replace an existing skill's frontmatter and body.
+ */
+export const updateSkillFile = (
+  skillsDir: string,
+  name: string,
+  description: string,
+  body: string,
+): string => {
+  validateSkillFields(name, description);
+  const { meta } = resolveSkillMeta(skillsDir, name);
+  return writeSkillFile(skillsDir, meta.fileName, meta.name, description, body);
+};
+
+/**
+ * Delete an existing skill file.
+ */
+export const deleteSkillFile = (skillsDir: string, name: string): string => {
+  const { meta, filePath } = resolveSkillMeta(skillsDir, name);
+  unlinkSync(filePath);
+  return meta.fileName;
 };
 
 /**

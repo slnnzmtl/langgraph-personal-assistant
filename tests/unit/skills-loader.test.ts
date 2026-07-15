@@ -1,11 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   parseFrontmatter,
   listSkills,
   readSkillContent,
   formatSkillsForPrompt,
+  createSkillFile,
+  updateSkillFile,
+  deleteSkillFile,
+  readFullSkill,
+  formatSkillFile,
 } from "../../src/prompts/skills-loader";
 
 describe("skills-loader", () => {
@@ -264,6 +269,76 @@ Content`
     it("should return empty string for empty skill list", () => {
       const result = formatSkillsForPrompt([]);
       expect(result).toBe("");
+    });
+  });
+
+  describe("skill file writes", () => {
+    it("creates a skill file with valid frontmatter", () => {
+      const skillsDir = path.join(tempDir, "write-create");
+      const filePath = createSkillFile(
+        skillsDir,
+        "new-skill",
+        "A new skill",
+        "# Body\nDo the thing",
+      );
+
+      expect(existsSync(filePath)).toBe(true);
+      const raw = readFileSync(filePath, "utf8");
+      expect(raw).toBe(formatSkillFile({ name: "new-skill", description: "A new skill" }, "# Body\nDo the thing"));
+      expect(readSkillContent(skillsDir, "new-skill")).toBe("# Body\nDo the thing");
+    });
+
+    it("rejects duplicate skill names on create", () => {
+      const skillsDir = path.join(tempDir, "write-duplicate");
+      createSkillFile(skillsDir, "dup-skill", "First", "Body one");
+
+      expect(() => createSkillFile(skillsDir, "dup-skill", "Second", "Body two")).toThrow(
+        /already exists/i,
+      );
+    });
+
+    it("updates an existing skill with full replacement", () => {
+      const skillsDir = path.join(tempDir, "write-update");
+      createSkillFile(skillsDir, "update-me", "Old description", "Old body");
+
+      const filePath = updateSkillFile(
+        skillsDir,
+        "update-me",
+        "New description",
+        "New body",
+      );
+
+      const skill = readFullSkill(skillsDir, "update-me");
+      expect(skill.description).toBe("New description");
+      expect(skill.body).toBe("New body");
+      expect(readFileSync(filePath, "utf8")).toContain("description: New description");
+    });
+
+    it("deletes an existing skill file", () => {
+      const skillsDir = path.join(tempDir, "write-delete");
+      createSkillFile(skillsDir, "delete-me", "Delete me", "Body");
+
+      const fileName = deleteSkillFile(skillsDir, "delete-me");
+
+      expect(fileName).toBe("delete-me.md");
+      expect(existsSync(path.join(skillsDir, "delete-me.md"))).toBe(false);
+      expect(() => readSkillContent(skillsDir, "delete-me")).toThrow(/Skill not found/);
+    });
+
+    it("throws when deleting a missing skill", () => {
+      const skillsDir = path.join(tempDir, "write-delete-missing");
+      mkdirSync(skillsDir, { recursive: true });
+
+      expect(() => deleteSkillFile(skillsDir, "missing")).toThrow(/Skill not found/);
+    });
+
+    it("rejects path traversal attempts on write", () => {
+      const skillsDir = path.join(tempDir, "write-traverse");
+      mkdirSync(skillsDir, { recursive: true });
+
+      expect(() => createSkillFile(skillsDir, "../secret", "Bad", "Body")).toThrow(
+        /Path traversal/i,
+      );
     });
   });
 });

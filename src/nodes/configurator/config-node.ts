@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
@@ -9,6 +9,8 @@ import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { formatCronJobForDisplay } from "./config-tools.js";
+
+const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 
 type ConfigurationNodeOptions = {
   repository: CronJobRepository;
@@ -46,6 +48,15 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
+const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): string | undefined => {
+  if (!latestMessage?.name || !READ_ONLY_SKILL_TOOLS.has(latestMessage.name)) {
+    return undefined;
+  }
+
+  const toolContent = extractMessageTextContent(latestMessage.content).trim();
+  return toolContent.length > 0 ? toolContent : undefined;
+};
+
 export const createConfigurationNode = (
   model: BaseChatModel,
   tools: StructuredToolInterface[],
@@ -75,6 +86,13 @@ export const createConfigurationNode = (
 
       if (hasPendingToolCalls(state.messages)) {
         return {};
+      }
+
+      const readOnlySkillToolResult = getReadOnlySkillToolResult(
+        latestMessage instanceof ToolMessage ? latestMessage : undefined,
+      );
+      if (readOnlySkillToolResult) {
+        return { messages: [new AIMessage(readOnlySkillToolResult)] };
       }
 
       const systemInstructions = new SystemMessage(loadConfiguratorSystemPrompt());

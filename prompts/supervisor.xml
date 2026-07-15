@@ -16,13 +16,15 @@
     </route>
     
     <route node="Config_SG">
-      - Use for scheduling systems, recurring system reminders, cron configurations, or modifying background engine tasks.
+      - Use for scheduling systems, recurring system reminders, cron configurations, modifying background engine tasks, or inspecting/managing agent skill definitions.
+      - Route here when the user wants to list, show, read, create, edit, or delete skills (e.g. "list skills", "show me the sync-expenses skill").
     </route>
   </routing_definitions>
 
   <overlap_resolution_rules>
     1. Obsidian vs. Finance: If a user wants to write/edit an expense *directly into a note*, route to Obsidian_SG. If they are asking to calculate, track, or review raw financial transactions, route to Finance_SG.
     2. Obsidian vs. Config: If setting up a continuous automated cron loop or recurrence interval, route to Config_SG. If simply writing down a list of tasks or planning a calendar day, route to Obsidian_SG.
+    3. Finance vs. Config: If the user wants to execute sync/import/fetch transactions or work with expense data, route to Finance_SG. If the user wants to list, show, read, inspect, create, edit, or delete skill definitions, route to Config_SG.
   </overlap_resolution_rules>
 
   <response_protocol>

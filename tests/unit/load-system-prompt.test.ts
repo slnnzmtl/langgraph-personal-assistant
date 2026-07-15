@@ -60,9 +60,12 @@ describe("named prompt loaders", () => {
   it("loads the configurator prompt from prompts/configurator.md", () => {
     const prompt = loadConfiguratorSystemPrompt();
 
-    expect(prompt).toContain("When the user asks to schedule a daily note");
+    expect(prompt).toContain("If the user requests a daily note schedule");
     expect(prompt).toContain("in 5 minutes");
-    expect(prompt).toContain("If the user asks to list, show, view, or inspect existing cron jobs, call `list_cron_jobs` only");
+    expect(prompt).toContain("Call `list_cron_jobs()` only");
+    expect(prompt).toContain("Call `list_skills(owner)` only");
+    expect(prompt).toContain("Call `preview_skill(owner, name)` only");
+    expect(prompt).toContain("Valid skill owners: `finance`, `obsidian`, `configurator`");
   });
 });
 

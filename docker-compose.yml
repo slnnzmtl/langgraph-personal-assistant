@@ -11,6 +11,7 @@ services:
       OBSIDIAN_VAULT_PATH: /data/obsidian-vault
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+      - ${SKILLS_HOST_PATH:-./src/skills}:/data/skills
     restart: unless-stopped
 
   personal-assistant-dev:

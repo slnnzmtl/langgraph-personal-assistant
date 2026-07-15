@@ -1,10 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import path from "node:path";
 
 import {
   createSkillActionRegistry,
   registerSkillActions,
 } from "../../src/tools/skill-actions.js";
-import { createReadSkillTool } from "../../src/tools/read-skill.js";
+import {
+  createReadSkillTool,
+  createSkillCrudTools,
+  type SkillOwner,
+} from "../../src/tools/skill-management.js";
+
+const createTempSkillsRoot = (): string => mkdtempSync(path.join(process.cwd(), "test-skill-tools-"));
+
+const createCrudTools = (rootDir: string) => {
+  const ownerDirs = new Map<SkillOwner, string>([
+    ["finance", path.join(rootDir, "finance")],
+    ["obsidian", path.join(rootDir, "obsidian")],
+    ["configurator", path.join(rootDir, "configurator")],
+  ]);
+
+  return createSkillCrudTools({
+    resolveSkillsDir: (owner) => ownerDirs.get(owner)!,
+  });
+};
 
 describe("createReadSkillTool", () => {
   it("loads a finance skill by name", async () => {
@@ -74,5 +94,140 @@ describe("createReadSkillTool", () => {
     expect(result).toContain("Sync Wise Expenses");
     expect(result).toContain("action_error expense_categories:");
     expect(result).toContain("database unavailable");
+  });
+});
+
+describe("createSkillCrudTools", () => {
+  let tempRoot: string;
+
+  afterEach(() => {
+    if (tempRoot) {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("lists skills for an owner", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const listTool = tools.find((tool) => tool.name === "list_skills");
+
+    await createTool!.invoke({
+      owner: "finance",
+      name: "sync-expenses",
+      description: "Sync expenses",
+      content: "# Sync",
+    });
+
+    const result = String(await listTool!.invoke({ owner: "finance" }));
+    expect(result).toContain("sync-expenses: Sync expenses");
+  });
+
+  it("previews a full skill file for an owner", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const previewTool = tools.find((tool) => tool.name === "preview_skill");
+
+    await createTool!.invoke({
+      owner: "obsidian",
+      name: "daily-note",
+      description: "Create daily note",
+      content: "# Daily note steps",
+    });
+
+    const result = String(await previewTool!.invoke({ owner: "obsidian", name: "daily-note" }));
+    expect(result).toContain("name: daily-note");
+    expect(result).toContain("description: Create daily note");
+    expect(result).toContain("# Daily note steps");
+  });
+
+  it("reads a full skill file for an owner", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const readTool = tools.find((tool) => tool.name === "read_skill");
+
+    await createTool!.invoke({
+      owner: "obsidian",
+      name: "daily-note",
+      description: "Create daily note",
+      content: "# Daily note steps",
+    });
+
+    const result = String(await readTool!.invoke({ owner: "obsidian", name: "daily-note" }));
+    expect(result).toContain("name: daily-note");
+    expect(result).toContain("description: Create daily note");
+    expect(result).toContain("# Daily note steps");
+  });
+
+  it("creates, edits, and deletes a skill", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const editTool = tools.find((tool) => tool.name === "edit_skill");
+    const deleteTool = tools.find((tool) => tool.name === "delete_skill");
+    const readTool = tools.find((tool) => tool.name === "read_skill");
+
+    const createResult = String(
+      await createTool!.invoke({
+        owner: "configurator",
+        name: "manage-cron",
+        description: "Manage cron jobs",
+        content: "# Cron",
+      }),
+    );
+    expect(createResult).toContain("Created skill manage-cron");
+
+    const editResult = String(
+      await editTool!.invoke({
+        owner: "configurator",
+        name: "manage-cron",
+        description: "Manage cron and schedules",
+        content: "# Updated cron",
+      }),
+    );
+    expect(editResult).toContain("Updated skill manage-cron");
+
+    const readResult = String(await readTool!.invoke({ owner: "configurator", name: "manage-cron" }));
+    expect(readResult).toContain("description: Manage cron and schedules");
+    expect(readResult).toContain("# Updated cron");
+
+    const deleteResult = String(
+      await deleteTool!.invoke({ owner: "configurator", name: "manage-cron" }),
+    );
+    expect(deleteResult).toContain("Deleted skill manage-cron");
+    expect(() => readFileSync(path.join(tempRoot, "configurator", "manage-cron.md"), "utf8")).toThrow();
+  });
+
+  it("returns errors for duplicate create and missing delete", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const deleteTool = tools.find((tool) => tool.name === "delete_skill");
+
+    await createTool!.invoke({
+      owner: "finance",
+      name: "dup-skill",
+      description: "First",
+      content: "Body",
+    });
+
+    const duplicateResult = String(
+      await createTool!.invoke({
+        owner: "finance",
+        name: "dup-skill",
+        description: "Second",
+        content: "Body two",
+      }),
+    );
+    expect(duplicateResult).toContain("Error:");
+    expect(duplicateResult).toContain("already exists");
+
+    const deleteResult = String(
+      await deleteTool!.invoke({ owner: "finance", name: "missing-skill" }),
+    );
+    expect(deleteResult).toContain("Error:");
+    expect(deleteResult).toContain("not found");
   });
 });

@@ -15,11 +15,21 @@ const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRep
 };
 
 describe("createCronConfigTools", () => {
-  it("includes the shared read_skill tool", () => {
+  it("includes skill CRUD tools", () => {
     const repository = createRepository();
     const tools = createCronConfigTools(repository);
+    const toolNames = tools.map((tool) => tool.name);
 
-    expect(tools.some((tool) => tool.name === "read_skill")).toBe(true);
+    expect(toolNames).toEqual(
+      expect.arrayContaining([
+        "list_skills",
+        "preview_skill",
+        "read_skill",
+        "create_skill",
+        "edit_skill",
+        "delete_skill",
+      ]),
+    );
   });
 
   it("lists saved cron jobs from the repository", async () => {
