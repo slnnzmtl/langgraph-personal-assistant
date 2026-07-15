@@ -5,29 +5,33 @@ description: Sync Wise transactions into the expense ledger (fetch, categorize, 
 
 # Skill: Sync Wise Expenses
 
-Triggered when the user asks to sync, import, or fetch Wise transactions into the expense ledger.
+Execute this skill sequentially when the user asks to sync, import, or fetch Wise transactions into the expense ledger.
 
-## Steps
+<execution_guidelines>
+- Strict Step Sequence: Never jump ahead, merge, or skip steps.
+- Single Turn Execution: Each numbered major step (1, 2, 3, 4) represents exactly ONE model response. Do not execute step transitions until the preceding step's tool output is fully returned.
+</execution_guidelines>
 
-Each numbered turn below must be a single model response. Do not split a turn across multiple model calls.
+### Step 1: Fetch transactions from Wise
+- `fetch_wise_transactions(since, until)`
 
-1. **Read skill** — Call `read_skill("sync-expenses")` alone.
-2. **Fetch data (parallel batch)** — In one model turn, call **both** `get_categories()` and `fetch_wise_transactions(since, until)` together. Use the pre-computed date values from the conversation header. Never ask the user for dates.
-3. **Insert** — After both tool responses above are present, call `exec_sql` using a single `INSERT INTO public.expense (name, amount, category, paid_date, paid) VALUES (...)` with one row per transaction. Always append `ON CONFLICT (name, amount, paid_date) DO NOTHING` for deduplication.
-   - 3.1 — Round all decimal amounts up to the next whole number (e.g., 2.30 → 3).
-   - Map each transaction `name` to a `category_id` using the rules below before building the insert.
-4. **Report** — ONLY after receiving the function response from `exec_sql`, read the results to formulate the final summary using the MarkdownV2 format below. Provide a useful operation summary.
+<date_rules>
+- Calculate `since` and `until` using the system-injected datetime headers.
+- Never prompt the user for date inputs.
+</date_rules>
 
-## Category Matching
-§
-Call `get_categories()` first; use the returned IDs. Fall back to these defaults when the live list is unavailable:
+### Step 2: Categorize & Insert
+Once tool responses from Step 1 are in the context history, compile and execute the SQL payload.
 
-| Category   | ID | Keywords |
-|------------|----|----------|
-| Transport  | 35 | Uber, Lyft, Taxi, Bolt |
-| Shop       | 33 | mark, market, shop, store, supermarket, mart |
-| Food       |  4 | Grab, cafe, food, coffee, bistro, restaurant, bakery |
-| Software   | 17 | github, aws, google, openai, netflix |
+<sql_rules>
+- Use multi-row insert syntax:
+  ```sql
+  INSERT INTO public.expense (name, amount, category, paid_date, paid) 
+  VALUES (...), (...), (...)
+  ON CONFLICT (name, amount, paid_date) DO NOTHING;
+  Dedup constraint: You must append ON CONFLICT (name, amount, paid_date) DO NOTHING to prevent duplicate transaction entries.
 
-- Always assign a category. Set `category = NULL` only when no match is possible.
-- Use semantic context as a fallback when no keyword hits.
+Amount Math: Round all decimal amounts up to the next integer (e.g., 2.10 or 2.30 → 3).
+
+Category Map: Map each transaction description to a category_id before building the insert (see mapping rules below).
+</sql_rules>
