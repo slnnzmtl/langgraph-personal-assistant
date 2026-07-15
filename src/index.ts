@@ -4,7 +4,7 @@ import { Telegraf } from "telegraf";
 import { loadConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createLazyScheduler, startScheduler } from "./cron/scheduler-bootstrap.js";
-import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
+import { createWorkflowGraph, type WorkflowGraphConfig } from "./agent.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { TelegramFileSender } from "./telegram/file-sender.js";
 import { setupSupabaseSession } from "./services/supabase/index.js";

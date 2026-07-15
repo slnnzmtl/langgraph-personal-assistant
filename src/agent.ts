@@ -3,17 +3,17 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "@langchain/core/messages";
 import path from "node:path";
 
-import type { AppConfig } from "../config.js";
-import type { ILLMConnector } from "../connectors/llm-connector.js";
-import type { IFileSender } from "../telegram/file-sender.js";
-import { createCronJobRepository } from "../cron/cron-job-repository.js";
-import { createConfigurationNode, createCronConfigTools } from "../nodes/configurator/index.js";
-import type { RuntimeSchedulerService } from "../cron/runtime-scheduler-service.js";
-import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import { createFinanceSubgraphWrapper } from "../nodes/finance/graph.js";
-import { createObsidianSubgraphWrapper } from "../nodes/obsidian/graph.js";
-import { createSupervisorNode } from "../nodes/supervisor-node.js";
-import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.js";
+import type { AppConfig } from "./config.js";
+import type { ILLMConnector } from "./connectors/llm-connector.js";
+import type { IFileSender } from "./telegram/file-sender.js";
+import { createCronJobRepository } from "./cron/cron-job-repository.js";
+import { createConfigurationNode, createCronConfigTools } from "./nodes/configurator/index.js";
+import type { RuntimeSchedulerService } from "./cron/runtime-scheduler-service.js";
+import type { SupabaseMcpSession } from "./mcp/supabase.js";
+import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
+import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
+import { createSupervisorNode } from "./nodes/supervisor-node.js";
+import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 
 export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
   supabaseSession?: SupabaseMcpSession;
@@ -60,7 +60,7 @@ export const createWorkflowGraph = (
   const financeSubgraphWrapper = config.supabaseSession
     ? createFinanceSubgraphWrapper(config.supabaseSession, financeLlmConnector.getModel())
     : async (_state: AgentState) => ({
-        messages: [new AIMessage("Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.")],
+        messages: [new AIMessage("Supabase session is not configure.")],
       });
 
   const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(obsidianLlmConnector, config.obsidianVaultPath, config.fileSender);

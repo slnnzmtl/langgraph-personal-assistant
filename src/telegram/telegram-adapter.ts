@@ -4,7 +4,7 @@ import { Telegraf } from "telegraf";
 import type { Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
-import type { createWorkflowGraph } from "../graph/workflow-graph.js";
+import type { createWorkflowGraph } from "../agent.js";
 import type { AgentState } from "../state.js";
 import type { IFileSender } from "./file-sender.js";
 import { GraphRecursionError } from "@langchain/langgraph";
