@@ -1,19 +1,53 @@
 import { z } from "zod";
 
+import type { RuntimeAgentDefinition } from "./runtime-agents/types.js";
 import { ROUTE_NAMES } from "./state.js";
 
-export const MVPRoutingSchema = z.object({
-  next: z
-    .enum(ROUTE_NAMES)
-    .describe(
-      "The next graph node to execute. Route to Finance_SG for money, expenses, transactions, budgets, or banking. Route to Obsidian_SG for notes, plans, todos, markdown vault edits, summaries, or task status updates. Route to Config_SG for scheduler setup, cron messages, reminders, recurring tasks, configuration requests, or listing/showing/reading/managing agent skills. Use FINISH for general chat or any request you can answer directly.",
-    ),
-  reply: z
-    .string()
-    .optional()
-    .describe(
-      "The conversational response sent back to the user. Include this whenever 'next' is 'FINISH'. Omit it when routing to a specialist sub-graph.",
-    ),
-});
+export const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
 
-export type RoutingDecision = z.infer<typeof MVPRoutingSchema>;
+export type BuiltinSupervisorRoute = (typeof BUILTIN_SUPERVISOR_ROUTES)[number];
+
+const buildRoutingDescription = (runtimeAgents: RuntimeAgentDefinition[]): string => {
+  const base = [
+    "The next graph node to execute.",
+    "Use FINISH for general chat or any request you can answer directly.",
+  ];
+
+  const enabledAgents = runtimeAgents.filter((agent) => agent.enabled);
+  if (enabledAgents.length > 0) {
+    base.push("Route to a runtime agent id when the request clearly matches one of these specialists:");
+    for (const agent of enabledAgents) {
+      base.push(`- ${agent.id}: ${agent.description}`);
+    }
+  }
+
+  return base.join(" ");
+};
+
+export const buildSupervisorRoutingSchema = (runtimeAgents: RuntimeAgentDefinition[] = []) => {
+  const enabledAgentIds = runtimeAgents
+    .filter((agent) => agent.enabled)
+    .map((agent) => agent.id);
+
+  const routeNames = [...BUILTIN_SUPERVISOR_ROUTES, ...enabledAgentIds] as [string, ...string[]];
+
+  return z.object({
+    next: z.enum(routeNames).describe(buildRoutingDescription(runtimeAgents)),
+    reply: z
+      .string()
+      .optional()
+      .describe(
+        "The conversational response sent back to the user. Include this whenever 'next' is 'FINISH'. Omit it when routing to a runtime agent.",
+      ),
+  });
+};
+
+export const MVPRoutingSchema = buildSupervisorRoutingSchema();
+
+export type RoutingDecision = z.infer<ReturnType<typeof buildSupervisorRoutingSchema>>;
+
+export const isBuiltinSupervisorRoute = (value: string): value is BuiltinSupervisorRoute =>
+  (BUILTIN_SUPERVISOR_ROUTES as readonly string[]).includes(value);
+
+export const isGraphRouteName = (value: string): value is (typeof ROUTE_NAMES)[number] =>
+  (ROUTE_NAMES as readonly string[]).includes(value);

@@ -6,7 +6,7 @@ import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/state.js";
-import { FakeLLMConnector, makeHumanState } from "../helpers/fakes.js";
+import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -106,14 +106,16 @@ describe("createSupervisorNode", () => {
       expect(Array.isArray(input)).toBe(true);
       expect((input as HumanMessage[]).length).toBeGreaterThan(1);
 
-      return { next: "Finance_SG" };
+      return { next: "finance" };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
 
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
-    expect(result.next).toBe("Finance_SG");
-    expect(result.context).toBeUndefined();
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("finance");
   });
 
   it("receives at most the system prompt plus the last 10 state messages", async () => {
@@ -153,9 +155,11 @@ describe("createSupervisorNode", () => {
         "where is the note?\ngive me a plan for yesterday",
       );
 
-      return { next: "Obsidian_SG" };
+      return { next: "obsidian" };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
 
     const result = await supervisorNode({
       messages: [
@@ -166,22 +170,24 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Obsidian_SG");
-    expect(result.context).toBeUndefined();
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("obsidian");
   });
 
   it("can route scheduling requests to the configuration branch", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
 
-      return { next: "Config_SG" };
+      return { next: "configuration" };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
 
     const result = await supervisorNode(makeHumanState("set up a cron message every weekday at 9am"));
 
-    expect(result.next).toBe("Config_SG");
-    expect(result.context).toBeUndefined();
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("configuration");
   });
 
   it("sanitizes prior tool messages before routing", async () => {
@@ -232,7 +238,8 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:finance-sync"));
 
-    expect(result.next).toBe("Finance_SG");
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
@@ -246,7 +253,8 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync"));
 
-    expect(result.next).toBe("Finance_SG");
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
@@ -279,7 +287,8 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:obsidian-daily-note"));
 
-    expect(result.next).toBe("Obsidian_SG");
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("obsidian");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
@@ -316,7 +325,8 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Finance_SG");
+    expect(result.next).toBe("Runtime_SG");
+    expect(result.context?.runtimeAgentId).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });

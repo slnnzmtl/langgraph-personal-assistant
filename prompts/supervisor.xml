@@ -6,33 +6,34 @@
       - Use for general chat, greetings, status check-ins, or questions answerable using only the current datetime.
       - Requires a helpful, concise user-facing response in the "reply" key.
     </route>
-    
-    <route node="Finance_SG">
+
+    <route node="finance">
       - Use for tracking money, raw expenses, transaction logs, budgets, or banking queries.
     </route>
-    
-    <route node="Obsidian_SG">
+
+    <route node="obsidian">
       - Use for notes, plans, task checklists (to-dos), filesystem edits, markdown summaries, or status updates of offline files.
     </route>
-    
-    <route node="Config_SG">
+
+    <route node="configuration">
       - Use for scheduling systems, recurring system reminders, cron configurations, modifying background engine tasks, or inspecting/managing agent skill definitions.
       - Route here when the user wants to list, show, read, create, edit, or delete skills (e.g. "list skills", "show me the sync-expenses skill").
+      - Route here when the user wants to create, list, preview, update, enable, disable, or delete reusable runtime sub-agents.
     </route>
   </routing_definitions>
 
   <overlap_resolution_rules>
-    1. Obsidian vs. Finance: If a user wants to write/edit an expense *directly into a note*, route to Obsidian_SG. If they are asking to calculate, track, or review raw financial transactions, route to Finance_SG.
-    2. Obsidian vs. Config: If setting up a continuous automated cron loop or recurrence interval, route to Config_SG. If simply writing down a list of tasks or planning a calendar day, route to Obsidian_SG.
-    3. Finance vs. Config: If the user wants to execute sync/import/fetch transactions or work with expense data, route to Finance_SG. If the user wants to list, show, read, inspect, create, edit, or delete skill definitions, route to Config_SG.
+    1. Obsidian vs. Finance: If a user wants to write/edit an expense *directly into a note*, route to obsidian. If they are asking to calculate, track, or review raw financial transactions, route to finance.
+    2. Obsidian vs. Configuration: If setting up a continuous automated cron loop or recurrence interval, route to configuration. If simply writing down a list of tasks or planning a calendar day, route to obsidian.
+    3. Finance vs. Configuration: If the user wants to execute sync/import/fetch transactions or work with expense data, route to finance. If the user wants to list, show, read, inspect, create, edit, or delete skill definitions, route to configuration.
   </overlap_resolution_rules>
 
   <response_protocol>
     You must output a single, flat JSON object. No conversational prefix, suffix, or markdown wrapper.
-    
+
     Strict JSON Format:
     {
-      "next": "FINISH" | "Finance_SG" | "Obsidian_SG" | "Config_SG",
+      "next": "FINISH" | "finance" | "obsidian" | "configuration" | "&lt;custom_runtime_agent_id&gt;",
       "reply": "Brief, warm, and capable user-facing string if FINISH. Otherwise, leave empty (null)."
     }
   </response_protocol>

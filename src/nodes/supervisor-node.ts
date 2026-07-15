@@ -4,9 +4,18 @@ import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
-import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
+import type { RuntimeAgentRepository } from "../runtime-agents/repository.js";
+import { RUNTIME_AGENT_CONTEXT_KEY, resolveRuntimeAgentId } from "../runtime-agents/types.js";
+import {
+  buildSupervisorRoutingSchema,
+  type RoutingDecision,
+} from "../routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { extractMessageTextContent, stripToolsForSupervisor } from "./message-history.js";
+
+type SupervisorNodeOptions = {
+  runtimeAgentRepository?: RuntimeAgentRepository;
+};
 
 const buildFailureReply = async (
   llmConnector: ILLMConnector,
@@ -30,16 +39,24 @@ const buildFailureReply = async (
   throw new Error("Supervisor final reply model returned an empty response.");
 };
 
-export const createSupervisorNode = (llmConnector: ILLMConnector) => {
-  const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(MVPRoutingSchema);
+const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
+  next: "Runtime_SG",
+  context: {
+    [RUNTIME_AGENT_CONTEXT_KEY]: agentId,
+  },
+});
 
-  return async (state: AgentState): Promise<AgentStateUpdate> => {
+export const createSupervisorNode = (
+  llmConnector: ILLMConnector,
+  options?: SupervisorNodeOptions,
+) =>
+  async (state: AgentState): Promise<AgentStateUpdate> => {
     const supervisorPromptText = loadSupervisorSystemPrompt();
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
     const cronRoute = resolveCronTriggerRoute(state.messages[state.messages.length - 1]);
 
     if (cronRoute && cronRoute !== SUPERVISE_CRON_ROUTE) {
-      return { next: cronRoute };
+      return routeToRuntimeAgent(resolveRuntimeAgentId(cronRoute));
     }
 
     const rawPromptMessages = [
@@ -48,19 +65,26 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
     ];
     const promptMessages = stripToolsForSupervisor(rawPromptMessages);
 
-    // If the last message after stripping is a complete AI text response (no pending tool calls),
-    // a sub-agent has already handled the request — finish without an extra LLM call.
     const lastStripped = promptMessages[promptMessages.length - 1];
     const isSubAgentComplete =
-      lastStripped instanceof AIMessage &&
-      (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0) &&
-      extractMessageTextContent(lastStripped.content).trim().length > 0;
+      lastStripped instanceof AIMessage
+      && (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0)
+      && extractMessageTextContent(lastStripped.content).trim().length > 0;
 
     if (isSubAgentComplete) {
       return { next: "FINISH" };
     }
 
     await logSystemPromptInvocation("supervisor-system-prompt", rawPromptMessages);
+
+    const runtimeAgents = options?.runtimeAgentRepository
+      ? await options.runtimeAgentRepository.loadAgents()
+      : [];
+    const enabledAgentIds = new Set(
+      runtimeAgents.filter((agent) => agent.enabled).map((agent) => agent.id),
+    );
+    const routingSchema = buildSupervisorRoutingSchema(runtimeAgents);
+    const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(routingSchema);
 
     let response: RoutingDecision;
 
@@ -89,8 +113,6 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
     if (response.next === "FINISH") {
       if (typeof response.reply !== "string" || response.reply.trim().length === 0) {
-        const failureContext = "The routing model returned FINISH without a reply.";
-
         return {
           next: "FINISH",
           messages: [
@@ -99,7 +121,7 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
                 llmConnector,
                 promptMessages,
                 supervisorPromptText,
-                failureContext,
+                "The routing model returned FINISH without a reply.",
               ),
             ),
           ],
@@ -108,16 +130,27 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
 
       return {
         next: response.next,
+        messages: [new AIMessage(response.reply)],
+      };
+    }
+
+    const agentId = resolveRuntimeAgentId(response.next);
+
+    if (!enabledAgentIds.has(agentId)) {
+      return {
+        next: "FINISH",
         messages: [
           new AIMessage(
-            response.reply!
+            await buildFailureReply(
+              llmConnector,
+              promptMessages,
+              supervisorPromptText,
+              `Unknown or disabled runtime agent route: ${response.next}`,
+            ),
           ),
         ],
       };
     }
 
-    return {
-      next: response.next,
-    };
+    return routeToRuntimeAgent(agentId);
   };
-};

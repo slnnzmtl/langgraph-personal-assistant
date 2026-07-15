@@ -10,14 +10,20 @@ import type { CronJobRepository } from "../../src/cron/types.js";
 import { MESSAGE_HISTORY_LIMIT } from "../../src/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
+import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+
 const testCronRepository: CronJobRepository = {
   loadJobs: async () => [],
   saveJobs: async () => {},
 };
 
-const makeWorkflowGraphConfig = (obsidianVaultPath: string) => ({
+const makeWorkflowGraphConfig = (
+  obsidianVaultPath: string,
+  runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
+) => ({
   obsidianVaultPath,
   cronJobRepository: testCronRepository,
+  runtimeAgentRepository,
 });
 
 const workflowConfig = {
@@ -83,7 +89,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (invocation === 2) {
@@ -136,7 +142,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (invocation === 2) {
@@ -183,13 +189,13 @@ test.describe("workflow graph", () => {
 
       if (Array.isArray(input)) {
         if (invocation === 1) {
-          return { next: "Obsidian_SG" };
+          return { next: "obsidian" };
         }
 
         throw new Error("Structured output validation failed");
       }
 
-      return { next: "Obsidian_SG" };
+      return { next: "obsidian" };
     });
 
     const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-error-vault")));
@@ -207,7 +213,7 @@ test.describe("workflow graph", () => {
   });
 
   test("routes a finance request to the finance mock branch", async () => {
-    const connector = new FakeLLMConnector(() => ({ next: "Finance_SG" }));
+    const connector = new FakeLLMConnector(() => ({ next: "finance" }));
     const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-finance-vault")));
 
     const finalState = await app.invoke(
@@ -218,7 +224,7 @@ test.describe("workflow graph", () => {
     );
 
     expect(finalState.messages.at(-1)?.content).toBe(
-      "Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.",
+      "Supabase session is not configured.",
     );
   });
 
@@ -251,7 +257,7 @@ test.describe("workflow graph", () => {
           const latestText = getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>);
 
           if (latestText.includes("save turn 6")) {
-            return { next: "Obsidian_SG" };
+            return { next: "obsidian" };
           }
 
           return {
@@ -318,7 +324,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (!Array.isArray(input)) {
@@ -401,7 +407,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (invocation === 2) {
@@ -480,7 +486,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       return makeToolCallMessage("read_file", {
@@ -517,7 +523,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (invocation === 2) {
@@ -590,7 +596,7 @@ test.describe("workflow graph", () => {
       invocation += 1;
 
       if (invocation === 1) {
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (invocation === 2) {
@@ -675,7 +681,7 @@ test.describe("workflow graph", () => {
 
       if (invocation === 1) {
         // Supervisor routes to Obsidian
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       }
 
       if (!Array.isArray(input)) {
@@ -754,5 +760,41 @@ test.describe("workflow graph", () => {
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
+  });
+
+  test("routes a persisted runtime agent through Runtime_SG", async () => {
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake([
+      {
+        id: "daily-summary",
+        name: "Daily Summary",
+        description: "Summarize the user's day in plain language.",
+        systemPrompt: "You are a daily summary specialist.",
+        toolBundleIds: ["none"],
+        executor: "generic",
+        maxSteps: 4,
+        enabled: true,
+        createdAt: "2026-07-16T00:00:00.000Z",
+        updatedAt: "2026-07-16T00:00:00.000Z",
+      },
+    ]);
+
+    const connector = new FakeLLMConnector(() => ({ next: "daily-summary" }));
+    const runtimeModel = new FakeLLMConnector(() => new AIMessage("Here is your daily summary for today."));
+    const app = createWorkflowGraph(
+      connector,
+      runtimeModel,
+      connector,
+      makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-runtime-agent-vault"), runtimeAgentRepository),
+    );
+
+    const finalState = await app.invoke(
+      {
+        messages: [new HumanMessage("summarize my day")],
+      },
+      workflowConfig,
+    );
+
+    expect(finalState.context?.runtimeAgentId).toBe("daily-summary");
+    expect(finalState.messages.at(-1)?.content).toBe("Here is your daily summary for today.");
   });
 });

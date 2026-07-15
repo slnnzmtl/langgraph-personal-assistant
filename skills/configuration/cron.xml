@@ -1,6 +1,7 @@
 <skill name="cron" description="Manage cron scheduled jobs — list, create, and delete background schedules.">
 
-Valid target routes: `Finance_SG`, `Obsidian_SG`, `Config_SG`.
+Valid target routes: `finance`, `obsidian`, `configuration`.
+Legacy routes `Finance_SG`, `Obsidian_SG`, and `Config_SG` are still accepted for compatibility.
 
 <cron_intent_routing>
 1. LIST (list, view, inspect, show):
@@ -12,7 +13,7 @@ Valid target routes: `Finance_SG`, `Obsidian_SG`, `Config_SG`.
    - If the user requests a daily note schedule, use:
      - jobName: `daily-note`
      - schedule: `0 6 * * *`
-     - targetRoute: `Obsidian_SG`
+     - targetRoute: `obsidian`
      - payload: `Create my daily note`
 
 3. DELETE (remove, delete, cancel):

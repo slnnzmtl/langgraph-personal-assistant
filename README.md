@@ -11,26 +11,31 @@ graph TD
 
     subgraph RootGraph [Root LangGraph]
         Adapter --> Supervisor{Supervisor}
-        Supervisor --> Finance_SG[Finance Sub-Graph]
-        Supervisor --> Obsidian_SG[Obsidian Sub-Graph]
-        Supervisor --> Config_SG[Configuration Node]
-        Finance_SG --> Supervisor
-        Obsidian_SG --> Supervisor
-        Config_SG --> Supervisor
+        Supervisor --> Runtime_SG[Runtime Agent Dispatcher]
+        Runtime_SG --> Supervisor
         Supervisor --> Adapter
     end
 
-    Finance_SG <-->|MCP| Supabase[(Supabase)]
-    Finance_SG <-->|REST| Wise[Wise API]
-    Obsidian_SG <-->|Read / Write| Vault[(Obsidian Vault)]
+    subgraph RuntimePolicies [Runtime Policies]
+        Runtime_SG --> FinancePolicy[finance]
+        Runtime_SG --> ObsidianPolicy[obsidian]
+        Runtime_SG --> ConfigurationPolicy[configuration]
+        Runtime_SG --> GenericPolicy[generic agents]
+    end
+
+    FinancePolicy <-->|MCP| Supabase[(Supabase)]
+    FinancePolicy <-->|REST| Wise[Wise API]
+    ObsidianPolicy <-->|Read / Write| Vault[(Obsidian Vault)]
 ```
 
 | Component | Role |
 |---|---|
-| **Supervisor** | Intent routing via structured JSON output (`FINISH`, `Finance_SG`, `Obsidian_SG`, `Config_SG`) |
-| **Finance sub-graph** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
-| **Obsidian sub-graph** | Markdown vault read/write with multi-step tool loops (up to 8 steps per request) |
-| **Configuration node** | Cron job management and skill CRUD (create, edit, delete, preview) |
+| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a runtime agent id such as `finance`, `obsidian`, `configuration`, or a persisted custom agent) |
+| **Runtime dispatcher** | Selects a policy by the agent's `executor` and runs the matching sub-graph loop |
+| **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
+| **Obsidian policy** | Markdown vault read/write with multi-step tool loops (up to 8 steps per request) |
+| **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
+| **Generic policy** | User-created runtime agents with allowlisted tool bundles |
 | **Skills** | Reusable step-by-step playbooks in `skills/{owner}/` injected into agent prompts |
 | **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:` messages into the graph |
 
@@ -92,7 +97,7 @@ Without Supabase credentials the Finance sub-graph returns a configuration error
 
 ### Scheduler (optional)
 
-When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are loaded at startup and executed via synthetic `SYSTEM_CRON_TRIGGER:` messages. Jobs can target `Finance_SG`, `Obsidian_SG`, or `Config_SG`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
+When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are loaded at startup and executed via synthetic `SYSTEM_CRON_TRIGGER:` messages. Jobs should target runtime agent ids such as `finance`, `obsidian`, or `configuration` (legacy `Finance_SG`, `Obsidian_SG`, and `Config_SG` values are still accepted). Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
 ## Skills
 

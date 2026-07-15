@@ -7,7 +7,8 @@ import { buildCronTrigger } from "../../src/cron-triggers.js";
 import { createWorkflowGraph } from "../../src/agent.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
-import { FakeLLMConnector } from "../helpers/fakes.js";
+import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
@@ -19,6 +20,7 @@ const makeGraph = (
   financeHandler?: (input: any) => any,
   supabaseSession?: SupabaseMcpSession,
   configHandler?: (input: any) => any,
+  runtimeAgents?: ReturnType<typeof createRuntimeAgentRepositoryFake>,
 ) =>
   createWorkflowGraph(
     new FakeLLMConnector(supervisorHandler),
@@ -27,6 +29,7 @@ const makeGraph = (
     {
       obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
       cronJobRepository: createCronJobRepository(process.cwd(), path.relative(process.cwd(), makeCronJobsFilePath())),
+      runtimeAgentRepository: runtimeAgents ?? createRuntimeAgentRepositoryFake(),
       supabaseSession,
       configLlmConnector: new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup."))),
     },
@@ -84,7 +87,7 @@ describe("createWorkflowGraph", () => {
     let calls = 0;
     const app = makeGraph(() => {
       calls += 1;
-      return { next: "Finance_SG" };
+      return { next: "finance" };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
@@ -104,7 +107,7 @@ describe("createWorkflowGraph", () => {
     const app = makeGraph(
       () => {
         calls += 1;
-        return { next: "Finance_SG" };
+        return { next: "finance" };
       },
       undefined,
       undefined,
@@ -127,7 +130,7 @@ describe("createWorkflowGraph", () => {
     };
     let financeCalls = 0;
     const app = makeGraph(
-      () => ({ next: "Finance_SG" }),
+      () => ({ next: "finance" }),
       undefined,
       (input) => {
         financeCalls += 1;
@@ -166,7 +169,7 @@ describe("createWorkflowGraph", () => {
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "Obsidian_SG" };
+        return { next: "obsidian" };
       },
       () => new AIMessage("obsidian result"),
     );
@@ -182,7 +185,7 @@ describe("createWorkflowGraph", () => {
     let supervisorCalls = 0;
     const app = makeGraph(() => {
       supervisorCalls += 1;
-      return { next: "Config_SG" };
+      return { next: "configuration" };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("schedule a daily reminder")] }, threadConfig);
@@ -197,7 +200,7 @@ describe("createWorkflowGraph", () => {
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "Config_SG" };
+        return { next: "configuration" };
       },
       undefined,
       undefined,
@@ -228,7 +231,7 @@ describe("createWorkflowGraph", () => {
                 args: {
                   jobName: "daily-note",
                   schedule: "0 6 * * *",
-                  targetRoute: "Obsidian_SG",
+                  targetRoute: "obsidian",
                   payload: "Create my daily note",
                 },
                 id: "config-tool-1",
@@ -271,5 +274,42 @@ describe("createWorkflowGraph", () => {
 
     expect(supervisorCalls).toBe(0);
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed successfully");
+  });
+
+  it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
+    const runtimeAgents = createRuntimeAgentRepositoryFake([
+      ...buildDefaultRuntimeAgents(),
+      {
+        id: "daily-summary",
+        name: "Daily Summary",
+        description: "Summarize the user's day in plain language.",
+        systemPrompt: "You are a daily summary specialist.",
+        toolBundleIds: ["none"],
+        executor: "generic",
+        maxSteps: 4,
+        enabled: true,
+        createdAt: "2026-07-16T00:00:00.000Z",
+        updatedAt: "2026-07-16T00:00:00.000Z",
+      },
+    ]);
+
+    let supervisorCalls = 0;
+    const app = makeGraph(
+      () => {
+        supervisorCalls += 1;
+        return { next: "daily-summary" };
+      },
+      () => new AIMessage("Here is your daily summary."),
+      undefined,
+      undefined,
+      undefined,
+      runtimeAgents,
+    );
+
+    const state = await app.invoke({ messages: [new HumanMessage("summarize my day")] }, threadConfig);
+
+    expect(supervisorCalls).toBe(1);
+    expect(state.context?.runtimeAgentId).toBe("daily-summary");
+    expect(state.messages.at(-1)?.content).toContain("daily summary");
   });
 });

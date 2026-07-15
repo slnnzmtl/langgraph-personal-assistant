@@ -5,6 +5,8 @@ import type { AppConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createLazyCron, startCron } from "./cron/cron-startup.js";
 import { createCronJobRepositoryForConfig } from "./cron/cron-job-repository.js";
+import { createRuntimeAgentRepositoryForConfig } from "./runtime-agents/repository.js";
+import { ensureBuiltinRuntimeAgents } from "./runtime-agents/bootstrap.js";
 import { setupSupabaseSession } from "./services/supabase.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { TelegramFileSender } from "./telegram/file-sender.js";
@@ -24,12 +26,18 @@ export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp
 
   const supabaseSession = await setupSupabaseSession(config);
   const cronJobRepository = createCronJobRepositoryForConfig(config.cronJobsFilePath);
+  const runtimeAgentRepository = createRuntimeAgentRepositoryForConfig(config.runtimeAgentsFilePath);
   const fileSender = new TelegramFileSender(bot.telegram);
   const lazyCron = createLazyCron();
+
+  await ensureBuiltinRuntimeAgents(runtimeAgentRepository, {
+    financeAvailable: supabaseSession !== undefined,
+  });
 
   const graph = createWorkflowGraph(supervisorConnector, obsidianConnector, financeConnector, {
     obsidianVaultPath: config.obsidianVaultPath,
     cronJobRepository,
+    runtimeAgentRepository,
     runtimeCron: lazyCron,
     fileSender,
     ...(supabaseSession ? { supabaseSession } : {}),
