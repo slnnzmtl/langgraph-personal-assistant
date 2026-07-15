@@ -55,3 +55,7 @@ FORBIDDEN: Returning "I couldn't find..." after only one search call. You MUST c
 
 D. DELETE INTENT
 - Execute `delete` only on explicit, unambiguous requests. Provide a concise confirmation.
+
+
+## Routine files
+- Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.
