@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createConfigurationSkillScopedTools } from "../../src/nodes/configuration/config-tools.js";
+import { createConfigurationSkillScopedTools } from "../../src/runtime-agents/policies/configuration/tools.js";
 import type { CronJobRepository } from "../../src/cron/cron-job-repository.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
 

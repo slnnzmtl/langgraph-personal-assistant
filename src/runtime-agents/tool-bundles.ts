@@ -1,8 +1,8 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import { createFinanceDomainToolsFromSession } from "../nodes/finance/runtime-tools.js";
-import { createObsidianVaultTools } from "../nodes/obsidian/tools.js";
+import { createFinanceDomainToolsFromSession } from "./policies/finance/domain-tools.js";
+import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 import {
   RUNTIME_TOOL_BUNDLE_IDS,

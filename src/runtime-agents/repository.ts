@@ -116,6 +116,10 @@ export const createRuntimeAgentRepository = (
 
     validateUniqueAgentId(agents, id);
 
+    if (parsed.executor && parsed.executor !== "generic") {
+      throw new Error("Only generic runtime agents can be created through the configuration API.");
+    }
+
     const timestamp = new Date().toISOString();
     const nextAgent: RuntimeAgentDefinition = {
       id,
@@ -123,7 +127,7 @@ export const createRuntimeAgentRepository = (
       description: parsed.description.trim(),
       systemPrompt: parsed.systemPrompt.trim(),
       toolBundleIds: parsed.toolBundleIds,
-      executor: parsed.executor ?? "generic",
+      executor: "generic",
       maxSteps: parsed.maxSteps ?? 8,
       enabled: parsed.enabled ?? true,
       createdAt: timestamp,
@@ -144,13 +148,23 @@ export const createRuntimeAgentRepository = (
     }
 
     const current = agents[index]!;
+    const isBuiltin = isBuiltinRuntimeAgentId(id);
+
+    if (isBuiltin && parsed.executor !== undefined && parsed.executor !== current.executor) {
+      throw new Error(`Cannot change executor for built-in runtime agent: ${id}`);
+    }
+
+    if (isBuiltin && parsed.systemPrompt !== undefined) {
+      throw new Error(`Cannot change system prompt for built-in runtime agent: ${id}`);
+    }
+
     const updated: RuntimeAgentDefinition = {
       ...current,
       ...(parsed.name !== undefined ? { name: parsed.name.trim() } : {}),
       ...(parsed.description !== undefined ? { description: parsed.description.trim() } : {}),
-      ...(parsed.systemPrompt !== undefined ? { systemPrompt: parsed.systemPrompt.trim() } : {}),
-      ...(parsed.toolBundleIds !== undefined ? { toolBundleIds: parsed.toolBundleIds } : {}),
-      ...(parsed.executor !== undefined ? { executor: parsed.executor } : {}),
+      ...(parsed.systemPrompt !== undefined && !isBuiltin ? { systemPrompt: parsed.systemPrompt.trim() } : {}),
+      ...(parsed.toolBundleIds !== undefined && !isBuiltin ? { toolBundleIds: parsed.toolBundleIds } : {}),
+      ...(parsed.executor !== undefined && !isBuiltin ? { executor: parsed.executor } : {}),
       ...(parsed.maxSteps !== undefined ? { maxSteps: parsed.maxSteps } : {}),
       ...(parsed.enabled !== undefined ? { enabled: parsed.enabled } : {}),
       updatedAt: new Date().toISOString(),

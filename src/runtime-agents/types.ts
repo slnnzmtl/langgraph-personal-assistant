@@ -6,6 +6,10 @@ export const BUILTIN_RUNTIME_AGENT_IDS = ["finance", "obsidian", "configuration"
 
 export type BuiltinRuntimeAgentId = (typeof BUILTIN_RUNTIME_AGENT_IDS)[number];
 
+export const BUILTIN_PROMPT_SOURCE_KEYS = BUILTIN_RUNTIME_AGENT_IDS;
+
+export type BuiltinPromptSourceKey = BuiltinRuntimeAgentId;
+
 export const RUNTIME_AGENT_EXECUTORS = [
   "generic",
   "finance",
@@ -33,11 +37,14 @@ export const LEGACY_ROUTE_TO_AGENT_ID: Record<string, BuiltinRuntimeAgentId> = {
   Config_SG: "configuration",
 };
 
+const BuiltinPromptSourceKeySchema = z.enum(BUILTIN_PROMPT_SOURCE_KEYS);
+
 export const RuntimeAgentDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
+  promptSourceKey: BuiltinPromptSourceKeySchema.optional(),
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
   executor: RuntimeAgentExecutorSchema.default("generic"),
   maxSteps: z.number().int().min(1).max(20).default(8),

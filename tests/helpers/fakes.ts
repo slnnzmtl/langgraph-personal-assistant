@@ -5,7 +5,12 @@ import type { z } from "zod";
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
 import type { RuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import type { RuntimeAgentDefinition } from "../../src/runtime-agents/types.js";
+import { createRuntimeAgentExecutionContext } from "../../src/runtime-agents/execution-context.js";
+import type {
+  BuiltinRuntimeAgentId,
+  RuntimeAgentDefinition,
+} from "../../src/runtime-agents/types.js";
+import type { CronJobRepository } from "../../src/cron/types.js";
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -117,4 +122,39 @@ export const createRuntimeAgentRepositoryFake = (
 
 export const defaultConfigurationBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
+};
+
+export const getBuiltinRuntimeAgentDefinition = (
+  id: BuiltinRuntimeAgentId,
+): RuntimeAgentDefinition => {
+  const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
+
+  if (!definition) {
+    throw new Error(`Built-in runtime agent not found: ${id}`);
+  }
+
+  return definition;
+};
+
+export const createRuntimeExecutionContextFake = (options?: {
+  repository?: RuntimeAgentRepository;
+  cronJobRepository?: CronJobRepository;
+  llmConnector?: FakeLLMConnector;
+  obsidianVaultPath?: string;
+}) => {
+  const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
+  const model = llmConnector.getModel();
+
+  return createRuntimeAgentExecutionContext({
+    genericModel: model,
+    financeModel: model,
+    obsidianLlmConnector: llmConnector,
+    configurationModel: model,
+    repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
+    cronJobRepository: options?.cronJobRepository ?? {
+      loadJobs: async () => [],
+      saveJobs: async () => {},
+    },
+    obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
+  });
 };

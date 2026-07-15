@@ -1,5 +1,6 @@
 import type { RuntimeAgentRepository } from "./repository.js";
 import { buildDefaultRuntimeAgents } from "./defaults.js";
+import { resolveBuiltinPromptSource } from "./prompt-resolver.js";
 import {
   isBuiltinRuntimeAgentId,
   type RuntimeAgentDefinition,
@@ -29,6 +30,10 @@ export const mergeRuntimeAgents = (
         maxSteps: agent.maxSteps,
         enabled: agent.enabled,
         updatedAt: agent.updatedAt,
+        systemPrompt: resolveBuiltinPromptSource(agent.id),
+        promptSourceKey: agent.id,
+        executor: defaultAgent.executor,
+        toolBundleIds: defaultAgent.toolBundleIds,
       });
       continue;
     }

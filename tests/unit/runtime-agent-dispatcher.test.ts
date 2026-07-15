@@ -1,17 +1,17 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createRuntimeAgentDispatcher } from "../../src/nodes/runtime-agent/graph.js";
+import { createRuntimeAgentDispatcher } from "../../src/runtime-agents/dispatch.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/runtime-agents/types.js";
-import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+import {
+  FakeLLMConnector,
+  createRuntimeAgentRepositoryFake,
+  createRuntimeExecutionContextFake,
+} from "../helpers/fakes.js";
 
 describe("createRuntimeAgentDispatcher", () => {
   it("rejects dispatch when no runtime agent id is present in context", async () => {
-    const dispatcher = createRuntimeAgentDispatcher({
-      model: new FakeLLMConnector(() => new AIMessage("unused")).getModel(),
-      repository: createRuntimeAgentRepositoryFake(),
-      obsidianVaultPath: "/tmp/pa-unit-vault",
-    });
+    const dispatcher = createRuntimeAgentDispatcher(createRuntimeExecutionContextFake());
 
     const result = await dispatcher({
       messages: [new HumanMessage("hello")],
@@ -38,11 +38,10 @@ describe("createRuntimeAgentDispatcher", () => {
       },
     ]);
 
-    const dispatcher = createRuntimeAgentDispatcher({
-      model: new FakeLLMConnector(() => new AIMessage("unused")).getModel(),
+    const dispatcher = createRuntimeAgentDispatcher(createRuntimeExecutionContextFake({
       repository,
-      obsidianVaultPath: "/tmp/pa-unit-vault",
-    });
+      llmConnector: new FakeLLMConnector(() => new AIMessage("unused")),
+    }));
 
     const result = await dispatcher({
       messages: [new HumanMessage("hello")],
@@ -69,11 +68,10 @@ describe("createRuntimeAgentDispatcher", () => {
       },
     ]);
 
-    const dispatcher = createRuntimeAgentDispatcher({
-      model: new FakeLLMConnector(() => new AIMessage("Here is your daily summary.")).getModel(),
+    const dispatcher = createRuntimeAgentDispatcher(createRuntimeExecutionContextFake({
       repository,
-      obsidianVaultPath: "/tmp/pa-unit-vault",
-    });
+      llmConnector: new FakeLLMConnector(() => new AIMessage("Here is your daily summary.")),
+    }));
 
     const result = await dispatcher({
       messages: [new HumanMessage("summarize my day")],
