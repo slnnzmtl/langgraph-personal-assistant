@@ -25,10 +25,10 @@ const reconcileRuntimeCron = async (
 
   const persistedJobs = await repository.loadJobs();
   const persistedJobsByName = new Map(persistedJobs.map((job) => [job.jobName, job]));
-  const activeJobsByName = new Map(runtimeCron.listActiveJobs().map((job) => [job.jobName, job]));
+  const activeJobsByName = new Map(runtimeCron.listActiveJobs().map((job: CronJobDefinition) => [job.jobName, job]));
 
   for (const [jobName] of activeJobsByName) {
-    if (!persistedJobsByName.has(jobName)) {
+    if (!persistedJobsByName.has(jobName as string)) {
       await runtimeCron.removeJob(jobName);
     }
   }
