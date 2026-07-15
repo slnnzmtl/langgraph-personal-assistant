@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createCronConfigTools } from "../../src/nodes/configurator/config-tools.js";
+import { createCronConfigTools } from "../../src/nodes/configuration/config-tools.js";
 import type { CronJobRepository } from "../../src/cron/cron-job-repository.js";
 
 const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRepository => {

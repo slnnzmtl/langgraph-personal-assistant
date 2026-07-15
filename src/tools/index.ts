@@ -3,7 +3,7 @@ export {
   createSkillCrudTools,
   ReadSkillToolSchema,
   ListSkillsToolSchema,
-  ConfiguratorReadSkillToolSchema,
+  ConfigurationReadSkillToolSchema,
   PreviewSkillToolSchema,
   CreateSkillToolSchema,
   EditSkillToolSchema,

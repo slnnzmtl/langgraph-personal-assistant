@@ -103,10 +103,10 @@ skills/
   finance/
     sync-expenses.md
   obsidian/
-  configurator/
+  configuration/
 ```
 
-Each skill file requires `name` and `description` in frontmatter. Agent prompts automatically list available skills for their domain and expose `read_skill` (execution agents) or full CRUD tools (configurator). The finance `sync-expenses` skill drives the Wise → categorize → dedup-insert pipeline.
+Each skill file requires `name` and `description` in frontmatter. Agent prompts automatically list available skills for their domain and expose `read_skill` (execution agents) or full CRUD tools (configuration). The finance `sync-expenses` skill drives the Wise → categorize → dedup-insert pipeline.
 
 ## System prompts
 
@@ -117,7 +117,7 @@ Prompt sources of truth live under `prompts/`:
 | Supervisor | `prompts/supervisor.xml` |
 | Obsidian | `prompts/obsidian.xml` |
 | Finance | `prompts/finance.xml` |
-| Configurator | `prompts/configurator.md` |
+| Configuration | `prompts/configuration.md` |
 
 Prompts are read from disk on each invocation, so edits take effect without restarting the process during local development.
 
@@ -170,7 +170,7 @@ src/
     supervisor-node.ts  # Intent router
     finance/            # Finance sub-graph
     obsidian/           # Obsidian sub-graph
-    configurator/       # Cron + skill management
+    configuration/       # Cron + skill management
   prompts/              # Prompt and skill loading
   cron/                 # Scheduler bootstrap and runner
   tools/                # Shared tools (skills, routing)

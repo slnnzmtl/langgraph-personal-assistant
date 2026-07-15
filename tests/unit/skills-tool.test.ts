@@ -18,7 +18,7 @@ const createCrudTools = (rootDir: string) => {
   const ownerDirs = new Map<SkillOwner, string>([
     ["finance", path.join(rootDir, "finance")],
     ["obsidian", path.join(rootDir, "obsidian")],
-    ["configurator", path.join(rootDir, "configurator")],
+    ["configuration", path.join(rootDir, "configuration")],
   ]);
 
   return createSkillCrudTools({
@@ -171,7 +171,7 @@ describe("createSkillCrudTools", () => {
 
     const createResult = String(
       await createTool!.invoke({
-        owner: "configurator",
+        owner: "configuration",
         name: "manage-cron",
         description: "Manage cron jobs",
         content: "# Cron",
@@ -181,7 +181,7 @@ describe("createSkillCrudTools", () => {
 
     const editResult = String(
       await editTool!.invoke({
-        owner: "configurator",
+        owner: "configuration",
         name: "manage-cron",
         description: "Manage cron and schedules",
         content: "# Updated cron",
@@ -189,15 +189,15 @@ describe("createSkillCrudTools", () => {
     );
     expect(editResult).toContain("Updated skill manage-cron");
 
-    const readResult = String(await readTool!.invoke({ owner: "configurator", name: "manage-cron" }));
+    const readResult = String(await readTool!.invoke({ owner: "configuration", name: "manage-cron" }));
     expect(readResult).toContain("description: Manage cron and schedules");
     expect(readResult).toContain("# Updated cron");
 
     const deleteResult = String(
-      await deleteTool!.invoke({ owner: "configurator", name: "manage-cron" }),
+      await deleteTool!.invoke({ owner: "configuration", name: "manage-cron" }),
     );
     expect(deleteResult).toContain("Deleted skill manage-cron");
-    expect(() => readFileSync(path.join(tempRoot, "configurator", "manage-cron.md"), "utf8")).toThrow();
+    expect(() => readFileSync(path.join(tempRoot, "configuration", "manage-cron.md"), "utf8")).toThrow();
   });
 
   it("returns errors for duplicate create and missing delete", async () => {

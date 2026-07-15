@@ -151,7 +151,7 @@ export const loadObsidianSystemPrompt = (): string =>
 
 export const loadFinanceSystemPrompt = (): string => loadDatedPrompt("finance", "xml");
 
-export const loadConfiguratorSystemPrompt = (): string => loadDatedPrompt("configurator");
+export const loadConfigurationSystemPrompt = (): string => loadDatedPrompt("configuration");
 
 export const createPromptLoader = (
   key: string,

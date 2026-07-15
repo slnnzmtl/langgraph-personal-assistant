@@ -4,7 +4,7 @@ import { AIMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createConfigurationNode, createCronConfigTools } from "./nodes/configurator/index.js";
+import { createConfigurationNode, createCronConfigTools } from "./nodes/configuration/index.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";

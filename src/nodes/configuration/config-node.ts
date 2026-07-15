@@ -4,7 +4,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
-import { loadConfiguratorSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { loadConfigurationSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
@@ -95,7 +95,7 @@ export const createConfigurationNode = (
         return { messages: [new AIMessage(readOnlySkillToolResult)] };
       }
 
-      const systemInstructions = new SystemMessage(loadConfiguratorSystemPrompt());
+      const systemInstructions = new SystemMessage(loadConfigurationSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
 
       await logSystemPromptInvocation("configurator-system-prompt", promptMessages);

@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createConfigurationNode } from "../../src/nodes/configurator/config-node.js";
-import { createCronConfigTools } from "../../src/nodes/configurator/config-tools.js";
+import { createConfigurationNode } from "../../src/nodes/configuration/config-node.js";
+import { createCronConfigTools } from "../../src/nodes/configuration/config-tools.js";
 
 const createRepository = () => {
   const jobs = [

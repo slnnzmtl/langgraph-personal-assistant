@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createPromptLoader,
   getSkillsDir,
-  loadConfiguratorSystemPrompt,
+  loadConfigurationSystemPrompt,
   loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
   loadPrompt,
@@ -57,15 +57,15 @@ describe("named prompt loaders", () => {
     }
   });
 
-  it("loads the configurator prompt from prompts/configurator.md", () => {
-    const prompt = loadConfiguratorSystemPrompt();
+  it("loads the configuration prompt from prompts/configuration.md", () => {
+    const prompt = loadConfigurationSystemPrompt();
 
     expect(prompt).toContain("If the user requests a daily note schedule");
     expect(prompt).toContain("in 5 minutes");
     expect(prompt).toContain("Call `list_cron_jobs()` only");
     expect(prompt).toContain("Call `list_skills(owner)` only");
     expect(prompt).toContain("Call `preview_skill(owner, name)` only");
-    expect(prompt).toContain("Valid skill owners: `finance`, `obsidian`, `configurator`");
+    expect(prompt).toContain("Valid skill owners: `finance`, `obsidian`, `configuration`");
   });
 });
 

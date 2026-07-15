@@ -14,7 +14,7 @@ import {
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
 import { truncateToolOutput } from "./output.js";
 
-export const SKILL_OWNERS = ["finance", "obsidian", "configurator"] as const;
+export const SKILL_OWNERS = ["finance", "obsidian", "configuration"] as const;
 export type SkillOwner = (typeof SKILL_OWNERS)[number];
 
 const SkillOwnerSchema = z.enum(SKILL_OWNERS);
@@ -24,35 +24,35 @@ export const ReadSkillToolSchema = z.object({
 });
 
 export const ListSkillsToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
 });
 
-export const ConfiguratorReadSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+export const ConfigurationReadSkillToolSchema = z.object({
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
 });
 
 export const PreviewSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().describe("The name of the skill to preview (e.g., 'sync-expenses')"),
 });
 
 export const CreateSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The skill name used in frontmatter and as the filename"),
   description: z.string().min(1).describe("Short description shown in available skills lists"),
   content: z.string().min(1).describe("Full markdown body for the skill"),
 });
 
 export const EditSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The existing skill name to update"),
   description: z.string().min(1).describe("Replacement description for the skill"),
   content: z.string().min(1).describe("Replacement markdown body for the skill"),
 });
 
 export const DeleteSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configurator')"),
+  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The skill name to delete"),
 });
 
@@ -148,7 +148,7 @@ export const createSkillCrudTools = (
   );
 
   const readSkillTool = tool(
-    async (input: z.infer<typeof ConfiguratorReadSkillToolSchema>) => {
+    async (input: z.infer<typeof ConfigurationReadSkillToolSchema>) => {
       try {
         const skillsDir = resolveSkillsDir(input.owner);
         return formatSkillPreview(skillsDir, input.name);
@@ -164,7 +164,7 @@ export const createSkillCrudTools = (
       name: "read_skill",
       description:
         "Load the full skill file for a named owner and skill before editing it.",
-      schema: ConfiguratorReadSkillToolSchema,
+      schema: ConfigurationReadSkillToolSchema,
     },
   );
 
