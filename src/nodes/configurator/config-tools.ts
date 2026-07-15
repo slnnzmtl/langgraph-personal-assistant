@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import type { CronJobRepository } from "../../cron/cron-job-repository.js";
 import type { CronJobDefinition } from "../../cron/cron-launcher.js";
-import { isSchedulerTargetRoute } from "../../cron/cron-launcher.js";
+import { isSchedulerTargetRoute } from "../../cron/protocol.js";
 import { createReadSkillTool } from "../../tools/read-skill.js";
 
 const CreateCronJobToolSchema = z.object({

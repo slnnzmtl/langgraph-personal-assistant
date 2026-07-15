@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HumanMessage } from "@langchain/core/messages";
 
+import { setupCron } from "../../src/cron/cron-launcher.js";
 import {
   buildSchedulerTriggerForJob,
   isSchedulerTargetRoute,
   resolveSchedulerTriggerRoute,
-  setupCron,
   SUPERVISE_SCHEDULER_ROUTE,
-} from "../../src/cron/cron-launcher.js";
+} from "../../src/cron/protocol.js";
 
 describe("setupCron", () => {
   it("accepts the main supervisor as a cron target", () => {

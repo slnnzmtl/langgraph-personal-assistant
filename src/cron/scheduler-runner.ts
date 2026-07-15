@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage }
 import { randomUUID } from "node:crypto";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { extractMessageTextContent } from "../nodes/message-history.js";
+import { extractMessageTextContent } from "../utils/message-content.js";
 
 export type SchedulerJobRun = {
   jobName: string;

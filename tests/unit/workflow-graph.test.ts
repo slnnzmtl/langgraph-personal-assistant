@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSchedulerTrigger } from "../../src/cron/cron-launcher.js";
+import { buildSchedulerTrigger } from "../../src/cron/protocol.js";
 import { createWorkflowGraph } from "../../src/agent.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
