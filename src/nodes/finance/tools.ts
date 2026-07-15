@@ -1,10 +1,13 @@
 import { StructuredToolInterface, tool } from "@langchain/core/tools";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
-import { serializeToolResult, truncateToolOutput } from "../../tools/output.js";
+import { minimizeJsonString, serializeToolResult, truncateToolOutput } from "../../tools/output.js";
 import { createReadSkillTool } from "../../tools/read-skill.js";
+import { createSkillActionRegistry, registerSkillActions } from "../../tools/skill-actions.js";
 import { z } from "zod";
 import { fetchWiseTransactions } from "../../services/wise/index.js";
+
+const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
 export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredToolInterface[] => {
   const execSql = tool(
@@ -51,7 +54,7 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
   const getCategories = tool(
     async () => {
       try {
-        const result = await mcpSession.executeSql("SELECT id, name, note FROM public.category;");
+        const result = await mcpSession.executeSql(CATEGORY_QUERY);
         const normalizedResult = normalizeToolOutput(result);
         return truncateToolOutput(serializeToolResult(normalizedResult));
       } catch (error) {
@@ -61,10 +64,22 @@ export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredTo
     },
     {
       name: "get_categories",
-      description: "Fetch all expense categories from the database. Always call this before syncing or classifying expenses.",
+      description: "Fetch all expense categories",
       schema: z.object({}),
     }
   );
 
-  return [execSql, fetchWise, getCategories, createReadSkillTool("finance", "xml")];
+  const skillActionRegistry = createSkillActionRegistry();
+  registerSkillActions(skillActionRegistry, "finance", "sync-expenses", [
+    {
+      label: "expense_categories",
+      run: async () => {
+        const result = await mcpSession.executeSql(CATEGORY_QUERY);
+        const normalizedResult = normalizeToolOutput(result);
+        return minimizeJsonString(normalizedResult);
+      },
+    },
+  ]);
+
+  return [execSql, fetchWise, getCategories, createReadSkillTool("finance", "xml", { actionRegistry: skillActionRegistry })];
 };

@@ -100,7 +100,7 @@ describe("finance tools", () => {
 
   it("exposes read_skill from the shared skills tool factory", async () => {
     const session: SupabaseMcpSession = {
-      executeSql: vi.fn(),
+      executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
     const readSkillTool = createFinanceTools(session).find((tool) => tool.name === "read_skill");
@@ -109,6 +109,24 @@ describe("finance tools", () => {
 
     const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
     expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("<skill_context>");
+    expect(result).toContain("expense_categories:");
+    expect(result).toContain('"name":"Food"');
+    expect(session.executeSql).toHaveBeenCalledWith("SELECT id, name, note FROM public.category;");
+  });
+
+  it("returns sync-expenses skill content when category enrichment fails", async () => {
+    const session: SupabaseMcpSession = {
+      executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
+      close: vi.fn(),
+    };
+    const readSkillTool = createFinanceTools(session).find((tool) => tool.name === "read_skill");
+
+    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
+
+    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("action_error expense_categories:");
+    expect(result).toContain("database unavailable");
   });
 
 

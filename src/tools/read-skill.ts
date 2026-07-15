@@ -3,15 +3,21 @@ import { z } from "zod";
 
 import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import { listSkills, readSkillContent } from "../prompts/skills-loader.js";
+import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
 import { truncateToolOutput } from "./output.js";
 
 export const ReadSkillToolSchema = z.object({
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
 });
 
+export type ReadSkillToolOptions = {
+  actionRegistry?: SkillActionRegistry;
+};
+
 export const createReadSkillTool = (
   promptKey: string,
   fileType: "md" | "xml" = "md",
+  options?: ReadSkillToolOptions,
 ): StructuredToolInterface =>
   tool(
     async (input: z.infer<typeof ReadSkillToolSchema>) => {
@@ -19,7 +25,13 @@ export const createReadSkillTool = (
 
       try {
         const content = readSkillContent(skillsDir, input.name);
-        return truncateToolOutput(content);
+        const enriched = await enrichSkillWithActions({
+          content,
+          promptKey,
+          skillName: input.name,
+          ...(options?.actionRegistry ? { actionRegistry: options.actionRegistry } : {}),
+        });
+        return truncateToolOutput(enriched);
       } catch (error) {
         const availableSkills = listSkills(skillsDir);
         const skillNames = availableSkills.map((skill) => skill.name).join(", ");
