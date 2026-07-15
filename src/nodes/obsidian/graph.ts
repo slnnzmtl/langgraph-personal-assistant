@@ -3,9 +3,10 @@ import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { AgentState, AgentStateUpdate } from "../../state.js";
+import type { AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
+import { createSubgraphNodeWrapper } from "../subgraph-wrapper.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createObsidianNode, createObsidianTools } from "./index.js";
 
@@ -81,15 +82,14 @@ export const createObsidianSubgraphWrapper = (
 ) => {
   const compiledSubgraph = createCompiledObsidianSubgraph(llmConnector, vaultRoot, fileSender);
 
-  return async (parentState: AgentState): Promise<AgentStateUpdate> => {
-    try {
-      const obsidianStateInput: ObsidianSubgraphState = {
-        messages: parentState.messages,
-        obsidianStepCount: 0,
-      };
-
-      const result = await compiledSubgraph.invoke(obsidianStateInput);
-
+  return createSubgraphNodeWrapper<ObsidianSubgraphState>({
+    subgraphName: "Obsidian",
+    buildInitialState: (parentState) => ({
+      messages: parentState.messages,
+      obsidianStepCount: 0,
+    }),
+    compiledSubgraph,
+    mapResult: (result): AgentStateUpdate => {
       if (result.obsidianStepCount >= OBSIDIAN_MAX_STEPS) {
         return {
           messages: [new AIMessage(`Unable to edit the local markdown vault: exceeded the maximum of ${OBSIDIAN_MAX_STEPS} Obsidian tool steps.`)],
@@ -100,11 +100,6 @@ export const createObsidianSubgraphWrapper = (
       return {
         messages: [lastMessage as AIMessage],
       };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      return {
-        messages: [new AIMessage(`Obsidian sub-graph failed: ${message}`)],
-      };
-    }
-  };
+    },
+  });
 };

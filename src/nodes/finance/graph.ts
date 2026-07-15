@@ -1,12 +1,11 @@
-import { AIMessage } from "@langchain/core/messages";
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import type { AgentState, AgentStateUpdate } from "../../state.js";
+import { createSubgraphNodeWrapper } from "../subgraph-wrapper.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
-import { createFinanceNode, FinanceStateAnnotation, createFinanceTools } from "./index.js";
+import { createFinanceNode, FinanceStateAnnotation, createFinanceTools, type FinanceState } from "./index.js";
 
 export const FINANCE_MAX_STEPS = 10;
 
@@ -53,25 +52,12 @@ export const createFinanceSubgraphWrapper = (session: SupabaseMcpSession, model:
   const tools = createFinanceTools(session);
   const compiledSubgraph = createCompiledFinanceSubgraph(model, tools);
 
-  return async (parentState: AgentState): Promise<AgentStateUpdate> => {
-    try {
-      const financeStateInput = {
-        messages: parentState.messages,
-        financeStepCount: 0,
-      };
-
-      const result = await compiledSubgraph.invoke(financeStateInput);
-
-      const lastMessage = result.messages[result.messages.length - 1];
-
-      return {
-        messages: [lastMessage as AIMessage],
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      return {
-        messages: [new AIMessage(`Finance sub-graph failed: ${message}`)],
-      };
-    }
-  };
+  return createSubgraphNodeWrapper<FinanceState>({
+    subgraphName: "Finance",
+    buildInitialState: (parentState) => ({
+      messages: parentState.messages,
+      financeStepCount: 0,
+    }),
+    compiledSubgraph,
+  });
 };
