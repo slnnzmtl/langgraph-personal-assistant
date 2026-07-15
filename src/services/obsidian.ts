@@ -6,7 +6,7 @@ import {
   resolveSafePath,
   searchFilesByContent,
   writeTextFile,
-} from "../utils/file-system.js";
+} from "../mcp/file-system.js";
 
 // Active schema validation
 const RelativePathSchema = z
