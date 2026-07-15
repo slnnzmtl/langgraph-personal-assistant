@@ -1,5 +1,5 @@
 import { AIMessage } from "@langchain/core/messages";
-import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import { END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
@@ -37,8 +37,7 @@ export const createCompiledFinanceSubgraph = (model: BaseChatModel, tools: Retur
     })
     .addEdge("tools", "llm");
 
-  const memory = new MemorySaver();
-  return graph.compile({ checkpointer: memory, name: "finance-subgraph" });
+  return graph.compile({ name: "finance-subgraph" });
 };
 
 /**

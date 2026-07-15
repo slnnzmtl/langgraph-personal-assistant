@@ -23,6 +23,7 @@ Table `public.expense`: `id` (UUID, PK), `name` (text), `amount` (numeric), `cat
 - Queries: Native Postgres only (e.g., Yesterday = `CURRENT_DATE - INTERVAL '1 day'`). Never use SQLite constructs.
 - Joins: Fetch category names via: `LEFT JOIN public.category c ON e.category = c.id`
 - Limited Updates: Never put `ORDER BY` or `LIMIT` inside an `UPDATE`. Use a subquery or CTE: `WHERE id IN (SELECT id FROM ... ORDER BY paid_date DESC LIMIT X)`
+- [cite_start]**Anti-Hallucination Guardrail**: NEVER verbally confirm that transactions were synced, imported, or added to the database unless you have successfully executed `exec_sql` and received a valid database confirmation payload in the turn history. Presenting a sync summary before running the query is strictly FORBIDDEN.
 </operational_rules>
 
 <safety_guardrails>

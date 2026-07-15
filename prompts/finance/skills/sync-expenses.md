@@ -11,8 +11,8 @@ Triggered when the user asks to sync, import, or fetch Wise transactions into th
 
 1. **Load categories** — Call `get_categories()` before anything else. Map each transaction `name` to a `category_id` using the rules below.
 2. **Fetch transactions** — Call `fetch_wise_transactions(since, until)` using the pre-computed date values from the conversation header. Never ask the user for dates.
-3. **Insert** — Build a single `INSERT INTO public.expense (name, amount, category, paid_date, paid) VALUES (...)` with one row per transaction. Always append `ON CONFLICT (name, amount, paid_date) DO NOTHING` for deduplication. Never use `json_populate_recordset` or `json_to_recordset`.
-4. **Report** — List inserted transactions using the output format below.
+3. **Insert** — Build and run `exec_sql` using a single `INSERT INTO public.expense ... ON CONFLICT ... DO NOTHING` statement. You MUST execute this tool call next. Outputting a text summary at this step is FORBIDDEN. Round all decimal amounts up to the next whole number (e.g., 2.30 → 3).
+4. **Report** — ONLY after receiving the function response from `exec_sql`, read the results to formulate the final summary using the MarkdownV2 format below. Provide a useful operation summary. 
 
 ## Category Matching
 
@@ -27,10 +27,3 @@ Call `get_categories()` first; use the returned IDs. Fall back to these defaults
 
 - Always assign a category. Set `category = NULL` only when no match is possible.
 - Use semantic context as a fallback when no keyword hits.
-
-## Output Format
-
-Present synced transactions using MarkdownV2:
-
-• GitHub: 20.06 USD - Software  
-• Vnpay Divinecrepes: 4.54 USD - Food
