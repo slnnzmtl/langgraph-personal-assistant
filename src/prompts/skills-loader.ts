@@ -10,6 +10,15 @@ export interface SkillMeta {
   fileName: string;
 }
 
+export type SkillDisplayStatus = "Created" | "Updated" | "Deleted" | "Listed" | "Previewed" | "Read";
+
+export type SkillFileType = "md" | "xml";
+
+export const SKILL_FILE_EXTENSIONS: Record<SkillFileType, string> = {
+  md: ".md",
+  xml: ".xml",
+};
+
 /**
  * Result of parsing frontmatter from raw markdown.
  */
@@ -17,6 +26,64 @@ interface FrontmatterResult {
   data: Record<string, string>;
   body: string;
 }
+
+export const getSkillFileType = (fileName: string): SkillFileType | undefined => {
+  if (fileName.endsWith(".xml")) {
+    return "xml";
+  }
+
+  if (fileName.endsWith(".md")) {
+    return "md";
+  }
+
+  return undefined;
+};
+
+const escapeXmlAttr = (value: string): string =>
+  value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+
+/**
+ * Parse a skill XML file with metadata on the root <skill> element.
+ */
+export const parseXmlSkill = (raw: string): FrontmatterResult => {
+  const trimmed = raw.trim();
+  const openTagMatch = trimmed.match(/^<skill\s+([^>]+)>/s);
+
+  if (!openTagMatch) {
+    return { data: {}, body: trimmed };
+  }
+
+  const attrs = openTagMatch[1] ?? "";
+  const nameMatch = attrs.match(/name=["']([^"']+)["']/);
+  const descriptionMatch = attrs.match(/description=["']([^"']+)["']/);
+
+  let body = trimmed.slice(openTagMatch[0].length);
+  const closeTagIndex = body.lastIndexOf("</skill>");
+  if (closeTagIndex >= 0) {
+    body = body.slice(0, closeTagIndex);
+  }
+
+  const data: Record<string, string> = {};
+  if (nameMatch?.[1]) {
+    data.name = nameMatch[1];
+  }
+  if (descriptionMatch?.[1]) {
+    data.description = descriptionMatch[1];
+  }
+
+  return { data, body: body.trim() };
+};
+
+/**
+ * Parse a skill file based on its extension.
+ */
+export const parseSkillFile = (raw: string, fileName: string): FrontmatterResult => {
+  if (getSkillFileType(fileName) === "xml") {
+    return parseXmlSkill(raw);
+  }
+
+  return parseFrontmatter(raw);
+};
 
 /**
  * Parse a leading YAML frontmatter block (---\nkey: value\n---).
@@ -70,13 +137,15 @@ export const listSkills = (skillsDir: string): SkillMeta[] => {
     return [];
   }
 
-  const files = readdirSync(skillsDir).filter((f) => f.endsWith(".md"));
+  const files = readdirSync(skillsDir).filter(
+    (fileName) => fileName.endsWith(".md") || fileName.endsWith(".xml"),
+  );
   const skills: SkillMeta[] = [];
 
   for (const fileName of files) {
     try {
       const content = readFileSync(path.join(skillsDir, fileName), "utf8");
-      const { data } = parseFrontmatter(content);
+      const { data } = parseSkillFile(content, fileName);
 
       if (!data.name || !data.description) {
         console.warn(
@@ -138,9 +207,13 @@ export const resolveSkillMeta = (skillsDir: string, name: string): ResolvedSkill
     return { meta: byName, filePath };
   }
 
-  const byFile = skills.find(
-    (skill) => skill.fileName.toLowerCase() === `${name.toLowerCase()}.md`,
-  );
+  const byFile = skills.find((skill) => {
+    const normalizedName = name.toLowerCase();
+    return (
+      skill.fileName.toLowerCase() === `${normalizedName}.md`
+      || skill.fileName.toLowerCase() === `${normalizedName}.xml`
+    );
+  });
   if (byFile) {
     const filePath = assertPathWithinDir(path.join(skillsDir, byFile.fileName), skillsDir);
     return { meta: byFile, filePath };
@@ -160,6 +233,27 @@ export const formatSkillFile = (
   `---\nname: ${frontmatter.name}\ndescription: ${frontmatter.description}\n---\n\n${body.trim()}\n`;
 
 /**
+ * Serialize skill metadata and body into an XML file.
+ */
+export const formatXmlSkillFile = (
+  frontmatter: Pick<SkillMeta, "name" | "description">,
+  body: string,
+): string =>
+  `<skill name="${escapeXmlAttr(frontmatter.name)}" description="${escapeXmlAttr(frontmatter.description)}">\n\n${body.trim()}\n\n</skill>\n`;
+
+export const serializeSkillFile = (
+  frontmatter: Pick<SkillMeta, "name" | "description">,
+  body: string,
+  fileName: string,
+): string => {
+  if (getSkillFileType(fileName) === "xml") {
+    return formatXmlSkillFile(frontmatter, body);
+  }
+
+  return formatSkillFile(frontmatter, body);
+};
+
+/**
  * Read a skill's body content by name (case-insensitive match on frontmatter name)
  * or fileName. Path-safe: ensures resolved path stays within skillsDir.
  * Throws on not found or path traversal attempt.
@@ -167,7 +261,7 @@ export const formatSkillFile = (
 export const readSkillContent = (skillsDir: string, name: string): string => {
   const { filePath } = resolveSkillMeta(skillsDir, name);
   const content = readFileSync(filePath, "utf8");
-  const { body } = parseFrontmatter(content);
+  const { body } = parseSkillFile(content, path.basename(filePath));
   return body;
 };
 
@@ -180,7 +274,7 @@ export const readFullSkill = (
 ): SkillMeta & { body: string } => {
   const { meta, filePath } = resolveSkillMeta(skillsDir, name);
   const content = readFileSync(filePath, "utf8");
-  const { data, body } = parseFrontmatter(content);
+  const { data, body } = parseSkillFile(content, meta.fileName);
 
   return {
     name: data.name ?? meta.name,
@@ -204,7 +298,7 @@ export const writeSkillFile = (
 
   const filePath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
   mkdirSync(skillsDir, { recursive: true });
-  writeFileSync(filePath, formatSkillFile({ name, description }, body), "utf8");
+  writeFileSync(filePath, serializeSkillFile({ name, description }, body, fileName), "utf8");
   return filePath;
 };
 
@@ -254,6 +348,36 @@ export const deleteSkillFile = (skillsDir: string, name: string): string => {
   const { meta, filePath } = resolveSkillMeta(skillsDir, name);
   unlinkSync(filePath);
   return meta.fileName;
+};
+
+/**
+ * Format a single skill using the configuration skill_output_template.
+ */
+export const formatSkillForDisplay = (
+  owner: string,
+  skill: Pick<SkillMeta, "name" | "description">,
+  status: SkillDisplayStatus,
+): string =>
+  [
+    `Owner: ${owner}`,
+    `Skill Name: ${skill.name}`,
+    `Description: ${skill.description}`,
+    `Status: ${status}`,
+  ].join("\n");
+
+/**
+ * Format a skill list for user-facing LIST responses.
+ */
+export const formatSkillsForDisplay = (
+  owner: string,
+  skills: SkillMeta[],
+  status: SkillDisplayStatus = "Listed",
+): string => {
+  if (skills.length === 0) {
+    return `No skills configured for ${owner}.`;
+  }
+
+  return skills.map((skill) => formatSkillForDisplay(owner, skill, status)).join("\n\n");
 };
 
 /**

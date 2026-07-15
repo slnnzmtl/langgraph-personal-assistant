@@ -73,8 +73,19 @@ const resolveSkillPromptPath = (key: string): string | undefined => {
   if (!agent || !skillName) {
     return undefined;
   }
-  const filePath = path.join(SKILLS_ROOT, agent, `${skillName}.md`);
-  return existsSync(filePath) ? filePath : undefined;
+
+  const candidates = [
+    path.join(SKILLS_ROOT, agent, `${skillName}.xml`),
+    path.join(SKILLS_ROOT, agent, `${skillName}.md`),
+  ];
+
+  for (const filePath of candidates) {
+    if (existsSync(filePath)) {
+      return filePath;
+    }
+  }
+
+  return undefined;
 };
 
 const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string => {
@@ -128,7 +139,7 @@ export const getSkillsDir = (key: string, fileType: "md" | "xml" = "md"): string
 
 /**
  * Load raw prompt content by key.
- * Resolves `prompts/{key}.{md|xml}` and skill files at `skills/{agent}/{skill}.md`
+ * Resolves `prompts/{key}.{md|xml}` and skill files at `skills/{agent}/{skill}.{md|xml}`
  * via the legacy `{agent}/skills/{skill}` key shape.
  * @param key - Prompt key (e.g. "supervisor", "obsidian", "finance/skills/sync-expenses")
  * @param fileType - File type: "md" or "xml" (default: "md")

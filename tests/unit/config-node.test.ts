@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import { createConfigurationNode } from "../../src/nodes/configuration/config-node.js";
-import { createCronConfigTools } from "../../src/nodes/configuration/config-tools.js";
+import { createConfigurationSkillScopedTools } from "../../src/nodes/configuration/config-tools.js";
 
 const createRepository = () => {
   const jobs = [
@@ -37,7 +37,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createCronConfigTools(repository as never),
+      createConfigurationSkillScopedTools(repository as never),
       {
         repository: repository as never,
         runtimeCron: runtimeCron as never,
@@ -56,7 +56,74 @@ describe("createConfigurationNode", () => {
     expect(runtimeCron.addJob).not.toHaveBeenCalled();
   });
 
-  it("delegates skill list requests to the model", async () => {
+  it("lists configuration skills directly without invoking the llm", async () => {
+    const repository = createRepository();
+    const invokeSpy = vi.fn(() => {
+      throw new Error("LLM must not run for configuration skill catalog requests");
+    });
+
+    const node = createConfigurationNode(
+      {
+        invoke: async (input: any) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+      } as never,
+      createConfigurationSkillScopedTools(repository as never),
+      {
+        repository: repository as never,
+      },
+    );
+
+    const result = await node({
+      messages: [new HumanMessage("list available skills")],
+      stepCount: 0,
+    });
+
+    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.messages?.[0]?.content).toContain("Owner: configuration");
+    expect(result.messages?.[0]?.content).toContain("Skill Name: cron");
+    expect(result.messages?.[0]?.content).toContain("Skill Name: skill-management");
+    expect(result.messages?.[0]?.content).toContain("Status: Listed");
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it("delegates cross-owner skill list requests to the model", async () => {
+    const repository = createRepository();
+    const invokeSpy = vi.fn(async () =>
+      new AIMessage({
+        content: "",
+        tool_calls: [
+          {
+            name: "read_skill",
+            args: { name: "skill-management" },
+            id: "read-1",
+            type: "tool_call",
+          },
+        ],
+      }),
+    );
+
+    const node = createConfigurationNode(
+      {
+        invoke: async (input: any) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+      } as never,
+      createConfigurationSkillScopedTools(repository as never),
+      {
+        repository: repository as never,
+      },
+    );
+
+    const result = await node({
+      messages: [new HumanMessage("list finance skills")],
+      stepCount: 0,
+    });
+
+    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.messages?.[0]?.tool_calls?.[0]?.name).toBe("read_skill");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("strips hallucinated tool calls that are not currently bound", async () => {
     const repository = createRepository();
     const invokeSpy = vi.fn(async () =>
       new AIMessage({
@@ -64,7 +131,7 @@ describe("createConfigurationNode", () => {
         tool_calls: [
           {
             name: "list_skills",
-            args: { owner: "finance" },
+            args: {},
             id: "list-1",
             type: "tool_call",
           },
@@ -77,19 +144,20 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createCronConfigTools(repository as never),
+      createConfigurationSkillScopedTools(repository as never),
       {
         repository: repository as never,
       },
     );
 
     const result = await node({
-      messages: [new HumanMessage("list finance skills")],
+      messages: [new HumanMessage("do something with skills")],
       stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.tool_calls?.[0]?.name).toBe("list_skills");
+    expect(result.messages?.[0]?.tool_calls ?? []).toHaveLength(0);
+    expect(String(result.messages?.[0]?.content)).toContain("read_skill");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -105,7 +173,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createCronConfigTools(repository as never),
+      createConfigurationSkillScopedTools(repository as never),
       {
         repository: repository as never,
       },
@@ -151,7 +219,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createCronConfigTools(repository as never),
+      createConfigurationSkillScopedTools(repository as never),
       {
         repository: repository as never,
       },
@@ -185,7 +253,7 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
-  it("continues to the model after read_skill so edit flows can proceed", async () => {
+  it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
     const repository = createRepository();
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
@@ -195,7 +263,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createCronConfigTools(repository as never),
+      createConfigurationSkillScopedTools(repository as never),
       {
         repository: repository as never,
       },
@@ -208,7 +276,7 @@ describe("createConfigurationNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_skill",
+              name: "read_skill_for_edit",
               args: { owner: "finance", name: "sync-expenses" },
               id: "read-1",
               type: "tool_call",
@@ -216,7 +284,7 @@ describe("createConfigurationNode", () => {
           ],
         }),
         new ToolMessage({
-          name: "read_skill",
+          name: "read_skill_for_edit",
           tool_call_id: "read-1",
           content: skillContent,
         }),

@@ -1,4 +1,23 @@
 export {
+  createGuardedToolNode,
+  createStaticToolNode,
+} from "./guarded-tool-node.js";
+export {
+  appendSkillToolsPreview,
+  createSkillScopedToolContext,
+  createSkillScopedToolContextFromBundles,
+  findUnauthorizedToolCalls,
+  formatSkillToolsPreviewBlock,
+  getAllowedToolNames,
+  getSkillBundleTools,
+  resolveActiveSkillFromHistory,
+  skillToolBundlesFromRecord,
+  type ActiveSkillSelection,
+  type SkillScopedAgentConfig,
+  type SkillScopedToolContext,
+  type SkillToolBundle,
+} from "./skill-scoped-registry.js";
+export {
   createReadSkillTool,
   createSkillCrudTools,
   ReadSkillToolSchema,

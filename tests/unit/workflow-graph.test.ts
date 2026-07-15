@@ -210,6 +210,20 @@ describe("createWorkflowGraph", () => {
             content: "",
             tool_calls: [
               {
+                name: "read_skill",
+                args: { name: "cron" },
+                id: "read-1",
+                type: "tool_call",
+              },
+            ],
+          });
+        }
+
+        if (configCalls === 2) {
+          return new AIMessage({
+            content: "",
+            tool_calls: [
+              {
                 name: "create_cron_job",
                 args: {
                   jobName: "daily-note",

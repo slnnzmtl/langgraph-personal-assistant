@@ -1,0 +1,26 @@
+<skill name="cron" description="Manage cron scheduled jobs — list, create, and delete background schedules.">
+
+Valid target routes: `Finance_SG`, `Obsidian_SG`, `Config_SG`.
+
+<cron_intent_routing>
+1. LIST (list, view, inspect, show):
+   - Call `list_cron_jobs()` only.
+   - Never chain creation or deletion tools after a list intent.
+
+2. CREATE (create, add, schedule, set up):
+   - Call `create_cron_job(jobName, schedule, targetRoute, payload)`.
+   - If the user requests a daily note schedule, use:
+     - jobName: `daily-note`
+     - schedule: `0 6 * * *`
+     - targetRoute: `Obsidian_SG`
+     - payload: `Create my daily note`
+
+3. DELETE (remove, delete, cancel):
+   - Call `delete_cron_job(jobName)`.
+</cron_intent_routing>
+
+<relative_schedule_rules>
+- If a user specifies a delay (e.g., "in 5 minutes", "after 1 hour"), compute the exact future timestamp relative to the injected system time, then convert it into a valid, precise cron expression.
+</relative_schedule_rules>
+
+</skill>

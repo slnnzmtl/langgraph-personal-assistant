@@ -5,13 +5,15 @@ import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import {
   createSkillFile,
   deleteSkillFile,
-  formatSkillFile,
+  formatSkillsForDisplay,
   listSkills,
   readFullSkill,
   readSkillContent,
+  serializeSkillFile,
   updateSkillFile,
 } from "../prompts/skills-loader.js";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
+import { appendSkillToolsPreview, skillToolBundlesFromRecord } from "./skill-scoped-registry.js";
 import { truncateToolOutput } from "./output.js";
 
 export const SKILL_OWNERS = ["finance", "obsidian", "configuration"] as const;
@@ -58,6 +60,7 @@ export const DeleteSkillToolSchema = z.object({
 
 export type ReadSkillToolOptions = {
   actionRegistry?: SkillActionRegistry;
+  toolBundles?: Record<string, StructuredToolInterface[]>;
 };
 
 export type SkillCrudToolsOptions = {
@@ -77,18 +80,41 @@ const resolveOwnerSkillsDir = (
 
 const formatSkillList = (owner: SkillOwner, skillsDir: string): string => {
   const skills = listSkills(skillsDir);
-  if (skills.length === 0) {
-    return `No skills configured for ${owner}.`;
-  }
-
-  return skills.map((skill) => `${skill.name}: ${skill.description}`).join("\n");
+  return formatSkillsForDisplay(owner, skills, "Listed");
 };
 
 const formatSkillPreview = (skillsDir: string, name: string): string => {
   const skill = readFullSkill(skillsDir, name);
   return truncateToolOutput(
-    formatSkillFile({ name: skill.name, description: skill.description }, skill.body),
+    serializeSkillFile({ name: skill.name, description: skill.description }, skill.body, skill.fileName),
   );
+};
+
+const enrichSkillContent = async (
+  content: string,
+  promptKey: string,
+  skillName: string,
+  options?: ReadSkillToolOptions,
+): Promise<string> => {
+  const withActions = await enrichSkillWithActions({
+    content,
+    promptKey,
+    skillName,
+    ...(options?.actionRegistry ? { actionRegistry: options.actionRegistry } : {}),
+  });
+
+  if (!options?.toolBundles) {
+    return withActions;
+  }
+
+  const bundles = new Map(
+    Object.entries(skillToolBundlesFromRecord(options.toolBundles)).map(([name, tools]) => [
+      name,
+      { tools },
+    ]),
+  );
+
+  return appendSkillToolsPreview(withActions, skillName, bundles);
 };
 
 export const createReadSkillTool = (
@@ -102,12 +128,7 @@ export const createReadSkillTool = (
 
       try {
         const content = readSkillContent(skillsDir, input.name);
-        const enriched = await enrichSkillWithActions({
-          content,
-          promptKey,
-          skillName: input.name,
-          ...(options?.actionRegistry ? { actionRegistry: options.actionRegistry } : {}),
-        });
+        const enriched = await enrichSkillContent(content, promptKey, input.name, options);
         return truncateToolOutput(enriched);
       } catch (error) {
         const availableSkills = listSkills(skillsDir);
@@ -147,7 +168,7 @@ export const createSkillCrudTools = (
     },
   );
 
-  const readSkillTool = tool(
+  const readSkillForEditTool = tool(
     async (input: z.infer<typeof ConfigurationReadSkillToolSchema>) => {
       try {
         const skillsDir = resolveSkillsDir(input.owner);
@@ -161,7 +182,7 @@ export const createSkillCrudTools = (
       }
     },
     {
-      name: "read_skill",
+      name: "read_skill_for_edit",
       description:
         "Load the full skill file for a named owner and skill before editing it.",
       schema: ConfigurationReadSkillToolSchema,
@@ -253,5 +274,12 @@ export const createSkillCrudTools = (
     },
   );
 
-  return [listSkillsTool, previewSkillTool, readSkillTool, createSkillTool, editSkillTool, deleteSkillTool];
+  return [
+    listSkillsTool,
+    previewSkillTool,
+    readSkillForEditTool,
+    createSkillTool,
+    editSkillTool,
+    deleteSkillTool,
+  ];
 };

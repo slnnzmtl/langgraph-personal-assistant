@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../telegram/file-sender.js";
 import { createReadSkillTool } from "../../tools/skill-management.js";
+import { createSkillScopedToolContextFromBundles } from "../../tools/skill-scoped-registry.js";
 import {
   RelativePathSchema,
   resolveVaultPath,
@@ -57,9 +58,8 @@ export const SendFileToolSchema = z.object({
   caption: z.string().optional().describe("Optional caption to attach to the file."),
 }).describe("Send a file from the vault as a Telegram document.");
 
-export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender) => {
+export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSender) => {
   const baseTools = [
-    createReadSkillTool("obsidian", "xml"),
     tool(
       async ({ relativePath }) => {
         try { return await readVaultFile(vaultRoot, relativePath); }
@@ -161,4 +161,17 @@ export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender)
   }
 
   return baseTools as any;
+};
+
+export const createObsidianSkillScopedTools = (vaultRoot: string, fileSender?: IFileSender) =>
+  createSkillScopedToolContextFromBundles({
+    readSkillTool: createReadSkillTool("obsidian", "xml"),
+    bundles: {},
+    defaultTools: createObsidianVaultTools(vaultRoot, fileSender),
+  });
+
+/** @deprecated Use createObsidianSkillScopedTools for scoped access. */
+export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender) => {
+  const context = createObsidianSkillScopedTools(vaultRoot, fileSender);
+  return context.allTools;
 };
