@@ -1,14 +1,13 @@
 import { StructuredToolInterface, tool } from "@langchain/core/tools";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
-import { fetchWiseTransactions } from "../../services/wise/index.js";
 import { getSkillsDir } from "../../prompts/load-system-prompt.js";
 import { listSkills, readSkillContent } from "../../prompts/skills-loader.js";
 import { z } from "zod";
+import { fetchWiseTransactions } from "../../services/wise/index.js";
 
 const serializeResult = (value: unknown): string => {
   if (Array.isArray(value)) {
-    // Compact JSON array format
     return JSON.stringify(value);
   }
   return typeof value === "string" ? value : JSON.stringify(value);

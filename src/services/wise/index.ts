@@ -1,6 +1,80 @@
-import { createWiseClient } from "./client.js";
-import { fetchWiseTransactions as fetchTransactions } from "./fetch-transactions.js";
-import type { WiseTransaction, WiseTransactionParams } from "./types.js";
+import { createWiseClient, type WiseClient } from "../../mcp/wise.js";
+
+export interface WiseTransaction {
+	name: string;
+	amount: string;
+	status: string;
+	createdOn: string;
+}
+
+export interface WiseTransactionParams {
+	since: string;
+	until: string;
+}
+
+function formatUtcIsoWithoutMilliseconds(date: Date): string {
+	return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function normalizeToIso8601(dateString: string): string {
+	if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+		return `${dateString}T00:00:00Z`;
+	}
+
+	const parsedDate = new Date(dateString);
+	if (Number.isNaN(parsedDate.getTime())) {
+		throw new Error(`Invalid date format: ${dateString}. Expected YYYY-MM-DD or ISO 8601`);
+	}
+
+	return formatUtcIsoWithoutMilliseconds(parsedDate);
+}
+
+function extractNumericAmount(amountStr: string): string {
+	const match = amountStr.match(/^[\d.]+/);
+	return match ? match[0] : amountStr;
+}
+
+function normalizeWiseTransaction(raw: Record<string, unknown>): WiseTransaction {
+	const name = String(raw.title).replace(/<[^>]*>/g, ""); // Remove HTML tags
+	const rawAmount = raw.secondaryAmount ? String(raw.secondaryAmount) : String(raw.primaryAmount);
+
+	return {
+		name,
+		amount: extractNumericAmount(rawAmount),
+		status: String(raw.status),
+		createdOn: String(raw.createdOn),
+	};
+}
+
+async function fetchWiseTransactionsInternal(
+	params: WiseTransactionParams,
+	client: WiseClient
+): Promise<WiseTransaction[]> {
+	if (!params.since || !params.until) {
+		throw new Error("Validation error: both 'since' and 'until' are required");
+	}
+
+	// Normalize dates to ISO 8601 format
+	const since = normalizeToIso8601(params.since);
+	const until = normalizeToIso8601(params.until);
+
+	console.debug(`Fetching Wise transactions: since=${since}, until=${until}`);
+
+	const response = await client.fetchActivities(since, until);
+
+	if (!response.ok) {
+		console.warn(`Wise API error: ${response.status} ${response.statusText}; returning empty list`);
+		return [];
+	}
+
+	const data = await response.json() as { activities?: unknown[] };
+	const activities = data.activities ?? [];
+
+	const normalized = activities.map(activity => normalizeWiseTransaction(activity as Record<string, unknown>));
+	
+	console.debug(`Fetched and normalized ${normalized.length} Wise transactions`);
+	return normalized;
+}
 
 export async function fetchWiseTransactions(params: WiseTransactionParams): Promise<WiseTransaction[]> {
 	const client = createWiseClient();
@@ -10,7 +84,5 @@ export async function fetchWiseTransactions(params: WiseTransactionParams): Prom
 		return [];
 	}
 
-	return fetchTransactions(params, client);
+	return fetchWiseTransactionsInternal(params, client);
 }
-
-export type { WiseClient, WiseTransaction, WiseTransactionParams } from "./types.js";

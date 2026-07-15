@@ -1,4 +1,11 @@
-import type { WiseClient } from "./types.js";
+/**
+ * Wise API client - MCP layer
+ * Low-level HTTP client for Wise API
+ */
+
+export interface WiseClient {
+	fetchActivities(since: string, until: string): Promise<Response>;
+}
 
 export function createWiseClient(): WiseClient | undefined {
 	const token = process.env["WISE_API_TOKEN"];
