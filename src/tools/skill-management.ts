@@ -5,11 +5,11 @@ import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import {
   createSkillFile,
   deleteSkillFile,
-  formatSkillFile,
   formatSkillsForDisplay,
   listSkills,
   readFullSkill,
   readSkillContent,
+  serializeSkillFile,
   updateSkillFile,
 } from "../prompts/skills-loader.js";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
@@ -86,7 +86,7 @@ const formatSkillList = (owner: SkillOwner, skillsDir: string): string => {
 const formatSkillPreview = (skillsDir: string, name: string): string => {
   const skill = readFullSkill(skillsDir, name);
   return truncateToolOutput(
-    formatSkillFile({ name: skill.name, description: skill.description }, skill.body),
+    serializeSkillFile({ name: skill.name, description: skill.description }, skill.body, skill.fileName),
   );
 };
 

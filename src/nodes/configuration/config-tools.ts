@@ -126,7 +126,7 @@ export const createConfigurationSkillScopedTools = (repository: CronJobRepositor
     cron: cronTools,
     "skill-management": skillManagementTools,
   };
-  const readSkillTool = createReadSkillTool("configuration", "md", { toolBundles: bundles });
+  const readSkillTool = createReadSkillTool("configuration", "xml", { toolBundles: bundles });
 
   return createSkillScopedToolContextFromBundles({
     readSkillTool,

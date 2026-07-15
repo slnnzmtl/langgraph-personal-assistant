@@ -71,7 +71,8 @@ describe("createConfigurationSkillScopedTools", () => {
     const context = createConfigurationSkillScopedTools(repository);
     const result = String(await context.config.readSkillTool.invoke({ name: "cron" }));
 
-    expect(result).toContain("Cron Job Management");
+    expect(result).toContain("<cron_intent_routing>");
+    expect(result).toContain("list_cron_jobs");
     expect(result).toContain("<available_tools>");
     expect(result).toContain("- list_cron_jobs:");
     expect(result).toContain("- create_cron_job:");

@@ -73,7 +73,7 @@ export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
 };
 
 export const formatConfigurationSkillCatalog = (): string => {
-  const skillsDir = getSkillsDir("configuration", "md");
+  const skillsDir = getSkillsDir("configuration", "xml");
   const skills = listSkills(skillsDir);
 
   return formatSkillsForDisplay("configuration", skills, "Listed");

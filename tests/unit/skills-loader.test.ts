@@ -3,6 +3,8 @@ import { existsSync, mkdtempSync, writeFileSync, rmSync, mkdirSync, readFileSync
 import path from "node:path";
 import {
   parseFrontmatter,
+  parseXmlSkill,
+  parseSkillFile,
   listSkills,
   readSkillContent,
   formatSkillsForPrompt,
@@ -12,6 +14,8 @@ import {
   deleteSkillFile,
   readFullSkill,
   formatSkillFile,
+  formatXmlSkillFile,
+  serializeSkillFile,
 } from "../../src/prompts/skills-loader";
 
 describe("skills-loader", () => {
@@ -69,6 +73,45 @@ Body`;
       const result = parseFrontmatter(raw);
       expect(result.data.name).toBe("my-skill");
       expect(result.data.description).toBe("Trimmed description");
+    });
+  });
+
+  describe("parseXmlSkill", () => {
+    it("should parse valid skill XML", () => {
+      const raw = `<skill name="cron" description="Manage cron jobs">
+
+<cron_intent_routing>
+Call list_cron_jobs().
+</cron_intent_routing>
+
+</skill>`;
+      const result = parseXmlSkill(raw);
+      expect(result.data).toEqual({
+        name: "cron",
+        description: "Manage cron jobs",
+      });
+      expect(result.body).toContain("<cron_intent_routing>");
+      expect(result.body).not.toContain("</skill>");
+    });
+
+    it("should return empty data if no skill root element", () => {
+      const raw = "<other>content</other>";
+      const result = parseXmlSkill(raw);
+      expect(result.data).toEqual({});
+      expect(result.body).toBe(raw);
+    });
+  });
+
+  describe("parseSkillFile", () => {
+    it("should dispatch to XML parser for .xml files", () => {
+      const raw = `<skill name="cron" description="Manage cron jobs">
+
+Body
+
+</skill>`;
+      const result = parseSkillFile(raw, "cron.xml");
+      expect(result.data.name).toBe("cron");
+      expect(result.body).toBe("Body");
     });
   });
 
@@ -134,6 +177,25 @@ Content`
       const result = listSkills(skillsDir);
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("good-skill");
+    });
+
+    it("should list skills with valid XML metadata", () => {
+      const skillsDir = path.join(tempDir, "skills-xml");
+      mkdirSync(skillsDir, { recursive: true });
+
+      writeFileSync(
+        path.join(skillsDir, "cron.xml"),
+        `<skill name="cron" description="Manage cron jobs">
+
+Body
+
+</skill>`,
+      );
+
+      const result = listSkills(skillsDir);
+      expect(result).toHaveLength(1);
+      expect(result[0]?.name).toBe("cron");
+      expect(result[0]?.fileName).toBe("cron.xml");
     });
 
     it("should sort skills by name", () => {
@@ -293,6 +355,30 @@ Content`
     it("should return empty string for empty skill list", () => {
       const result = formatSkillsForPrompt([]);
       expect(result).toBe("");
+    });
+  });
+
+  describe("skill file serialization", () => {
+    it("serializes XML skill files with metadata attributes", () => {
+      const serialized = formatXmlSkillFile(
+        { name: "cron", description: 'Manage jobs with "quotes"' },
+        "<body>content</body>",
+      );
+
+      expect(serialized).toContain('<skill name="cron" description="Manage jobs with &quot;quotes&quot;">');
+      expect(serialized).toContain("<body>content</body>");
+      expect(serialized).toContain("</skill>");
+    });
+
+    it("chooses XML serialization based on file extension", () => {
+      const serialized = serializeSkillFile(
+        { name: "cron", description: "Manage cron jobs" },
+        "Body",
+        "cron.xml",
+      );
+
+      expect(serialized).toContain('<skill name="cron"');
+      expect(serialized).toContain("</skill>");
     });
   });
 

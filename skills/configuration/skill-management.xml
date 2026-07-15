@@ -1,10 +1,6 @@
----
-name: skill-management
-description: Manage agent skills — list, preview, create, edit, and delete skill files.
----
+<skill name="skill-management" description="Manage agent skills — list, preview, create, edit, and delete skill files.">
 
-## Skill Management Intent Routing
-
+<skill_management_intent_routing>
 1. LIST (list, view, inspect, show):
    - Call `list_skills(owner)` only.
    - Valid owners: `finance`, `obsidian`, `configuration`.
@@ -27,3 +23,6 @@ description: Manage agent skills — list, preview, create, edit, and delete ski
 5. DELETE (remove, delete):
    - Require explicit user intent before deleting.
    - Call `delete_skill(owner, name)`.
+</skill_management_intent_routing>
+
+</skill>
