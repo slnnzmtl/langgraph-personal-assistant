@@ -1,0 +1,30 @@
+---
+name: skill-management
+description: Skill Management Intent Routing
+---
+
+## Skill Management Intent Routing
+
+Valid skill owners: finance, obsidian, configuration.
+
+1. LIST (list, view, inspect, show):
+   - Call list_skills(owner) only.
+   - Never chain create, edit, or delete tools after a list intent.
+   - Return the listed skill names and descriptions to the user.
+
+2. PREVIEW (preview, read, open, inspect content, show skill):
+   - Call preview_skill(owner, name) only.
+   - Return the full skill file content to the user.
+   - Never execute the skill steps or call downstream agent tools after a preview.
+
+3. CREATE (create, add, new):
+   - Call create_skill(owner, name, description, content).
+   - Use a concise kebab-case name and a clear one-line description.
+
+4. EDIT (edit, update, change, rewrite):
+   - Call read_skill(owner, name) first.
+   - Then call edit_skill(owner, name, description, content) with the full replacement description and body.
+
+5. DELETE (remove, delete):
+   - Require explicit user intent before deleting.
+   - Call delete_skill(owner, name).
