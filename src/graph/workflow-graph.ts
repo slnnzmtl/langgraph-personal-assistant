@@ -5,6 +5,7 @@ import path from "node:path";
 
 import type { AppConfig } from "../config.js";
 import type { ILLMConnector } from "../connectors/llm-connector.js";
+import type { IFileSender } from "../telegram/file-sender.js";
 import { createCronJobRepository } from "../cron/cron-job-repository.js";
 import { createConfigurationNode, createCronConfigTools } from "../nodes/configurator/index.js";
 import type { RuntimeSchedulerService } from "../cron/runtime-scheduler-service.js";
@@ -17,6 +18,7 @@ import { AgentStateAnnotation, type AgentState, type RouteName } from "../state.
 export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
   supabaseSession?: SupabaseMcpSession;
   runtimeScheduler?: RuntimeSchedulerService;
+  fileSender?: IFileSender;
 };
 
 const isLlmConnector = (value: unknown): value is ILLMConnector => {
@@ -61,7 +63,7 @@ export const createWorkflowGraph = (
         messages: [new AIMessage("Finance sync not configured. Enable ENABLE_FINANCE_SYNC and provide Supabase credentials.")],
       });
 
-  const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(obsidianLlmConnector, config.obsidianVaultPath);
+  const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(obsidianLlmConnector, config.obsidianVaultPath, config.fileSender);
 
   // Build graph - add all nodes upfront
   const graph = new StateGraph(AgentStateAnnotation)

@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import cron from "node-cron";
 import path from "node:path";
+import { Telegraf } from "telegraf";
 import { loadConfig, type AppConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createCronJobRepository } from "./cron/cron-job-repository.js";
@@ -10,6 +11,7 @@ import { createLazySchedulerService, createRuntimeSchedulerService } from "./cro
 import { createSchedulerRunner, type SchedulerJobRun } from "./cron/scheduler-runner.js";
 import { createWorkflowGraph, type WorkflowGraphConfig } from "./graph/workflow-graph.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
+import { TelegramFileSender } from "./telegram/file-sender.js";
 import { createTelegramCronReporter } from "./telegram/telegram-cron-reporter.js";
 import { setupFinanceDatabase } from "./nodes/finance/tools/supabase/index.js";
 import type { SupabaseMcpSession } from "./mcp/supabase/index.js";
@@ -22,6 +24,9 @@ const main = async (): Promise<void> => {
 
 	const supabaseSession: SupabaseMcpSession | undefined = await setupFinanceDatabase(config);
 
+	// Create file sender for sending Obsidian files via Telegram
+	const fileSender = new TelegramFileSender(new Telegraf(config.telegramBotToken).telegram);
+
 	// Use lazy scheduler since graph is built before runner is ready
 	const lazySchedulerService = createLazySchedulerService();
 	const graphConfig: WorkflowGraphConfig = {
@@ -29,6 +34,7 @@ const main = async (): Promise<void> => {
 		appTimezone: config.appTimezone,
 		cronJobsFilePath: config.cronJobsFilePath,
 		runtimeScheduler: lazySchedulerService,
+		fileSender,
 	};
 	if (supabaseSession) {
 		graphConfig.supabaseSession = supabaseSession;
@@ -75,7 +81,7 @@ const main = async (): Promise<void> => {
 		schedule: cron.schedule.bind(cron),
 	});
 
-	const telegramAdapter = new TelegramAdapter(app, config);
+	const telegramAdapter = new TelegramAdapter(app, config, fileSender);
 	await telegramAdapter.launch();
 	console.log("Telegram adapter launched in long-polling mode.");
 };

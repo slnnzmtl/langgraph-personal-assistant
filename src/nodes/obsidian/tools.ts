@@ -8,6 +8,7 @@ import {
   searchFilesByContent,
   writeTextFile,
 } from "../../utils/file-system.js";
+import type { IFileSender } from "../../telegram/file-sender.js";
 
 const RelativePathSchema = z
   .string()
@@ -118,12 +119,17 @@ export const ListFilesToolSchema = z.object({
 export const SearchFilesToolSchema = z.object({
   queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if content contains any term). Terms will be lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Search for files whose content or vault-relative path matches any of the supplied search terms (OR semantics).");
+}).describe("Recursively search files by content or vault-relative path. Searches entire vault by default (relativeDir defaults to '.').");
 
 export const SearchFilesByNameToolSchema = z.object({
   queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if filename contains any term). Terms will be lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Search for files by filename using case-insensitive matching.");
+}).describe("Recursively search for files by filename in entire vault or subdirectory. Uses AND semantics: a file matches only if its filename contains ALL supplied terms. Split multi-word queries into individual terms (e.g. 'July 1' → ['July', '1']).");
+
+export const SendFileToolSchema = z.object({
+  relativePath: RelativePathSchema,
+  caption: z.string().optional().describe("Optional caption to attach to the file."),
+}).describe("Send a file from the vault as a Telegram document.");
 
 const normalizeSearchQueries = (queries: string[]): string[] => {
   const normalized = queries
@@ -141,6 +147,24 @@ export const listDirContents = async (
   return listDirectoryContents(vaultRoot, relativeDir);
 };
 
+// Recursively walk directory and collect all .md files
+const walkFilesRecursive = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
+  try {
+    const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
+    let allFiles = files;
+
+    for (const dir of dirs) {
+      const nestedPath = relativeDir === "." ? dir : `${relativeDir}/${dir}`;
+      const nestedFiles = await walkFilesRecursive(vaultRoot, nestedPath);
+      allFiles = [...allFiles, ...nestedFiles];
+    }
+
+    return allFiles;
+  } catch {
+    return [];
+  }
+};
+
 export const searchFiles = async (
   vaultRoot: string,
   queries: string[],
@@ -148,12 +172,12 @@ export const searchFiles = async (
 ): Promise<string[]> => {
   const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
 
-  // Search by content
+  // Search by content (assumes searchFilesByContent is recursive)
   const contentMatches = await searchFilesByContent(vaultRoot, normalizeSearchQueries(queries), relativeDir);
 
-  // Search by filename
-  const { files } = await listDirContents(vaultRoot, relativeDir);
-  const filenameMatches = files.filter((file) =>
+  // Search by filename recursively
+  const allFiles = await walkFilesRecursive(vaultRoot, relativeDir);
+  const filenameMatches = allFiles.filter((file) =>
     normalizedQueries.some((query) => file.toLowerCase().includes(query))
   );
 
@@ -169,86 +193,121 @@ export const searchFilesByName = async (
 ): Promise<string[]> => {
   const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
 
-  const { files } = await listDirContents(vaultRoot, relativeDir);
-  const matches = files.filter((file) =>
-    normalizedQueries.some((query) => file.toLowerCase().includes(query))
-  );
+  const allFiles = await walkFilesRecursive(vaultRoot, relativeDir);
+  const matches = allFiles.filter((file) => {
+    const lowerFile = file.toLowerCase();
+    // AND semantics with word-boundary matching: each query term must appear as a whole
+    // word/token, so "1" matches "July 1 -" but not "July 10" or "July 11"
+    return normalizedQueries.every((query) => {
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(?<![\\w\\d])${escaped}(?![\\w\\d])`, "i").test(lowerFile);
+    });
+  });
 
   return matches;
 };
 
-export const createObsidianTools = (vaultRoot: string) => [
-  tool(
-    async ({ relativePath }) => {
-      try { return await readVaultFile(vaultRoot, relativePath); }
-      catch (e: any) { return `Error: ${e.message}`; }
-    },
-    { name: "read_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadFileToolSchema },
-  ),
-  tool(
-    async (args: z.infer<typeof WriteFileToolSchema>) => {
-      try {
-        if (args.operation === "create_new" && await checkFileExists(vaultRoot, args.relativePath)) {
-          return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
-        }
+export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender) => {
+  const baseTools = [
+    tool(
+      async ({ relativePath }) => {
+        try { return await readVaultFile(vaultRoot, relativePath); }
+        catch (e: any) { return `Error: ${e.message}`; }
+      },
+      { name: "read_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadFileToolSchema },
+    ),
+    tool(
+      async (args: z.infer<typeof WriteFileToolSchema>) => {
+        try {
+          if (args.operation === "create_new" && await checkFileExists(vaultRoot, args.relativePath)) {
+            return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
+          }
 
-        await applyFileWrite(vaultRoot, args);
-        return `Success: ${args.summary} saved to ${args.relativePath}.`;
-      } catch (e: any) { return `Error: ${e.message}`; }
-    },
-    {
-      name: "write_file",
-      description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
-      schema: WriteFileToolSchema,
-    },
-  ),
-  tool(
-    async ({ relativeDir }: z.infer<typeof ListFilesToolSchema>) => {
-      try {
-        const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
-        const lines = [
-          ...files.map((f) => `file: ${f}`),
-          ...dirs.map((d) => `dir: ${d}`),
-        ];
-        return lines.length > 0 ? lines.join("\n") : "No files or directories found.";
-      } catch (e: any) {
-        return `Error: ${e.message}`;
-      }
-    },
-    {
-      name: "list_files",
-      description: "List files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
-      schema: ListFilesToolSchema,
-    },
-  ),
-  tool(
-    async ({ queries, relativeDir }: z.infer<typeof SearchFilesToolSchema>) => {
-      try {
-        const matches = await searchFiles(vaultRoot, queries, relativeDir);
-        return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
-      } catch (e: any) {
-        return `Error: ${e.message}`;
-      }
-    },
-    {
-      name: "search_files",
-      description: "Search files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
-      schema: SearchFilesToolSchema,
-    },
-  ),
-  tool(
-    async ({ queries, relativeDir }: z.infer<typeof SearchFilesByNameToolSchema>) => {
-      try {
-        const matches = await searchFilesByName(vaultRoot, queries, relativeDir);
-        return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
-      } catch (e: any) {
-        return `Error: ${e.message}`;
-      }
-    },
-    {
-      name: "search_files_by_name",
-      description: "Search for files by filename using case-insensitive matching. Query terms are lowercased before matching; a file matches if its filename contains any of the supplied search terms (OR semantics).",
-      schema: SearchFilesByNameToolSchema,
-    },
-  ),
-];
+          await applyFileWrite(vaultRoot, args);
+          return `Success: ${args.summary} saved to ${args.relativePath}.`;
+        } catch (e: any) { return `Error: ${e.message}`; }
+      },
+      {
+        name: "write_file",
+        description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
+        schema: WriteFileToolSchema,
+      },
+    ),
+    tool(
+      async ({ relativeDir }: z.infer<typeof ListFilesToolSchema>) => {
+        try {
+          const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
+          const lines = [
+            ...files.map((f) => `file: ${f}`),
+            ...dirs.map((d) => `dir: ${d}`),
+          ];
+          return lines.length > 0 ? lines.join("\n") : "No files or directories found.";
+        } catch (e: any) {
+          return `Error: ${e.message}`;
+        }
+      },
+      {
+        name: "list_files",
+        description: "List files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
+        schema: ListFilesToolSchema,
+      },
+    ),
+    tool(
+      async ({ queries, relativeDir }: z.infer<typeof SearchFilesToolSchema>) => {
+        try {
+          const matches = await searchFiles(vaultRoot, queries, relativeDir);
+          return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
+        } catch (e: any) {
+          return `Error: ${e.message}`;
+        }
+      },
+      {
+        name: "search_files",
+        description: "Search files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
+        schema: SearchFilesToolSchema,
+      },
+    ),
+    tool(
+      async ({ queries, relativeDir }: z.infer<typeof SearchFilesByNameToolSchema>) => {
+        try {
+          const matches = await searchFilesByName(vaultRoot, queries, relativeDir);
+          return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
+        } catch (e: any) {
+          return `Error: ${e.message}`;
+        }
+      },
+      {
+        name: "search_files_by_name",
+        description: "Search for files by filename using case-insensitive matching. Query terms are lowercased before matching; a file matches if its filename contains any of the supplied search terms (OR semantics).",
+        schema: SearchFilesByNameToolSchema,
+      },
+    ),
+  ] as const;
+
+  if (fileSender) {
+    return [
+      ...baseTools,
+      tool(
+        async ({ relativePath }: z.infer<typeof SendFileToolSchema>) => {
+          try {
+            if (!await checkFileExists(vaultRoot, relativePath)) {
+              return `Error: File does not exist at ${relativePath}`;
+            }
+            const absolutePath = resolveVaultPath(vaultRoot, relativePath);
+            await fileSender.sendFile(absolutePath);
+            return `File sent: ${relativePath}`;
+          } catch (e: any) {
+            return `Error: ${e.message}`;
+          }
+        },
+        {
+          name: "send_file",
+          description: "Send a file from the vault as a Telegram document to the current user.",
+          schema: SendFileToolSchema,
+        },
+      ),
+    ] as any;
+  }
+
+  return baseTools as any;
+};

@@ -6,6 +6,7 @@ import type { Context } from "telegraf";
 import type { AppConfig } from "../config.js";
 import type { createWorkflowGraph } from "../graph/workflow-graph.js";
 import type { AgentState } from "../state.js";
+import type { IFileSender } from "./file-sender.js";
 import { GraphRecursionError } from "@langchain/langgraph";
 
 export interface ITelegramAdapter {
@@ -156,6 +157,7 @@ export class TelegramAdapter implements ITelegramAdapter {
   constructor(
     private readonly app: ReturnType<typeof createWorkflowGraph>,
     config: AppConfig,
+    private readonly fileSender?: IFileSender,
   ) {
     this.bot = new Telegraf(config.telegramBotToken);
     this.allowedTelegramUserId = config.allowedTelegramUserId;
@@ -257,6 +259,11 @@ export class TelegramAdapter implements ITelegramAdapter {
       if (!threadId) {
         console.error("Unable to determine Telegram chat ID for incoming message.");
         return;
+      }
+
+      const chatId = ctx.chat?.id;
+      if (chatId) {
+        this.fileSender?.setCurrentChatId(chatId);
       }
 
       try {

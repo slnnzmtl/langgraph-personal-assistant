@@ -610,3 +610,97 @@ describe("obsidian tool: search_files", () => {
     ).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// send_file tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: send_file", () => {
+  it("sends a file via the fileSender when provided", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "document.md"), "# Important\nContent here");
+
+    const mockFileSender = {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools[5]; // send_file is the 6th tool (0-indexed)
+
+    const result = await sendFileTool.invoke({ relativePath: "document.md" }) as string;
+
+    expect(result).toContain("File sent: document.md");
+    expect(mockFileSender.sendFile).toHaveBeenCalledOnce();
+    expect(mockFileSender.sendFile).toHaveBeenCalledWith(
+      expect.stringContaining("document.md"),
+    );
+  });
+
+  it("returns an error when the file does not exist", async () => {
+    const vaultRoot = await createTempVault();
+    const mockFileSender = {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools[5];
+
+    const result = await sendFileTool.invoke({ relativePath: "nonexistent.md" }) as string;
+
+    expect(result).toContain("Error");
+    expect(result).toContain("does not exist");
+    expect(mockFileSender.sendFile).not.toHaveBeenCalled();
+  });
+
+  it("is absent from the tools array when no fileSender is provided", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "file.md"), "content");
+
+    const toolsWithout = createObsidianTools(vaultRoot) as Array<{ name?: string }>;
+    const toolsWith = createObsidianTools(vaultRoot, {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    }) as Array<{ name?: string }>;
+
+    expect(toolsWithout.length).toBe(5); // read, write, list, search_files, search_files_by_name
+    expect(toolsWith.length).toBe(6); // same 5 + send_file
+
+    const sendFileToolInWithout = toolsWithout.find((t) => t.name === "send_file");
+    const sendFileToolInWith = toolsWith.find((t) => t.name === "send_file");
+
+    expect(sendFileToolInWithout).toBeUndefined();
+    expect(sendFileToolInWith).toBeDefined();
+  });
+
+  it("returns a sendFile error when the Telegram API call fails", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "file.md"), "content");
+
+    const sendError = new Error("Telegram API: file too large");
+    const mockFileSender = {
+      sendFile: vi.fn(async () => {
+        throw sendError;
+      }),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools[5];
+
+    const result = await sendFileTool.invoke({ relativePath: "file.md" }) as string;
+
+    expect(result).toContain("Error");
+    expect(result).toContain("file too large");
+  });
+});

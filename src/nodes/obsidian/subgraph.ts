@@ -5,6 +5,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
+import type { IFileSender } from "../../telegram/file-sender.js";
 import { createObsidianNode } from "./index.js";
 import { createObsidianTools } from "./tools.js";
 
@@ -36,8 +37,8 @@ const lastMessageHasToolCalls = (state: ObsidianSubgraphState): boolean => {
  * Create a compiled Obsidian sub-graph with internal tool loop.
  * The sub-graph has its own StateGraph with step tracking to enforce max-step limits.
  */
-export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseChatModel }, vaultRoot: string) => {
-  const tools = createObsidianTools(vaultRoot);
+export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseChatModel }, vaultRoot: string, fileSender?: IFileSender) => {
+  const tools = createObsidianTools(vaultRoot, fileSender);
   
   const obsidianNode = createObsidianNode(llmConnector, vaultRoot, tools);
   const obsidianToolsNode = new ToolNode(tools);
@@ -74,8 +75,9 @@ export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseC
 export const createObsidianSubgraphWrapper = (
   llmConnector: { getModel(): BaseChatModel },
   vaultRoot: string,
+  fileSender?: IFileSender,
 ) => {
-  const compiledSubgraph = createCompiledObsidianSubgraph(llmConnector, vaultRoot);
+  const compiledSubgraph = createCompiledObsidianSubgraph(llmConnector, vaultRoot, fileSender);
 
   return async (parentState: AgentState): Promise<AgentStateUpdate> => {
     try {

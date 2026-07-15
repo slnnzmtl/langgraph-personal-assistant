@@ -20,9 +20,11 @@ const injectCurrentDatetime = (content: string): string => {
   const today = toUtcDayRange(now);
   const yesterday = toUtcDayRange(yesterdayDate);
   const header = [
+    `<system_metadata>`,
     `⏰ CURRENT DATETIME: ${currentDatetime}`,
     `📅 TODAY    → since: ${today.since}, until: ${today.until}`,
     `📅 YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
+    "</system_metadata>",
   ].join("\n");
   return `${header}\n\n${content}`;
 };
@@ -54,23 +56,23 @@ const injectSkills = (prompt: string, skillsDir: string): string => {
 };
 
 
-const resolvePromptPath = (key: string): string => {
+const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string => {
   if (path.isAbsolute(key) && existsSync(key)) {
     return key;
   }
 
-  const filePath = path.join(PROMPTS_ROOT, `${key}.md`);
+  const filePath = path.join(PROMPTS_ROOT, `${key}.${fileType}`);
   if (existsSync(filePath)) {
     return filePath;
   }
 
-  const dirFilePath = path.join(PROMPTS_ROOT, key, "system.md");
+  const dirFilePath = path.join(PROMPTS_ROOT, key, `system.${fileType}`);
   if (existsSync(dirFilePath)) {
     return dirFilePath;
   }
 
   throw new Error(
-    `Prompt not found: "${key}". Tried:\n  - ${filePath}\n  - ${dirFilePath}`
+    `Prompt not found: "${key}" (${fileType}). Tried:\n  - ${filePath}\n  - ${dirFilePath}`
   );
 };
 
@@ -86,21 +88,23 @@ const readPromptFile = (filePath: string): string => {
  * Get the skills directory path for a given prompt key.
  * Returns path to `${promptDir}/skills` if it exists, otherwise returns path even if it doesn't exist.
  * @param key - Prompt key (e.g. "finance", "obsidian")
+ * @param fileType - File type: "md" or "xml" (default: "md")
  * @returns Path to the skills directory
  */
-export const getSkillsDir = (key: string): string => {
-  const filePath = resolvePromptPath(key);
+export const getSkillsDir = (key: string, fileType: "md" | "xml" = "md"): string => {
+  const filePath = resolvePromptPath(key, fileType);
   return path.join(path.dirname(filePath), "skills");
 };
 
 /**
  * Load raw prompt content by key.
- * Automatically resolves file paths: tries `${key}.md` first, then `${key}/system.md`.
+ * Automatically resolves file paths: tries `${key}.${fileType}` first, then `${key}/system.${fileType}`.
  * @param key - Prompt key (e.g. "supervisor", "obsidian", "finance/skills/sync-expenses")
- * @returns Raw prompt markdown content
+ * @param fileType - File type: "md" or "xml" (default: "md")
+ * @returns Raw prompt content
  */
-export const loadPrompt = (key: string): string => {
-  const filePath = resolvePromptPath(key);
+export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string => {
+  const filePath = resolvePromptPath(key, fileType);
   const content = readPromptFile(filePath);
   const skillsDir = path.join(path.dirname(filePath), "skills");
   return injectSkills(content, skillsDir);
@@ -110,7 +114,7 @@ export const loadSupervisorSystemPrompt = (): string =>
   injectCurrentDatetime(loadPrompt("supervisor"));
 
 export const loadObsidianSystemPrompt = (): string =>
-  injectObsidianRoutineHint(injectCurrentDatetime(loadPrompt("obsidian")))();
+  injectObsidianRoutineHint(injectCurrentDatetime(loadPrompt("obsidian", "xml")))();
 
 export const loadFinanceSystemPrompt = (): string =>
   injectCurrentDatetime(loadPrompt("finance"));
@@ -126,16 +130,17 @@ export const createPromptLoader = (
   options?: {
     hotReload?: boolean;
     timezone?: string;
+    fileType?: "md" | "xml";
   },
 ): (() => string) => {
   let cachedPrompt: string | undefined;
 
   return (): string => {
     if (options?.hotReload) {
-      return loadPrompt(key);
+      return loadPrompt(key, options.fileType ?? "md");
     }
 
-    cachedPrompt ??= loadPrompt(key);
+    cachedPrompt ??= loadPrompt(key, options?.fileType ?? "md");
     return cachedPrompt;
   };
 };
