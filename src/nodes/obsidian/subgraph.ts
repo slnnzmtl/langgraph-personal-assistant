@@ -1,5 +1,5 @@
 import { AIMessage, type BaseMessage } from "@langchain/core/messages";
-import { Annotation, END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import { Annotation, END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
@@ -59,8 +59,7 @@ export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseC
     .addEdge("tools", "incrementCounter")
     .addEdge("incrementCounter", "llm");
 
-  const memory = new MemorySaver();
-  return graph.compile({ checkpointer: memory, name: "obsidian-subgraph" });
+  return graph.compile({ name: "obsidian-subgraph" });
 };
 
 /**

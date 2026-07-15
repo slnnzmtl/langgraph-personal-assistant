@@ -168,10 +168,10 @@ describe("cron summary context", () => {
     const graphInvoke = vi.fn().mockResolvedValue({
       messages: [
         new HumanMessage("SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation\n\nPayload:\nCreate today\'s routine note."),
-        new AIMessage({ content: "", tool_calls: [{ name: "read_markdown_file", args: {}, id: "read-1" }] }),
-        new ToolMessage({ content: "Yesterday tasks: - [ ] Review inbox", tool_call_id: "read-1", name: "read_markdown_file" }),
-        new AIMessage({ content: "", tool_calls: [{ name: "write_markdown_file", args: {}, id: "write-1" }] }),
-        new ToolMessage({ content: "Success: Updated today\'s note.", tool_call_id: "write-1", name: "write_markdown_file" }),
+        new AIMessage({ content: "", tool_calls: [{ name: "read_file", args: {}, id: "read-1" }] }),
+        new ToolMessage({ content: "Yesterday tasks: - [ ] Review inbox", tool_call_id: "read-1", name: "read_file" }),
+        new AIMessage({ content: "", tool_calls: [{ name: "write_file", args: {}, id: "write-1" }] }),
+        new ToolMessage({ content: "Success: Updated today's note.", tool_call_id: "write-1", name: "write_file" }),
         new AIMessage("Updated today\'s routine note with carried-forward tasks."),
       ],
     });

@@ -9,13 +9,10 @@ import {
   writeTextFile,
 } from "../../utils/file-system.js";
 
-const MarkdownRelativePathSchema = z
+const RelativePathSchema = z
   .string()
   .min(1)
-  .describe("The destination path relative to the vault root, and it must end in .md.")
-  .refine((value) => value.endsWith(".md"), {
-    message: "relativePath must target a markdown file.",
-  })
+  .describe("The destination path relative to the vault root.")
   .refine((value) => !value.includes(".."), {
     message: "Path traversal is forbidden.",
   });
@@ -28,26 +25,26 @@ const MarkdownSummarySchema = z
   .string()
   .min(1);
 
-export const ReadMarkdownToolSchema = z.object({
-  relativePath: MarkdownRelativePathSchema,
-}).describe("Read the full contents of a markdown file.");
+export const ReadFileToolSchema = z.object({
+  relativePath: RelativePathSchema,
+}).describe("Read the full contents of a file.");
 
-export const WriteMarkdownToolSchema = z.object({
-  relativePath: MarkdownRelativePathSchema,
+export const WriteFileToolSchema = z.object({
+  relativePath: RelativePathSchema,
   operation: z.enum(["create_new", "append", "overwrite"]),
   content: MarkdownContentSchema,
   summary: MarkdownSummarySchema,
-}).describe("Write or modify a markdown file in the vault.");
+}).describe("Write or modify a file in the vault.");
 
 export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   try {
     return resolveSafePath(vaultRoot, relativePath);
   } catch {
-    throw new Error("Markdown path must stay inside the local vault.");
+    throw new Error("Path must stay inside the local vault.");
   }
 };
 
-export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: z.infer<typeof WriteMarkdownToolSchema>): Promise<string> => {
+export const applyFileWrite = async (vaultRoot: string, operationRequest: z.infer<typeof WriteFileToolSchema>): Promise<string> => {
   const targetPath = resolveVaultPath(vaultRoot, operationRequest.relativePath);
 
   if (operationRequest.operation === "create_new") {
@@ -90,21 +87,21 @@ export const applyMarkdownWrite = async (vaultRoot: string, operationRequest: z.
   return operationRequest.relativePath;
 };
 
-export const readMarkdownFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
+export const readVaultFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
   try {
     return await readTextFile(vaultRoot, relativePath);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Cannot read missing markdown file: ${relativePath}`);
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") throw new Error(`Cannot read missing file: ${relativePath}`);
     throw error;
   }
 };
 
-export const checkMarkdownExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
+export const checkFileExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
   return fileExists(vaultRoot, relativePath);
 };
 
-export const listMarkdownFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
-  const { files } = await listDirectoryContents(vaultRoot, relativeDir, { fileExtension: ".md" });
+export const listFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
+  const { files } = await listDirectoryContents(vaultRoot, relativeDir);
   return files;
 };
 
@@ -114,14 +111,19 @@ const RelativeDirSchema = z
   .default(".")
   .refine((v) => !v.includes(".."), { message: "Path traversal is forbidden." });
 
-export const ListMarkdownToolSchema = z.object({
+export const ListFilesToolSchema = z.object({
   relativeDir: RelativeDirSchema,
-}).describe("List .md files and subdirectories in a vault directory.");
+}).describe("List files and subdirectories in a vault directory.");
 
-export const SearchMarkdownToolSchema = z.object({
+export const SearchFilesToolSchema = z.object({
   queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if content contains any term). Terms will be lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Search for .md files whose content or vault-relative path matches any of the supplied search terms (OR semantics).");
+}).describe("Search for files whose content or vault-relative path matches any of the supplied search terms (OR semantics).");
+
+export const SearchFilesByNameToolSchema = z.object({
+  queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if filename contains any term). Terms will be lowercased before matching."),
+  relativeDir: RelativeDirSchema,
+}).describe("Search for files by filename using case-insensitive matching.");
 
 const normalizeSearchQueries = (queries: string[]): string[] => {
   const normalized = queries
@@ -132,50 +134,78 @@ const normalizeSearchQueries = (queries: string[]): string[] => {
   return Array.from(new Set(normalized));
 };
 
-export const listMarkdownDirContents = async (
+export const listDirContents = async (
   vaultRoot: string,
   relativeDir: string,
 ): Promise<{ files: string[]; dirs: string[] }> => {
-  return listDirectoryContents(vaultRoot, relativeDir, { fileExtension: ".md" });
+  return listDirectoryContents(vaultRoot, relativeDir);
 };
 
-export const searchMarkdownFiles = async (
+export const searchFiles = async (
   vaultRoot: string,
   queries: string[],
   relativeDir: string,
 ): Promise<string[]> => {
-  return searchFilesByContent(vaultRoot, normalizeSearchQueries(queries), relativeDir, { fileExtension: ".md" });
+  const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
+
+  // Search by content
+  const contentMatches = await searchFilesByContent(vaultRoot, normalizeSearchQueries(queries), relativeDir);
+
+  // Search by filename
+  const { files } = await listDirContents(vaultRoot, relativeDir);
+  const filenameMatches = files.filter((file) =>
+    normalizedQueries.some((query) => file.toLowerCase().includes(query))
+  );
+
+  // Combine and deduplicate results
+  const allMatches = Array.from(new Set([...contentMatches, ...filenameMatches]));
+  return allMatches;
+};
+
+export const searchFilesByName = async (
+  vaultRoot: string,
+  queries: string[],
+  relativeDir: string,
+): Promise<string[]> => {
+  const normalizedQueries = normalizeSearchQueries(queries).map((q) => q.toLowerCase());
+
+  const { files } = await listDirContents(vaultRoot, relativeDir);
+  const matches = files.filter((file) =>
+    normalizedQueries.some((query) => file.toLowerCase().includes(query))
+  );
+
+  return matches;
 };
 
 export const createObsidianTools = (vaultRoot: string) => [
   tool(
     async ({ relativePath }) => {
-      try { return await readMarkdownFile(vaultRoot, relativePath); } 
+      try { return await readVaultFile(vaultRoot, relativePath); }
       catch (e: any) { return `Error: ${e.message}`; }
     },
-    { name: "read_markdown_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadMarkdownToolSchema },
+    { name: "read_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadFileToolSchema },
   ),
   tool(
-    async (args: z.infer<typeof WriteMarkdownToolSchema>) => {
+    async (args: z.infer<typeof WriteFileToolSchema>) => {
       try {
-        if (args.operation === "create_new" && await checkMarkdownExists(vaultRoot, args.relativePath)) {
+        if (args.operation === "create_new" && await checkFileExists(vaultRoot, args.relativePath)) {
           return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
         }
 
-        await applyMarkdownWrite(vaultRoot, args);
+        await applyFileWrite(vaultRoot, args);
         return `Success: ${args.summary} saved to ${args.relativePath}.`;
       } catch (e: any) { return `Error: ${e.message}`; }
     },
     {
-      name: "write_markdown_file",
+      name: "write_file",
       description: "Write content to a file. Set operation to 'append' for adding lines, or 'overwrite' to update existing text cleanly.",
-      schema: WriteMarkdownToolSchema,
+      schema: WriteFileToolSchema,
     },
   ),
   tool(
-    async ({ relativeDir }: z.infer<typeof ListMarkdownToolSchema>) => {
+    async ({ relativeDir }: z.infer<typeof ListFilesToolSchema>) => {
       try {
-        const { files, dirs } = await listMarkdownDirContents(vaultRoot, relativeDir);
+        const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
         const lines = [
           ...files.map((f) => `file: ${f}`),
           ...dirs.map((d) => `dir: ${d}`),
@@ -186,24 +216,39 @@ export const createObsidianTools = (vaultRoot: string) => [
       }
     },
     {
-      name: "list_markdown_files",
-      description: "List .md files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
-      schema: ListMarkdownToolSchema,
+      name: "list_files",
+      description: "List files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
+      schema: ListFilesToolSchema,
     },
   ),
   tool(
-    async ({ queries, relativeDir }: z.infer<typeof SearchMarkdownToolSchema>) => {
+    async ({ queries, relativeDir }: z.infer<typeof SearchFilesToolSchema>) => {
       try {
-        const matches = await searchMarkdownFiles(vaultRoot, queries, relativeDir);
+        const matches = await searchFiles(vaultRoot, queries, relativeDir);
         return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
       } catch (e: any) {
         return `Error: ${e.message}`;
       }
     },
     {
-      name: "search_markdown_files",
-      description: "Search .md files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
-      schema: SearchMarkdownToolSchema,
+      name: "search_files",
+      description: "Search files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
+      schema: SearchFilesToolSchema,
+    },
+  ),
+  tool(
+    async ({ queries, relativeDir }: z.infer<typeof SearchFilesByNameToolSchema>) => {
+      try {
+        const matches = await searchFilesByName(vaultRoot, queries, relativeDir);
+        return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
+      } catch (e: any) {
+        return `Error: ${e.message}`;
+      }
+    },
+    {
+      name: "search_files_by_name",
+      description: "Search for files by filename using case-insensitive matching. Query terms are lowercased before matching; a file matches if its filename contains any of the supplied search terms (OR semantics).",
+      schema: SearchFilesByNameToolSchema,
     },
   ),
 ];

@@ -7,12 +7,12 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-  applyMarkdownWrite,
-  listMarkdownDirContents,
-  listMarkdownFiles,
+  applyFileWrite,
+  listDirContents,
+  listFiles,
   resolveVaultPath,
   createObsidianTools,
-  searchMarkdownFiles,
+  searchFiles,
 } from "../../src/nodes/obsidian/tools.js";
 import {
   createObsidianNode,
@@ -47,11 +47,11 @@ const createTempVault = async (): Promise<string> => {
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
     expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
-      "Markdown path must stay inside the local vault.",
+      "Path must stay inside the local vault.",
     );
   });
 
-  it("lists and searches only markdown files", async () => {
+  it("lists and searches all file types", async () => {
     const vaultRoot = await createTempVault();
     const { mkdir, writeFile } = await import("node:fs/promises");
 
@@ -61,32 +61,34 @@ describe("obsidian node helpers", () => {
     await mkdir(path.join(vaultRoot, "daily", "nested"), { recursive: true });
     await writeFile(path.join(vaultRoot, "daily", "nested", "deep.md"), "gamma", "utf8");
 
-    await expect(listMarkdownFiles(vaultRoot, "daily")).resolves.toEqual([
+    await expect(listFiles(vaultRoot, "daily")).resolves.toEqual([
       "daily/note.md",
+      "daily/note.txt",
     ]);
 
-    await expect(listMarkdownDirContents(vaultRoot, "daily")).resolves.toEqual({
-      files: ["daily/note.md"],
+    await expect(listDirContents(vaultRoot, "daily")).resolves.toEqual({
+      files: ["daily/note.md", "daily/note.txt"],
       dirs: ["nested"],
     });
 
-    await expect(searchMarkdownFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
+    await expect(searchFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
       "daily/nested/deep.md",
       "daily/note.md",
+      "daily/note.txt",
     ]);
   });
 
   it("creates and appends markdown content safely", async () => {
     const vaultRoot = await createTempVault();
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "daily/2024-05-15.md",
       operation: "create_new",
       content: "First entry",
       summary: "Created note",
     });
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "daily/2024-05-15.md",
       operation: "append",
       content: "Second entry",
@@ -104,7 +106,7 @@ describe("obsidian node helpers", () => {
       invoke(input: unknown): Promise<unknown>;
     }>;
 
-    await expect(readTool.invoke({ relativePath: "note.txt" })).rejects.toThrow();
+    await expect(readTool.invoke({ relativePath: "" })).rejects.toThrow();
     await expect(
       writeTool.invoke({
         relativePath: "note.md",
@@ -118,7 +120,7 @@ describe("obsidian node helpers", () => {
   it("reads markdown with plain contents for the model", async () => {
     const vaultRoot = await createTempVault();
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "notes/read.md",
       operation: "create_new",
       content: "Alpha\nBeta\n",
@@ -275,7 +277,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_markdown_file",
+              name: "read_file",
               args: { relativePath: "routine/July/July 4 - Sat.md" },
               id: "read-yesterday",
               type: "tool_call",
@@ -325,7 +327,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "search_markdown_files",
+              name: "search_files",
               args: { queries: ["potuzhno", "event", "note"] },
               id: "search-1",
               type: "tool_call",
@@ -333,7 +335,7 @@ describe("createObsidianNode", () => {
           ],
         }),
         new ToolMessage({
-          name: "search_markdown_files",
+          name: "search_files",
           tool_call_id: "search-1",
           content: rawSearchResult,
         }),
@@ -384,7 +386,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: {
                 relativePath: "routine/July/July 5 - Sun.md",
                 operation: "append",
@@ -428,13 +430,13 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_markdown_file",
+              name: "read_file",
               args: { relativePath: "routine/July/July 5 - Sun.md" },
               id: "read-today",
               type: "tool_call",
             },
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: {
                 relativePath: "routine/July/July 5 - Sun.md",
                 operation: "overwrite",
@@ -479,10 +481,10 @@ describe("createObsidianNode", () => {
 });
 
 // ---------------------------------------------------------------------------
-// list_markdown_files tool
+// list_files tool
 // ---------------------------------------------------------------------------
 
-describe("obsidian tool: list_markdown_files", () => {
+describe("obsidian tool: list_files", () => {
   it("lists .md files and subdirectories in a given directory", async () => {
     const vaultRoot = await createTempVault();
     const { mkdir, writeFile: wf } = await import("node:fs/promises");
@@ -524,10 +526,10 @@ describe("obsidian tool: list_markdown_files", () => {
 });
 
 // ---------------------------------------------------------------------------
-// search_markdown_files tool
+// search_files tool
 // ---------------------------------------------------------------------------
 
-describe("obsidian tool: search_markdown_files", () => {
+describe("obsidian tool: search_files", () => {
   it("finds files whose content matches any query term (OR semantics)", async () => {
     const vaultRoot = await createTempVault();
     const { writeFile: wf } = await import("node:fs/promises");

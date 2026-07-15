@@ -203,7 +203,7 @@ describe("createSupervisorNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: { relativePath: "routine/2026-07-05.md" },
               id: "write-1",
               type: "tool_call",

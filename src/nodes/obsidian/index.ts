@@ -13,11 +13,11 @@ import {
   createObsidianTools,
 } from "./tools.js";
 import { reduceAgentMessages } from "../../state.js";
-import {
-  normalizeSearchResponseText,
-} from "./response-handlers.js";
+// import {
+//   normalizeSearchResponseText,
+// } from "./response-handlers.js";
 
-const SEARCH_POST_PROCESS_INSTRUCTION = "Post-process the markdown search results into the shortest useful answer. Return at most 3 relevant paths, prefer the most specific matches, and do not repeat the entire raw result list.";
+// const SEARCH_POST_PROCESS_INSTRUCTION = "Post-process the markdown search results into the shortest useful answer. Return at most 3 relevant paths, prefer the most specific matches, and do not repeat the entire raw result list.";
 
 export const ObsidianStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
@@ -38,28 +38,28 @@ export const buildObsidianSystemPrompt = async (vaultRoot: string): Promise<stri
   return `${loadObsidianSystemPrompt()}\n\nVault directory tree (folders only):\n${vaultDirectoryTree}`;
 };
 
-const getMessageText = (message: BaseMessage): string =>
-  typeof message.content === "string" ? message.content : String(message.content);
+// const getMessageText = (message: BaseMessage): string =>
+  // typeof message.content === "string" ? message.content : String(message.content);
 
-const isToolResult = (message: BaseMessage | undefined, toolName: string): message is ToolMessage =>
-  message instanceof ToolMessage && message.name === toolName;
+// const isToolResult = (message: BaseMessage | undefined, toolName: string): message is ToolMessage =>
+//   message instanceof ToolMessage && message.name === toolName;
 
-const postProcessSearchResult = async (
-  model: BaseChatModel,
-  systemPrompt: string,
-  messages: BaseMessage[],
-  searchResult: ToolMessage,
-): Promise<AIMessage> => {
-  const searchPromptMessages = [
-    new SystemMessage(`${systemPrompt}\n\n${SEARCH_POST_PROCESS_INSTRUCTION}`),
-    ...messages,
-  ];
-  const searchResponse = await model.invoke(searchPromptMessages);
-  const searchResponseText = searchResponse instanceof AIMessage
-    ? extractMessageTextContent(searchResponse.content).trim()
-    : "";
-  return new AIMessage(normalizeSearchResponseText(searchResponseText, getMessageText(searchResult)));
-};
+// const postProcessSearchResult = async (
+//   model: BaseChatModel,
+//   systemPrompt: string,
+//   messages: BaseMessage[],
+//   searchResult: ToolMessage,
+// ): Promise<AIMessage> => {
+//   const searchPromptMessages = [
+//     new SystemMessage(`${systemPrompt}\n\n${SEARCH_POST_PROCESS_INSTRUCTION}`),
+//     ...messages,
+//   ];
+//   const searchResponse = await model.invoke(searchPromptMessages);
+//   const searchResponseText = searchResponse instanceof AIMessage
+//     ? extractMessageTextContent(searchResponse.content).trim()
+//     : "";
+//   return new AIMessage(normalizeSearchResponseText(searchResponseText, getMessageText(searchResult)));
+// };
 
 /**
  * Run the tool-bound model. When it returns neither tool calls nor text,
@@ -108,11 +108,11 @@ export const createObsidianNode = (
       const promptMessages = mergeMessageRuns([new SystemMessage(systemPrompt), ...state.messages]);
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
-      const lastMessage = state.messages[state.messages.length - 1];
+      // const lastMessage = state.messages[state.messages.length - 1];
 
-      if (isToolResult(lastMessage, "search_markdown_files")) {
-        return { messages: [await postProcessSearchResult(model, systemPrompt, state.messages, lastMessage)] };
-      }
+      // if (isToolResult(lastMessage, "search_markdown_files")) {
+      //   return { messages: [await postProcessSearchResult(model, systemPrompt, state.messages, lastMessage)] };
+      // }
 
       const finalMessage = await invokeToolBoundModel(model, modelWithTools, promptMessages, state.messages);
       return { messages: [finalMessage] };
