@@ -5,7 +5,7 @@ dist/
 logs/
 .github/agents/
 .pnpm-store/
-test-results/
+test-results/*
 .tmp
 data/*
 cron-jobs.json
