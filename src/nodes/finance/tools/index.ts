@@ -1,5 +1,5 @@
 import { StructuredToolInterface, tool } from "@langchain/core/tools";
-import { SupabaseMcpSession } from "../../../mcp/supabase/index.js";
+import { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { fetchWiseTransactions } from "./wise/index.js";
 import { getSkillsDir } from "../../../prompts/load-system-prompt.js";

@@ -1,22 +1,18 @@
-import type { AppConfig } from "../../../../config.js";
-import { connectSupabaseMcp } from "../../../../mcp/supabase/index.js";
-import type { SupabaseMcpSession } from "../../../../mcp/supabase/index.js";
+import type { AppConfig } from "../../config.js";
+import { connectSupabaseMcp, SupabaseMcpSession } from "../../mcp/supabase.js";
 
-/**
- * Create a Supabase MCP session for finance operations based on the app config.
- * Returns `undefined` when the configuration is missing or the connection fails.
- */
-export const setupFinanceDatabase = async (
+export { SupabaseMcpSession } from "../../mcp/supabase.js";
+
+export const setupSupabaseSession = async (
   config: AppConfig
 ): Promise<SupabaseMcpSession | undefined> => {
-  if (config.enableFinanceSync && config.supabaseProjectRef && config.supabaseAccessToken) {
+  if (config.supabaseProjectRef && config.supabaseAccessToken) {
     try {
       console.log("[Finance Setup] All credentials present, creating Supabase MCP session...");
       const session = await connectSupabaseMcp({
         url: config.supabaseMcpUrl ?? "https://mcp.supabase.com/mcp",
         projectRef: config.supabaseProjectRef,
         accessToken: config.supabaseAccessToken,
-        // Finance sync needs write access for INSERT
         readOnly: false,
       });
       console.log("[Finance Setup] ✓ Supabase MCP session created successfully.");
@@ -31,4 +27,4 @@ export const setupFinanceDatabase = async (
   }
 };
 
-export default setupFinanceDatabase;
+export default setupSupabaseSession;

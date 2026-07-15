@@ -3,7 +3,7 @@ import { END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
+import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { createFinanceNode, FinanceStateAnnotation, createFinanceTools } from "./index.js";
 
