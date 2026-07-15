@@ -5,9 +5,20 @@ import path from "node:path";
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
-import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
+import { createWorkflowGraph } from "../../src/agent.js";
+import type { CronJobRepository } from "../../src/cron/types.js";
 import { MESSAGE_HISTORY_LIMIT } from "../../src/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
+
+const testCronRepository: CronJobRepository = {
+  loadJobs: async () => [],
+  saveJobs: async () => {},
+};
+
+const makeWorkflowGraphConfig = (obsidianVaultPath: string) => ({
+  obsidianVaultPath,
+  cronJobRepository: testCronRepository,
+});
 
 const workflowConfig = {
   configurable: {
@@ -52,10 +63,7 @@ test.describe("workflow graph", () => {
       reply: "Direct answer from supervisor",
     }));
 
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-vault")));
 
     const finalState = await app.invoke(
       {
@@ -94,10 +102,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -153,10 +158,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -190,10 +192,7 @@ test.describe("workflow graph", () => {
       return { next: "Obsidian_SG" };
     });
 
-    const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-error-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-error-vault")));
 
     const finalState = await app.invoke(
       {
@@ -209,10 +208,7 @@ test.describe("workflow graph", () => {
 
   test("routes a finance request to the finance mock branch", async () => {
     const connector = new FakeLLMConnector(() => ({ next: "Finance_SG" }));
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-finance-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-finance-vault")));
 
     const finalState = await app.invoke(
       {
@@ -269,10 +265,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       let finalState = await app.invoke(
         {
@@ -366,10 +359,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -459,10 +449,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -501,10 +488,7 @@ test.describe("workflow graph", () => {
       }, `loop-step-${invocation}`);
     });
 
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-loop-limit-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-loop-limit-vault")));
 
     const finalState = await app.invoke(
       {
@@ -573,10 +557,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -649,10 +630,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -760,10 +738,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {

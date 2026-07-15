@@ -26,7 +26,7 @@ describe("createConfigurationNode", () => {
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for list requests");
     });
-    const runtimeScheduler = {
+    const runtimeCron = {
       addJob: vi.fn(),
       removeJob: vi.fn(),
       listActiveJobs: vi.fn(() => []),
@@ -40,7 +40,7 @@ describe("createConfigurationNode", () => {
       createCronConfigTools(repository as never),
       {
         repository: repository as never,
-        runtimeScheduler: runtimeScheduler as never,
+        runtimeCron: runtimeCron as never,
       },
     );
 
@@ -54,6 +54,6 @@ describe("createConfigurationNode", () => {
     expect(result.messages?.[0]?.content).toContain("Job name: sync-wise-transactions");
     expect(result.messages?.[0]?.content).toContain("Schedule: 0 7 * * *");
     expect(invokeSpy).not.toHaveBeenCalled();
-    expect(runtimeScheduler.addJob).not.toHaveBeenCalled();
+    expect(runtimeCron.addJob).not.toHaveBeenCalled();
   });
 });

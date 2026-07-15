@@ -22,10 +22,7 @@ export interface AppConfig {
   appTimezone: string;
   schedulerEnabled: boolean;
   cronJobsFilePath: string;
-  // Optional: Supabase finance integration
-  supabaseUrl?: string | undefined;
-  supabaseServiceRoleKey?: string | undefined;
-  // Optional: Official hosted Supabase MCP server (replaces custom SQL tools)
+  // Optional: Official hosted Supabase MCP server
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
   supabaseAccessToken?: string | undefined;
@@ -83,10 +80,6 @@ export const loadConfig = (): AppConfig => {
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
-    // Optional Supabase finance integration
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    // Optional hosted Supabase MCP server
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,

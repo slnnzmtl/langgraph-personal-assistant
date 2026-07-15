@@ -1,8 +1,9 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../telegram/file-sender.js";
-import { createReadSkillTool } from "../../tools/read-skill.js";
+import { createReadSkillTool } from "../../tools/skill-management.js";
 import {
+  RelativePathSchema,
   resolveVaultPath,
   applyFileWrite,
   readVaultFile,
@@ -11,14 +12,6 @@ import {
   searchFiles,
   searchFilesByName,
 } from "../../services/obsidian.js";
-
-const RelativePathSchema = z
-  .string()
-  .min(1)
-  .describe("The destination path relative to the vault root.")
-  .refine((value) => !value.includes(".."), {
-    message: "Path traversal is forbidden.",
-  });
 
 const MarkdownContentSchema = z
   .string()

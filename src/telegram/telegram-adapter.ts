@@ -1,7 +1,6 @@
 import type { BaseMessage } from "@langchain/core/messages";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { Telegraf } from "telegraf";
-import type { Context } from "telegraf";
+import { Telegraf, type Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
 import type { createWorkflowGraph } from "../agent.js";
@@ -157,9 +156,10 @@ export class TelegramAdapter implements ITelegramAdapter {
   constructor(
     private readonly app: ReturnType<typeof createWorkflowGraph>,
     config: AppConfig,
+    bot: Telegraf<Context>,
     private readonly fileSender?: IFileSender,
   ) {
-    this.bot = new Telegraf(config.telegramBotToken);
+    this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
   }
 

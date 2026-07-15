@@ -1,39 +1,31 @@
 import cron, { type ScheduledTask } from "node-cron";
 
+import { buildCronTriggerForJob } from "../cron-triggers.js";
 import type { CronJobDefinition } from "./cron-launcher.js";
-import { buildSchedulerTriggerForJob } from "./protocol.js";
 
-export type RuntimeSchedulerService = {
+export type RuntimeCronService = {
   addJob(job: CronJobDefinition): Promise<void>;
   removeJob(jobName: string): Promise<void>;
   listActiveJobs(): CronJobDefinition[];
 };
 
-/**
- * Create a runtime scheduler service that can add/remove jobs at runtime.
- * This is used to activate newly created cron jobs without restarting the app.
- * 
- * @param options Configuration for the runtime scheduler
- * @returns Service with addJob, removeJob, and listActiveJobs methods
- */
-export const createRuntimeSchedulerService = (options: {
-  // runner accepts payloads that may be string or structured JSON
+export const createRuntimeCronService = (options: {
   runner: (job: { jobName: string; trigger: string; payload?: unknown }) => Promise<void>;
   timezone?: string;
-}): RuntimeSchedulerService => {
+}): RuntimeCronService => {
   const activeJobs = new Map<string, { job: CronJobDefinition; task: ScheduledTask }>();
 
-    const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
-    const trigger = buildSchedulerTriggerForJob(job.targetRoute, job.jobName);
+  const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
+    const trigger = buildCronTriggerForJob(job.targetRoute, job.jobName);
     const task = cron.schedule(job.schedule, async () => {
       try {
         await options.runner({
           jobName: job.jobName,
           trigger,
-            ...(job.payload !== undefined ? { payload: job.payload } : {}),
+          ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
       } catch (error) {
-        console.error(`[RuntimeScheduler] Failed to execute job "${job.jobName}":`, error);
+        console.error(`[RuntimeCron] Failed to execute job "${job.jobName}":`, error);
       }
     }, {
       timezone: job.timezone ?? options.timezone ?? "UTC",
@@ -51,7 +43,7 @@ export const createRuntimeSchedulerService = (options: {
       try {
         const task = scheduleJob(job);
         activeJobs.set(job.jobName, { job, task });
-        console.log(`[RuntimeScheduler] Added job: ${job.jobName} (${job.schedule})`);
+        console.log(`[RuntimeCron] Added job: ${job.jobName} (${job.schedule})`);
       } catch (error) {
         throw new Error(`Failed to schedule job "${job.jobName}": ${error instanceof Error ? error.message : String(error)}`);
       }
@@ -66,7 +58,7 @@ export const createRuntimeSchedulerService = (options: {
       entry.task.stop();
       entry.task.destroy();
       activeJobs.delete(jobName);
-      console.log(`[RuntimeScheduler] Removed job: ${jobName}`);
+      console.log(`[RuntimeCron] Removed job: ${jobName}`);
     },
 
     listActiveJobs(): CronJobDefinition[] {
@@ -75,23 +67,17 @@ export const createRuntimeSchedulerService = (options: {
   };
 };
 
-/**
- * Create a lazy-initialized scheduler service that starts empty.
- * The actual service can be set later via setService().
- * This is useful when the service needs to be passed to the graph,
- * but the graph is created before the scheduler is ready.
- */
-export const createLazySchedulerService = (): RuntimeSchedulerService & { setService(service: RuntimeSchedulerService): void } => {
-  let delegate: RuntimeSchedulerService | undefined;
+export const createLazyCronService = (): RuntimeCronService & { setService(service: RuntimeCronService): void } => {
+  let delegate: RuntimeCronService | undefined;
 
   const ensureDelegate = () => {
     if (!delegate) {
-      throw new Error("Scheduler service not initialized");
+      throw new Error("Cron service not initialized");
     }
   };
 
   return {
-    setService(service: RuntimeSchedulerService): void {
+    setService(service: RuntimeCronService): void {
       delegate = service;
     },
 

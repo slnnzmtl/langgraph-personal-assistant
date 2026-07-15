@@ -1,72 +1,55 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage } from "@langchain/core/messages";
-import path from "node:path";
 
-import type { AppConfig } from "./config.js";
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createCronJobRepository } from "./cron/cron-job-repository.js";
 import { createConfigurationNode, createCronConfigTools } from "./nodes/configurator/index.js";
-import type { RuntimeSchedulerService } from "./cron/runtime-scheduler-service.js";
-import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "./tools/routing.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
+import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
+import type { SupabaseMcpSession } from "./mcp/supabase.js";
 
-export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
+export type WorkflowGraphConfig = {
+  obsidianVaultPath: string;
+  cronJobRepository: CronJobRepository;
   supabaseSession?: SupabaseMcpSession;
-  runtimeScheduler?: RuntimeSchedulerService;
+  runtimeCron?: RuntimeCronService;
   fileSender?: IFileSender;
-};
-
-const isLlmConnector = (value: unknown): value is ILLMConnector => {
-  return Boolean(
-    value
-    && typeof value === "object"
-    && "getModel" in value
-    && typeof (value as ILLMConnector).getModel === "function"
-    && "bindRoutingTools" in value
-    && typeof (value as ILLMConnector).bindRoutingTools === "function",
-  );
+  configLlmConnector?: ILLMConnector;
 };
 
 export const createWorkflowGraph = (
   supervisorLlmConnector: ILLMConnector,
   obsidianLlmConnector: ILLMConnector,
   financeLlmConnector: ILLMConnector,
-  configLlmConnectorOrConfig: ILLMConnector | WorkflowGraphConfig,
-  maybeConfig?: WorkflowGraphConfig,
+  config: WorkflowGraphConfig,
 ) => {
-  const configLlmConnector = isLlmConnector(configLlmConnectorOrConfig)
-    ? configLlmConnectorOrConfig
-    : obsidianLlmConnector;
-  const config = isLlmConnector(configLlmConnectorOrConfig)
-    ? maybeConfig!
-    : configLlmConnectorOrConfig;
-
-  const supervisorNode = createSupervisorNode(supervisorLlmConnector);
-  const cronJobRepository = createCronJobRepository(process.cwd(), path.relative(process.cwd(), config.cronJobsFilePath));
-  const configurationTools = createCronConfigTools(cronJobRepository);
+  const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
+  const configurationTools = createCronConfigTools(config.cronJobRepository);
   const configurationNode = createConfigurationNode(configLlmConnector.getModel(), configurationTools, {
-    repository: cronJobRepository,
-    runtimeScheduler: config.runtimeScheduler,
+    repository: config.cronJobRepository,
+    runtimeCron: config.runtimeCron,
   });
   const configurationToolsNode = new ToolNode(configurationTools);
   const memory = new MemorySaver();
+  const supervisorNode = createSupervisorNode(supervisorLlmConnector);
 
-  // Create Finance and Obsidian sub-graph wrappers
   const financeSubgraphWrapper = config.supabaseSession
     ? createFinanceSubgraphWrapper(config.supabaseSession, financeLlmConnector.getModel())
     : async (_state: AgentState) => ({
-        messages: [new AIMessage("Supabase session is not configure.")],
+        messages: [new AIMessage("Supabase session is not configured.")],
       });
 
-  const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(obsidianLlmConnector, config.obsidianVaultPath, config.fileSender);
+  const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(
+    obsidianLlmConnector,
+    config.obsidianVaultPath,
+    config.fileSender,
+  );
 
-  // Build graph - add all nodes upfront
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode("supervisor", supervisorNode)
     .addNode("configuration", configurationNode)
@@ -74,7 +57,6 @@ export const createWorkflowGraph = (
     .addNode("Finance_SG", financeSubgraphWrapper)
     .addNode("Obsidian_SG", obsidianSubgraphWrapper);
 
-  // Add supervisor edges
   graph
     .addEdge(START, "supervisor")
     .addConditionalEdges(
@@ -88,7 +70,6 @@ export const createWorkflowGraph = (
       } satisfies Record<RouteName, "Finance_SG" | "Obsidian_SG" | "configuration" | typeof END>,
     );
 
-  // Finance and Obsidian sub-graphs return directly to supervisor
   graph.addEdge("Finance_SG", "supervisor");
   graph.addEdge("Obsidian_SG", "supervisor");
 

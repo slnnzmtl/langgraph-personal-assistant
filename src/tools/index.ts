@@ -1,4 +1,4 @@
-export { createReadSkillTool, ReadSkillToolSchema, type ReadSkillToolOptions } from "./read-skill.js";
+export { createReadSkillTool, ReadSkillToolSchema, type ReadSkillToolOptions } from "./skill-management.js";
 export {
   createSkillActionRegistry,
   enrichSkillWithActions,

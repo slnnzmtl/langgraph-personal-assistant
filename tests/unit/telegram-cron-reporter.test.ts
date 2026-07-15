@@ -1,30 +1,18 @@
 import { AIMessage } from "@langchain/core/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sendMessageMock } = vi.hoisted(() => ({
-  sendMessageMock: vi.fn(),
-}));
-
-vi.mock("telegraf", () => ({
-  Telegraf: class {
-    telegram = {
-      sendMessage: sendMessageMock,
-    };
-
-    constructor() {}
-  },
-}));
-
 import { createTelegramCronReporter } from "../../src/telegram/telegram-cron-reporter.js";
 
 describe("createTelegramCronReporter", () => {
+  const sendMessageMock = vi.fn();
+
   beforeEach(() => {
     sendMessageMock.mockReset();
   });
 
   it("sends lifecycle updates to telegram", async () => {
     const reporter = createTelegramCronReporter({
-      telegramBotToken: "123:abc",
+      telegram: { sendMessage: sendMessageMock } as never,
       chatId: "42",
     });
 

@@ -1,10 +1,9 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import type { CronJobRepository } from "../../cron/cron-job-repository.js";
-import type { CronJobDefinition } from "../../cron/cron-launcher.js";
-import { isSchedulerTargetRoute } from "../../cron/protocol.js";
-import { createReadSkillTool } from "../../tools/read-skill.js";
+import { isCronTargetRoute } from "../../cron-triggers.js";
+import type { CronJobDefinition, CronJobRepository } from "../../cron/types.js";
+import { createReadSkillTool } from "../../tools/skill-management.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -60,7 +59,7 @@ export const createCronConfigTools = (repository: CronJobRepository): Structured
   const createCronJob = tool(
     async (input: z.infer<typeof CreateCronJobToolSchema>) => {
       try {
-        if (!isSchedulerTargetRoute(input.targetRoute)) {
+        if (!isCronTargetRoute(input.targetRoute)) {
           throw new Error(`Unknown target route: ${input.targetRoute}`);
         }
 

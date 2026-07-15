@@ -4,20 +4,20 @@ import { HumanMessage } from "@langchain/core/messages";
 
 import { setupCron } from "../../src/cron/cron-launcher.js";
 import {
-  buildSchedulerTriggerForJob,
-  isSchedulerTargetRoute,
-  resolveSchedulerTriggerRoute,
-  SUPERVISE_SCHEDULER_ROUTE,
-} from "../../src/cron/protocol.js";
+  buildCronTriggerForJob,
+  isCronTargetRoute,
+  resolveCronTriggerRoute,
+  SUPERVISE_CRON_ROUTE,
+} from "../../src/cron-triggers.js";
 
 describe("setupCron", () => {
   it("accepts the main supervisor as a cron target", () => {
-    expect(isSchedulerTargetRoute(SUPERVISE_SCHEDULER_ROUTE)).toBe(true);
-    expect(buildSchedulerTriggerForJob(SUPERVISE_SCHEDULER_ROUTE, "morning-review")).toBe(
+    expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE)).toBe(true);
+    expect(buildCronTriggerForJob(SUPERVISE_CRON_ROUTE, "morning-review")).toBe(
       "SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review",
     );
-    expect(resolveSchedulerTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"))).toBe(
-      SUPERVISE_SCHEDULER_ROUTE,
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"))).toBe(
+      SUPERVISE_CRON_ROUTE,
     );
   });
 

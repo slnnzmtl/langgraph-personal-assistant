@@ -1,7 +1,7 @@
 import type { AppConfig } from "../config.js";
 import type { CronJobRepository } from "./cron-job-repository.js";
 import { setupCron, validateCronJobs, type CronJobDefinition } from "./cron-launcher.js";
-import type { SchedulerRunner } from "./scheduler-runner.js";
+import type { CronRunner } from "./cron-runner.js";
 
 type CronScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
 
@@ -33,7 +33,7 @@ export const loadCronJobsForStartup = async (options: {
 export const startCronBootstrap = async (options: {
 	repository: CronJobRepository;
 	config: Pick<AppConfig, "appTimezone" | "schedulerEnabled">;
-	runner: SchedulerRunner;
+	runner: CronRunner;
 	schedule: CronScheduleFn;
 }): Promise<CronJobDefinition[]> => {
 	const jobs = await loadCronJobsForStartup({

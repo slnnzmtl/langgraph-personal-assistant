@@ -2,7 +2,7 @@ import { StructuredToolInterface, tool } from "@langchain/core/tools";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
 import { minimizeJsonString, serializeToolResult, truncateToolOutput } from "../../tools/output.js";
-import { createReadSkillTool } from "../../tools/read-skill.js";
+import { createReadSkillTool } from "../../tools/skill-management.js";
 import { createSkillActionRegistry, registerSkillActions } from "../../tools/skill-actions.js";
 import { z } from "zod";
 import { fetchWiseTransactions } from "../../services/wise/index.js";

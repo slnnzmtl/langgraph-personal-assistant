@@ -1,19 +1,18 @@
-import type { SchedulerRunner } from "./scheduler-runner.js";
 import {
-  buildSchedulerTriggerForJob,
-  isSchedulerTargetRoute,
-  type SchedulerTargetRoute,
-} from "./protocol.js";
+  buildCronTriggerForJob,
+  isCronTargetRoute,
+  type CronTargetRoute,
+} from "../cron-triggers.js";
+import type { CronRunner } from "./cron-runner.js";
 
 type ScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
 
 export type CronJobDefinition = {
   jobName: string;
   schedule: string;
-  targetRoute: SchedulerTargetRoute;
+  targetRoute: CronTargetRoute;
   enabled?: boolean;
   timezone?: string;
-  // payload can be a plain string or a structured JSON object
   payload?: unknown;
 };
 
@@ -21,7 +20,7 @@ export type SetupCronOptions = {
   enabled: boolean;
   defaultTimezone: string;
   schedule: ScheduleFn;
-  runner: SchedulerRunner;
+  runner: CronRunner;
   jobs: CronJobDefinition[];
 };
 
@@ -37,7 +36,7 @@ export const validateCronJobs = (jobs: CronJobDefinition[]): void => {
       throw new Error(`Cron schedule is required for job: ${job.jobName}`);
     }
 
-    if (!isSchedulerTargetRoute(job.targetRoute)) {
+    if (!isCronTargetRoute(job.targetRoute)) {
       throw new Error(`Unknown target route: ${job.targetRoute}`);
     }
 
@@ -66,7 +65,7 @@ export const setupCron = (options: SetupCronOptions): void => {
       async () => {
         await options.runner.run({
           jobName: job.jobName,
-          trigger: buildSchedulerTriggerForJob(job.targetRoute, job.jobName),
+          trigger: buildCronTriggerForJob(job.targetRoute, job.jobName),
           ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
       },

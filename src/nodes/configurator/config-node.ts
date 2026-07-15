@@ -2,9 +2,7 @@ import { AIMessage, SystemMessage, mergeMessageRuns } from "@langchain/core/mess
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import type { CronJobRepository } from "../../cron/cron-job-repository.js";
-import type { CronJobDefinition } from "../../cron/cron-launcher.js";
-import type { RuntimeSchedulerService } from "../../cron/runtime-scheduler-service.js";
+import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadConfiguratorSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
@@ -14,30 +12,30 @@ import { formatCronJobForDisplay } from "./config-tools.js";
 
 type ConfigurationNodeOptions = {
   repository: CronJobRepository;
-  runtimeScheduler?: RuntimeSchedulerService | undefined;
+  runtimeCron?: RuntimeCronService | undefined;
 };
 
-const reconcileRuntimeScheduler = async (
+const reconcileRuntimeCron = async (
   repository: CronJobRepository,
-  runtimeScheduler?: RuntimeSchedulerService,
+  runtimeCron?: RuntimeCronService,
 ): Promise<void> => {
-  if (!runtimeScheduler) {
+  if (!runtimeCron) {
     return;
   }
 
   const persistedJobs = await repository.loadJobs();
   const persistedJobsByName = new Map(persistedJobs.map((job) => [job.jobName, job]));
-  const activeJobsByName = new Map(runtimeScheduler.listActiveJobs().map((job) => [job.jobName, job]));
+  const activeJobsByName = new Map(runtimeCron.listActiveJobs().map((job) => [job.jobName, job]));
 
   for (const [jobName] of activeJobsByName) {
     if (!persistedJobsByName.has(jobName)) {
-      await runtimeScheduler.removeJob(jobName);
+      await runtimeCron.removeJob(jobName);
     }
   }
 
   for (const [jobName, job] of persistedJobsByName) {
     if (!activeJobsByName.has(jobName)) {
-      await runtimeScheduler.addJob(job as CronJobDefinition);
+      await runtimeCron.addJob(job as CronJobDefinition);
     }
   }
 };
@@ -73,7 +71,7 @@ export const createConfigurationNode = (
         return { messages: [new AIMessage(content)] };
       }
 
-      await reconcileRuntimeScheduler(options.repository, options.runtimeScheduler);
+      await reconcileRuntimeCron(options.repository, options.runtimeCron);
 
       if (hasPendingToolCalls(state.messages)) {
         return {};

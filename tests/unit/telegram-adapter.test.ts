@@ -1,6 +1,8 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { Context, Telegraf } from "telegraf";
+
 import type { AppConfig } from "../../src/config.js";
 import {
   formatTelegramMarkdownV2,
@@ -19,6 +21,8 @@ const config: AppConfig = {
   financeModel: "gemini-1.5-flash",
   obsidianVaultPath: "/tmp/vault",
   appTimezone: "UTC",
+  schedulerEnabled: false,
+  cronJobsFilePath: "/tmp/cron-jobs.json",
 };
 
 const app = {
@@ -29,7 +33,13 @@ const app = {
   })),
 };
 
-const createAdapter = () => new TelegramAdapter(app as never, config);
+const bot = {
+  on: vi.fn(),
+  launch: vi.fn(async () => undefined),
+  telegram: {},
+} as unknown as Telegraf<Context>;
+
+const createAdapter = () => new TelegramAdapter(app as never, config, bot);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -285,7 +295,7 @@ describe("TelegramAdapter", () => {
       setCurrentChatId: vi.fn(),
       sendFile: vi.fn(async () => undefined),
     };
-    const adapter = new TelegramAdapter(app as never, config, mockFileSender);
+    const adapter = new TelegramAdapter(app as never, config, bot, mockFileSender);
     const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 

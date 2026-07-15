@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSchedulerTrigger } from "../../src/cron/protocol.js";
+import { buildCronTrigger } from "../../src/cron-triggers.js";
 import { createWorkflowGraph } from "../../src/agent.js";
-import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
+import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
+import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
@@ -23,12 +24,11 @@ const makeGraph = (
     new FakeLLMConnector(supervisorHandler),
     new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
     new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
-    new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven scheduler setup."))),
     {
       obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
-      appTimezone: "UTC",
-      cronJobsFilePath: makeCronJobsFilePath(),
+      cronJobRepository: createCronJobRepository(process.cwd(), path.relative(process.cwd(), makeCronJobsFilePath())),
       supabaseSession,
+      configLlmConnector: new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup."))),
     },
   );
 
@@ -91,7 +91,7 @@ describe("createWorkflowGraph", () => {
 
     // Supervisor routes once; finance fallback runs; supervisor then auto-FINISHes via isSubAgentComplete
     expect(calls).toBe(1);
-    expect(state.messages.at(-1)?.content).toContain("Supabase session is not configure.");
+    expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
   });
 
   it("visits the finance node on Finance_SG route (real integration with mock session)", async () => {
@@ -251,7 +251,7 @@ describe("createWorkflowGraph", () => {
     );
 
     const state = await app.invoke(
-      { messages: [new HumanMessage(buildSchedulerTrigger("finance-sync"))] },
+      { messages: [new HumanMessage(buildCronTrigger("finance-sync"))] },
       threadConfig,
     );
 

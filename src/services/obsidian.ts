@@ -6,10 +6,9 @@ import {
   resolveSafePath,
   searchFilesByContent,
   writeTextFile,
-} from "../mcp/file-system.js";
+} from "../utils/file-system.js";
 
-// Active schema validation
-const RelativePathSchema = z
+export const RelativePathSchema = z
   .string()
   .min(1)
   .describe("The destination path relative to the vault root.")

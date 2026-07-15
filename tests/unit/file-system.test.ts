@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildDirectoryTree, searchFilesByContent } from "../../src/mcp/file-system.js";
+import { buildDirectoryTree, searchFilesByContent } from "../../src/utils/file-system.js";
 import { searchFiles } from "../../src/services/obsidian.js";
 
 const tempPaths: string[] = [];

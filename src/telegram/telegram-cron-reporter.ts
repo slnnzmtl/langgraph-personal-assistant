@@ -1,26 +1,26 @@
 import { Telegraf } from "telegraf";
 
-import type { SchedulerExecutionReporter, SchedulerJobResult, SchedulerJobRun } from "../cron/scheduler-runner.js";
+import type { CronExecutionReporter, CronJobResult, CronJobRun } from "../cron/cron-runner.js";
 
 type TelegramCronReporterOptions = {
-  telegramBotToken: string;
+  telegram: Telegraf["telegram"];
   chatId: string | number;
 };
 
-const formatJobHeader = (job: SchedulerJobRun): string => `Cron job: ${job.jobName}`;
+const formatJobHeader = (job: CronJobRun): string => `Cron job: ${job.jobName}`;
 
-const summarizeResult = (job: SchedulerJobResult): string => {
+const summarizeResult = (job: CronJobResult): string => {
   if (!job.summary?.trim()) {
     throw new Error(`Missing summary for completed cron job: ${job.jobName}`);
   }
   return job.summary.trim();
 };
 
-export const createTelegramCronReporter = (options: TelegramCronReporterOptions): SchedulerExecutionReporter => {
-  const telegram = new Telegraf(options.telegramBotToken).telegram;
+export const createTelegramCronReporter = (options: TelegramCronReporterOptions): CronExecutionReporter => {
+  const { telegram, chatId } = options;
 
   const send = async (text: string): Promise<void> => {
-    await telegram.sendMessage(options.chatId, text);
+    await telegram.sendMessage(chatId, text);
   };
 
   return {
