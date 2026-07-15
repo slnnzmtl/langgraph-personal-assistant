@@ -4,15 +4,10 @@
     "schedule": "1 0 * * *",
     "targetRoute": "Finance_SG",
     "payload": {
-      "action": "sync_finance",
-      "instructions": [
-        "Fetch yesterday's Wise transactions and insert them into the public.expenses table in the database. ",
-        "Ensure that the insertion is done in a way that avoids duplicate entries.",
-        "Use the provided SQL query to insert the transactions, and make sure to handle any potential errors during the process."
-      ],
+      "action": "sync_expenses",
+      "instructions": ["Read the skill instructions for syncing expenses for yesterday."],
       "when": "yesterday",
-      "steps": ["fetch_wise_transactions", "exec_sql"],
-      "targetTable": "public.expenses"
+      "steps": ["read_skill", "fetch_wise_transactions", "exec_sql"]
     }
   },
   {
