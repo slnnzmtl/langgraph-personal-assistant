@@ -56,7 +56,6 @@ export const startScheduler = async (options: StartSchedulerOptions): Promise<vo
 	await startCronBootstrap({
 		repository: cronJobRepository,
 		config: {
-			financeSyncCron: config.financeSyncCron,
 			appTimezone: config.appTimezone,
 			schedulerEnabled: config.schedulerEnabled,
 		},

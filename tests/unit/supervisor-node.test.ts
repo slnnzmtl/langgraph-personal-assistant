@@ -29,7 +29,7 @@ describe("createSupervisorNode", () => {
       const promptMessages = input as HumanMessage[];
 
       expect(promptMessages[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
-      expect(promptMessages[0]?.content).toContain("Current datetime: 2026-07-05T12:34:56 UTC");
+      expect(promptMessages[0]?.content).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
       expect(promptMessages[1]?.content).toBe("hello");
 
       return {

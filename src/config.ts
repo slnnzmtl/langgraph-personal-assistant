@@ -21,7 +21,6 @@ export interface AppConfig {
   obsidianVaultPath: string;
   appTimezone: string;
   schedulerEnabled: boolean;
-  financeSyncCron: string;
   cronJobsFilePath: string;
   // Optional: Supabase finance integration
   supabaseUrl?: string | undefined;
@@ -83,7 +82,6 @@ export const loadConfig = (): AppConfig => {
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
-    financeSyncCron: process.env.FINANCE_SYNC_CRON ?? "59 23 * * *",
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     // Optional Supabase finance integration
     supabaseUrl: process.env.SUPABASE_URL,

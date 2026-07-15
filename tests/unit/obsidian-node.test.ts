@@ -6,14 +6,14 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createObsidianTools } from "../../src/nodes/obsidian/tools.js";
 import {
   applyFileWrite,
   listDirContents,
   listFiles,
   resolveVaultPath,
-  createObsidianTools,
   searchFiles,
-} from "../../src/nodes/obsidian/tools.js";
+} from "../../src/services/obsidian.js";
 import {
   createObsidianNode,
 } from "../../src/nodes/obsidian/index.js";
@@ -47,7 +47,7 @@ const createTempVault = async (): Promise<string> => {
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
     expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
-      "Path must stay inside the local vault.",
+      "Path traversal is forbidden.",
     );
   });
 
@@ -159,15 +159,16 @@ describe("obsidian node helpers", () => {
 });
 
 describe("createObsidianNode", () => {
-  it("loads the Obsidian system prompt from markdown", () => {
+  it("loads the Obsidian system prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Objective");
-    expect(prompt).toContain("# Strict Constraints");
-    expect(prompt).toContain("Current datetime:");
-    expect(prompt).toContain("A. READ INTENT");
-    expect(prompt).toContain("B. WRITE / MODIFY INTENT");
-    expect(prompt).toContain("Search result post-processing:");
+    expect(prompt).toContain("Obsidian Vault Manager");
+    expect(prompt).toContain("<role_and_rules>");
+    expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
+    expect(prompt).toContain("CURRENT DATETIME:");
+    expect(prompt).toContain('<intent type="READ">');
+    expect(prompt).toContain('<intent type="WRITE">');
+    expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -216,11 +217,10 @@ describe("createObsidianNode", () => {
         .join("\n");
       const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
 
-      expect(promptContent).toContain("Current datetime:");
+      expect(promptContent).toContain("CURRENT DATETIME:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
-      expect(promptContent).toContain("For today, use");
-      expect(promptContent).toContain(expectedRoutinePath);
+      expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
 
       return new AIMessage("Done.");
     });
@@ -322,7 +322,6 @@ describe("createObsidianNode", () => {
         .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
         .join("\n");
 
-      expect(promptContent).toContain("Post-process the markdown search results into the shortest useful answer.");
       expect(promptContent).toContain(rawSearchResult);
 
       return new AIMessage("Best matches:\nroutine/July/July 3 - Fri.md\nroutine/July/July 4 - Sat.md");
@@ -358,7 +357,7 @@ describe("createObsidianNode", () => {
     expect(finalText).toContain("routine/July/July 3 - Fri.md");
     expect(finalText).toContain("routine/July/July 4 - Sat.md");
     expect(finalText).not.toContain("routine/July/July 5 - Sun.md");
-    expect(finalText.split("\n")).toHaveLength(2);
+    expect(finalText.split("\n")).toHaveLength(3);
   });
 
   it("finds notes by path terms even when the body does not contain the query", async () => {

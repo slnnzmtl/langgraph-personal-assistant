@@ -5,11 +5,7 @@ import type { SchedulerRunner } from "./scheduler-runner.js";
 
 type CronScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
 
-type DefaultCronJobConfig = {
-	financeSyncCron: string;
-};
-
-export const buildDefaultCronJobs = (config: DefaultCronJobConfig): CronJobDefinition[] => [];
+export const buildDefaultCronJobs = (): CronJobDefinition[] => [];
 
 export const mergeCronJobs = (defaultJobs: CronJobDefinition[], persistedJobs: CronJobDefinition[]): CronJobDefinition[] => {
 	const jobMap = new Map<string, CronJobDefinition>();
@@ -27,11 +23,8 @@ export const mergeCronJobs = (defaultJobs: CronJobDefinition[], persistedJobs: C
 
 export const loadCronJobsForStartup = async (options: {
 	repository: CronJobRepository;
-	config: Pick<AppConfig, "financeSyncCron" | "appTimezone" | "schedulerEnabled">;
 }): Promise<CronJobDefinition[]> => {
-	const defaultJobs = buildDefaultCronJobs({
-		financeSyncCron: options.config.financeSyncCron,
-	});
+	const defaultJobs = buildDefaultCronJobs();
 	const persistedJobs = await options.repository.loadJobs();
 
 	return mergeCronJobs(defaultJobs, persistedJobs);
@@ -39,13 +32,12 @@ export const loadCronJobsForStartup = async (options: {
 
 export const startCronBootstrap = async (options: {
 	repository: CronJobRepository;
-	config: Pick<AppConfig, "financeSyncCron" | "appTimezone" | "schedulerEnabled">;
+	config: Pick<AppConfig, "appTimezone" | "schedulerEnabled">;
 	runner: SchedulerRunner;
 	schedule: CronScheduleFn;
 }): Promise<CronJobDefinition[]> => {
 	const jobs = await loadCronJobsForStartup({
 		repository: options.repository,
-		config: options.config,
 	});
 
 	validateCronJobs(jobs);
