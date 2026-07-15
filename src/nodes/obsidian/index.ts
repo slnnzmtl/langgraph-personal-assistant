@@ -14,6 +14,8 @@ import {
 } from "./tools.js";
 import { reduceAgentMessages } from "../../state.js";
 
+export { createObsidianTools } from "./tools.js";
+
 export const ObsidianStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: reduceAgentMessages,
@@ -61,7 +63,7 @@ export const createObsidianNode = (
   const model = llmConnector.getModel();
 
   if (typeof model.bindTools !== "function") throw new Error("Obsidian tool-bound model must support tool calling.");
-  const tools = prebuiltTools ?? createObsidianTools(vaultRoot);
+  const tools = prebuiltTools;
   const modelWithTools = model.bindTools(tools);
 
   return async (state: ObsidianState): Promise<ObsidianStateUpdate> => {

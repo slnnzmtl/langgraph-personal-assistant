@@ -6,6 +6,8 @@ import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { reduceAgentMessages } from "../../state.js";
 
+export { createFinanceTools } from "./tools/index.js";
+
 export const FinanceStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: reduceAgentMessages,

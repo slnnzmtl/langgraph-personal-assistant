@@ -5,15 +5,10 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { SupabaseMcpSession } from "../../mcp/supabase/index.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
-import { createFinanceNode, FinanceStateAnnotation } from "./index.js";
-import { createFinanceTools } from "./tools/index.js";
+import { createFinanceNode, FinanceStateAnnotation, createFinanceTools } from "./index.js";
 
 export const FINANCE_MAX_STEPS = 10;
 
-/**
- * Create a compiled Finance sub-graph with internal tool loop.
- * The sub-graph has its own StateGraph with private financeStepCount.
- */
 export const createCompiledFinanceSubgraph = (model: BaseChatModel, tools: ReturnType<typeof createFinanceTools>) => {
   const financeNode = createFinanceNode(model, tools);
   const financeToolsNode = new ToolNode(tools);

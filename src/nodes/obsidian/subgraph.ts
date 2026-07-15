@@ -6,15 +6,10 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
-import { createObsidianNode } from "./index.js";
-import { createObsidianTools } from "./tools.js";
+import { createObsidianNode, createObsidianTools } from "./index.js";
 
 export const OBSIDIAN_MAX_STEPS = 8;
 
-/**
- * Extended Obsidian state with step tracking for loop enforcement.
- * Tracks tool execution steps to prevent infinite loops.
- */
 export const ObsidianSubgraphStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
     reducer: reduceAgentMessages,
@@ -33,10 +28,6 @@ const lastMessageHasToolCalls = (state: ObsidianSubgraphState): boolean => {
   return lastMessage instanceof AIMessage && (lastMessage.tool_calls?.length ?? 0) > 0;
 };
 
-/**
- * Create a compiled Obsidian sub-graph with internal tool loop.
- * The sub-graph has its own StateGraph with step tracking to enforce max-step limits.
- */
 export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseChatModel }, vaultRoot: string, fileSender?: IFileSender) => {
   const tools = createObsidianTools(vaultRoot, fileSender);
   
@@ -64,10 +55,6 @@ export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseC
 };
 
 /**
- * Wrap the compiled Obsidian sub-graph as a node for the parent StateGraph.
- * Transforms parent AgentState → ObsidianSubgraphState, invokes the sub-graph,
- * and returns only the final AI message back to the parent.
- *
  * @param llmConnector LLM connector with getModel() method
  * @param vaultRoot Root directory of the Obsidian vault
  * @returns A node function that takes AgentState and returns AgentStateUpdate
