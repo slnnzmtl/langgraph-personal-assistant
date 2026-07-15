@@ -134,7 +134,7 @@ describe("loadPrompt", () => {
     try {
       await writeFile(promptPath, "\n", "utf8");
 
-      expect(() => loadPrompt("supervisor", "xml")).not.toThrow();
+      expect(() => loadPrompt(promptPath)).toThrow(/System prompt file is empty/);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

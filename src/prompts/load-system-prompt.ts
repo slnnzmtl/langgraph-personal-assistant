@@ -37,12 +37,13 @@ const formatRoutineFilePath = (date: Date): string => {
 
 const shiftDateByDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
-const injectObsidianRoutineHint = (prompt: string) => (date: Date = new Date()): string => {
+const injectObsidianRoutineHint = (prompt: string, date: Date = new Date()): string => {
   const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
   const todayPath = formatRoutineFilePath(date);
   const routineHint = [
     "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
-    `For today, use ${todayPath}.`,
+    `Yesterday: ${yesterdayPath}`,
+    `Today: ${todayPath}`,
   ].join("\n");
 
   return `${prompt}\n\n${routineHint}`;
@@ -140,26 +141,22 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
   return injectSkills(content, skillsDir);
 };
 
-export const loadSupervisorSystemPrompt = (): string =>
-  injectCurrentDatetime(loadPrompt("supervisor", "xml"));
+const loadDatedPrompt = (key: string, fileType: "md" | "xml" = "md"): string =>
+  injectCurrentDatetime(loadPrompt(key, fileType));
+
+export const loadSupervisorSystemPrompt = (): string => loadDatedPrompt("supervisor", "xml");
 
 export const loadObsidianSystemPrompt = (): string =>
-  injectObsidianRoutineHint(injectCurrentDatetime(loadPrompt("obsidian", "xml")))();
+  injectObsidianRoutineHint(loadDatedPrompt("obsidian", "xml"));
 
-export const loadFinanceSystemPrompt = (): string =>
-  injectCurrentDatetime(loadPrompt("finance", "xml"));
+export const loadFinanceSystemPrompt = (): string => loadDatedPrompt("finance", "xml");
 
-export const loadConfiguratorSystemPrompt = (): string =>
-  injectCurrentDatetime(loadPrompt("configurator"));
-
-export const shouldHotReloadPrompts = (): boolean =>
-  process.env.NODE_ENV !== "production" && process.env.ENABLE_PROMPT_HOT_RELOAD !== "false";
+export const loadConfiguratorSystemPrompt = (): string => loadDatedPrompt("configurator");
 
 export const createPromptLoader = (
   key: string,
   options?: {
     hotReload?: boolean;
-    timezone?: string;
     fileType?: "md" | "xml";
   },
 ): (() => string) => {
