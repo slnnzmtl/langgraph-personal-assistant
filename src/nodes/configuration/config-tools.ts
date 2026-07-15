@@ -3,7 +3,8 @@ import { z } from "zod";
 
 import { isCronTargetRoute } from "../../cron-triggers.js";
 import type { CronJobDefinition, CronJobRepository } from "../../cron/types.js";
-import { createSkillCrudTools } from "../../tools/skill-management.js";
+import { createReadSkillTool, createSkillCrudTools } from "../../tools/skill-management.js";
+import { createSkillScopedToolContextFromBundles } from "../../tools/skill-scoped-registry.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -38,7 +39,7 @@ export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   return lines.join("\n");
 };
 
-export const createCronConfigTools = (repository: CronJobRepository): StructuredToolInterface[] => {
+export const createCronTools = (repository: CronJobRepository): StructuredToolInterface[] => {
   const listCronJobs = tool(
     async () => {
       try {
@@ -115,5 +116,26 @@ export const createCronConfigTools = (repository: CronJobRepository): Structured
     },
   );
 
-  return [listCronJobs, createCronJob, deleteCronJob, ...createSkillCrudTools()];
+  return [listCronJobs, createCronJob, deleteCronJob];
+};
+
+export const createConfigurationSkillScopedTools = (repository: CronJobRepository) => {
+  const cronTools = createCronTools(repository);
+  const skillManagementTools = createSkillCrudTools();
+  const bundles = {
+    cron: cronTools,
+    "skill-management": skillManagementTools,
+  };
+  const readSkillTool = createReadSkillTool("configuration", "md", { toolBundles: bundles });
+
+  return createSkillScopedToolContextFromBundles({
+    readSkillTool,
+    bundles,
+  });
+};
+
+/** @deprecated Use createConfigurationSkillScopedTools for scoped access. */
+export const createCronConfigTools = (repository: CronJobRepository): StructuredToolInterface[] => {
+  const context = createConfigurationSkillScopedTools(repository);
+  return context.allTools;
 };

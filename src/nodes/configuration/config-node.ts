@@ -1,12 +1,15 @@
-import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { StructuredToolInterface } from "@langchain/core/tools";
-
-import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadConfigurationSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
+import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
+import {
+  isSkillScopedToolContext,
+  resolveTurnTools,
+  type SubAgentToolSource,
+} from "../create-sub-agent.js";
 import { formatCronJobForDisplay } from "./config-tools.js";
 import type { ConfigurationState, ConfigurationStateUpdate } from "./state.js";
 
@@ -59,21 +62,25 @@ const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): str
 
 export const createConfigurationNode = (
   model: BaseChatModel,
-  tools: StructuredToolInterface[],
+  tools: SubAgentToolSource,
   options: ConfigurationNodeOptions,
 ) => {
   if (typeof model.bindTools !== "function") {
     throw new Error("Configuration LLM model must support tool calling.");
   }
 
-  const modelWithTools = model.bindTools(tools);
+  const bindTools = model.bindTools.bind(model);
 
   return async (state: ConfigurationState): Promise<ConfigurationStateUpdate> => {
     try {
       const latestMessage = state.messages[state.messages.length - 1];
       const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
 
-      if (latestMessageText && isCronJobListRequest(latestMessageText)) {
+      if (
+        latestMessage instanceof HumanMessage
+        && latestMessageText
+        && isCronJobListRequest(latestMessageText)
+      ) {
         const jobs = await options.repository.loadJobs();
         const content = jobs.length > 0
           ? jobs.map(formatCronJobForDisplay).join("\n\n")
@@ -99,12 +106,16 @@ export const createConfigurationNode = (
       const isLoopContinuation = lastMessage instanceof ToolMessage;
       const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
 
+      const toolsForTurn = isSkillScopedToolContext(tools)
+        ? resolveTurnTools(tools, state.messages)
+        : tools;
+
       const systemInstructions = new SystemMessage(loadConfigurationSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
 
       await logSystemPromptInvocation("configuration-system-prompt", promptMessages);
 
-      const response = await modelWithTools.invoke(promptMessages);
+      const response = await bindTools(toolsForTurn).invoke(promptMessages);
       if (!(response instanceof AIMessage)) {
         throw new Error("Configuration LLM model must return an AI message.");
       }

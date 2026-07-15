@@ -2,7 +2,7 @@ import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createConfigurationSubgraphWrapper, createCronConfigTools } from "./nodes/configuration/index.js";
+import { createConfigurationSubgraphWrapper, createConfigurationSkillScopedTools } from "./nodes/configuration/index.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/index.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
@@ -26,7 +26,7 @@ export const createWorkflowGraph = (
   config: WorkflowGraphConfig,
 ) => {
   const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
-  const configurationTools = createCronConfigTools(config.cronJobRepository);
+  const configurationTools = createConfigurationSkillScopedTools(config.cronJobRepository);
   const configurationSubgraphWrapper = createConfigurationSubgraphWrapper(
     configLlmConnector.getModel(),
     configurationTools,

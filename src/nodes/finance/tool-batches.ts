@@ -1,5 +1,7 @@
 import { ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
+import { resolveActiveSkillFromHistory } from "../../tools/skill-scoped-registry.js";
+
 export type FinanceToolBatchPlan = {
   allowedFunctionNames: string[];
   requiredCount: number;
@@ -17,6 +19,11 @@ const sliceSinceLastHuman = (messages: BaseMessage[]): BaseMessage[] => {
 };
 
 export const resolveFinanceToolBatchPlan = (messages: BaseMessage[]): FinanceToolBatchPlan | undefined => {
+  const activeSkill = resolveActiveSkillFromHistory(messages);
+  if (!activeSkill || activeSkill.skillName !== "sync-expenses") {
+    return undefined;
+  }
+
   const toolMessages = messages.filter((message): message is ToolMessage => message instanceof ToolMessage);
   const lastTool = toolMessages.at(-1);
 

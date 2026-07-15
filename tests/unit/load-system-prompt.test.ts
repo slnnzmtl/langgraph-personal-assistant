@@ -60,12 +60,12 @@ describe("named prompt loaders", () => {
   it("loads the configuration prompt from prompts/configuration.xml", () => {
     const prompt = loadConfigurationSystemPrompt();
 
-    expect(prompt).toContain("If the user requests a daily note schedule");
-    expect(prompt).toContain("in 5 minutes");
-    expect(prompt).toContain("Call `list_cron_jobs()` only");
-    expect(prompt).toContain("Call `list_skills(owner)` only");
-    expect(prompt).toContain("Call `preview_skill(owner, name)` only");
-    expect(prompt).toContain("Valid skill owners: `finance`, `obsidian`, `configuration`");
+    expect(prompt).toContain("Configuration Manager");
+    expect(prompt).toContain("read_skill(skill_name)");
+    expect(prompt).toContain("<output_template>");
+    expect(prompt).toContain("<skill_output_template>");
+    expect(prompt).toContain("<available_skills>");
+    expect(prompt).toMatch(/cron|skill-management/);
   });
 });
 

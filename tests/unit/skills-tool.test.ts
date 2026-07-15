@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
 
 import {
   createSkillActionRegistry,
@@ -34,6 +36,7 @@ describe("createReadSkillTool", () => {
     expect(result).toContain("Sync Wise Expenses");
     expect(result).toContain("fetch_wise_transactions");
     expect(result).not.toContain("<skill_context>");
+    expect(result).not.toContain("<available_tools>");
   });
 
   it("lists available skills when the requested skill is missing", async () => {
@@ -43,6 +46,26 @@ describe("createReadSkillTool", () => {
     expect(result).toContain("Error reading skill:");
     expect(result).toContain("sync-expenses");
     expect(result).not.toContain("<skill_context>");
+    expect(result).not.toContain("<available_tools>");
+  });
+
+  it("previews registered tools after a successful skill read", async () => {
+    const execSql = tool(async () => "ok", {
+      name: "exec_sql",
+      description: "Execute SQL",
+      schema: z.object({ sql: z.string() }),
+    });
+    const readSkill = createReadSkillTool("finance", "xml", {
+      toolBundles: {
+        "sync-expenses": [execSql],
+      },
+    });
+
+    const result = String(await readSkill.invoke({ name: "sync-expenses" }));
+
+    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("<available_tools>");
+    expect(result).toContain("- exec_sql: Execute SQL");
   });
 
   it("exposes the shared read_skill tool name", () => {
@@ -79,6 +102,7 @@ describe("createReadSkillTool", () => {
     expect(result).toContain("<skill_context>");
     expect(result).toContain("expense_categories:");
     expect(result).toContain('"name":"Food"');
+    expect(result).not.toContain("<available_tools>");
   });
 
   it("returns the skill plus a non-fatal action error when enrichment fails", async () => {
@@ -146,7 +170,7 @@ describe("createSkillCrudTools", () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);
     const createTool = tools.find((tool) => tool.name === "create_skill");
-    const readTool = tools.find((tool) => tool.name === "read_skill");
+    const readTool = tools.find((tool) => tool.name === "read_skill_for_edit");
 
     await createTool!.invoke({
       owner: "obsidian",
@@ -167,7 +191,7 @@ describe("createSkillCrudTools", () => {
     const createTool = tools.find((tool) => tool.name === "create_skill");
     const editTool = tools.find((tool) => tool.name === "edit_skill");
     const deleteTool = tools.find((tool) => tool.name === "delete_skill");
-    const readTool = tools.find((tool) => tool.name === "read_skill");
+    const readTool = tools.find((tool) => tool.name === "read_skill_for_edit");
 
     const createResult = String(
       await createTool!.invoke({

@@ -34,6 +34,11 @@ describe("resolveFinanceToolBatchPlan", () => {
       new HumanMessage("sync finances"),
       new AIMessage({
         content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
+      new AIMessage({
+        content: "",
         tool_calls: [
           { name: "get_categories", args: {}, id: "cat-1", type: "tool_call" },
           { name: "fetch_wise_transactions", args: { since: "a", until: "b" }, id: "wise-1", type: "tool_call" },
@@ -53,7 +58,25 @@ describe("resolveFinanceToolBatchPlan", () => {
   it("does not schedule another batch after exec_sql", () => {
     const plan = resolveFinanceToolBatchPlan([
       new HumanMessage("sync finances"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
       new ToolMessage({ name: "exec_sql", tool_call_id: "sql-1", content: "[]" }),
+    ]);
+
+    expect(plan).toBeUndefined();
+  });
+
+  it("does not schedule a batch for unrelated read_skill selections", () => {
+    const plan = resolveFinanceToolBatchPlan([
+      new HumanMessage("other task"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "other-skill" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "other body" }),
     ]);
 
     expect(plan).toBeUndefined();

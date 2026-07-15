@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../src/nodes/finance/index.js";
-import { createFinanceTools } from "../../src/nodes/finance/tools.js";
+import { createFinanceSkillScopedTools, getFinanceDomainTool } from "../../src/nodes/finance/tools.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [
@@ -52,7 +52,7 @@ describe("finance tools", () => {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const fetchWiseTool = createFinanceTools(session).find((tool) => tool.name === "fetch_wise_transactions");
+    const fetchWiseTool = getFinanceDomainTool(session, "fetch_wise_transactions");
 
     const result = await fetchWiseTool?.invoke({
       since: "2026-07-12T00:00:00Z",
@@ -67,7 +67,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const execSqlTool = createFinanceTools(session).find((tool) => tool.name === "exec_sql");
+    const execSqlTool = getFinanceDomainTool(session, "exec_sql");
 
     const result = await execSqlTool?.invoke({ sql: "SELECT id, name, note FROM public.category;" });
 
@@ -79,7 +79,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
       close: vi.fn(),
     };
-    const execSqlTool = createFinanceTools(session).find((tool) => tool.name === "exec_sql");
+    const execSqlTool = getFinanceDomainTool(session, "exec_sql");
 
     const result = await execSqlTool?.invoke({ sql: "SELECT 1;" });
 
@@ -91,7 +91,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const getCategoriesTool = createFinanceTools(session).find((tool) => tool.name === "get_categories");
+    const getCategoriesTool = getFinanceDomainTool(session, "get_categories");
 
     const result = await getCategoriesTool?.invoke({});
 
@@ -103,7 +103,8 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const readSkillTool = createFinanceTools(session).find((tool) => tool.name === "read_skill");
+    const context = createFinanceSkillScopedTools(session);
+    const readSkillTool = context.config.readSkillTool;
 
     expect(readSkillTool).toBeDefined();
 
@@ -112,7 +113,47 @@ describe("finance tools", () => {
     expect(result).toContain("<skill_context>");
     expect(result).toContain("expense_categories:");
     expect(result).toContain('"name":"Food"');
+    expect(result).toContain("<available_tools>");
+    expect(result).toContain("- exec_sql:");
+    expect(result).toContain("- fetch_wise_transactions:");
+    expect(result).toContain("- get_categories:");
     expect(session.executeSql).toHaveBeenCalledWith("SELECT id, name, note FROM public.category;");
+  });
+
+  it("exposes only read_skill before sync-expenses is loaded", () => {
+    const session: SupabaseMcpSession = {
+      executeSql: vi.fn(),
+      close: vi.fn(),
+    };
+    const context = createFinanceSkillScopedTools(session);
+
+    expect(context.resolveToolsForTurn([new HumanMessage("sync finances")]).map((tool) => tool.name)).toEqual([
+      "read_skill",
+    ]);
+  });
+
+  it("exposes finance domain tools after read_skill(sync-expenses)", () => {
+    const session: SupabaseMcpSession = {
+      executeSql: vi.fn(),
+      close: vi.fn(),
+    };
+    const context = createFinanceSkillScopedTools(session);
+
+    const tools = context.resolveToolsForTurn([
+      new HumanMessage("sync finances"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
+    ]);
+
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "read_skill",
+      "exec_sql",
+      "fetch_wise_transactions",
+      "get_categories",
+    ]);
   });
 
   it("returns sync-expenses skill content when category enrichment fails", async () => {
@@ -120,7 +161,8 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
       close: vi.fn(),
     };
-    const readSkillTool = createFinanceTools(session).find((tool) => tool.name === "read_skill");
+    const context = createFinanceSkillScopedTools(session);
+    const readSkillTool = context.config.readSkillTool;
 
     const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
 
@@ -188,7 +230,7 @@ describe("finance tools", () => {
         executeSql: vi.fn().mockResolvedValue(largeRows),
         close: vi.fn(),
       };
-      const execSqlTool = createFinanceTools(session).find((t) => t.name === "exec_sql");
+      const execSqlTool = getFinanceDomainTool(session, "exec_sql");
       const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM expenses;" }));
 
       expect(result.length).toBeLessThanOrEqual(8_000 + 60); // truncated + notice overhead
@@ -201,7 +243,7 @@ describe("finance tools", () => {
         executeSql: vi.fn().mockResolvedValue(categories),
         close: vi.fn(),
       };
-      const execSqlTool = createFinanceTools(session).find((t) => t.name === "exec_sql");
+      const execSqlTool = getFinanceDomainTool(session, "exec_sql");
       const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM category;" }));
 
       expect(result).not.toContain("[truncated,");

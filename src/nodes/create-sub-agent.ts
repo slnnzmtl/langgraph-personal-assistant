@@ -1,9 +1,11 @@
 import { AIMessage } from "@langchain/core/messages";
+import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { END, START, StateGraph } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
+import { createGuardedToolNode, createStaticToolNode } from "../tools/guarded-tool-node.js";
+import type { SkillScopedToolContext } from "../tools/skill-scoped-registry.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../tools/routing.js";
 import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
 import {
@@ -16,12 +18,24 @@ export type SubAgentLlmNode = (
   state: SubAgentState,
 ) => Promise<SubAgentStateUpdate>;
 
+export type SubAgentToolSource =
+  | StructuredToolInterface[]
+  | SkillScopedToolContext;
+
+export const isSkillScopedToolContext = (
+  source: SubAgentToolSource,
+): source is SkillScopedToolContext =>
+  !Array.isArray(source) && "resolveToolsForTurn" in source;
+
+export const resolveSubAgentTools = (source: SubAgentToolSource): StructuredToolInterface[] =>
+  isSkillScopedToolContext(source) ? source.allTools : source;
+
 export type SubAgentConfig<TDeps> = {
   name: string;
   maxSteps: number;
   deps: TDeps;
-  createTools: (deps: TDeps) => StructuredToolInterface[];
-  createLlmNode: (deps: TDeps, tools: StructuredToolInterface[]) => SubAgentLlmNode;
+  createTools: (deps: TDeps) => SubAgentToolSource;
+  createLlmNode: (deps: TDeps, tools: SubAgentToolSource) => SubAgentLlmNode;
   mapResult?: (
     result: SubAgentState,
     config: { maxSteps: number; name: string },
@@ -33,9 +47,11 @@ export const createCompiledSubAgentGraph = (
   name: string,
   maxSteps: number,
   llmNode: SubAgentLlmNode,
-  tools: StructuredToolInterface[],
+  tools: SubAgentToolSource,
 ) => {
-  const toolsNode = new ToolNode(tools);
+  const toolsNode = isSkillScopedToolContext(tools)
+    ? createGuardedToolNode(tools)
+    : createStaticToolNode(resolveSubAgentTools(tools));
 
   const graph = new StateGraph(SubAgentStateAnnotation)
     .addNode("llm", llmNode)
@@ -98,4 +114,40 @@ export const createSubAgentOrStub = <TDeps>(
   }
 
   return createSubAgent(config);
+};
+
+export const filterToolsByNames = (
+  tools: StructuredToolInterface[],
+  allowedNames: string[],
+  options?: { alwaysInclude?: string[] },
+): StructuredToolInterface[] => {
+  const allowed = new Set([
+    ...allowedNames,
+    ...(options?.alwaysInclude ?? []),
+  ]);
+
+  return tools.filter((tool) => allowed.has(tool.name));
+};
+
+export const resolveTurnTools = (
+  toolSource: SubAgentToolSource,
+  messages: BaseMessage[],
+  options?: {
+    restrictToNames?: string[];
+    alwaysInclude?: string[];
+  },
+): StructuredToolInterface[] => {
+  const scopedTools = isSkillScopedToolContext(toolSource)
+    ? toolSource.resolveToolsForTurn(messages)
+    : resolveSubAgentTools(toolSource);
+
+  if (!options?.restrictToNames) {
+    return scopedTools;
+  }
+
+  const filterOptions = options.alwaysInclude
+    ? { alwaysInclude: options.alwaysInclude }
+    : undefined;
+
+  return filterToolsByNames(scopedTools, options.restrictToNames, filterOptions);
 };

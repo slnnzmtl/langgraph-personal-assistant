@@ -7,8 +7,12 @@ import { loadObsidianSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import { buildDirectoryTree } from "../../utils/file-system.js";
+import {
+  isSkillScopedToolContext,
+  resolveTurnTools,
+  type SubAgentToolSource,
+} from "../create-sub-agent.js";
 import type { ObsidianState, ObsidianStateUpdate } from "./state.js";
-import type { createObsidianTools } from "./tools.js";
 
 export const buildObsidianSystemPrompt = async (vaultRoot: string): Promise<string> => {
   const vaultDirectoryTree = await buildDirectoryTree(vaultRoot);
@@ -42,13 +46,12 @@ const invokeToolBoundModel = async (
 export const createObsidianNode = (
   llmConnector: { getModel(): BaseChatModel },
   vaultRoot: string,
-  prebuiltTools?: ReturnType<typeof createObsidianTools>,
+  prebuiltTools?: SubAgentToolSource,
 ) => {
   const model = llmConnector.getModel();
 
   if (typeof model.bindTools !== "function") throw new Error("Obsidian tool-bound model must support tool calling.");
-  const tools = prebuiltTools;
-  const modelWithTools = model.bindTools(tools);
+  const bindTools = model.bindTools.bind(model);
 
   return async (state: ObsidianState): Promise<ObsidianStateUpdate> => {
     try {
@@ -65,6 +68,13 @@ export const createObsidianNode = (
       const systemPrompt = await buildObsidianSystemPrompt(vaultRoot);
       const promptMessages = mergeMessageRuns([new SystemMessage(systemPrompt), ...state.messages]);
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
+
+      const toolsForTurn = prebuiltTools
+        ? (isSkillScopedToolContext(prebuiltTools)
+          ? resolveTurnTools(prebuiltTools, state.messages)
+          : prebuiltTools)
+        : [];
+      const modelWithTools = bindTools(toolsForTurn);
 
       const finalMessage = await invokeToolBoundModel(model, modelWithTools, promptMessages, state.messages);
       return { messages: [finalMessage], stepCount };
