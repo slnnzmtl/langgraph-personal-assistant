@@ -3,18 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { buildDefaultCronJobs, mergeCronJobs, startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
 
 describe("buildDefaultCronJobs", () => {
-	it("builds the default finance sync job from scheduler config", () => {
-		const jobs = buildDefaultCronJobs({
-			financeSyncCron: "59 23 * * *",
-		});
-
-		expect(jobs).toEqual([
-			{
-				jobName: "finance-sync",
-				schedule: "59 23 * * *",
-				targetRoute: "Finance_SG",
-			},
-		]);
+	it("returns no default jobs", () => {
+		expect(buildDefaultCronJobs()).toEqual([]);
 	});
 });
 
@@ -23,14 +13,14 @@ describe("mergeCronJobs", () => {
 		const jobs = mergeCronJobs(
 			[
 				{
-					jobName: "finance-sync",
+					jobName: "daily-report",
 					schedule: "59 23 * * *",
 					targetRoute: "Finance_SG",
 				},
 			],
 			[
 				{
-					jobName: "finance-sync",
+					jobName: "daily-report",
 					schedule: "0 1 * * *",
 					targetRoute: "Finance_SG",
 					timezone: "America/New_York",
@@ -40,7 +30,7 @@ describe("mergeCronJobs", () => {
 
 		expect(jobs).toEqual([
 			{
-				jobName: "finance-sync",
+				jobName: "daily-report",
 				schedule: "0 1 * * *",
 				targetRoute: "Finance_SG",
 				timezone: "America/New_York",
@@ -66,7 +56,6 @@ describe("startCronBootstrap", () => {
 			startCronBootstrap({
 				repository,
 				config: {
-					financeSyncCron: "59 23 * * *",
 					appTimezone: "UTC",
 					schedulerEnabled: false,
 				},
@@ -82,7 +71,7 @@ describe("startCronBootstrap", () => {
 		const repository = {
 			loadJobs: vi.fn().mockResolvedValue([
 				{
-					jobName: "finance-sync",
+					jobName: "daily-report",
 					schedule: "59 23 * * *",
 					targetRoute: "Finance_SG",
 				},
@@ -95,7 +84,6 @@ describe("startCronBootstrap", () => {
 		const jobs = await startCronBootstrap({
 			repository,
 			config: {
-				financeSyncCron: "59 23 * * *",
 				appTimezone: "UTC",
 				schedulerEnabled: false,
 			},
@@ -105,7 +93,7 @@ describe("startCronBootstrap", () => {
 
 		expect(jobs).toEqual([
 			{
-				jobName: "finance-sync",
+				jobName: "daily-report",
 				schedule: "59 23 * * *",
 				targetRoute: "Finance_SG",
 			},
@@ -117,7 +105,13 @@ describe("startCronBootstrap", () => {
 
 	it("schedules validated jobs when enabled", async () => {
 		const repository = {
-			loadJobs: vi.fn().mockResolvedValue([]),
+			loadJobs: vi.fn().mockResolvedValue([
+				{
+					jobName: "daily-report",
+					schedule: "59 23 * * *",
+					targetRoute: "Finance_SG",
+				},
+			]),
 			saveJobs: vi.fn(),
 		};
 		const schedule = vi.fn();
@@ -126,7 +120,6 @@ describe("startCronBootstrap", () => {
 		const jobs = await startCronBootstrap({
 			repository,
 			config: {
-				financeSyncCron: "59 23 * * *",
 				appTimezone: "UTC",
 				schedulerEnabled: true,
 			},
@@ -136,7 +129,7 @@ describe("startCronBootstrap", () => {
 
 		expect(jobs).toEqual([
 			{
-				jobName: "finance-sync",
+				jobName: "daily-report",
 				schedule: "59 23 * * *",
 				targetRoute: "Finance_SG",
 			},

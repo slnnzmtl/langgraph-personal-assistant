@@ -5,9 +5,20 @@ import path from "node:path";
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
-import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
+import { createWorkflowGraph } from "../../src/agent.js";
+import type { CronJobRepository } from "../../src/cron/types.js";
 import { MESSAGE_HISTORY_LIMIT } from "../../src/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
+
+const testCronRepository: CronJobRepository = {
+  loadJobs: async () => [],
+  saveJobs: async () => {},
+};
+
+const makeWorkflowGraphConfig = (obsidianVaultPath: string) => ({
+  obsidianVaultPath,
+  cronJobRepository: testCronRepository,
+});
 
 const workflowConfig = {
   configurable: {
@@ -16,7 +27,7 @@ const workflowConfig = {
 };
 
 const makeToolCallMessage = (
-  name: "read_markdown_file" | "write_markdown_file" | "delete_markdown_file",
+  name: "read_file" | "write_file" | "delete_file",
   args: Record<string, unknown>,
   id = `${name}-call`,
 ) => new AIMessage({
@@ -52,10 +63,7 @@ test.describe("workflow graph", () => {
       reply: "Direct answer from supervisor",
     }));
 
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-vault")));
 
     const finalState = await app.invoke(
       {
@@ -79,7 +87,7 @@ test.describe("workflow graph", () => {
       }
 
       if (invocation === 2) {
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: "notes/e2e.md",
           operation: "create_new",
           content: "# E2E\nSaved through the graph",
@@ -94,10 +102,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -135,7 +140,7 @@ test.describe("workflow graph", () => {
       }
 
       if (invocation === 2) {
-        return makeToolCallMessage("read_markdown_file", {
+        return makeToolCallMessage("read_file", {
           relativePath: `routine/${month}/${month} 5 - ${weekday}.md`,
         });
       }
@@ -153,10 +158,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -190,10 +192,7 @@ test.describe("workflow graph", () => {
       return { next: "Obsidian_SG" };
     });
 
-    const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-error-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-error-vault")));
 
     const finalState = await app.invoke(
       {
@@ -209,10 +208,7 @@ test.describe("workflow graph", () => {
 
   test("routes a finance request to the finance mock branch", async () => {
     const connector = new FakeLLMConnector(() => ({ next: "Finance_SG" }));
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-finance-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-finance-vault")));
 
     const finalState = await app.invoke(
       {
@@ -243,7 +239,7 @@ test.describe("workflow graph", () => {
             return new AIMessage("Saved turn 6 Saved to notes/turn-6.md.");
           }
 
-          return makeToolCallMessage("write_markdown_file", {
+          return makeToolCallMessage("write_file", {
             relativePath: "notes/turn-6.md",
             operation: "create_new",
             content: "Turn 6 saved to the vault",
@@ -269,10 +265,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       let finalState = await app.invoke(
         {
@@ -337,7 +330,7 @@ test.describe("workflow graph", () => {
       if (invocation === 2) {
         expect(latestMessage).toBeInstanceOf(HumanMessage);
 
-        return makeToolCallMessage("read_markdown_file", {
+        return makeToolCallMessage("read_file", {
           relativePath: yesterdayPath,
         }, "read-yesterday");
       }
@@ -346,7 +339,7 @@ test.describe("workflow graph", () => {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
         expect(latestMessage?.content).toContain("- [ ] Buy milk");
 
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: todayPath,
           operation: "append",
           content: "- [ ] Buy milk",
@@ -366,10 +359,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -415,7 +405,7 @@ test.describe("workflow graph", () => {
       }
 
       if (invocation === 2) {
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: todayPath,
           operation: "create_new",
           content: "## Today\n",
@@ -433,7 +423,7 @@ test.describe("workflow graph", () => {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
         expect(latestMessage?.content).toContain(`Notice: File already exists at ${todayPath}.`);
 
-        return makeToolCallMessage("read_markdown_file", {
+        return makeToolCallMessage("read_file", {
           relativePath: yesterdayPath,
         }, "read-yesterday-after-notice");
       }
@@ -442,7 +432,7 @@ test.describe("workflow graph", () => {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
         expect(latestMessage?.content).toContain("- [ ] Buy milk");
 
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: todayPath,
           operation: "append",
           content: "- [ ] Buy milk",
@@ -459,10 +449,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -496,15 +483,12 @@ test.describe("workflow graph", () => {
         return { next: "Obsidian_SG" };
       }
 
-      return makeToolCallMessage("read_markdown_file", {
+      return makeToolCallMessage("read_file", {
         relativePath: "routine/July/July 5 - Sun.md",
       }, `loop-step-${invocation}`);
     });
 
-    const app = createWorkflowGraph(connector, connector, connector, {
-      obsidianVaultPath: path.join(os.tmpdir(), "unused-loop-limit-vault"),
-      appTimezone: "UTC",
-    });
+    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-loop-limit-vault")));
 
     const finalState = await app.invoke(
       {
@@ -537,7 +521,7 @@ test.describe("workflow graph", () => {
       }
 
       if (invocation === 2) {
-        return makeToolCallMessage("read_markdown_file", {
+        return makeToolCallMessage("read_file", {
           relativePath: notePath,
         }, "read-note");
       }
@@ -551,7 +535,7 @@ test.describe("workflow graph", () => {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
         expect(latestMessage?.content).toContain("- [ ] Go to sauna after noon");
 
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: notePath,
           operation: "overwrite",
           content: "## Today\n- [x] Go to sauna after noon\n- [ ] Review PRs",
@@ -573,10 +557,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -613,7 +594,7 @@ test.describe("workflow graph", () => {
       }
 
       if (invocation === 2) {
-        return makeToolCallMessage("read_markdown_file", {
+        return makeToolCallMessage("read_file", {
           relativePath: notePath,
         }, "read-today");
       }
@@ -627,7 +608,7 @@ test.describe("workflow graph", () => {
         expect(latestMessage).toBeInstanceOf(ToolMessage);
         expect(latestMessage?.content).toContain("Plan for today");
 
-        return makeToolCallMessage("write_markdown_file", {
+        return makeToolCallMessage("write_file", {
           relativePath: notePath,
           operation: "overwrite",
           content: "## Today\nPlan for today\n- [ ] Go to sauna after noon",
@@ -649,10 +630,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {
@@ -713,7 +691,7 @@ test.describe("workflow graph", () => {
           content: "",
           tool_calls: [
             {
-              name: "search_markdown_files",
+              name: "search_files",
               args: { queries: ["workout"] },
               id: "search-exact",
               type: "tool_call",
@@ -732,7 +710,7 @@ test.describe("workflow graph", () => {
           content: "",
           tool_calls: [
             {
-              name: "search_markdown_files",
+              name: "search_files",
               args: { queries: ["gym", "exercise", "fitness"] },
               id: "search-broaden-1",
               type: "tool_call",
@@ -760,10 +738,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, {
-        obsidianVaultPath: vaultRoot,
-        appTimezone: "UTC",
-      });
+      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
 
       const finalState = await app.invoke(
         {

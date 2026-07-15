@@ -1,18 +1,34 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { formatCurrentTime, getZonedDateDetails } from "../utils/datetime.js";
+import { formatSkillsForPrompt, listSkills } from "./skills-loader.js";
 
 export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
+export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
 
-export const SUPERVISOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "supervisor.md");
-export const OBSIDIAN_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "obsidian.md");
-export const FINANCE_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "finance.md");
-export const CONFIGURATOR_SYSTEM_PROMPT_PATH = path.join(PROMPTS_ROOT, "configurator.md");
+const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
+  return {
+    since: `${year}-${monthNumber}-${dayNumber}T00:00:00Z`,
+    until: `${year}-${monthNumber}-${dayNumber}T23:59:59Z`,
+  };
+};
 
 const injectCurrentDatetime = (content: string): string => {
-  const currentDatetime = formatCurrentTime(new Date());
-  return `${content}\nCurrent datetime: ${currentDatetime}`;
-}
+  const now = new Date();
+  const currentDatetime = formatCurrentTime(now);
+  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const today = toUtcDayRange(now);
+  const yesterday = toUtcDayRange(yesterdayDate);
+  const header = [
+    `<system_metadata>`,
+    `⏰ CURRENT DATETIME: ${currentDatetime}`,
+    `📅 TODAY    → since: ${today.since}, until: ${today.until}`,
+    `📅 YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
+    "</system_metadata>",
+  ].join("\n");
+  return `${header}\n\n${content}`;
+};
 
 const formatRoutineFilePath = (date: Date): string => {
   const { monthName, dayNumber, weekday } = getZonedDateDetails(date);
@@ -21,54 +37,148 @@ const formatRoutineFilePath = (date: Date): string => {
 
 const shiftDateByDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
-const injectObsidianRoutineHint = (prompt: string) => (date: Date = new Date()): string => {
+const injectObsidianRoutineHint = (prompt: string, date: Date = new Date()): string => {
   const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
   const todayPath = formatRoutineFilePath(date);
+  const routineHint = [
+    "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
+    `Yesterday: ${yesterdayPath}`,
+    `Today: ${todayPath}`,
+  ].join("\n");
 
-  return `${prompt}\nRoutine files live under routine/[Month]/[Month] [Day] - [Weekday].md.\nYesterday: ${yesterdayPath}\nToday: ${todayPath}`;
+  return `${prompt}\n\n${routineHint}`;
 };
 
-export const loadSystemPromptMarkdown = (filePath: string): string => {
-  const content = readFileSync(filePath, "utf8").trim();
+const injectSkills = (prompt: string, skillsDir: string): string => {
+  const skills = listSkills(skillsDir);
+  const skillsBlock = formatSkillsForPrompt(skills);
 
+  if (skillsBlock.length === 0) {
+    return prompt;
+  }
+
+  const skillsHint = "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
+  return `${prompt}\n\n${skillsBlock}\n\n${skillsHint}`;
+};
+
+const promptKeyRoot = (key: string): string => key.split("/")[0] ?? key;
+
+const resolveSkillPromptPath = (key: string): string | undefined => {
+  const match = key.match(/^([^/]+)\/skills\/([^/]+)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const [, agent, skillName] = match;
+  if (!agent || !skillName) {
+    return undefined;
+  }
+
+  const candidates = [
+    path.join(SKILLS_ROOT, agent, `${skillName}.xml`),
+    path.join(SKILLS_ROOT, agent, `${skillName}.md`),
+  ];
+
+  for (const filePath of candidates) {
+    if (existsSync(filePath)) {
+      return filePath;
+    }
+  }
+
+  return undefined;
+};
+
+const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string => {
+  if (path.isAbsolute(key) && existsSync(key)) {
+    return key;
+  }
+
+  const skillPromptPath = resolveSkillPromptPath(key);
+  if (skillPromptPath) {
+    return skillPromptPath;
+  }
+
+  const candidates = [
+    path.join(PROMPTS_ROOT, `${key}.${fileType}`),
+    ...(fileType === "md" ? [path.join(PROMPTS_ROOT, `${key}.xml`)] : []),
+    ...(fileType === "xml" ? [path.join(PROMPTS_ROOT, `${key}.md`)] : []),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Prompt not found: "${key}" (${fileType}). Tried:\n${candidates.map((candidate) => `  - ${candidate}`).join("\n")}`,
+  );
+};
+
+const resolveSkillsDir = (key: string): string => path.join(SKILLS_ROOT, promptKeyRoot(key));
+
+const readPromptFile = (filePath: string): string => {
+  const content = readFileSync(filePath, "utf8").trim();
   if (content.length === 0) {
     throw new Error(`System prompt file is empty: ${filePath}`);
   }
-
   return content;
 };
 
-export const loadSupervisorSystemPrompt = (): string =>
-  injectCurrentDatetime(loadSystemPromptMarkdown(SUPERVISOR_SYSTEM_PROMPT_PATH));
+/**
+ * Get the skills directory path for a given prompt key.
+ * Returns path to `skills/{key}` (e.g. skills/finance).
+ * @param key - Prompt key (e.g. "finance", "obsidian")
+ * @param fileType - File type: "md" or "xml" (default: "md")
+ * @returns Path to the skills directory
+ */
+export const getSkillsDir = (key: string, fileType: "md" | "xml" = "md"): string => {
+  resolvePromptPath(key, fileType);
+  return resolveSkillsDir(key);
+};
 
+/**
+ * Load raw prompt content by key.
+ * Resolves `prompts/{key}.{md|xml}` and skill files at `skills/{agent}/{skill}.{md|xml}`
+ * via the legacy `{agent}/skills/{skill}` key shape.
+ * @param key - Prompt key (e.g. "supervisor", "obsidian", "finance/skills/sync-expenses")
+ * @param fileType - File type: "md" or "xml" (default: "md")
+ * @returns Raw prompt content
+ */
+export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string => {
+  const filePath = resolvePromptPath(key, fileType);
+  const content = readPromptFile(filePath);
+  const skillsDir = resolveSkillsDir(key);
+  return injectSkills(content, skillsDir);
+};
+
+const loadDatedPrompt = (key: string, fileType: "md" | "xml" = "md"): string =>
+  injectCurrentDatetime(loadPrompt(key, fileType));
+
+export const loadSupervisorSystemPrompt = (): string => loadDatedPrompt("supervisor", "xml");
 
 export const loadObsidianSystemPrompt = (): string =>
-  injectObsidianRoutineHint(injectCurrentDatetime(loadSystemPromptMarkdown(OBSIDIAN_SYSTEM_PROMPT_PATH)))();
+  injectObsidianRoutineHint(loadDatedPrompt("obsidian", "xml"));
 
-export const loadFinanceSystemPrompt = (): string =>
-  injectCurrentDatetime(loadSystemPromptMarkdown(FINANCE_SYSTEM_PROMPT_PATH));
+export const loadFinanceSystemPrompt = (): string => loadDatedPrompt("finance", "xml");
 
-export const loadConfiguratorSystemPrompt = (): string =>
-  injectCurrentDatetime(loadSystemPromptMarkdown(CONFIGURATOR_SYSTEM_PROMPT_PATH));
-
-export const shouldHotReloadPrompts = (): boolean =>
-  process.env.NODE_ENV !== "production" && process.env.ENABLE_PROMPT_HOT_RELOAD !== "false";
+export const loadConfigurationSystemPrompt = (): string => loadDatedPrompt("configuration", "xml");
 
 export const createPromptLoader = (
-  filePath: string,
+  key: string,
   options?: {
     hotReload?: boolean;
-    timezone?: string;
+    fileType?: "md" | "xml";
   },
 ): (() => string) => {
   let cachedPrompt: string | undefined;
 
   return (): string => {
     if (options?.hotReload) {
-      return loadSystemPromptMarkdown(filePath);
+      return loadPrompt(key, options.fileType ?? "md");
     }
 
-    cachedPrompt ??= loadSystemPromptMarkdown(filePath);
+    cachedPrompt ??= loadPrompt(key, options?.fileType ?? "md");
     return cachedPrompt;
   };
 };

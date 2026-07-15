@@ -21,11 +21,11 @@ export class FakeLLMConnector implements ILLMConnector {
       bindTools: () => ({
         invoke: async (input: any) => this.handler(input),
       }),
-    } as BaseChatModel;
+    } as unknown as BaseChatModel;
   }
 
   bindRoutingTools<TRoute extends Record<string, unknown>>(_schema: z.ZodType<TRoute>): RoutingChain<TRoute> {
-    return new FakeRunnable(async (input: any) => this.handler(input)) as RoutingChain<TRoute>;
+    return new FakeRunnable(async (input: any) => this.handler(input)) as unknown as RoutingChain<TRoute>;
   }
 }
 

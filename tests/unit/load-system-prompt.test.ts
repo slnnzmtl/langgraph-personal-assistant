@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -6,10 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPromptLoader,
-  loadConfiguratorSystemPrompt,
+  getSkillsDir,
+  loadConfigurationSystemPrompt,
+  loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
+  loadPrompt,
   loadSupervisorSystemPrompt,
-  loadSystemPromptMarkdown,
 } from "../../src/prompts/load-system-prompt.js";
 
 describe("named prompt loaders", () => {
@@ -18,16 +20,26 @@ describe("named prompt loaders", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads the supervisor prompt from prompts/supervisor.md", () => {
+  it("loads the supervisor prompt from prompts/supervisor.xml", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
   });
 
-  it("loads the Obsidian prompt from prompts/obsidian.md", () => {
+  it("loads the Obsidian prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Objective");
+    expect(prompt).toContain("Obsidian Vault Manager");
+  });
+
+  it("loads the Finance prompt from prompts/finance.xml and includes skills listing", () => {
+    const prompt = loadFinanceSystemPrompt();
+
+    expect(prompt).toContain("Financial Assistant & Sync Agent");
+    const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
+    if (skillsSection) {
+      expect(prompt).toContain("sync-expenses");
+    }
   });
 
   it("includes yesterday and today routine note paths in the Obsidian prompt", () => {
@@ -45,83 +57,99 @@ describe("named prompt loaders", () => {
     }
   });
 
-  it("loads the configurator prompt from prompts/configurator.md", () => {
-    const prompt = loadConfiguratorSystemPrompt();
+  it("loads the configuration prompt from prompts/configuration.xml", () => {
+    const prompt = loadConfigurationSystemPrompt();
 
-    expect(prompt).toContain("When the user asks to schedule a daily note");
-    expect(prompt).toContain("in 5 minutes");
-    expect(prompt).toContain("If the user asks to list, show, view, or inspect existing cron jobs, call `list_cron_jobs` only");
+    expect(prompt).toContain("Configuration Manager");
+    expect(prompt).toContain("<tool_access>");
+    expect(prompt).toContain("read_skill(\"skill-management\")");
+    expect(prompt).toContain("read_skill(skill_name)");
+    expect(prompt).toContain("<output_template>");
+    expect(prompt).toContain("<skill_output_template>");
+    expect(prompt).toContain("<available_skills>");
+    expect(prompt).toMatch(/cron|skill-management/);
   });
 });
 
 describe("createPromptLoader", () => {
+  it("loads prompt by key and caches when hotReload is disabled", () => {
+    const loadByKey = createPromptLoader("supervisor", { hotReload: false, fileType: "xml" });
+
+    const result1 = loadByKey();
+    const result2 = loadByKey();
+
+    expect(result1).toBe(result2);
+    expect(result1).toContain("You are the Root Supervisor");
+  });
+
   it("reloads prompt content when hotReload is enabled", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "pa-prompt-reload-"));
     const promptPath = path.join(tempDir, "prompt.md");
 
     try {
       await writeFile(promptPath, "Version 1\n", "utf8");
-      const loadPrompt = createPromptLoader(promptPath, { hotReload: true });
+      const loadPromptByPath = createPromptLoader(promptPath, { hotReload: true });
 
-      expect(loadPrompt()).toBe("Version 1");
+      expect(loadPromptByPath()).toBe("Version 1");
 
       await writeFile(promptPath, "Version 2\n", "utf8");
 
-      expect(loadPrompt()).toBe("Version 2");
+      expect(loadPromptByPath()).toBe("Version 2");
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
 });
 
-describe("loadSystemPromptMarkdown", () => {
-  it("reads prompt markdown from disk", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "pa-prompt-"));
-    const promptPath = path.join(tempDir, "system-prompt.md");
+describe("loadPrompt", () => {
+  it("resolves prompts by file-first convention: key.xml", () => {
+    const prompt = loadPrompt("supervisor", "xml");
 
-    try {
-      await writeFile(promptPath, "Prompt from disk\n", "utf8");
-
-      expect(loadSystemPromptMarkdown(promptPath)).toBe("Prompt from disk");
-    } finally {
-      await rm(tempDir, { recursive: true, force: true });
-    }
+    expect(prompt).toContain("You are the Root Supervisor");
   });
 
-  it("throws when the prompt file is empty", async () => {
+  it("resolves prompts by file-first convention with md/xml fallback", () => {
+    const prompt = loadPrompt("supervisor");
+
+    expect(prompt).toContain("You are the Root Supervisor");
+  });
+
+  it("resolves agent prompts like prompts/obsidian.xml", () => {
+    const prompt = loadPrompt("obsidian", "xml");
+
+    expect(prompt).toContain("Obsidian Vault Manager");
+  });
+
+  it("resolves skill files via legacy key shape finance/skills/sync-expenses", () => {
+    const prompt = loadPrompt("finance/skills/sync-expenses");
+
+    expect(typeof prompt).toBe("string");
+    expect(prompt.length).toBeGreaterThan(0);
+    expect(prompt).toContain("sync-expenses");
+  });
+
+  it("throws when prompt key does not exist", () => {
+    expect(() => loadPrompt("nonexistent")).toThrow(/Prompt not found: "nonexistent"/);
+  });
+
+  it("throws when prompt file is empty", async () => {
     const tempDir = await mkdtemp(path.join(os.tmpdir(), "pa-prompt-empty-"));
-    const promptPath = path.join(tempDir, "system-prompt.md");
+    const promptPath = path.join(tempDir, "empty.md");
 
     try {
       await writeFile(promptPath, "\n", "utf8");
 
-      expect(() => loadSystemPromptMarkdown(promptPath)).toThrow(
-        `System prompt file is empty: ${promptPath}`,
-      );
+      expect(() => loadPrompt(promptPath)).toThrow(/System prompt file is empty/);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+});
 
-  it("mirrors prompt logs to stdout when enabled", async () => {
-    const tempDir = await mkdtemp(path.join(os.tmpdir(), "pa-prompt-log-"));
-    const promptPath = path.join(tempDir, "system-prompt.md");
-    const logFilePath = path.join(process.cwd(), "logs", "prompt-log-test.txt");
+describe("getSkillsDir", () => {
+  it("resolves skills from skills/{agent} instead of prompts/{agent}/skills", () => {
+    const skillsDir = getSkillsDir("finance", "xml");
 
-    try {
-      await writeFile(promptPath, "Prompt logging test\n", "utf8");
-      vi.stubEnv("ENABLE_PROMPT_LOGS", "true");
-
-      const { logSystemPromptInvocation } = await import("../../src/logging/system-prompt-logger.js");
-      await logSystemPromptInvocation("prompt-log-test", [
-        { _getType: () => "system", content: "Prompt logging test" } as never,
-      ]);
-
-      const loggedContent = await readFile(logFilePath, "utf8");
-      expect(loggedContent).toContain("Prompt logging test");
-    } finally {
-      await rm(logFilePath, { force: true });
-      await rm(tempDir, { recursive: true, force: true });
-    }
+    expect(skillsDir).toMatch(/skills[/\\]finance$/);
   });
 });

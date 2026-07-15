@@ -1,71 +1,18 @@
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
-
-import type { RouteName } from "../state.js";
-import type { SchedulerRunner } from "./scheduler-runner.js";
-
-const SCHEDULER_TRIGGER_PREFIX = "SYSTEM_CRON_TRIGGER:";
-const ROUTE_TRIGGER_SEPARATOR = ":";
-
-export type SchedulerTargetRoute = Exclude<RouteName, "FINISH">;
-
-const SCHEDULER_TRIGGER_ROUTES: Record<string, SchedulerTargetRoute> = {
-  "finance-sync": "Finance_SG",
-  "obsidian-daily-note": "Obsidian_SG",
-};
-
-const SCHEDULER_TARGET_ROUTES = new Set<RouteName>(["Finance_SG", "Obsidian_SG", "Config_SG", "Supervise_SG", "FINISH"].filter((routeName) => routeName !== "FINISH") as RouteName[]);
-
-const extractTextContent = (message: BaseMessage): string | null => {
-  if (!(message instanceof HumanMessage)) {
-    return null;
-  }
-
-  return typeof message.content === "string" ? message.content.trim() : null;
-};
-
-export const isSchedulerTargetRoute = (value: string): value is SchedulerTargetRoute =>
-  SCHEDULER_TARGET_ROUTES.has(value as RouteName);
-
-export const resolveSchedulerTriggerRoute = (message: BaseMessage | undefined): RouteName | null => {
-  if (!message) {
-    return null;
-  }
-
-  const text = extractTextContent(message);
-  const triggerText = text?.split(/\r?\n/, 1)[0]?.trim();
-  if (!triggerText?.startsWith(SCHEDULER_TRIGGER_PREFIX)) {
-    return null;
-  }
-
-  const triggerName = triggerText.slice(SCHEDULER_TRIGGER_PREFIX.length).trim();
-  const legacyRoute = SCHEDULER_TRIGGER_ROUTES[triggerName];
-  if (legacyRoute) {
-    return legacyRoute;
-  }
-
-  const derivedRoute = triggerName.split(ROUTE_TRIGGER_SEPARATOR, 1)[0];
-  if (derivedRoute && isSchedulerTargetRoute(derivedRoute)) {
-    return derivedRoute as SchedulerTargetRoute;
-  }
-
-  return null;
-};
-
-export const buildSchedulerTrigger = (triggerName: keyof typeof SCHEDULER_TRIGGER_ROUTES): string =>
-  `${SCHEDULER_TRIGGER_PREFIX}${triggerName}`;
-
-export const buildSchedulerTriggerForJob = (targetRoute: SchedulerTargetRoute, jobName: string): string =>
-  `${SCHEDULER_TRIGGER_PREFIX}${targetRoute}${ROUTE_TRIGGER_SEPARATOR}${jobName}`;
+import {
+  buildCronTriggerForJob,
+  isCronTargetRoute,
+  type CronTargetRoute,
+} from "../cron-triggers.js";
+import type { CronRunner } from "./cron-runner.js";
 
 type ScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
 
 export type CronJobDefinition = {
   jobName: string;
   schedule: string;
-  targetRoute: SchedulerTargetRoute;
+  targetRoute: CronTargetRoute;
   enabled?: boolean;
   timezone?: string;
-  // payload can be a plain string or a structured JSON object
   payload?: unknown;
 };
 
@@ -73,7 +20,7 @@ export type SetupCronOptions = {
   enabled: boolean;
   defaultTimezone: string;
   schedule: ScheduleFn;
-  runner: SchedulerRunner;
+  runner: CronRunner;
   jobs: CronJobDefinition[];
 };
 
@@ -89,7 +36,7 @@ export const validateCronJobs = (jobs: CronJobDefinition[]): void => {
       throw new Error(`Cron schedule is required for job: ${job.jobName}`);
     }
 
-    if (!isSchedulerTargetRoute(job.targetRoute)) {
+    if (!isCronTargetRoute(job.targetRoute)) {
       throw new Error(`Unknown target route: ${job.targetRoute}`);
     }
 
@@ -118,7 +65,7 @@ export const setupCron = (options: SetupCronOptions): void => {
       async () => {
         await options.runner.run({
           jobName: job.jobName,
-          trigger: buildSchedulerTriggerForJob(job.targetRoute, job.jobName),
+          trigger: buildCronTriggerForJob(job.targetRoute, job.jobName),
           ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
       },

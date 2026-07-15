@@ -6,17 +6,17 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createObsidianTools } from "../../src/nodes/obsidian/tools.js";
 import {
-  applyMarkdownWrite,
-  listMarkdownDirContents,
-  listMarkdownFiles,
+  applyFileWrite,
+  listDirContents,
+  listFiles,
   resolveVaultPath,
-  createObsidianTools,
-  searchMarkdownFiles,
-} from "../../src/nodes/obsidian/obsidian-tools.js";
+  searchFiles,
+} from "../../src/services/obsidian.js";
 import {
   createObsidianNode,
-} from "../../src/nodes/obsidian/obsidian.js";
+} from "../../src/nodes/obsidian/index.js";
 import { extractMessageTextContent } from "../../src/nodes/message-history.js";
 import {
   createPromptLoader,
@@ -47,11 +47,11 @@ const createTempVault = async (): Promise<string> => {
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
     expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
-      "Markdown path must stay inside the local vault.",
+      "Path traversal is forbidden.",
     );
   });
 
-  it("lists and searches only markdown files", async () => {
+  it("lists and searches all file types", async () => {
     const vaultRoot = await createTempVault();
     const { mkdir, writeFile } = await import("node:fs/promises");
 
@@ -61,32 +61,34 @@ describe("obsidian node helpers", () => {
     await mkdir(path.join(vaultRoot, "daily", "nested"), { recursive: true });
     await writeFile(path.join(vaultRoot, "daily", "nested", "deep.md"), "gamma", "utf8");
 
-    await expect(listMarkdownFiles(vaultRoot, "daily")).resolves.toEqual([
+    await expect(listFiles(vaultRoot, "daily")).resolves.toEqual([
       "daily/note.md",
+      "daily/note.txt",
     ]);
 
-    await expect(listMarkdownDirContents(vaultRoot, "daily")).resolves.toEqual({
-      files: ["daily/note.md"],
+    await expect(listDirContents(vaultRoot, "daily")).resolves.toEqual({
+      files: ["daily/note.md", "daily/note.txt"],
       dirs: ["nested"],
     });
 
-    await expect(searchMarkdownFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
+    await expect(searchFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
       "daily/nested/deep.md",
       "daily/note.md",
+      "daily/note.txt",
     ]);
   });
 
   it("creates and appends markdown content safely", async () => {
     const vaultRoot = await createTempVault();
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "daily/2024-05-15.md",
       operation: "create_new",
       content: "First entry",
       summary: "Created note",
     });
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "daily/2024-05-15.md",
       operation: "append",
       content: "Second entry",
@@ -100,13 +102,19 @@ describe("obsidian node helpers", () => {
 
   it("validates Obsidian tool inputs with Zod schemas", async () => {
     const vaultRoot = await createTempVault();
-    const [readTool, writeTool] = createObsidianTools(vaultRoot) as Array<{
+    const tools = createObsidianTools(vaultRoot) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
+    const readTool = tools.find((tool) => tool.name === "read_file");
+    const writeTool = tools.find((tool) => tool.name === "write_file");
 
-    await expect(readTool.invoke({ relativePath: "note.txt" })).rejects.toThrow();
+    expect(readTool).toBeDefined();
+    expect(writeTool).toBeDefined();
+
+    await expect(readTool!.invoke({ relativePath: "" })).rejects.toThrow();
     await expect(
-      writeTool.invoke({
+      writeTool!.invoke({
         relativePath: "note.md",
         operation: "append",
         summary: "Append note",
@@ -118,18 +126,22 @@ describe("obsidian node helpers", () => {
   it("reads markdown with plain contents for the model", async () => {
     const vaultRoot = await createTempVault();
 
-    await applyMarkdownWrite(vaultRoot, {
+    await applyFileWrite(vaultRoot, {
       relativePath: "notes/read.md",
       operation: "create_new",
       content: "Alpha\nBeta\n",
       summary: "Created read note",
     });
 
-    const [readTool] = createObsidianTools(vaultRoot) as Array<{
+    const tools = createObsidianTools(vaultRoot) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
+    const readTool = tools.find((tool) => tool.name === "read_file");
 
-    const output = await readTool.invoke({ relativePath: "notes/read.md" });
+    expect(readTool).toBeDefined();
+
+    const output = await readTool!.invoke({ relativePath: "notes/read.md" });
 
     expect(output).toContain("Alpha");
     expect(output).toContain("Beta");
@@ -147,15 +159,16 @@ describe("obsidian node helpers", () => {
 });
 
 describe("createObsidianNode", () => {
-  it("loads the Obsidian system prompt from markdown", () => {
+  it("loads the Obsidian system prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Objective");
-    expect(prompt).toContain("# Strict Constraints");
-    expect(prompt).toContain("Current datetime:");
-    expect(prompt).toContain("A. READ INTENT");
-    expect(prompt).toContain("B. WRITE / MODIFY INTENT");
-    expect(prompt).toContain("Search result post-processing:");
+    expect(prompt).toContain("Obsidian Vault Manager");
+    expect(prompt).toContain("<role_and_rules>");
+    expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
+    expect(prompt).toContain("CURRENT DATETIME:");
+    expect(prompt).toContain('<intent type="READ">');
+    expect(prompt).toContain('<intent type="WRITE">');
+    expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -176,8 +189,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("create a note for today")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -206,11 +217,10 @@ describe("createObsidianNode", () => {
         .join("\n");
       const expectedRoutinePath = `routine/${month}/${month} ${day} - ${weekday}.md`;
 
-      expect(promptContent).toContain("Current datetime:");
+      expect(promptContent).toContain("CURRENT DATETIME:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
-      expect(promptContent).toContain("For today, use");
-      expect(promptContent).toContain(expectedRoutinePath);
+      expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
 
       return new AIMessage("Done.");
     });
@@ -218,8 +228,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("give me a plan for today")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -252,8 +260,6 @@ describe("createObsidianNode", () => {
 
     const result = await obsidianNode({
       messages: [new HumanMessage("show me the vault structure")],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -281,7 +287,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_markdown_file",
+              name: "read_file",
               args: { relativePath: "routine/July/July 4 - Sat.md" },
               id: "read-yesterday",
               type: "tool_call",
@@ -293,8 +299,6 @@ describe("createObsidianNode", () => {
           content: "## Tasks\n\n- [ ] Buy milk\n- [x] Archive receipt\n",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -318,7 +322,6 @@ describe("createObsidianNode", () => {
         .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
         .join("\n");
 
-      expect(promptContent).toContain("Post-process the markdown search results into the shortest useful answer.");
       expect(promptContent).toContain(rawSearchResult);
 
       return new AIMessage("Best matches:\nroutine/July/July 3 - Fri.md\nroutine/July/July 4 - Sat.md");
@@ -333,7 +336,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "search_markdown_files",
+              name: "search_files",
               args: { queries: ["potuzhno", "event", "note"] },
               id: "search-1",
               type: "tool_call",
@@ -341,13 +344,11 @@ describe("createObsidianNode", () => {
           ],
         }),
         new ToolMessage({
-          name: "search_markdown_files",
+          name: "search_files",
           tool_call_id: "search-1",
           content: rawSearchResult,
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -356,7 +357,7 @@ describe("createObsidianNode", () => {
     expect(finalText).toContain("routine/July/July 3 - Fri.md");
     expect(finalText).toContain("routine/July/July 4 - Sat.md");
     expect(finalText).not.toContain("routine/July/July 5 - Sun.md");
-    expect(finalText.split("\n")).toHaveLength(2);
+    expect(finalText.split("\n")).toHaveLength(3);
   });
 
   it("finds notes by path terms even when the body does not contain the query", async () => {
@@ -366,8 +367,9 @@ describe("createObsidianNode", () => {
     await mkdir(path.join(vaultRoot, "events", "potuzhno", "techno-yoga"), { recursive: true });
     await writeFile(path.join(vaultRoot, "events", "potuzhno", "techno-yoga", "Places.md"), "No matching keywords here", "utf8");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["techno yoga"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["techno yoga"] }) as string;
 
     expect(result).toContain("events/potuzhno/techno-yoga/Places.md");
     expect(result).not.toContain("No files matched your search.");
@@ -394,7 +396,7 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: {
                 relativePath: "routine/July/July 5 - Sun.md",
                 operation: "append",
@@ -411,8 +413,6 @@ describe("createObsidianNode", () => {
           content: "Success: Added sauna to today's tasks. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -440,13 +440,13 @@ describe("createObsidianNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_markdown_file",
+              name: "read_file",
               args: { relativePath: "routine/July/July 5 - Sun.md" },
               id: "read-today",
               type: "tool_call",
             },
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: {
                 relativePath: "routine/July/July 5 - Sun.md",
                 operation: "overwrite",
@@ -467,8 +467,6 @@ describe("createObsidianNode", () => {
           content: "Success: Prepared today's note. Saved to routine/July/July 5 - Sun.md.",
         }),
       ],
-      context: {},
-      next: undefined,
     });
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
@@ -493,10 +491,10 @@ describe("createObsidianNode", () => {
 });
 
 // ---------------------------------------------------------------------------
-// list_markdown_files tool
+// list_files tool
 // ---------------------------------------------------------------------------
 
-describe("obsidian tool: list_markdown_files", () => {
+describe("obsidian tool: list_files", () => {
   it("lists .md files and subdirectories in a given directory", async () => {
     const vaultRoot = await createTempVault();
     const { mkdir, writeFile: wf } = await import("node:fs/promises");
@@ -505,8 +503,9 @@ describe("obsidian tool: list_markdown_files", () => {
     await wf(path.join(vaultRoot, "notes", "b.md"), "# B");
     await wf(path.join(vaultRoot, "notes", "sub", "c.md"), "# C");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({ relativeDir: "notes" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({ relativeDir: "notes" }) as string;
 
     expect(result).toContain("notes/a.md");
     expect(result).toContain("notes/b.md");
@@ -520,8 +519,9 @@ describe("obsidian tool: list_markdown_files", () => {
     await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
     await wf(path.join(vaultRoot, "readme.md"), "# Readme");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({}) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({}) as string;
 
     expect(result).toContain("readme.md");
     expect(result).toContain("notes");
@@ -530,18 +530,19 @@ describe("obsidian tool: list_markdown_files", () => {
   it("returns an error string for a non-existent directory", async () => {
     const vaultRoot = await createTempVault();
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({ relativeDir: "no-such-dir" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({ relativeDir: "no-such-dir" }) as string;
 
     expect(result).toContain("Error:");
   });
 });
 
 // ---------------------------------------------------------------------------
-// search_markdown_files tool
+// search_files tool
 // ---------------------------------------------------------------------------
 
-describe("obsidian tool: search_markdown_files", () => {
+describe("obsidian tool: search_files", () => {
   it("finds files whose content matches any query term (OR semantics)", async () => {
     const vaultRoot = await createTempVault();
     const { writeFile: wf } = await import("node:fs/promises");
@@ -549,8 +550,9 @@ describe("obsidian tool: search_markdown_files", () => {
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
     await wf(path.join(vaultRoot, "c.md"), "hello typescript");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["HELLO", "goodbye"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["HELLO", "goodbye"] }) as string;
 
     expect(result).toContain("a.md");
     expect(result).toContain("b.md");
@@ -563,8 +565,9 @@ describe("obsidian tool: search_markdown_files", () => {
     await wf(path.join(vaultRoot, "a.md"), "Hello World");
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["HELLO"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["HELLO"] }) as string;
 
     expect(result).toContain("a.md");
     expect(result).not.toContain("b.md");
@@ -578,8 +581,9 @@ describe("obsidian tool: search_markdown_files", () => {
     await wf(path.join(vaultRoot, "notes", "match.md"), "alpha");
     await wf(path.join(vaultRoot, "other", "nomatch.md"), "alpha");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
 
     expect(result).toContain("notes/match.md");
     expect(result).not.toContain("other/nomatch.md");
@@ -590,8 +594,9 @@ describe("obsidian tool: search_markdown_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "x.md"), "TypeScript");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["TYPESCRIPT"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["TYPESCRIPT"] }) as string;
 
     expect(result).toContain("x.md");
   });
@@ -601,8 +606,9 @@ describe("obsidian tool: search_markdown_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "both.md"), "hello world");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["hello", "world"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["hello", "world"] }) as string;
 
     const lines = (result as string).split("\n");
     expect(lines.filter((line) => line.includes("both.md"))).toHaveLength(1);
@@ -613,12 +619,110 @@ describe("obsidian tool: search_markdown_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "empty.md"), "nothing here");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["zzznomatch"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["zzznomatch"] }) as string;
 
     const lower = result.toLowerCase();
     expect(
       lower.includes("no files") || lower.includes("no results") || lower.includes("no matches") || result.trim() === "",
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// send_file tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: send_file", () => {
+  it("sends a file via the fileSender when provided", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "document.md"), "# Important\nContent here");
+
+    const mockFileSender = {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
+
+    const result = await sendFileTool!.invoke({ relativePath: "document.md" }) as string;
+
+    expect(result).toContain("File sent: document.md");
+    expect(mockFileSender.sendFile).toHaveBeenCalledOnce();
+    expect(mockFileSender.sendFile).toHaveBeenCalledWith(
+      expect.stringContaining("document.md"),
+    );
+  });
+
+  it("returns an error when the file does not exist", async () => {
+    const vaultRoot = await createTempVault();
+    const mockFileSender = {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
+
+    const result = await sendFileTool!.invoke({ relativePath: "nonexistent.md" }) as string;
+
+    expect(result).toContain("Error");
+    expect(result).toContain("does not exist");
+    expect(mockFileSender.sendFile).not.toHaveBeenCalled();
+  });
+
+  it("is absent from the tools array when no fileSender is provided", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "file.md"), "content");
+
+    const toolsWithout = createObsidianTools(vaultRoot) as Array<{ name?: string }>;
+    const toolsWith = createObsidianTools(vaultRoot, {
+      sendFile: vi.fn(async () => undefined),
+      setCurrentChatId: vi.fn(),
+    }) as Array<{ name?: string }>;
+
+    expect(toolsWithout.length).toBe(6); // read_skill, read, write, list, search_files, search_files_by_name
+    expect(toolsWith.length).toBe(7); // same 6 + send_file
+
+    const sendFileToolInWithout = toolsWithout.find((t) => t.name === "send_file");
+    const sendFileToolInWith = toolsWith.find((t) => t.name === "send_file");
+
+    expect(sendFileToolInWithout).toBeUndefined();
+    expect(sendFileToolInWith).toBeDefined();
+  });
+
+  it("returns a sendFile error when the Telegram API call fails", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "file.md"), "content");
+
+    const sendError = new Error("Telegram API: file too large");
+    const mockFileSender = {
+      sendFile: vi.fn(async () => {
+        throw sendError;
+      }),
+      setCurrentChatId: vi.fn(),
+    };
+
+    const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
+      invoke(input: unknown): Promise<unknown>;
+    }>;
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
+
+    const result = await sendFileTool!.invoke({ relativePath: "file.md" }) as string;
+
+    expect(result).toContain("Error");
+    expect(result).toContain("file too large");
   });
 });

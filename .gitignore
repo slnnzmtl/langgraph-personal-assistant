@@ -5,6 +5,8 @@ dist/
 logs/
 .github/agents/
 .pnpm-store/
-test-results/
+test-results/*
 .tmp
-data/
+data/*
+cron-jobs.json
+obsidian-vault/*

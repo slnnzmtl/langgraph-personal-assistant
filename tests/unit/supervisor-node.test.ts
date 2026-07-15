@@ -29,7 +29,7 @@ describe("createSupervisorNode", () => {
       const promptMessages = input as HumanMessage[];
 
       expect(promptMessages[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
-      expect(promptMessages[0]?.content).toContain("Current datetime: 2026-07-05T12:34:56 UTC");
+      expect(promptMessages[0]?.content).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
       expect(promptMessages[1]?.content).toBe("hello");
 
       return {
@@ -203,7 +203,7 @@ describe("createSupervisorNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "write_markdown_file",
+              name: "write_file",
               args: { relativePath: "routine/2026-07-05.md" },
               id: "write-1",
               type: "tool_call",
@@ -282,6 +282,23 @@ describe("createSupervisorNode", () => {
     expect(result.next).toBe("Obsidian_SG");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
+  it("lets Supervise_SG scheduler triggers continue through normal LLM routing", async () => {
+    const invokeSpy = vi.fn(() => ({
+      next: "FINISH",
+      reply: "Handled by the main supervisor",
+    }));
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector);
+
+    const result = await supervisorNode(
+      makeHumanState("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review\n\nPayload:\nReview today's priorities."),
+    );
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Handled by the main supervisor");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("routes scheduled triggers even when payload text is appended after the trigger line", async () => {

@@ -33,6 +33,6 @@ export class GeminiConnector implements ILLMConnector {
   ): RoutingChain<TRoute> {
     return this.model.withStructuredOutput(schema, {
       name: "route_request",
-    });
+    }) as unknown as RoutingChain<TRoute>;
   }
 }

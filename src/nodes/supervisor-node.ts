@@ -1,7 +1,7 @@
 import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
-import { resolveSchedulerTriggerRoute } from "../cron/cron-launcher.js";
+import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
 import { MVPRoutingSchema, type RoutingDecision } from "../routing-schema.js";
@@ -36,10 +36,10 @@ export const createSupervisorNode = (llmConnector: ILLMConnector) => {
   return async (state: AgentState): Promise<AgentStateUpdate> => {
     const supervisorPromptText = loadSupervisorSystemPrompt();
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
-    const schedulerRoute = resolveSchedulerTriggerRoute(state.messages[state.messages.length - 1]);
+    const cronRoute = resolveCronTriggerRoute(state.messages[state.messages.length - 1]);
 
-    if (schedulerRoute) {
-      return { next: schedulerRoute };
+    if (cronRoute && cronRoute !== SUPERVISE_CRON_ROUTE) {
+      return { next: cronRoute };
     }
 
     const rawPromptMessages = [

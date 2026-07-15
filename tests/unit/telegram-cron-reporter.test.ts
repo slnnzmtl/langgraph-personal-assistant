@@ -1,30 +1,18 @@
 import { AIMessage } from "@langchain/core/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { sendMessageMock } = vi.hoisted(() => ({
-  sendMessageMock: vi.fn(),
-}));
-
-vi.mock("telegraf", () => ({
-  Telegraf: class {
-    telegram = {
-      sendMessage: sendMessageMock,
-    };
-
-    constructor() {}
-  },
-}));
-
 import { createTelegramCronReporter } from "../../src/telegram/telegram-cron-reporter.js";
 
 describe("createTelegramCronReporter", () => {
+  const sendMessageMock = vi.fn();
+
   beforeEach(() => {
     sendMessageMock.mockReset();
   });
 
   it("sends lifecycle updates to telegram", async () => {
     const reporter = createTelegramCronReporter({
-      telegramBotToken: "123:abc",
+      telegram: { sendMessage: sendMessageMock } as never,
       chatId: "42",
     });
 
@@ -34,6 +22,7 @@ describe("createTelegramCronReporter", () => {
       jobName: "finance-sync",
       trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
       messages: [new AIMessage("All done")],
+      summary: "The finance sync completed successfully.",
     });
     await reporter.onError?.(new Error("boom"), { jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
 
@@ -51,7 +40,7 @@ describe("createTelegramCronReporter", () => {
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       3,
       "42",
-      "Cron job: finance-sync - Completed\nAll done",
+      "Cron job: finance-sync - Completed\nThe finance sync completed successfully.",
     );
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       4,

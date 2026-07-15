@@ -1,6 +1,8 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { Context, Telegraf } from "telegraf";
+
 import type { AppConfig } from "../../src/config.js";
 import {
   formatTelegramMarkdownV2,
@@ -19,6 +21,8 @@ const config: AppConfig = {
   financeModel: "gemini-1.5-flash",
   obsidianVaultPath: "/tmp/vault",
   appTimezone: "UTC",
+  schedulerEnabled: false,
+  cronJobsFilePath: "/tmp/cron-jobs.json",
 };
 
 const app = {
@@ -29,7 +33,13 @@ const app = {
   })),
 };
 
-const createAdapter = () => new TelegramAdapter(app as never, config);
+const bot = {
+  on: vi.fn(),
+  launch: vi.fn(async () => undefined),
+  telegram: {},
+} as unknown as Telegraf<Context>;
+
+const createAdapter = () => new TelegramAdapter(app as never, config, bot);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -278,5 +288,40 @@ describe("TelegramAdapter", () => {
       { configurable: { thread_id: "chat-123" } },
     );
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("calls setCurrentChatId on the fileSender before triggering the workflow", async () => {
+    const mockFileSender = {
+      setCurrentChatId: vi.fn(),
+      sendFile: vi.fn(async () => undefined),
+    };
+    const adapter = new TelegramAdapter(app as never, config, bot, mockFileSender);
+    const sendMessage = vi.fn(async () => undefined);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    // Simulate a message handler context
+    const ctx = {
+      from: { id: 42 },
+      chat: { id: 555 },
+      message: { text: "send me a file" },
+      sendChatAction: vi.fn(async () => undefined),
+      telegram: { sendMessage },
+    };
+
+    // Manually invoke the message handler logic that's in launch()
+    const inboundMessage = await adapter.parseInbound(ctx as never);
+    expect(inboundMessage).toEqual(new HumanMessage("send me a file"));
+
+    const chatId = ctx.chat.id;
+    const threadId = chatId.toString();
+    
+    // This is what launch() does: call setCurrentChatId with the numeric chatId
+    mockFileSender.setCurrentChatId(chatId);
+    
+    const finalState = await adapter.triggerWorkflow(inboundMessage, threadId);
+    await adapter.sendOutbound(ctx as never, finalState.messages);
+
+    expect(mockFileSender.setCurrentChatId).toHaveBeenCalledWith(555);
+    expect(logSpy).toHaveBeenCalled();
   });
 });

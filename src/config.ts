@@ -21,13 +21,8 @@ export interface AppConfig {
   obsidianVaultPath: string;
   appTimezone: string;
   schedulerEnabled: boolean;
-  financeSyncCron: string;
   cronJobsFilePath: string;
-  // Optional: Supabase finance integration
-  supabaseUrl?: string | undefined;
-  supabaseServiceRoleKey?: string | undefined;
-  enableFinanceSync?: boolean | undefined;
-  // Optional: Official hosted Supabase MCP server (replaces custom SQL tools)
+  // Optional: Official hosted Supabase MCP server
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
   supabaseAccessToken?: string | undefined;
@@ -70,8 +65,6 @@ const normalizeAppTimezone = (value: string | undefined): string => {
 export const loadConfig = (): AppConfig => {
   const defaultGeminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
   
-  // Debug: Log environment variable values for finance sync
-  console.log("[Config Debug] ENABLE_FINANCE_SYNC raw value:", JSON.stringify(process.env.ENABLE_FINANCE_SYNC));
   console.log("[Config Debug] SUPABASE_PROJECT_REF set:", !!process.env.SUPABASE_PROJECT_REF);
   console.log("[Config Debug] SUPABASE_ACCESS_TOKEN set:", !!process.env.SUPABASE_ACCESS_TOKEN);
   
@@ -86,13 +79,7 @@ export const loadConfig = (): AppConfig => {
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
-    financeSyncCron: process.env.FINANCE_SYNC_CRON ?? "59 23 * * *",
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
-    // Optional Supabase finance integration
-    supabaseUrl: process.env.SUPABASE_URL,
-    supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    enableFinanceSync: isTruthyEnv(process.env.ENABLE_FINANCE_SYNC),
-    // Optional hosted Supabase MCP server
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,

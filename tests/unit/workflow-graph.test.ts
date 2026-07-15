@@ -3,9 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildSchedulerTrigger } from "../../src/cron/cron-launcher.js";
-import { createWorkflowGraph } from "../../src/graph/workflow-graph.js";
-import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
+import { buildCronTrigger } from "../../src/cron-triggers.js";
+import { createWorkflowGraph } from "../../src/agent.js";
+import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
+import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
@@ -23,12 +24,11 @@ const makeGraph = (
     new FakeLLMConnector(supervisorHandler),
     new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
     new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
-    new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven scheduler setup."))),
     {
       obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
-      appTimezone: "UTC",
-      cronJobsFilePath: makeCronJobsFilePath(),
+      cronJobRepository: createCronJobRepository(process.cwd(), path.relative(process.cwd(), makeCronJobsFilePath())),
       supabaseSession,
+      configLlmConnector: new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup."))),
     },
   );
 
@@ -49,7 +49,19 @@ describe("createWorkflowGraph", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-05T12:34:56.000Z"));
 
-    const app = makeGraph(() => ({ next: "FINISH" } as any));
+    const app = makeGraph((input) => {
+      if (Array.isArray(input)) {
+        const systemContent = typeof input[0]?.content === "string" ? input[0].content : "";
+
+        if (systemContent.includes("The normal supervisor routing failed")) {
+          return new AIMessage("It is currently 2026-07-05T12:34:56 UTC.");
+        }
+
+        return { next: "FINISH" };
+      }
+
+      return { next: "FINISH" };
+    });
 
     const state = await app.invoke(
       {
@@ -79,7 +91,7 @@ describe("createWorkflowGraph", () => {
 
     // Supervisor routes once; finance fallback runs; supervisor then auto-FINISHes via isSubAgentComplete
     expect(calls).toBe(1);
-    expect(state.messages.at(-1)?.content).toContain("Finance sync not configured");
+    expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
   });
 
   it("visits the finance node on Finance_SG route (real integration with mock session)", async () => {
@@ -106,6 +118,47 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
     // Note: executeSql may or may not be called depending on what the LLM decides to do
     // The LLM has access to the session but chooses when to invoke tools
+  });
+
+  it("preserves every finance tool result when the model emits a six-call batch", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue({ rows: [] }),
+      close: vi.fn(),
+    };
+    let financeCalls = 0;
+    const app = makeGraph(
+      () => ({ next: "Finance_SG" }),
+      undefined,
+      (input) => {
+        financeCalls += 1;
+
+        if (financeCalls === 1) {
+          return new AIMessage({
+            content: "",
+            tool_calls: Array.from({ length: 6 }, (_, index) => ({
+              name: "exec_sql",
+              args: { sql: `SELECT ${index + 1};` },
+              id: `finance-tool-${index + 1}`,
+              type: "tool_call" as const,
+            })),
+          });
+        }
+
+        const toolResults = input.filter((message: { _getType?: () => string }) => message._getType?.() === "tool");
+        expect(toolResults).toHaveLength(6);
+        expect(toolResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
+          Array.from({ length: 6 }, (_, index) => `finance-tool-${index + 1}`),
+        );
+
+        return new AIMessage("Finance sync completed successfully");
+      },
+      mockSession,
+    );
+
+    const state = await app.invoke({ messages: [new HumanMessage("sync yesterday's transactions")] }, threadConfig);
+
+    expect(financeCalls).toBe(2);
+    expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
   });
 
   it("visits the obsidian node on Obsidian_SG route", async () => {
@@ -140,6 +193,7 @@ describe("createWorkflowGraph", () => {
 
   it("executes config tool calls before returning to the supervisor", async () => {
     let supervisorCalls = 0;
+    let configCalls = 0;
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
@@ -148,22 +202,44 @@ describe("createWorkflowGraph", () => {
       undefined,
       undefined,
       undefined,
-      () => new AIMessage({
-        content: "",
-        tool_calls: [
-          {
-            name: "create_cron_job",
-            args: {
-              jobName: "daily-note",
-              schedule: "0 6 * * *",
-              targetRoute: "Obsidian_SG",
-              payload: "Create my daily note",
-            },
-            id: "config-tool-1",
-            type: "tool_call",
-          },
-        ],
-      }),
+      () => {
+        configCalls += 1;
+
+        if (configCalls === 1) {
+          return new AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                name: "read_skill",
+                args: { name: "cron" },
+                id: "read-1",
+                type: "tool_call",
+              },
+            ],
+          });
+        }
+
+        if (configCalls === 2) {
+          return new AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                name: "create_cron_job",
+                args: {
+                  jobName: "daily-note",
+                  schedule: "0 6 * * *",
+                  targetRoute: "Obsidian_SG",
+                  payload: "Create my daily note",
+                },
+                id: "config-tool-1",
+                type: "tool_call",
+              },
+            ],
+          });
+        }
+
+        return new AIMessage("Created cron job daily-note.");
+      },
     );
 
     const state = await app.invoke({ messages: [new HumanMessage("set up a cron job for daily notes")] }, threadConfig);
@@ -189,7 +265,7 @@ describe("createWorkflowGraph", () => {
     );
 
     const state = await app.invoke(
-      { messages: [new HumanMessage(buildSchedulerTrigger("finance-sync"))] },
+      { messages: [new HumanMessage(buildCronTrigger("finance-sync"))] },
       threadConfig,
     );
 

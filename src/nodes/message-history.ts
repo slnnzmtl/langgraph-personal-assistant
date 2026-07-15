@@ -1,19 +1,8 @@
 import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-export const extractMessageTextContent = (content: BaseMessage["content"]): string => {
-  if (typeof content === "string") {
-    return content.replaceAll("\\n", "\n");
-  }
+import { extractMessageTextContent } from "../utils/message-content.js";
 
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => (typeof part === "string" ? part : part.type === "text" ? part.text : ""))
-      .join("\n")
-      .replaceAll("\\n", "\n");
-  }
-
-  return content ? JSON.stringify(content) : "[Action completed via internal tool]";
-};
+export { extractMessageTextContent } from "../utils/message-content.js";
 
 const mergeMessages = (message: BaseMessage, nextMessage: BaseMessage): BaseMessage => {
   const mergedContent = `${extractMessageTextContent(message.content)}\n${extractMessageTextContent(nextMessage.content)}`.trim();

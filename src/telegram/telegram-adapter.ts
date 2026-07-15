@@ -1,11 +1,12 @@
 import type { BaseMessage } from "@langchain/core/messages";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { Telegraf } from "telegraf";
-import type { Context } from "telegraf";
+import { Telegraf, type Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
-import type { createWorkflowGraph } from "../graph/workflow-graph.js";
+import type { createWorkflowGraph } from "../agent.js";
 import type { AgentState } from "../state.js";
+import type { IFileSender } from "./file-sender.js";
+import { GraphRecursionError } from "@langchain/langgraph";
 
 export interface ITelegramAdapter {
   parseInbound(ctx: Context): Promise<HumanMessage | null>;
@@ -155,8 +156,10 @@ export class TelegramAdapter implements ITelegramAdapter {
   constructor(
     private readonly app: ReturnType<typeof createWorkflowGraph>,
     config: AppConfig,
+    bot: Telegraf<Context>,
+    private readonly fileSender?: IFileSender,
   ) {
-    this.bot = new Telegraf(config.telegramBotToken);
+    this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
   }
 
@@ -258,13 +261,23 @@ export class TelegramAdapter implements ITelegramAdapter {
         return;
       }
 
+      const chatId = ctx.chat?.id;
+      if (chatId) {
+        this.fileSender?.setCurrentChatId(chatId);
+      }
+
       try {
         await ctx.sendChatAction("typing");
         const finalState = await this.triggerWorkflow(inboundMessage, threadId);
         await this.sendOutbound(ctx, finalState.messages);
       } catch (error) {
-        console.error("Agent execution error:", error);
-        await sendSystemError(ctx, "System Error: Unable to process request.");
+        if (error instanceof GraphRecursionError) {
+          console.error("Agent recursion limit reached:", error);
+          await sendSystemError(ctx, "I got stuck in a loop on that request. Please try rephrasing or try again.");
+        } else {
+          console.error("Agent execution error:", error);
+          await sendSystemError(ctx, "System Error: Unable to process request.");
+        }
       }
     });
 
