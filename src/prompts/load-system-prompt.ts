@@ -4,6 +4,7 @@ import { formatCurrentTime, getZonedDateDetails } from "../utils/datetime.js";
 import { formatSkillsForPrompt, listSkills } from "./skills-loader.js";
 
 export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
+export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
 
 const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {
   const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
@@ -39,8 +40,12 @@ const shiftDateByDays = (date: Date, days: number): Date => new Date(date.getTim
 const injectObsidianRoutineHint = (prompt: string) => (date: Date = new Date()): string => {
   const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
   const todayPath = formatRoutineFilePath(date);
+  const routineHint = [
+    "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
+    `For today, use ${todayPath}.`,
+  ].join("\n");
 
-  return `${prompt}\nYesterday: ${yesterdayPath}\nToday: ${todayPath}`;
+  return `${prompt}\n\n${routineHint}`;
 };
 
 const injectSkills = (prompt: string, skillsDir: string): string => {
@@ -55,26 +60,50 @@ const injectSkills = (prompt: string, skillsDir: string): string => {
   return `${prompt}\n\n${skillsBlock}\n\n${skillsHint}`;
 };
 
+const promptKeyRoot = (key: string): string => key.split("/")[0] ?? key;
+
+const resolveSkillPromptPath = (key: string): string | undefined => {
+  const match = key.match(/^([^/]+)\/skills\/([^/]+)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const [, agent, skillName] = match;
+  if (!agent || !skillName) {
+    return undefined;
+  }
+  const filePath = path.join(SKILLS_ROOT, agent, `${skillName}.md`);
+  return existsSync(filePath) ? filePath : undefined;
+};
 
 const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string => {
   if (path.isAbsolute(key) && existsSync(key)) {
     return key;
   }
 
-  const filePath = path.join(PROMPTS_ROOT, `${key}.${fileType}`);
-  if (existsSync(filePath)) {
-    return filePath;
+  const skillPromptPath = resolveSkillPromptPath(key);
+  if (skillPromptPath) {
+    return skillPromptPath;
   }
 
-  const dirFilePath = path.join(PROMPTS_ROOT, key, `system.${fileType}`);
-  if (existsSync(dirFilePath)) {
-    return dirFilePath;
+  const candidates = [
+    path.join(PROMPTS_ROOT, `${key}.${fileType}`),
+    ...(fileType === "md" ? [path.join(PROMPTS_ROOT, `${key}.xml`)] : []),
+    ...(fileType === "xml" ? [path.join(PROMPTS_ROOT, `${key}.md`)] : []),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
   }
 
   throw new Error(
-    `Prompt not found: "${key}" (${fileType}). Tried:\n  - ${filePath}\n  - ${dirFilePath}`
+    `Prompt not found: "${key}" (${fileType}). Tried:\n${candidates.map((candidate) => `  - ${candidate}`).join("\n")}`,
   );
 };
+
+const resolveSkillsDir = (key: string): string => path.join(SKILLS_ROOT, promptKeyRoot(key));
 
 const readPromptFile = (filePath: string): string => {
   const content = readFileSync(filePath, "utf8").trim();
@@ -86,19 +115,20 @@ const readPromptFile = (filePath: string): string => {
 
 /**
  * Get the skills directory path for a given prompt key.
- * Returns path to `${promptDir}/skills` if it exists, otherwise returns path even if it doesn't exist.
+ * Returns path to `skills/{key}` (e.g. skills/finance).
  * @param key - Prompt key (e.g. "finance", "obsidian")
  * @param fileType - File type: "md" or "xml" (default: "md")
  * @returns Path to the skills directory
  */
 export const getSkillsDir = (key: string, fileType: "md" | "xml" = "md"): string => {
-  const filePath = resolvePromptPath(key, fileType);
-  return path.join(path.dirname(filePath), "skills");
+  resolvePromptPath(key, fileType);
+  return resolveSkillsDir(key);
 };
 
 /**
  * Load raw prompt content by key.
- * Automatically resolves file paths: tries `${key}.${fileType}` first, then `${key}/system.${fileType}`.
+ * Resolves `prompts/{key}.{md|xml}` and skill files at `skills/{agent}/{skill}.md`
+ * via the legacy `{agent}/skills/{skill}` key shape.
  * @param key - Prompt key (e.g. "supervisor", "obsidian", "finance/skills/sync-expenses")
  * @param fileType - File type: "md" or "xml" (default: "md")
  * @returns Raw prompt content
@@ -106,18 +136,18 @@ export const getSkillsDir = (key: string, fileType: "md" | "xml" = "md"): string
 export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string => {
   const filePath = resolvePromptPath(key, fileType);
   const content = readPromptFile(filePath);
-  const skillsDir = path.join(path.dirname(filePath), "skills");
+  const skillsDir = resolveSkillsDir(key);
   return injectSkills(content, skillsDir);
 };
 
 export const loadSupervisorSystemPrompt = (): string =>
-  injectCurrentDatetime(loadPrompt("supervisor"));
+  injectCurrentDatetime(loadPrompt("supervisor", "xml"));
 
 export const loadObsidianSystemPrompt = (): string =>
   injectObsidianRoutineHint(injectCurrentDatetime(loadPrompt("obsidian", "xml")))();
 
 export const loadFinanceSystemPrompt = (): string =>
-  injectCurrentDatetime(loadPrompt("finance"));
+  injectCurrentDatetime(loadPrompt("finance", "xml"));
 
 export const loadConfiguratorSystemPrompt = (): string =>
   injectCurrentDatetime(loadPrompt("configurator"));

@@ -13,6 +13,7 @@ import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "./nodes/tool-routing.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 
 export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {
@@ -92,15 +93,19 @@ export const createWorkflowGraph = (
   graph.addEdge("Obsidian_SG", "supervisor");
 
   graph.addConditionalEdges("configuration", (state: AgentState) => {
-    const lastMessage = state.messages[state.messages.length - 1];
-
-    if (lastMessage instanceof AIMessage && lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+    if (hasPendingToolCalls(state.messages) || lastMessageRequestsTools(state.messages)) {
       return "configurationTools";
     }
 
     return "supervisor";
   });
-  graph.addEdge("configurationTools", "configuration");
+  graph.addConditionalEdges("configurationTools", (state: AgentState) => {
+    if (hasPendingToolCalls(state.messages)) {
+      return "configurationTools";
+    }
+
+    return "configuration";
+  });
 
   return graph.compile({ checkpointer: memory, name: "personal-assistant-phase-1" });
 };

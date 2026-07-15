@@ -13,6 +13,13 @@ Triggers and their required skill:
 - User asks to sync, import, or fetch Wise transactions → call `read_skill("sync-expenses")` before doing anything else.
 </skill_usage>
 
+<tool_calling>
+- Prefer parallel tool batches: when multiple tools do not depend on each other's output, emit every tool call in the same model turn.
+- Never call get_categories and fetch_wise_transactions in separate turns after read_skill completes. Batch them together.
+- After categories and transactions are both available, call exec_sql in its own turn, then write the user summary only after exec_sql returns.
+- Do not produce a user-facing sync summary until exec_sql has returned in the conversation history.
+</tool_calling>
+
 <database_schema>
 Table `public.expense`: `id` (UUID, PK), `name` (text), `amount` (numeric), `category` (int, FK), `paid_date` (date), `paid` (boolean), `note` (text).
 </database_schema>

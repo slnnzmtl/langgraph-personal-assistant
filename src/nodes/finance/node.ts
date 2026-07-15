@@ -1,9 +1,15 @@
-import { AIMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, mergeMessageRuns } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { hasPendingToolCalls } from "../tool-routing.js";
 import type { FinanceState, FinanceStateUpdate } from "./state.js";
+import {
+  financeToolBatchBindOptions,
+  meetsFinanceToolBatchRequirement,
+  resolveFinanceToolBatchPlan,
+} from "./tool-batches.js";
 
 /**
  * Create a finance node that calls the LLM with finance tools.
@@ -21,24 +27,54 @@ export const createFinanceNode = (
     throw new Error("Finance LLM model must support tool calling.");
   }
 
-  const modelWithTools = model.bindTools(tools || []);
+  const bindTools = model.bindTools.bind(model);
+  const boundTools = tools || [];
 
   return async (state: FinanceState): Promise<FinanceStateUpdate> => {
     try {
+      if (hasPendingToolCalls(state.messages)) {
+        return { financeStepCount: state.financeStepCount };
+      }
+
       const lastMessage = state.messages[state.messages.length - 1];
       const isLoopContinuation = lastMessage instanceof ToolMessage;
       const financeStepCount = isLoopContinuation
         ? state.financeStepCount + 1
         : 1;
 
-      const systemInstructions = new SystemMessage(loadFinanceSystemPrompt());
+      const batchPlan = resolveFinanceToolBatchPlan(state.messages);
+      const systemPrompt = batchPlan
+        ? `${loadFinanceSystemPrompt()}\n\n<required_tool_batch>\n${batchPlan.instruction}\n</required_tool_batch>`
+        : loadFinanceSystemPrompt();
+      const systemInstructions = new SystemMessage(systemPrompt);
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
+      const modelForTurn = batchPlan
+        ? bindTools(boundTools, financeToolBatchBindOptions(batchPlan))
+        : bindTools(boundTools);
 
       await logSystemPromptInvocation("finance-system-prompt", promptMessages);
 
-      const response = await modelWithTools.invoke(promptMessages);
+      let response = await modelForTurn.invoke(promptMessages);
       if (!(response instanceof AIMessage)) {
         throw new Error("Finance LLM model must return an AI message.");
+      }
+
+      if (
+        batchPlan
+        && batchPlan.requiredCount > 1
+        && !meetsFinanceToolBatchRequirement(batchPlan, response.tool_calls?.length ?? 0)
+      ) {
+        const retryMessages = mergeMessageRuns([
+          ...promptMessages,
+          response,
+          new HumanMessage(
+            `You must call all required tools in one response: ${batchPlan.allowedFunctionNames.join(", ")}.`,
+          ),
+        ]);
+        response = await modelForTurn.invoke(retryMessages);
+        if (!(response instanceof AIMessage)) {
+          throw new Error("Finance LLM model must return an AI message.");
+        }
       }
 
       return {

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../src/nodes/finance/index.js";
-import { createFinanceTools } from "../../src/nodes/finance/tools/index.js";
+import { createFinanceTools } from "../../src/nodes/finance/tools.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const wiseTransactions = [

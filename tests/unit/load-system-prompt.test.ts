@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPromptLoader,
+  getSkillsDir,
   loadConfiguratorSystemPrompt,
   loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
@@ -19,23 +20,22 @@ describe("named prompt loaders", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads the supervisor prompt from prompts/supervisor.md", () => {
+  it("loads the supervisor prompt from prompts/supervisor.xml", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
   });
 
-  it("loads the Obsidian prompt from prompts/obsidian.md", () => {
+  it("loads the Obsidian prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
-    expect(prompt).toContain("# Role & Objective");
+    expect(prompt).toContain("Obsidian Vault Manager");
   });
 
-  it("loads the Finance prompt from prompts/finance/system.md and includes skills listing", () => {
+  it("loads the Finance prompt from prompts/finance.xml and includes skills listing", () => {
     const prompt = loadFinanceSystemPrompt();
 
     expect(prompt).toContain("Financial Assistant & Sync Agent");
-    // Check for skills section if any skills exist
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {
       expect(prompt).toContain("sync-expenses");
@@ -68,7 +68,7 @@ describe("named prompt loaders", () => {
 
 describe("createPromptLoader", () => {
   it("loads prompt by key and caches when hotReload is disabled", () => {
-    const loadByKey = createPromptLoader("supervisor", { hotReload: false });
+    const loadByKey = createPromptLoader("supervisor", { hotReload: false, fileType: "xml" });
 
     const result1 = loadByKey();
     const result2 = loadByKey();
@@ -97,23 +97,30 @@ describe("createPromptLoader", () => {
 });
 
 describe("loadPrompt", () => {
-  it("resolves prompts by file-first convention: key.md", () => {
+  it("resolves prompts by file-first convention: key.xml", () => {
+    const prompt = loadPrompt("supervisor", "xml");
+
+    expect(prompt).toContain("You are the Root Supervisor");
+  });
+
+  it("resolves prompts by file-first convention with md/xml fallback", () => {
     const prompt = loadPrompt("supervisor");
 
     expect(prompt).toContain("You are the Root Supervisor");
   });
 
-  it("resolves prompts by dirname convention: key/system.md", () => {
-    const prompt = loadPrompt("obsidian");
+  it("resolves agent prompts like prompts/obsidian.xml", () => {
+    const prompt = loadPrompt("obsidian", "xml");
 
-    expect(prompt).toContain("# Role & Objective");
+    expect(prompt).toContain("Obsidian Vault Manager");
   });
 
-  it("resolves nested prompts like finance/skills/sync-expenses.md", () => {
+  it("resolves skill files via legacy key shape finance/skills/sync-expenses", () => {
     const prompt = loadPrompt("finance/skills/sync-expenses");
 
     expect(typeof prompt).toBe("string");
     expect(prompt.length).toBeGreaterThan(0);
+    expect(prompt).toContain("sync-expenses");
   });
 
   it("throws when prompt key does not exist", () => {
@@ -127,11 +134,17 @@ describe("loadPrompt", () => {
     try {
       await writeFile(promptPath, "\n", "utf8");
 
-      // We can't test this directly via loadPrompt since it requires the file to be under PROMPTS_ROOT
-      // But we can verify the error message format by testing the behavior
-      expect(() => loadPrompt("supervisor")).not.toThrow();
+      expect(() => loadPrompt("supervisor", "xml")).not.toThrow();
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("getSkillsDir", () => {
+  it("resolves skills from skills/{agent} instead of prompts/{agent}/skills", () => {
+    const skillsDir = getSkillsDir("finance", "xml");
+
+    expect(skillsDir).toMatch(/skills[/\\]finance$/);
   });
 });

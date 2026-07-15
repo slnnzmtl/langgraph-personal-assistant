@@ -5,6 +5,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../tool-routing.js";
 import { createFinanceNode, FinanceStateAnnotation, createFinanceTools } from "./index.js";
 
 export const FINANCE_MAX_STEPS = 10;
@@ -18,19 +19,23 @@ export const createCompiledFinanceSubgraph = (model: BaseChatModel, tools: Retur
     .addNode("tools", financeToolsNode)
     .addEdge(START, "llm")
     .addConditionalEdges("llm", (state) => {
-      const lastMessage = state.messages[state.messages.length - 1];
+      if (state.financeStepCount >= FINANCE_MAX_STEPS) {
+        return END;
+      }
 
-      if (
-        lastMessage instanceof AIMessage &&
-        lastMessage.tool_calls &&
-        lastMessage.tool_calls.length > 0 &&
-        state.financeStepCount < FINANCE_MAX_STEPS
-      ) {
+      if (hasPendingToolCalls(state.messages) || lastMessageRequestsTools(state.messages)) {
         return "tools";
       }
+
       return END;
     })
-    .addEdge("tools", "llm");
+    .addConditionalEdges("tools", (state) => {
+      if (hasPendingToolCalls(state.messages)) {
+        return "tools";
+      }
+
+      return "llm";
+    });
 
   return graph.compile({ name: "finance-subgraph" });
 };

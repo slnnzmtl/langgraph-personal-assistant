@@ -6,6 +6,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../tool-routing.js";
 import { createObsidianNode, createObsidianTools } from "./index.js";
 
 export const OBSIDIAN_MAX_STEPS = 8;
@@ -23,10 +24,8 @@ export const ObsidianSubgraphStateAnnotation = Annotation.Root({
 
 export type ObsidianSubgraphState = typeof ObsidianSubgraphStateAnnotation.State;
 
-const lastMessageHasToolCalls = (state: ObsidianSubgraphState): boolean => {
-  const lastMessage = state.messages[state.messages.length - 1];
-  return lastMessage instanceof AIMessage && (lastMessage.tool_calls?.length ?? 0) > 0;
-};
+const lastMessageHasToolCalls = (state: ObsidianSubgraphState): boolean =>
+  lastMessageRequestsTools(state.messages);
 
 export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseChatModel }, vaultRoot: string, fileSender?: IFileSender) => {
   const tools = createObsidianTools(vaultRoot, fileSender);
@@ -44,11 +43,27 @@ export const createCompiledObsidianSubgraph = (llmConnector: { getModel(): BaseC
     .addNode("incrementCounter", incrementStepCounter)
     .addEdge(START, "llm")
     .addConditionalEdges("llm", (state: ObsidianSubgraphState) => {
-      if (!lastMessageHasToolCalls(state)) return END;
-      if (state.obsidianStepCount >= OBSIDIAN_MAX_STEPS) return END;
+      if (hasPendingToolCalls(state.messages)) {
+        return "tools";
+      }
+
+      if (!lastMessageHasToolCalls(state)) {
+        return END;
+      }
+
+      if (state.obsidianStepCount >= OBSIDIAN_MAX_STEPS) {
+        return END;
+      }
+
       return "tools";
     })
-    .addEdge("tools", "incrementCounter")
+    .addConditionalEdges("tools", (state: ObsidianSubgraphState) => {
+      if (hasPendingToolCalls(state.messages)) {
+        return "tools";
+      }
+
+      return "incrementCounter";
+    })
     .addEdge("incrementCounter", "llm");
 
   return graph.compile({ name: "obsidian-subgraph" });

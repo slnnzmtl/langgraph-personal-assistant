@@ -8,6 +8,7 @@ import type { RuntimeSchedulerService } from "../../cron/runtime-scheduler-servi
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadConfiguratorSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
+import { hasPendingToolCalls } from "../tool-routing.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { formatCronJobForDisplay } from "./config-tools.js";
 
@@ -73,6 +74,10 @@ export const createConfigurationNode = (
       }
 
       await reconcileRuntimeScheduler(options.repository, options.runtimeScheduler);
+
+      if (hasPendingToolCalls(state.messages)) {
+        return {};
+      }
 
       const systemInstructions = new SystemMessage(loadConfiguratorSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
