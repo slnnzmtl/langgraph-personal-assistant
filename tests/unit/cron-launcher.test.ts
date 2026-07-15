@@ -125,7 +125,7 @@ describe("setupCron", () => {
     expect(run).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledWith({
       jobName: "finance-sync",
-      trigger: "SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync",
+      trigger: "SYSTEM_CRON_TRIGGER:finance:finance-sync",
     });
   });
 
@@ -155,7 +155,7 @@ describe("setupCron", () => {
 
     expect(run).toHaveBeenCalledWith({
       jobName: "finance-sync",
-      trigger: "SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync",
+      trigger: "SYSTEM_CRON_TRIGGER:finance:finance-sync",
       payload: "Sync the Wise transactions for yesterday.",
     });
   });

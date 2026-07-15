@@ -5,7 +5,9 @@ import type { IFileSender } from "./telegram/file-sender.js";
 import { createConfigurationSubgraphWrapper, createConfigurationSkillScopedTools } from "./nodes/configuration/index.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/index.js";
+import { createRuntimeAgentDispatcher } from "./nodes/runtime-agent/graph.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
+import type { RuntimeAgentRepository } from "./runtime-agents/repository.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
 import type { SupabaseMcpSession } from "./mcp/supabase.js";
@@ -13,6 +15,7 @@ import type { SupabaseMcpSession } from "./mcp/supabase.js";
 export type WorkflowGraphConfig = {
   obsidianVaultPath: string;
   cronJobRepository: CronJobRepository;
+  runtimeAgentRepository: RuntimeAgentRepository;
   supabaseSession?: SupabaseMcpSession;
   runtimeCron?: RuntimeCronService;
   fileSender?: IFileSender;
@@ -26,7 +29,14 @@ export const createWorkflowGraph = (
   config: WorkflowGraphConfig,
 ) => {
   const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
-  const configurationTools = createConfigurationSkillScopedTools(config.cronJobRepository);
+  const configurationTools = createConfigurationSkillScopedTools(
+    config.cronJobRepository,
+    config.runtimeAgentRepository,
+    {
+      obsidianVaultPath: config.obsidianVaultPath,
+      ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
+    },
+  );
   const configurationSubgraphWrapper = createConfigurationSubgraphWrapper(
     configLlmConnector.getModel(),
     configurationTools,
@@ -36,7 +46,9 @@ export const createWorkflowGraph = (
     },
   );
   const memory = new MemorySaver();
-  const supervisorNode = createSupervisorNode(supervisorLlmConnector);
+  const supervisorNode = createSupervisorNode(supervisorLlmConnector, {
+    runtimeAgentRepository: config.runtimeAgentRepository,
+  });
 
   const financeSubgraphWrapper = createFinanceSubgraphWrapper(
     config.supabaseSession,
@@ -49,11 +61,22 @@ export const createWorkflowGraph = (
     config.fileSender,
   );
 
+  const runtimeAgentDispatcher = createRuntimeAgentDispatcher({
+    model: obsidianLlmConnector.getModel(),
+    repository: config.runtimeAgentRepository,
+    obsidianVaultPath: config.obsidianVaultPath,
+    ...(config.fileSender ? { fileSender: config.fileSender } : {}),
+    ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
+    handlers: {
+      finance: financeSubgraphWrapper,
+      obsidian: obsidianSubgraphWrapper,
+      configuration: configurationSubgraphWrapper,
+    },
+  });
+
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode("supervisor", supervisorNode)
-    .addNode("Config_SG", configurationSubgraphWrapper)
-    .addNode("Finance_SG", financeSubgraphWrapper)
-    .addNode("Obsidian_SG", obsidianSubgraphWrapper);
+    .addNode("Runtime_SG", runtimeAgentDispatcher);
 
   graph
     .addEdge(START, "supervisor")
@@ -61,16 +84,12 @@ export const createWorkflowGraph = (
       "supervisor",
       (state: AgentState) => state.next ?? "FINISH",
       {
-        Finance_SG: "Finance_SG",
-        Obsidian_SG: "Obsidian_SG",
-        Config_SG: "Config_SG",
+        Runtime_SG: "Runtime_SG",
         FINISH: END,
-      } satisfies Record<RouteName, "Finance_SG" | "Obsidian_SG" | "Config_SG" | typeof END>,
+      } satisfies Record<RouteName, "Runtime_SG" | typeof END>,
     );
 
-  graph.addEdge("Finance_SG", "supervisor");
-  graph.addEdge("Obsidian_SG", "supervisor");
-  graph.addEdge("Config_SG", "supervisor");
+  graph.addEdge("Runtime_SG", "supervisor");
 
   return graph.compile({ checkpointer: memory, name: "personal-assistant-phase-1" });
 };

@@ -22,6 +22,7 @@ export interface AppConfig {
   appTimezone: string;
   schedulerEnabled: boolean;
   cronJobsFilePath: string;
+  runtimeAgentsFilePath: string;
   // Optional: Official hosted Supabase MCP server
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
@@ -33,6 +34,9 @@ export const getDefaultVaultPath = (cwd = process.cwd()): string =>
 
 export const getDefaultCronJobsPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "data/cron-jobs.json");
+
+export const getDefaultRuntimeAgentsPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "data/runtime-agents.json");
 
 const isTruthyEnv = (value: string | undefined): boolean =>
   value !== undefined && value !== "false" && value !== "0";
@@ -80,6 +84,7 @@ export const loadConfig = (): AppConfig => {
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
+    runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,

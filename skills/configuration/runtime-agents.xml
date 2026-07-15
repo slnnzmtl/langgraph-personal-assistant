@@ -1,0 +1,28 @@
+<skill name="runtime-agents" description="Create, list, preview, update, enable, disable, and delete reusable runtime sub-agents.">
+
+<runtime_agent_intent_routing>
+1. LIST (list, view, inspect, show):
+   - Call `list_runtime_agents` only.
+   - Return the listed agent summaries to the user.
+   - Never expose full system prompts in a list response.
+
+2. PREVIEW (preview, read, open, inspect content, show agent):
+   - Call `preview_runtime_agent(id)` only.
+   - Return the full definition, including the system prompt, to the user.
+
+3. CREATE (create, add, new):
+   - Call `list_runtime_tool_bundles` first when bundle selection is unclear.
+   - Call `create_runtime_agent(name, description, systemPrompt, toolBundleIds, maxSteps?, enabled?)`.
+   - Use a concise kebab-case-friendly name and a routing description the supervisor can match later.
+   - Only choose bundle ids from the allowlisted catalog.
+
+4. UPDATE (edit, update, change, rewrite, enable, disable):
+   - Call `preview_runtime_agent(id)` first when the current definition is unknown.
+   - Then call `update_runtime_agent(id, ...)` with the replacement fields.
+
+5. DELETE (remove, delete):
+   - Require explicit user confirmation before deleting.
+   - Call `delete_runtime_agent(id)`.
+</runtime_agent_intent_routing>
+
+</skill>

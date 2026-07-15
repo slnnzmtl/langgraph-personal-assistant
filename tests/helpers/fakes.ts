@@ -3,6 +3,9 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { z } from "zod";
 
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
+import type { RuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import type { RuntimeAgentDefinition } from "../../src/runtime-agents/types.js";
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -50,3 +53,68 @@ export const makeHumanState = (text: string) => ({
 });
 
 export const makeAiMessage = (text: string) => new AIMessage(text);
+
+export const createRuntimeAgentRepositoryFake = (
+  initialAgents: RuntimeAgentDefinition[] = buildDefaultRuntimeAgents(),
+): RuntimeAgentRepository => {
+  let storedAgents = [...initialAgents];
+
+  return {
+    loadAgents: async () => [...storedAgents],
+    getAgent: async (id: string) => storedAgents.find((agent) => agent.id === id),
+    saveAgents: async (agents) => {
+      storedAgents = [...agents];
+    },
+    createAgent: async (input) => {
+      const timestamp = new Date().toISOString();
+      const id = input.name.trim().toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-+|-+$/g, "");
+      const nextAgent: RuntimeAgentDefinition = {
+        id,
+        name: input.name.trim(),
+        description: input.description.trim(),
+        systemPrompt: input.systemPrompt.trim(),
+        toolBundleIds: input.toolBundleIds,
+        executor: input.executor ?? "generic",
+        maxSteps: input.maxSteps ?? 8,
+        enabled: input.enabled ?? true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      storedAgents = [...storedAgents, nextAgent];
+      return nextAgent;
+    },
+    updateAgent: async (id, input) => {
+      const index = storedAgents.findIndex((agent) => agent.id === id);
+      if (index < 0) {
+        throw new Error(`Runtime agent not found: ${id}`);
+      }
+
+      const current = storedAgents[index]!;
+      const updated: RuntimeAgentDefinition = {
+        ...current,
+        ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+        ...(input.description !== undefined ? { description: input.description.trim() } : {}),
+        ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() } : {}),
+        ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds } : {}),
+        ...(input.executor !== undefined ? { executor: input.executor } : {}),
+        ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        updatedAt: new Date().toISOString(),
+      };
+      storedAgents[index] = updated;
+      return updated;
+    },
+    deleteAgent: async (id) => {
+      const found = storedAgents.find((agent) => agent.id === id);
+      if (!found) {
+        throw new Error(`Runtime agent not found: ${id}`);
+      }
+      storedAgents = storedAgents.filter((agent) => agent.id !== id);
+      return found;
+    },
+  };
+};
+
+export const defaultConfigurationBundleDeps = {
+  obsidianVaultPath: "/tmp/pa-unit-vault",
+};

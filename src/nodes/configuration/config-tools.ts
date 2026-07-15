@@ -3,6 +3,17 @@ import { z } from "zod";
 
 import { isCronTargetRoute } from "../../cron-triggers.js";
 import type { CronJobDefinition, CronJobRepository } from "../../cron/types.js";
+import type { RuntimeAgentRepository } from "../../runtime-agents/repository.js";
+import {
+  formatRuntimeToolBundleCatalog,
+  type RuntimeToolBundleDeps,
+  validateRuntimeToolBundleIds,
+} from "../../runtime-agents/tool-bundles.js";
+import {
+  RUNTIME_TOOL_BUNDLE_IDS,
+  type RuntimeAgentDefinition,
+  type RuntimeToolBundleId,
+} from "../../runtime-agents/types.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../tools/skill-management.js";
 import { createSkillScopedToolContextFromBundles } from "../../tools/skill-scoped-registry.js";
 
@@ -19,6 +30,33 @@ const DeleteCronJobToolSchema = z.object({
 });
 
 const ListCronJobsToolSchema = z.object({});
+
+const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
+
+const CreateRuntimeAgentToolSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  systemPrompt: z.string().min(1),
+  toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
+  maxSteps: z.number().int().min(1).max(20).optional(),
+  enabled: z.boolean().optional(),
+});
+
+const UpdateRuntimeAgentToolSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  systemPrompt: z.string().min(1).optional(),
+  toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1).optional(),
+  maxSteps: z.number().int().min(1).max(20).optional(),
+  enabled: z.boolean().optional(),
+});
+
+const RuntimeAgentIdToolSchema = z.object({
+  id: z.string().min(1),
+});
+
+const ListRuntimeAgentsToolSchema = z.object({});
 
 export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   const lines = [
@@ -37,6 +75,30 @@ export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   }
 
   return lines.join("\n");
+};
+
+export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string => {
+  const lines = [
+    `Agent ID: ${agent.id}`,
+    `Name: ${agent.name}`,
+    `Description: ${agent.description}`,
+    `Executor: ${agent.executor}`,
+    `Tool Bundles: ${agent.toolBundleIds.join(", ")}`,
+    `Max Steps: ${agent.maxSteps}`,
+    `Enabled: ${agent.enabled ? "true" : "false"}`,
+    `Updated At: ${agent.updatedAt}`,
+  ];
+
+  return lines.join("\n");
+};
+
+export const formatRuntimeAgentPreview = (agent: RuntimeAgentDefinition): string => {
+  const lines = [
+    formatRuntimeAgentSummary(agent),
+    `System Prompt:\n${agent.systemPrompt}`,
+  ];
+
+  return lines.join("\n\n");
 };
 
 export const createCronTools = (repository: CronJobRepository): StructuredToolInterface[] => {
@@ -119,12 +181,156 @@ export const createCronTools = (repository: CronJobRepository): StructuredToolIn
   return [listCronJobs, createCronJob, deleteCronJob];
 };
 
-export const createConfigurationSkillScopedTools = (repository: CronJobRepository) => {
+export const createRuntimeAgentTools = (
+  repository: RuntimeAgentRepository,
+  bundleDeps: RuntimeToolBundleDeps,
+): StructuredToolInterface[] => {
+  const listRuntimeAgents = tool(
+    async () => {
+      try {
+        const agents = await repository.loadAgents();
+        return agents.length > 0
+          ? agents.map(formatRuntimeAgentSummary).join("\n\n")
+          : "No runtime agents configured.";
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "list_runtime_agents",
+      description: "List all configured runtime agents without exposing full system prompts.",
+      schema: ListRuntimeAgentsToolSchema,
+    },
+  );
+
+  const previewRuntimeAgent = tool(
+    async (input: z.infer<typeof RuntimeAgentIdToolSchema>) => {
+      try {
+        const agent = await repository.getAgent(input.id);
+        if (!agent) {
+          throw new Error(`Runtime agent not found: ${input.id}`);
+        }
+
+        return formatRuntimeAgentPreview(agent);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "preview_runtime_agent",
+      description: "Preview a runtime agent definition, including its full system prompt.",
+      schema: RuntimeAgentIdToolSchema,
+    },
+  );
+
+  const createRuntimeAgent = tool(
+    async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
+      try {
+        validateRuntimeToolBundleIds(input.toolBundleIds as RuntimeToolBundleId[], bundleDeps);
+        const agent = await repository.createAgent({
+          name: input.name,
+          description: input.description,
+          systemPrompt: input.systemPrompt,
+          toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[],
+          executor: "generic",
+          ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
+          ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        });
+
+        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "create_runtime_agent",
+      description: "Create and persist a reusable runtime sub-agent from a name, routing description, system prompt, and allowlisted tool bundles.",
+      schema: CreateRuntimeAgentToolSchema,
+    },
+  );
+
+  const updateRuntimeAgent = tool(
+    async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
+      try {
+        if (input.toolBundleIds) {
+          validateRuntimeToolBundleIds(input.toolBundleIds as RuntimeToolBundleId[], bundleDeps);
+        }
+
+        const agent = await repository.updateAgent(input.id, {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.description !== undefined ? { description: input.description } : {}),
+          ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
+          ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[] } : {}),
+          ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
+          ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        });
+
+        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "update_runtime_agent",
+      description: "Update a persisted runtime agent definition, including enable/disable status.",
+      schema: UpdateRuntimeAgentToolSchema,
+    },
+  );
+
+  const deleteRuntimeAgent = tool(
+    async (input: z.infer<typeof RuntimeAgentIdToolSchema>) => {
+      try {
+        const deleted = await repository.deleteAgent(input.id);
+        return `Deleted runtime agent ${deleted.name} (${deleted.id}).`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return `Error: ${message}`;
+      }
+    },
+    {
+      name: "delete_runtime_agent",
+      description: "Delete a persisted runtime agent definition. Requires explicit user confirmation before calling.",
+      schema: RuntimeAgentIdToolSchema,
+    },
+  );
+
+  const listRuntimeToolBundles = tool(
+    async () => formatRuntimeToolBundleCatalog(bundleDeps),
+    {
+      name: "list_runtime_tool_bundles",
+      description: "List the allowlisted runtime tool bundles available in this deployment.",
+      schema: z.object({}),
+    },
+  );
+
+  return [
+    listRuntimeAgents,
+    previewRuntimeAgent,
+    createRuntimeAgent,
+    updateRuntimeAgent,
+    deleteRuntimeAgent,
+    listRuntimeToolBundles,
+  ];
+};
+
+export type ConfigurationToolDeps = RuntimeToolBundleDeps;
+
+export const createConfigurationSkillScopedTools = (
+  repository: CronJobRepository,
+  runtimeAgentRepository: RuntimeAgentRepository,
+  bundleDeps: ConfigurationToolDeps,
+) => {
   const cronTools = createCronTools(repository);
+  const runtimeAgentTools = createRuntimeAgentTools(runtimeAgentRepository, bundleDeps);
   const skillManagementTools = createSkillCrudTools();
   const bundles = {
     cron: cronTools,
     "skill-management": skillManagementTools,
+    "runtime-agents": runtimeAgentTools,
   };
   const readSkillTool = createReadSkillTool("configuration", "xml", { toolBundles: bundles });
 
@@ -135,7 +341,11 @@ export const createConfigurationSkillScopedTools = (repository: CronJobRepositor
 };
 
 /** @deprecated Use createConfigurationSkillScopedTools for scoped access. */
-export const createCronConfigTools = (repository: CronJobRepository): StructuredToolInterface[] => {
-  const context = createConfigurationSkillScopedTools(repository);
+export const createCronConfigTools = (
+  repository: CronJobRepository,
+  runtimeAgentRepository: RuntimeAgentRepository,
+  bundleDeps: ConfigurationToolDeps,
+): StructuredToolInterface[] => {
+  const context = createConfigurationSkillScopedTools(repository, runtimeAgentRepository, bundleDeps);
   return context.allTools;
 };

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createConfigurationSkillScopedTools } from "../../src/nodes/configuration/config-tools.js";
 import type { CronJobRepository } from "../../src/cron/cron-job-repository.js";
+import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
 
 const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRepository => {
   let storedJobs = [...jobs] as any[];
@@ -15,10 +16,17 @@ const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRep
   };
 };
 
+const createConfigurationTools = (repository: CronJobRepository) =>
+  createConfigurationSkillScopedTools(
+    repository,
+    createRuntimeAgentRepositoryFake(),
+    defaultConfigurationBundleDeps,
+  );
+
 describe("createConfigurationSkillScopedTools", () => {
   it("includes skill CRUD tools in the full registry", () => {
     const repository = createRepository();
-    const context = createConfigurationSkillScopedTools(repository);
+    const context = createConfigurationTools(repository);
     const toolNames = context.allTools.map((tool) => tool.name);
 
     expect(toolNames).toEqual(
@@ -39,7 +47,7 @@ describe("createConfigurationSkillScopedTools", () => {
 
   it("exposes only read_skill before a configuration skill is loaded", () => {
     const repository = createRepository();
-    const context = createConfigurationSkillScopedTools(repository);
+    const context = createConfigurationTools(repository);
 
     const initialTools = context.resolveToolsForTurn([]);
     expect(initialTools.map((tool) => tool.name)).toEqual(["read_skill"]);
@@ -47,7 +55,7 @@ describe("createConfigurationSkillScopedTools", () => {
 
   it("exposes cron tools after read_skill(cron)", () => {
     const repository = createRepository();
-    const context = createConfigurationSkillScopedTools(repository);
+    const context = createConfigurationTools(repository);
 
     const tools = context.resolveToolsForTurn([
       new HumanMessage("schedule cron"),
@@ -68,7 +76,7 @@ describe("createConfigurationSkillScopedTools", () => {
 
   it("previews cron tools when reading the cron skill", async () => {
     const repository = createRepository();
-    const context = createConfigurationSkillScopedTools(repository);
+    const context = createConfigurationTools(repository);
     const result = String(await context.config.readSkillTool.invoke({ name: "cron" }));
 
     expect(result).toContain("<cron_intent_routing>");
@@ -87,7 +95,7 @@ describe("createConfigurationSkillScopedTools", () => {
         targetRoute: "Finance_SG",
       },
     ]);
-    const tools = createConfigurationSkillScopedTools(repository).allTools;
+    const tools = createConfigurationTools(repository).allTools;
 
     const listTool = tools.find((tool) => tool.name === "list_cron_jobs");
     expect(listTool).toBeDefined();
@@ -101,7 +109,7 @@ describe("createConfigurationSkillScopedTools", () => {
 
   it("creates and persists a new cron job", async () => {
     const repository = createRepository();
-    const tools = createConfigurationSkillScopedTools(repository).allTools;
+    const tools = createConfigurationTools(repository).allTools;
 
     const createTool = tools.find((tool) => tool.name === "create_cron_job");
     expect(createTool).toBeDefined();
@@ -136,7 +144,7 @@ describe("createConfigurationSkillScopedTools", () => {
         targetRoute: "Finance_SG",
       },
     ]);
-    const tools = createConfigurationSkillScopedTools(repository).allTools;
+    const tools = createConfigurationTools(repository).allTools;
 
     const createTool = tools.find((tool) => tool.name === "create_cron_job");
     expect(createTool).toBeDefined();
@@ -164,7 +172,7 @@ describe("createConfigurationSkillScopedTools", () => {
         targetRoute: "Obsidian_SG",
       },
     ]);
-    const tools = createConfigurationSkillScopedTools(repository).allTools;
+    const tools = createConfigurationTools(repository).allTools;
 
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
@@ -189,7 +197,7 @@ describe("createConfigurationSkillScopedTools", () => {
         targetRoute: "Finance_SG",
       },
     ]);
-    const tools = createConfigurationSkillScopedTools(repository).allTools;
+    const tools = createConfigurationTools(repository).allTools;
 
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
@@ -199,5 +207,45 @@ describe("createConfigurationSkillScopedTools", () => {
     expect(result).toContain("Error:");
     expect(result).toContain("not found");
     expect(repository.saveJobs).not.toHaveBeenCalled();
+  });
+
+  it("includes runtime agent tools in the full registry", () => {
+    const repository = createRepository();
+    const context = createConfigurationTools(repository);
+    const toolNames = context.allTools.map((tool) => tool.name);
+
+    expect(toolNames).toEqual(
+      expect.arrayContaining([
+        "list_runtime_agents",
+        "preview_runtime_agent",
+        "create_runtime_agent",
+        "update_runtime_agent",
+        "delete_runtime_agent",
+        "list_runtime_tool_bundles",
+      ]),
+    );
+  });
+
+  it("creates and lists a runtime agent without exposing the full prompt in list output", async () => {
+    const repository = createRepository();
+    const tools = createConfigurationTools(repository).allTools;
+    const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
+    const listTool = tools.find((tool) => tool.name === "list_runtime_agents");
+
+    expect(createTool).toBeDefined();
+    expect(listTool).toBeDefined();
+
+    const created = await createTool!.invoke({
+      name: "Daily Summary",
+      description: "Summarize the user's day.",
+      systemPrompt: "You are a daily summary specialist.",
+      toolBundleIds: ["none"],
+    });
+
+    expect(created).toContain("daily-summary");
+
+    const listed = await listTool!.invoke({});
+    expect(listed).toContain("Agent ID: daily-summary");
+    expect(listed).not.toContain("daily summary specialist");
   });
 });

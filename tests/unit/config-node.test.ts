@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createConfigurationNode } from "../../src/nodes/configuration/config-node.js";
 import { createConfigurationSkillScopedTools } from "../../src/nodes/configuration/config-tools.js";
+import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
 
 const createRepository = () => {
   const jobs = [
@@ -19,6 +20,13 @@ const createRepository = () => {
     saveJobs: vi.fn(),
   };
 };
+
+const createConfigurationTools = (repository: ReturnType<typeof createRepository>) =>
+  createConfigurationSkillScopedTools(
+    repository,
+    createRuntimeAgentRepositoryFake(),
+    defaultConfigurationBundleDeps,
+  );
 
 describe("createConfigurationNode", () => {
   it("lists cron jobs directly without invoking the llm or runtime scheduler", async () => {
@@ -37,7 +45,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
         runtimeCron: runtimeCron as never,
@@ -67,7 +75,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },
@@ -107,7 +115,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },
@@ -144,7 +152,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },
@@ -173,7 +181,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },
@@ -219,7 +227,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },
@@ -263,7 +271,7 @@ describe("createConfigurationNode", () => {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
-      createConfigurationSkillScopedTools(repository as never),
+      createConfigurationTools(repository),
       {
         repository: repository as never,
       },

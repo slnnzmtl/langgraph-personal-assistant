@@ -5,7 +5,7 @@ import { createConfigurationNode } from "../../src/nodes/configuration/config-no
 import { createConfigurationSubgraphWrapper } from "../../src/nodes/configuration/graph.js";
 import { createConfigurationSkillScopedTools } from "../../src/nodes/configuration/config-tools.js";
 import { createCompiledSubAgentGraph } from "../../src/nodes/create-sub-agent.js";
-import { FakeLLMConnector } from "../helpers/fakes.js";
+import { FakeLLMConnector, createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
 
 const createRepository = () => ({
   loadJobs: vi.fn(async () => []),
@@ -15,7 +15,11 @@ const createRepository = () => ({
 describe("configuration subgraph", () => {
   it("executes tool calls before returning to the parent wrapper", async () => {
     const repository = createRepository();
-    const tools = createConfigurationSkillScopedTools(repository as never);
+    const tools = createConfigurationSkillScopedTools(
+      repository as never,
+      createRuntimeAgentRepositoryFake(),
+      defaultConfigurationBundleDeps,
+    );
     let configCalls = 0;
 
     const model = new FakeLLMConnector(() => {
@@ -96,7 +100,11 @@ describe("configuration subgraph", () => {
 
   it("prompts the model once after all parallel tool calls finish", async () => {
     const repository = createRepository();
-    const tools = createConfigurationSkillScopedTools(repository as never);
+    const tools = createConfigurationSkillScopedTools(
+      repository as never,
+      createRuntimeAgentRepositoryFake(),
+      defaultConfigurationBundleDeps,
+    );
     let configCalls = 0;
 
     const model = new FakeLLMConnector((input) => {

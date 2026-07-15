@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultCronJobsPath, getDefaultVaultPath, loadConfig } from "../../src/config.js";
+import { getDefaultCronJobsPath, getDefaultRuntimeAgentsPath, getDefaultVaultPath, loadConfig } from "../../src/config.js";
 
 const REQUIRED_ENV = {
   TELEGRAM_BOT_TOKEN: "123:abc",
@@ -163,5 +163,16 @@ describe("config", () => {
     const config = loadConfig();
 
     expect(config.cronJobsFilePath).toBe(customPath);
+  });
+
+  it("uses the default runtime agents file path when RUNTIME_AGENTS_FILE_PATH is unset", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("RUNTIME_AGENTS_FILE_PATH", undefined);
+
+    const config = loadConfig();
+
+    expect(config.runtimeAgentsFilePath).toBe(getDefaultRuntimeAgentsPath());
   });
 });
