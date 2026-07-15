@@ -53,8 +53,12 @@ export const createObsidianNode = (
   return async (state: ObsidianState): Promise<ObsidianStateUpdate> => {
     try {
       if (hasPendingToolCalls(state.messages)) {
-        return {};
+        return { stepCount: state.stepCount };
       }
+
+      const lastMessage = state.messages[state.messages.length - 1];
+      const isLoopContinuation = lastMessage instanceof ToolMessage;
+      const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
 
       await mkdir(vaultRoot, { recursive: true });
 
@@ -63,7 +67,7 @@ export const createObsidianNode = (
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
       const finalMessage = await invokeToolBoundModel(model, modelWithTools, promptMessages, state.messages);
-      return { messages: [finalMessage] };
+      return { messages: [finalMessage], stepCount };
     } catch (error) {
       return {
         messages: [new AIMessage(`Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error."}`)],

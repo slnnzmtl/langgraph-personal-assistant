@@ -46,8 +46,7 @@ describe("createConfigurationNode", () => {
 
     const result = await node({
       messages: [new HumanMessage("list cron jobs")],
-      context: {},
-      next: undefined,
+      stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
@@ -86,8 +85,7 @@ describe("createConfigurationNode", () => {
 
     const result = await node({
       messages: [new HumanMessage("list finance skills")],
-      context: {},
-      next: undefined,
+      stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
@@ -133,8 +131,7 @@ describe("createConfigurationNode", () => {
           content: skillContent,
         }),
       ],
-      context: {},
-      next: undefined,
+      stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
@@ -180,8 +177,7 @@ describe("createConfigurationNode", () => {
           content: listContent,
         }),
       ],
-      context: {},
-      next: undefined,
+      stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
@@ -225,8 +221,7 @@ describe("createConfigurationNode", () => {
           content: skillContent,
         }),
       ],
-      context: {},
-      next: undefined,
+      stepCount: 0,
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);

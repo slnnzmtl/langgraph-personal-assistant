@@ -33,13 +33,13 @@ export const createFinanceNode = (
   return async (state: FinanceState): Promise<FinanceStateUpdate> => {
     try {
       if (hasPendingToolCalls(state.messages)) {
-        return { financeStepCount: state.financeStepCount };
+        return { stepCount: state.stepCount };
       }
 
       const lastMessage = state.messages[state.messages.length - 1];
       const isLoopContinuation = lastMessage instanceof ToolMessage;
-      const financeStepCount = isLoopContinuation
-        ? state.financeStepCount + 1
+      const stepCount = isLoopContinuation
+        ? state.stepCount + 1
         : 1;
 
       const batchPlan = resolveFinanceToolBatchPlan(state.messages);
@@ -79,7 +79,7 @@ export const createFinanceNode = (
 
       return {
         messages: [response],
-        financeStepCount,
+        stepCount,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error during finance sync";

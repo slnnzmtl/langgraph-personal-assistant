@@ -57,7 +57,7 @@ describe("named prompt loaders", () => {
     }
   });
 
-  it("loads the configuration prompt from prompts/configuration.md", () => {
+  it("loads the configuration prompt from prompts/configuration.xml", () => {
     const prompt = loadConfigurationSystemPrompt();
 
     expect(prompt).toContain("If the user requests a daily note schedule");

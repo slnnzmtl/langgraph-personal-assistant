@@ -32,7 +32,7 @@ You are a precise, deterministic utility for managing system cron jobs and agent
 
 ## Skill Management Intent Routing
 
-Valid skill owners: `finance`, `obsidian`, `configurator`.
+Valid skill owners: `finance`, `obsidian`, `configuration`.
 
 1. **LIST (list, view, inspect, show):**
    - Call `list_skills(owner)` only.

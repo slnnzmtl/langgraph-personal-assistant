@@ -28,12 +28,12 @@ describe("finance subgraph tool batching", () => {
         }),
         new ToolMessage({ tool_call_id: "partial-1", content: "[]" }),
       ],
-      financeStepCount: 1,
+      stepCount: 1,
     });
 
     expect(financeCalls).toBe(0);
     expect(update.messages).toBeUndefined();
-    expect(update.financeStepCount).toBe(1);
+    expect(update.stepCount).toBe(1);
   });
 
   it("prompts the model once after all parallel tool calls finish", async () => {
@@ -66,7 +66,7 @@ describe("finance subgraph tool batching", () => {
     const subgraph = createCompiledFinanceSubgraph(model, tools);
     const result = await subgraph.invoke({
       messages: [new HumanMessage("sync finances")],
-      financeStepCount: 0,
+      stepCount: 0,
     });
 
     expect(financeCalls).toBe(2);
@@ -103,7 +103,7 @@ describe("finance subgraph tool batching", () => {
         }),
         new ToolMessage({ tool_call_id: "partial-1", content: "[]" }),
       ],
-      financeStepCount: 1,
+      stepCount: 1,
     };
 
     const result = await subgraph.invoke(partialState);

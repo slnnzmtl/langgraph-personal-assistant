@@ -7,8 +7,8 @@ import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js
 import { loadConfigurationSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
-import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { formatCronJobForDisplay } from "./config-tools.js";
+import type { ConfigurationState, ConfigurationStateUpdate } from "./state.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 
@@ -68,7 +68,7 @@ export const createConfigurationNode = (
 
   const modelWithTools = model.bindTools(tools);
 
-  return async (state: AgentState): Promise<AgentStateUpdate> => {
+  return async (state: ConfigurationState): Promise<ConfigurationStateUpdate> => {
     try {
       const latestMessage = state.messages[state.messages.length - 1];
       const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
@@ -85,7 +85,7 @@ export const createConfigurationNode = (
       await reconcileRuntimeCron(options.repository, options.runtimeCron);
 
       if (hasPendingToolCalls(state.messages)) {
-        return {};
+        return { stepCount: state.stepCount };
       }
 
       const readOnlySkillToolResult = getReadOnlySkillToolResult(
@@ -95,10 +95,14 @@ export const createConfigurationNode = (
         return { messages: [new AIMessage(readOnlySkillToolResult)] };
       }
 
+      const lastMessage = state.messages[state.messages.length - 1];
+      const isLoopContinuation = lastMessage instanceof ToolMessage;
+      const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
+
       const systemInstructions = new SystemMessage(loadConfigurationSystemPrompt());
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
 
-      await logSystemPromptInvocation("configurator-system-prompt", promptMessages);
+      await logSystemPromptInvocation("configuration-system-prompt", promptMessages);
 
       const response = await modelWithTools.invoke(promptMessages);
       if (!(response instanceof AIMessage)) {
@@ -110,10 +114,10 @@ export const createConfigurationNode = (
       const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
 
       if (!hasToolCalls && responseText.length === 0) {
-        return { messages: [new AIMessage("Completed the configuration task.")] };
+        return { messages: [new AIMessage("Completed the configuration task.")], stepCount };
       }
 
-      return { messages: [response] };
+      return { messages: [response], stepCount };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error during configuration";
       return { messages: [new AIMessage(`Unable to update cron configuration: ${message}`)] };

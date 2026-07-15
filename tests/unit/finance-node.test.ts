@@ -132,19 +132,19 @@ describe("finance tools", () => {
 
 
   describe("step counter", () => {
-    it("resets financeStepCount to 1 on initial entry (last message is HumanMessage)", async () => {
+    it("resets stepCount to 1 on initial entry (last message is HumanMessage)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, []);
 
       const update = await financeNode({
         messages: [new HumanMessage("sync finances")],
-        financeStepCount: 7,
+        stepCount: 7,
       });
 
-      expect(update.financeStepCount).toBe(1);
+      expect(update.stepCount).toBe(1);
     });
 
-    it("increments financeStepCount when last message is a ToolMessage (loop continuation)", async () => {
+    it("increments stepCount when last message is a ToolMessage (loop continuation)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, []);
 
@@ -153,13 +153,13 @@ describe("finance tools", () => {
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
-        financeStepCount: 3,
+        stepCount: 3,
       });
 
-      expect(update.financeStepCount).toBe(4);
+      expect(update.stepCount).toBe(4);
     });
 
-    it("starts financeStepCount at 1 from zero on first loop continuation", async () => {
+    it("starts stepCount at 1 from zero on first loop continuation", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, []);
 
@@ -168,10 +168,10 @@ describe("finance tools", () => {
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
-        financeStepCount: 0,
+        stepCount: 0,
       });
 
-      expect(update.financeStepCount).toBe(1);
+      expect(update.stepCount).toBe(1);
     });
   });
 

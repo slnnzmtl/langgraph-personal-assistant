@@ -1,14 +1,11 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { AIMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createConfigurationNode, createCronConfigTools } from "./nodes/configuration/index.js";
+import { createConfigurationSubgraphWrapper, createCronConfigTools } from "./nodes/configuration/index.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
-import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
+import { createObsidianSubgraphWrapper } from "./nodes/obsidian/index.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "./tools/routing.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
 import type { SupabaseMcpSession } from "./mcp/supabase.js";
@@ -30,19 +27,21 @@ export const createWorkflowGraph = (
 ) => {
   const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
   const configurationTools = createCronConfigTools(config.cronJobRepository);
-  const configurationNode = createConfigurationNode(configLlmConnector.getModel(), configurationTools, {
-    repository: config.cronJobRepository,
-    runtimeCron: config.runtimeCron,
-  });
-  const configurationToolsNode = new ToolNode(configurationTools);
+  const configurationSubgraphWrapper = createConfigurationSubgraphWrapper(
+    configLlmConnector.getModel(),
+    configurationTools,
+    {
+      repository: config.cronJobRepository,
+      runtimeCron: config.runtimeCron,
+    },
+  );
   const memory = new MemorySaver();
   const supervisorNode = createSupervisorNode(supervisorLlmConnector);
 
-  const financeSubgraphWrapper = config.supabaseSession
-    ? createFinanceSubgraphWrapper(config.supabaseSession, financeLlmConnector.getModel())
-    : async (_state: AgentState) => ({
-        messages: [new AIMessage("Supabase session is not configured.")],
-      });
+  const financeSubgraphWrapper = createFinanceSubgraphWrapper(
+    config.supabaseSession,
+    financeLlmConnector.getModel(),
+  );
 
   const obsidianSubgraphWrapper = createObsidianSubgraphWrapper(
     obsidianLlmConnector,
@@ -52,8 +51,7 @@ export const createWorkflowGraph = (
 
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode("supervisor", supervisorNode)
-    .addNode("configuration", configurationNode)
-    .addNode("configurationTools", configurationToolsNode)
+    .addNode("Config_SG", configurationSubgraphWrapper)
     .addNode("Finance_SG", financeSubgraphWrapper)
     .addNode("Obsidian_SG", obsidianSubgraphWrapper);
 
@@ -65,28 +63,14 @@ export const createWorkflowGraph = (
       {
         Finance_SG: "Finance_SG",
         Obsidian_SG: "Obsidian_SG",
-        Config_SG: "configuration",
+        Config_SG: "Config_SG",
         FINISH: END,
-      } satisfies Record<RouteName, "Finance_SG" | "Obsidian_SG" | "configuration" | typeof END>,
+      } satisfies Record<RouteName, "Finance_SG" | "Obsidian_SG" | "Config_SG" | typeof END>,
     );
 
   graph.addEdge("Finance_SG", "supervisor");
   graph.addEdge("Obsidian_SG", "supervisor");
-
-  graph.addConditionalEdges("configuration", (state: AgentState) => {
-    if (hasPendingToolCalls(state.messages) || lastMessageRequestsTools(state.messages)) {
-      return "configurationTools";
-    }
-
-    return "supervisor";
-  });
-  graph.addConditionalEdges("configurationTools", (state: AgentState) => {
-    if (hasPendingToolCalls(state.messages)) {
-      return "configurationTools";
-    }
-
-    return "configuration";
-  });
+  graph.addEdge("Config_SG", "supervisor");
 
   return graph.compile({ checkpointer: memory, name: "personal-assistant-phase-1" });
 };
