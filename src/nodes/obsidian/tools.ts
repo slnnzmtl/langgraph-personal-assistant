@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../telegram/file-sender.js";
+import { createReadSkillTool } from "../../tools/read-skill.js";
 import {
   resolveVaultPath,
   applyFileWrite,
@@ -65,6 +66,7 @@ export const SendFileToolSchema = z.object({
 
 export const createObsidianTools = (vaultRoot: string, fileSender?: IFileSender) => {
   const baseTools = [
+    createReadSkillTool("obsidian", "xml"),
     tool(
       async ({ relativePath }) => {
         try { return await readVaultFile(vaultRoot, relativePath); }

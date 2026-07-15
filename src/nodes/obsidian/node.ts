@@ -5,7 +5,7 @@ import { mkdir } from "node:fs/promises";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadObsidianSystemPrompt } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../message-history.js";
-import { hasPendingToolCalls } from "../tool-routing.js";
+import { hasPendingToolCalls } from "../../tools/routing.js";
 import { buildDirectoryTree } from "../../mcp/file-system.js";
 import type { ObsidianState, ObsidianStateUpdate } from "./state.js";
 import type { createObsidianTools } from "./tools.js";

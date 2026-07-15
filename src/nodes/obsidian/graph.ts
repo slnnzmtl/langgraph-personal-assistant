@@ -6,7 +6,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { AgentState, AgentStateUpdate } from "../../state.js";
 import { reduceAgentMessages } from "../../state.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "../tool-routing.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createObsidianNode, createObsidianTools } from "./index.js";
 
 export const OBSIDIAN_MAX_STEPS = 8;

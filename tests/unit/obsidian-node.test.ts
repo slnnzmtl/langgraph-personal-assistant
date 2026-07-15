@@ -102,13 +102,19 @@ describe("obsidian node helpers", () => {
 
   it("validates Obsidian tool inputs with Zod schemas", async () => {
     const vaultRoot = await createTempVault();
-    const [readTool, writeTool] = createObsidianTools(vaultRoot) as Array<{
+    const tools = createObsidianTools(vaultRoot) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
+    const readTool = tools.find((tool) => tool.name === "read_file");
+    const writeTool = tools.find((tool) => tool.name === "write_file");
 
-    await expect(readTool.invoke({ relativePath: "" })).rejects.toThrow();
+    expect(readTool).toBeDefined();
+    expect(writeTool).toBeDefined();
+
+    await expect(readTool!.invoke({ relativePath: "" })).rejects.toThrow();
     await expect(
-      writeTool.invoke({
+      writeTool!.invoke({
         relativePath: "note.md",
         operation: "append",
         summary: "Append note",
@@ -127,11 +133,15 @@ describe("obsidian node helpers", () => {
       summary: "Created read note",
     });
 
-    const [readTool] = createObsidianTools(vaultRoot) as Array<{
+    const tools = createObsidianTools(vaultRoot) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
+    const readTool = tools.find((tool) => tool.name === "read_file");
 
-    const output = await readTool.invoke({ relativePath: "notes/read.md" });
+    expect(readTool).toBeDefined();
+
+    const output = await readTool!.invoke({ relativePath: "notes/read.md" });
 
     expect(output).toContain("Alpha");
     expect(output).toContain("Beta");
@@ -358,8 +368,9 @@ describe("createObsidianNode", () => {
     await mkdir(path.join(vaultRoot, "events", "potuzhno", "techno-yoga"), { recursive: true });
     await writeFile(path.join(vaultRoot, "events", "potuzhno", "techno-yoga", "Places.md"), "No matching keywords here", "utf8");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["techno yoga"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["techno yoga"] }) as string;
 
     expect(result).toContain("events/potuzhno/techno-yoga/Places.md");
     expect(result).not.toContain("No files matched your search.");
@@ -493,8 +504,9 @@ describe("obsidian tool: list_files", () => {
     await wf(path.join(vaultRoot, "notes", "b.md"), "# B");
     await wf(path.join(vaultRoot, "notes", "sub", "c.md"), "# C");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({ relativeDir: "notes" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({ relativeDir: "notes" }) as string;
 
     expect(result).toContain("notes/a.md");
     expect(result).toContain("notes/b.md");
@@ -508,8 +520,9 @@ describe("obsidian tool: list_files", () => {
     await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
     await wf(path.join(vaultRoot, "readme.md"), "# Readme");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({}) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({}) as string;
 
     expect(result).toContain("readme.md");
     expect(result).toContain("notes");
@@ -518,8 +531,9 @@ describe("obsidian tool: list_files", () => {
   it("returns an error string for a non-existent directory", async () => {
     const vaultRoot = await createTempVault();
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[2].invoke({ relativeDir: "no-such-dir" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const listTool = tools.find((tool) => tool.name === "list_files");
+    const result = await listTool!.invoke({ relativeDir: "no-such-dir" }) as string;
 
     expect(result).toContain("Error:");
   });
@@ -537,8 +551,9 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
     await wf(path.join(vaultRoot, "c.md"), "hello typescript");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["HELLO", "goodbye"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["HELLO", "goodbye"] }) as string;
 
     expect(result).toContain("a.md");
     expect(result).toContain("b.md");
@@ -551,8 +566,9 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "a.md"), "Hello World");
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["HELLO"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["HELLO"] }) as string;
 
     expect(result).toContain("a.md");
     expect(result).not.toContain("b.md");
@@ -566,8 +582,9 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "notes", "match.md"), "alpha");
     await wf(path.join(vaultRoot, "other", "nomatch.md"), "alpha");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
 
     expect(result).toContain("notes/match.md");
     expect(result).not.toContain("other/nomatch.md");
@@ -578,8 +595,9 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "x.md"), "TypeScript");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["TYPESCRIPT"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["TYPESCRIPT"] }) as string;
 
     expect(result).toContain("x.md");
   });
@@ -589,8 +607,9 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "both.md"), "hello world");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["hello", "world"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["hello", "world"] }) as string;
 
     const lines = (result as string).split("\n");
     expect(lines.filter((line) => line.includes("both.md"))).toHaveLength(1);
@@ -601,8 +620,9 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "empty.md"), "nothing here");
 
-    const tools = createObsidianTools(vaultRoot) as Array<{ invoke(input: unknown): Promise<unknown> }>;
-    const result = await tools[3].invoke({ queries: ["zzznomatch"] }) as string;
+    const tools = createObsidianTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files");
+    const result = await searchTool!.invoke({ queries: ["zzznomatch"] }) as string;
 
     const lower = result.toLowerCase();
     expect(
@@ -627,11 +647,12 @@ describe("obsidian tool: send_file", () => {
     };
 
     const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
-    const sendFileTool = tools[5]; // send_file is the 6th tool (0-indexed)
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
 
-    const result = await sendFileTool.invoke({ relativePath: "document.md" }) as string;
+    const result = await sendFileTool!.invoke({ relativePath: "document.md" }) as string;
 
     expect(result).toContain("File sent: document.md");
     expect(mockFileSender.sendFile).toHaveBeenCalledOnce();
@@ -648,11 +669,12 @@ describe("obsidian tool: send_file", () => {
     };
 
     const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
-    const sendFileTool = tools[5];
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
 
-    const result = await sendFileTool.invoke({ relativePath: "nonexistent.md" }) as string;
+    const result = await sendFileTool!.invoke({ relativePath: "nonexistent.md" }) as string;
 
     expect(result).toContain("Error");
     expect(result).toContain("does not exist");
@@ -670,8 +692,8 @@ describe("obsidian tool: send_file", () => {
       setCurrentChatId: vi.fn(),
     }) as Array<{ name?: string }>;
 
-    expect(toolsWithout.length).toBe(5); // read, write, list, search_files, search_files_by_name
-    expect(toolsWith.length).toBe(6); // same 5 + send_file
+    expect(toolsWithout.length).toBe(6); // read_skill, read, write, list, search_files, search_files_by_name
+    expect(toolsWith.length).toBe(7); // same 6 + send_file
 
     const sendFileToolInWithout = toolsWithout.find((t) => t.name === "send_file");
     const sendFileToolInWith = toolsWith.find((t) => t.name === "send_file");
@@ -694,11 +716,12 @@ describe("obsidian tool: send_file", () => {
     };
 
     const tools = createObsidianTools(vaultRoot, mockFileSender) as Array<{
+      name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
-    const sendFileTool = tools[5];
+    const sendFileTool = tools.find((tool) => tool.name === "send_file");
 
-    const result = await sendFileTool.invoke({ relativePath: "file.md" }) as string;
+    const result = await sendFileTool!.invoke({ relativePath: "file.md" }) as string;
 
     expect(result).toContain("Error");
     expect(result).toContain("file too large");

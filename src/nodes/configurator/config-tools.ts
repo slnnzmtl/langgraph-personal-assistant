@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { CronJobRepository } from "../../cron/cron-job-repository.js";
 import type { CronJobDefinition } from "../../cron/cron-launcher.js";
 import { isSchedulerTargetRoute } from "../../cron/cron-launcher.js";
+import { createReadSkillTool } from "../../tools/read-skill.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -115,5 +116,5 @@ export const createCronConfigTools = (repository: CronJobRepository): Structured
     },
   );
 
-  return [listCronJobs, createCronJob, deleteCronJob];
+  return [listCronJobs, createCronJob, deleteCronJob, createReadSkillTool("configurator")];
 };

@@ -98,6 +98,19 @@ describe("finance tools", () => {
     expect(JSON.parse(String(result))).toEqual(categories);
   });
 
+  it("exposes read_skill from the shared skills tool factory", async () => {
+    const session: SupabaseMcpSession = {
+      executeSql: vi.fn(),
+      close: vi.fn(),
+    };
+    const readSkillTool = createFinanceTools(session).find((tool) => tool.name === "read_skill");
+
+    expect(readSkillTool).toBeDefined();
+
+    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
+    expect(result).toContain("Sync Wise Expenses");
+  });
+
 
 
   describe("step counter", () => {

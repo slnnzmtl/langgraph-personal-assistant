@@ -3,7 +3,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { loadFinanceSystemPrompt } from "../../prompts/load-system-prompt.js";
-import { hasPendingToolCalls } from "../tool-routing.js";
+import { hasPendingToolCalls } from "../../tools/routing.js";
 import type { FinanceState, FinanceStateUpdate } from "./state.js";
 import {
   financeToolBatchBindOptions,

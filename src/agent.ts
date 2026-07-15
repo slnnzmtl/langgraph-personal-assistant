@@ -13,7 +13,7 @@ import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createFinanceSubgraphWrapper } from "./nodes/finance/graph.js";
 import { createObsidianSubgraphWrapper } from "./nodes/obsidian/graph.js";
 import { createSupervisorNode } from "./nodes/supervisor-node.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "./nodes/tool-routing.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "./tools/routing.js";
 import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 
 export type WorkflowGraphConfig = Pick<AppConfig, "obsidianVaultPath" | "appTimezone" | "cronJobsFilePath"> & {

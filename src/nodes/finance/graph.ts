@@ -5,7 +5,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import type { AgentState, AgentStateUpdate } from "../../state.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "../tool-routing.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createFinanceNode, FinanceStateAnnotation, createFinanceTools } from "./index.js";
 
 export const FINANCE_MAX_STEPS = 10;
