@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
@@ -66,13 +66,37 @@ export const createSupervisorNode = (
     const promptMessages = stripToolsForSupervisor(rawPromptMessages);
 
     const lastStripped = promptMessages[promptMessages.length - 1];
+    const lastStrippedText = lastStripped instanceof AIMessage
+      ? extractMessageTextContent(lastStripped.content).trim()
+      : "";
     const isSubAgentComplete =
       lastStripped instanceof AIMessage
       && (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0)
-      && extractMessageTextContent(lastStripped.content).trim().length > 0;
+      && lastStrippedText.length > 0;
 
     if (isSubAgentComplete) {
       return { next: "FINISH" };
+    }
+
+    const hasDelegatedToRuntimeAgent = state.messages.some((message) => message instanceof AIMessage);
+    const hadRecentToolResult = state.messages.some((message) => {
+      if (!(message instanceof ToolMessage)) {
+        return false;
+      }
+
+      return extractMessageTextContent(message.content).trim().length > 0;
+    });
+    if (
+      hasDelegatedToRuntimeAgent
+      && !hadRecentToolResult
+      && lastStripped instanceof AIMessage
+      && (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0)
+      && lastStrippedText.length === 0
+    ) {
+      return {
+        next: "FINISH",
+        messages: [new AIMessage("Completed your request.")],
+      };
     }
 
     await logSystemPromptInvocation("supervisor-system-prompt", rawPromptMessages);

@@ -7,10 +7,14 @@ import { formatCurrentTime } from "../../utils/datetime.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../nodes/message-history.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../execution/sub-agent-state.js";
+import { appendConfiguredSkillAttachments } from "../skill-attachments.js";
 import { withResolvedSystemPrompt } from "../prompt-resolver.js";
 import type { RuntimeAgentDefinition } from "../types.js";
 
-const buildRuntimeSystemPrompt = (definition: RuntimeAgentDefinition): string => {
+const buildRuntimeSystemPrompt = (
+  definition: RuntimeAgentDefinition,
+  messages: SubAgentState["messages"],
+): string => {
   const currentDatetime = formatCurrentTime(new Date());
   const header = [
     "<system_metadata>",
@@ -20,7 +24,8 @@ const buildRuntimeSystemPrompt = (definition: RuntimeAgentDefinition): string =>
   ].join("\n");
 
   const resolved = withResolvedSystemPrompt(definition);
-  return `${header}\n\n${resolved.systemPrompt.trim()}`;
+  const basePrompt = `${header}\n\n${resolved.systemPrompt.trim()}`;
+  return appendConfiguredSkillAttachments(basePrompt, resolved, messages);
 };
 
 const sanitizeResponseToolCalls = (
@@ -74,7 +79,7 @@ export const createRuntimeAgentNode = (
       const isLoopContinuation = lastMessage instanceof ToolMessage;
       const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
 
-      const systemInstructions = new SystemMessage(buildRuntimeSystemPrompt(definition));
+      const systemInstructions = new SystemMessage(buildRuntimeSystemPrompt(definition, state.messages));
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
 
       await logSystemPromptInvocation(`runtime-agent-${definition.id}`, promptMessages);

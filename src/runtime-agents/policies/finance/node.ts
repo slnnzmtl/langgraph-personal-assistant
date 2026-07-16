@@ -12,6 +12,7 @@ import {
 import type { SubAgentState, SubAgentStateUpdate } from "../../execution/sub-agent-state.js";
 import { resolveRuntimeAgentSystemPrompt } from "../../prompt-resolver.js";
 import type { RuntimeAgentDefinition } from "../../types.js";
+import { appendConfiguredSkillAttachments } from "../../skill-attachments.js";
 import {
   financeToolBatchBindOptions,
   meetsFinanceToolBatchRequirement,
@@ -52,9 +53,10 @@ export const createFinanceNode = (
           : undefined)
         : [];
 
+      const promptWithAttachments = appendConfiguredSkillAttachments(basePrompt, definition, state.messages);
       const systemPrompt = batchPlan
-        ? `${basePrompt}\n\n<required_tool_batch>\n${batchPlan.instruction}\n</required_tool_batch>`
-        : basePrompt;
+        ? `${promptWithAttachments}\n\n<required_tool_batch>\n${batchPlan.instruction}\n</required_tool_batch>`
+        : promptWithAttachments;
       const systemInstructions = new SystemMessage(systemPrompt);
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
       const modelForTurn = batchPlan

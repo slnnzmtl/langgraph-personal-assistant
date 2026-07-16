@@ -39,6 +39,26 @@ export const LEGACY_ROUTE_TO_AGENT_ID: Record<string, BuiltinRuntimeAgentId> = {
 
 const BuiltinPromptSourceKeySchema = z.enum(BUILTIN_PROMPT_SOURCE_KEYS);
 
+export type SkillAttachmentOwner = (typeof RUNTIME_AGENT_EXECUTORS)[number];
+
+const SkillAttachmentOwnerSchema = z.enum(RUNTIME_AGENT_EXECUTORS);
+
+export const SkillAttachmentMatchSchema = z.object({
+  anyPhrases: z.array(z.string().min(1)).optional(),
+  allPhrases: z.array(z.string().min(1)).optional(),
+});
+
+export type SkillAttachmentMatch = z.infer<typeof SkillAttachmentMatchSchema>;
+
+export const SkillAttachmentRuleSchema = z.object({
+  owner: SkillAttachmentOwnerSchema,
+  skillName: z.string().min(1),
+  cronJobName: z.string().min(1).optional(),
+  match: SkillAttachmentMatchSchema.optional(),
+});
+
+export type SkillAttachmentRule = z.infer<typeof SkillAttachmentRuleSchema>;
+
 export const RuntimeAgentDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -46,6 +66,7 @@ export const RuntimeAgentDefinitionSchema = z.object({
   systemPrompt: z.string().min(1),
   promptSourceKey: BuiltinPromptSourceKeySchema.optional(),
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
+  skillAttachments: z.array(SkillAttachmentRuleSchema).default([]),
   executor: RuntimeAgentExecutorSchema.default("generic"),
   maxSteps: z.number().int().min(1).max(20).default(8),
   enabled: z.boolean().default(true),
@@ -67,6 +88,7 @@ export type CreateRuntimeAgentInput = {
   description: string;
   systemPrompt: string;
   toolBundleIds: RuntimeToolBundleId[];
+  skillAttachments?: SkillAttachmentRule[];
   executor?: RuntimeAgentExecutor;
   maxSteps?: number;
   enabled?: boolean;
@@ -77,6 +99,7 @@ export type UpdateRuntimeAgentInput = {
   description?: string;
   systemPrompt?: string;
   toolBundleIds?: RuntimeToolBundleId[];
+  skillAttachments?: SkillAttachmentRule[];
   executor?: RuntimeAgentExecutor;
   maxSteps?: number;
   enabled?: boolean;

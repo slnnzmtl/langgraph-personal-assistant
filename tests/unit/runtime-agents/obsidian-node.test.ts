@@ -173,6 +173,14 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
   });
 
+  it("loads skill_usage guidance from prompts/obsidian.xml", () => {
+    const prompt = loadObsidianSystemPrompt();
+
+    expect(prompt).toContain("<skill_usage>");
+    expect(prompt).toContain("read_skill(skill_name)");
+    expect(prompt).toContain("Configured skill attachments");
+  });
+
   it("fails clearly when the model does not support tool calling", async () => {
     const vaultRoot = await createTempVault();
     const connector = {
@@ -223,6 +231,7 @@ describe("createObsidianNode", () => {
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
+      expect(promptContent).toContain("<attached_skills>");
 
       return new AIMessage("Done.");
     });
@@ -234,6 +243,104 @@ describe("createObsidianNode", () => {
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
+  });
+
+  it("auto-attaches the Routine skill when the user message matches routine intent", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("<attached_skills>");
+      expect(promptContent).toContain('<attached_skill name="Routine">');
+      expect(promptContent).toContain("Step 1: Read yesterday's note");
+      expect(promptContent).toContain("Follow the attached skill instructions exactly");
+
+      return new AIMessage("Prepared today's routine note.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("create today's routine note")],
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Prepared today's routine note.");
+  });
+
+  it("does not attach the Routine skill for unrelated vault requests", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).not.toContain("<attached_skills>");
+      expect(promptContent).not.toContain('<attached_skill name="Routine">');
+
+      return new AIMessage("Read the fitness log.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("read my fitness log")],
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Read the fitness log.");
+  });
+
+  it("summarizes read_file results when the model returns a blank final response", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      if (!Array.isArray(input)) {
+        return new AIMessage("");
+      }
+
+      const latestMessage = input.at(-1);
+      if (latestMessage instanceof ToolMessage) {
+        return new AIMessage("");
+      }
+
+      return new AIMessage({
+        content: "",
+        tool_calls: [{
+          name: "read_file",
+          args: { relativePath: "routine/July/July 16 - Thu.md" },
+          id: "read-today",
+          type: "tool_call",
+        }],
+      });
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [
+        new HumanMessage("today's plan"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "read_file",
+            args: { relativePath: "routine/July/July 16 - Thu.md" },
+            id: "read-today",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({
+          name: "read_file",
+          tool_call_id: "read-today",
+          content: "Contents of routine/July/July 16 - Thu.md:\n\n## Summary\n- [ ] Gym",
+        }),
+      ],
+      stepCount: 2,
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toContain("## Summary");
+    expect(firstMessage?.content).toContain("- [ ] Gym");
   });
 
   it("injects the vault directory tree without file names", async () => {

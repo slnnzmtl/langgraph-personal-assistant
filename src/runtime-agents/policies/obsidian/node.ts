@@ -14,6 +14,10 @@ import {
   type SubAgentToolSource,
 } from "../../execution/create-sub-agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../execution/sub-agent-state.js";
+import {
+  appendConfiguredSkillAttachments,
+  getAttachedSkillNames,
+} from "../../skill-attachments.js";
 
 export const buildObsidianSystemPrompt = async (
   vaultRoot: string,
@@ -23,11 +27,31 @@ export const buildObsidianSystemPrompt = async (
   return `${resolveRuntimeAgentSystemPrompt(definition)}\n\nVault directory tree (folders only):\n${vaultDirectoryTree}`;
 };
 
+const buildObsidianCompletionSummary = (messages: BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!(message instanceof ToolMessage)) {
+      continue;
+    }
+
+    const content = extractMessageTextContent(message.content).trim();
+    if (content.startsWith("Success:")) {
+      return content.replace(/^Success:\s*/i, "").trim() || "Completed the Obsidian task.";
+    }
+
+    if (message.name === "read_file" && content.length > 0) {
+      return content;
+    }
+  }
+
+  return "Completed the Obsidian task.";
+};
+
 const invokeToolBoundModel = async (
   model: BaseChatModel,
   modelWithTools: Runnable,
   promptMessages: any[],
-  messages: any[],
+  messages: BaseMessage[],
 ): Promise<AIMessage> => {
   const response = await modelWithTools.invoke(promptMessages);
   if (!(response instanceof AIMessage)) throw new Error("Obsidian tool-bound model must return an AI message.");
@@ -43,8 +67,7 @@ const invokeToolBoundModel = async (
   const hasToolResults = messages.some((message) => message instanceof ToolMessage);
   if (!hasToolResults) return new AIMessage("Completed the Obsidian task.");
 
-  const narration = await model.invoke(promptMessages);
-  return narration instanceof AIMessage ? narration : new AIMessage("Completed the Obsidian task.");
+  return new AIMessage(buildObsidianCompletionSummary(messages));
 };
 
 export const createObsidianNode = (
@@ -70,15 +93,22 @@ export const createObsidianNode = (
 
       await mkdir(vaultRoot, { recursive: true });
 
-      const systemPrompt = await buildObsidianSystemPrompt(vaultRoot, definition);
+      const basePrompt = await buildObsidianSystemPrompt(vaultRoot, definition);
+      const systemPrompt = appendConfiguredSkillAttachments(basePrompt, definition, state.messages);
       const promptMessages = mergeMessageRuns([new SystemMessage(systemPrompt), ...state.messages]);
       await logSystemPromptInvocation("obsidian-system-prompt", promptMessages);
 
-      const toolsForTurn = prebuiltTools
+      let toolsForTurn = prebuiltTools
         ? (isSkillScopedToolContext(prebuiltTools)
           ? resolveTurnTools(prebuiltTools, state.messages)
           : prebuiltTools)
         : [];
+
+      const attachedSkillNames = getAttachedSkillNames(definition, state.messages);
+      if (attachedSkillNames.size > 0) {
+        toolsForTurn = toolsForTurn.filter((tool) => tool.name !== "read_skill");
+      }
+
       const modelWithTools = bindTools(toolsForTurn);
 
       const finalMessage = await invokeToolBoundModel(model, modelWithTools, promptMessages, state.messages);

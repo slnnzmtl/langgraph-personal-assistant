@@ -129,10 +129,10 @@ export const createSkillScopedToolContext = (
 
     const bundle = config.bundles.get(activeSkill.skillName);
     if (!bundle) {
-      return [config.readSkillTool];
+      return dedupeTools([config.readSkillTool, ...(config.defaultTools ?? [])]);
     }
 
-    return dedupeTools([config.readSkillTool, ...bundle.tools]);
+    return dedupeTools([config.readSkillTool, ...bundle.tools, ...(config.defaultTools ?? [])]);
   };
 
   const allTools = dedupeTools([

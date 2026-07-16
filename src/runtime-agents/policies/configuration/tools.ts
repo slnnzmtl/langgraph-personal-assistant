@@ -11,6 +11,7 @@ import {
 } from "../../tool-bundles.js";
 import {
   RUNTIME_TOOL_BUNDLE_IDS,
+  SkillAttachmentRuleSchema,
   type RuntimeAgentDefinition,
   type RuntimeToolBundleId,
 } from "../../types.js";
@@ -38,6 +39,7 @@ const CreateRuntimeAgentToolSchema = z.object({
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
+  skillAttachments: z.array(SkillAttachmentRuleSchema).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -48,6 +50,7 @@ const UpdateRuntimeAgentToolSchema = z.object({
   description: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1).optional(),
+  skillAttachments: z.array(SkillAttachmentRuleSchema).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -78,12 +81,17 @@ export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
 };
 
 export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string => {
+  const attachmentSummary = (agent.skillAttachments ?? []).length > 0
+    ? (agent.skillAttachments ?? []).map((rule) => `${rule.owner}/${rule.skillName}`).join(", ")
+    : "none";
+
   const lines = [
     `Agent ID: ${agent.id}`,
     `Name: ${agent.name}`,
     `Description: ${agent.description}`,
     `Executor: ${agent.executor}`,
     `Tool Bundles: ${agent.toolBundleIds.join(", ")}`,
+    `Skill Attachments: ${attachmentSummary}`,
     `Max Steps: ${agent.maxSteps}`,
     `Enabled: ${agent.enabled ? "true" : "false"}`,
     `Updated At: ${agent.updatedAt}`,
@@ -235,6 +243,7 @@ export const createRuntimeAgentTools = (
           systemPrompt: input.systemPrompt,
           toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[],
           executor: "generic",
+          ...(input.skillAttachments !== undefined ? { skillAttachments: input.skillAttachments } : {}),
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
@@ -264,6 +273,7 @@ export const createRuntimeAgentTools = (
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
           ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[] } : {}),
+          ...(input.skillAttachments !== undefined ? { skillAttachments: input.skillAttachments } : {}),
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });

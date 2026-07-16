@@ -229,6 +229,29 @@ describe("createSupervisorNode", () => {
     expect(result.messages?.[0]?.content).toBe("Sanitized");
   });
 
+  it("finishes instead of re-delegating when a runtime agent returns an empty reply", async () => {
+    const invokeSpy = vi.fn(() => ({
+      next: "obsidian",
+    }));
+    const connector = new FakeLLMConnector(invokeSpy);
+    const supervisorNode = createSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("today's plan"),
+        new AIMessage(""),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("FINISH");
+    expect(result.messages?.[0]?.content).toBe("Completed your request.");
+    expect(invokeSpy).not.toHaveBeenCalled();
+  });
+
   it("routes reserved scheduler finance triggers without invoking the LLM", async () => {
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for scheduler trigger");

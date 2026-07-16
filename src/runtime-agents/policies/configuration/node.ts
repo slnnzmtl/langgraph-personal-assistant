@@ -14,6 +14,7 @@ import {
 import type { SubAgentState, SubAgentStateUpdate } from "../../execution/sub-agent-state.js";
 import { resolveRuntimeAgentSystemPrompt } from "../../prompt-resolver.js";
 import type { RuntimeAgentDefinition } from "../../types.js";
+import { appendConfiguredSkillAttachments } from "../../skill-attachments.js";
 import { formatCronJobForDisplay } from "./tools.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
@@ -180,7 +181,8 @@ export const createConfigurationNode = (
         : tools;
       const allowedToolNames = new Set(toolsForTurn.map((tool) => tool.name));
 
-      const systemInstructions = new SystemMessage(basePrompt);
+      const systemPrompt = appendConfiguredSkillAttachments(basePrompt, options.definition, state.messages);
+      const systemInstructions = new SystemMessage(systemPrompt);
       const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
 
       await logSystemPromptInvocation("configuration-system-prompt", promptMessages);

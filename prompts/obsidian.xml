@@ -37,3 +37,8 @@
     <action>Call `send_file`. Verify file exists first.</action>
   </intent>
 </intents>
+
+<skill_usage>
+Configured skill attachments may auto-load full skill instructions server-side when user intent matches the agent's attachment rules.
+If those instructions are not present in the system prompt, call `read_skill(skill_name)` before proceeding.
+</skill_usage>

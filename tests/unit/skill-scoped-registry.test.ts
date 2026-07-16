@@ -116,6 +116,25 @@ describe("createSkillScopedToolContextFromBundles", () => {
     const tools = context.resolveToolsForTurn([new HumanMessage("open note")]);
     expect(tools.map((tool) => tool.name)).toEqual(["read_skill", "read_file"]);
   });
+
+  it("keeps default tools after read_skill when the skill has no tool bundle", () => {
+    const context = createSkillScopedToolContextFromBundles({
+      readSkillTool: createTestReadSkillTool(),
+      bundles: {},
+      defaultTools: [createNamedTool("read_file"), createNamedTool("write_file")],
+    });
+
+    const tools = context.resolveToolsForTurn([
+      new HumanMessage("create today's routine note"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "Routine" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "routine body" }),
+    ]);
+
+    expect(tools.map((tool) => tool.name)).toEqual(["read_skill", "read_file", "write_file"]);
+  });
 });
 
 describe("createGuardedToolNode", () => {
@@ -145,5 +164,37 @@ describe("createGuardedToolNode", () => {
     const result = await guardedNode({ messages, stepCount: 0 });
     expect(result.messages?.[0]).toBeInstanceOf(ToolMessage);
     expect(String(result.messages?.[0]?.content)).toContain('Tool "list_cron_jobs" is not available');
+  });
+
+  it("allows default tools after read_skill for instruction-only skills", async () => {
+    const readFileTool = createNamedTool("read_file");
+    const context = createSkillScopedToolContextFromBundles({
+      readSkillTool: createTestReadSkillTool(),
+      bundles: {},
+      defaultTools: [readFileTool],
+    });
+
+    const guardedNode = createGuardedToolNode(context);
+    const messages = [
+      new HumanMessage("create today's routine note"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "Routine" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "routine body" }),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_file", args: { relativePath: "routine/July/July 15 - Wed.md" }, id: "read-file-1", type: "tool_call" }],
+      }),
+    ];
+
+    const unauthorized = findUnauthorizedToolCalls(
+      messages,
+      new Set(context.resolveToolsForTurn(messages).map((tool) => tool.name)),
+    );
+    expect(unauthorized).toEqual([]);
+
+    const result = await guardedNode({ messages, stepCount: 0 });
+    expect(String(result.messages?.[0]?.content)).toBe("read_file ok");
   });
 });

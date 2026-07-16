@@ -9,6 +9,7 @@ import {
   OBSIDIAN_MAX_STEPS,
 } from "./constants.js";
 import type { RuntimeAgentDefinition } from "./types.js";
+import { ROUTINE_SKILL_ATTACHMENTS } from "./skill-attachments.js";
 
 const buildTimestamp = (): string => new Date().toISOString();
 
@@ -36,6 +37,7 @@ export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
       systemPrompt: loadObsidianSystemPrompt(),
       promptSourceKey: "obsidian",
       toolBundleIds: ["obsidian-vault"],
+      skillAttachments: ROUTINE_SKILL_ATTACHMENTS,
       executor: "obsidian",
       maxSteps: OBSIDIAN_MAX_STEPS,
       enabled: true,
