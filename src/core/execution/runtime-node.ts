@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, ToolMessage, type BaseMessage, mergeMessageRuns } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Runnable } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
@@ -9,6 +9,10 @@ import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
+import {
+  buildRuntimeAgentPromptMessages,
+  isEmptyModelResponse,
+} from "./sub-agent-messages.js";
 
 import type { SkillScopedToolContext } from "../../tools/skill-scoped-registry.js";
 
@@ -21,6 +25,42 @@ export const isSkillScopedToolContext = (
 
 export const resolveSubAgentTools = (source: SubAgentToolSource): StructuredToolInterface[] =>
   isSkillScopedToolContext(source) ? source.allTools : source;
+
+const filterToolsByNames = (
+  tools: StructuredToolInterface[],
+  allowedNames: string[],
+  options?: { alwaysInclude?: string[] },
+): StructuredToolInterface[] => {
+  const allowed = new Set([
+    ...allowedNames,
+    ...(options?.alwaysInclude ?? []),
+  ]);
+
+  return tools.filter((tool) => allowed.has(tool.name));
+};
+
+export const resolveTurnTools = (
+  toolSource: SubAgentToolSource,
+  messages: BaseMessage[],
+  options?: {
+    restrictToNames?: string[];
+    alwaysInclude?: string[];
+  },
+): StructuredToolInterface[] => {
+  const scopedTools = isSkillScopedToolContext(toolSource)
+    ? toolSource.resolveToolsForTurn(messages)
+    : resolveSubAgentTools(toolSource);
+
+  if (!options?.restrictToNames) {
+    return scopedTools;
+  }
+
+  const filterOptions = options.alwaysInclude
+    ? { alwaysInclude: options.alwaysInclude }
+    : undefined;
+
+  return filterToolsByNames(scopedTools, options.restrictToNames, filterOptions);
+};
 
 export type RuntimeAgentTurnContext = {
   state: SubAgentState;
@@ -136,7 +176,7 @@ export const createRuntimeAgentNode = (
       const toolsForTurn = hooks.resolveToolsForTurn
         ? hooks.resolveToolsForTurn(ctx)
         : toolSource
-          ? (isSkillScopedToolContext(toolSource) ? toolSource.resolveToolsForTurn(state.messages) : toolSource)
+          ? resolveTurnTools(toolSource, state.messages)
           : [];
 
       ctx.allowedToolNames = new Set(toolsForTurn.map((tool) => tool.name));
@@ -146,7 +186,7 @@ export const createRuntimeAgentNode = (
         : defaultBuildSystemPrompt(definition, basePrompt);
 
       const systemInstructions = new SystemMessage(systemPromptText);
-      const promptMessages = mergeMessageRuns([systemInstructions, ...state.messages]);
+      const promptMessages = buildRuntimeAgentPromptMessages(systemInstructions, state.messages);
 
       await logSystemPromptInvocation(hooks.logLabel ?? `runtime-agent-${definition.id}`, promptMessages);
 
@@ -156,6 +196,15 @@ export const createRuntimeAgentNode = (
         : model;
 
       let response: AIMessage = await modelForTurn.invoke(promptMessages);
+
+      if (
+        isEmptyModelResponse(response)
+        && isLoopContinuation
+        && toolsForTurn.length > 0
+        && !hooks.afterModelInvoke
+      ) {
+        response = await modelForTurn.invoke(promptMessages);
+      }
 
       if (!(response instanceof AIMessage)) {
         throw new Error("Runtime agent LLM model must return an AI message.");
@@ -184,7 +233,7 @@ export const createRuntimeAgentNode = (
 
       if (!hasToolCalls && responseText.length === 0) {
         const fallback = hooks.emptyResponseMessage?.(definition)
-          ?? `Completed the ${definition.name} task.`;
+          ?? `The ${definition.name} agent did not produce a response. Please try again.`;
         return { messages: [new AIMessage(fallback)], stepCount };
       }
 

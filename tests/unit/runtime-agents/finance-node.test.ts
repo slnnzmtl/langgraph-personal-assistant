@@ -112,30 +112,30 @@ describe("finance tools", () => {
     expect(readSkillTool).toBeDefined();
 
     const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-    expect(result).toContain("Sync Wise Expenses");
-    expect(result).toContain("<skill_context>");
-    expect(result).toContain("expense_categories:");
-    expect(result).toContain('"name":"Food"');
+    expect(result).toContain("# Expenses");
+    expect(result).not.toContain("<skill_context>");
     expect(result).toContain("<available_tools>");
     expect(result).toContain("- exec_sql:");
     expect(result).toContain("- fetch_wise_transactions:");
     expect(result).toContain("- get_categories:");
-    expect(session.executeSql).toHaveBeenCalledWith("SELECT id, name, note FROM public.category;");
+    expect(session.executeSql).not.toHaveBeenCalled();
   });
 
-  it("exposes only read_skill before sync-expenses is loaded", () => {
+  it("exposes view tools by default before any skill is loaded", () => {
     const session: SupabaseMcpSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
     const context = createFinanceSkillScopedTools(session);
 
-    expect(context.resolveToolsForTurn([new HumanMessage("sync finances")]).map((tool) => tool.name)).toEqual([
+    expect(context.resolveToolsForTurn([new HumanMessage("get yesterday transactions")]).map((tool) => tool.name)).toEqual([
       "read_skill",
+      "exec_sql",
+      "get_categories",
     ]);
   });
 
-  it("exposes finance domain tools after read_skill(sync-expenses)", () => {
+  it("does not expose fetch_wise_transactions until sync-expenses is loaded", () => {
     const session: SupabaseMcpSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
@@ -151,29 +151,13 @@ describe("finance tools", () => {
       new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
     ]);
 
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "read_skill",
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",
       "fetch_wise_transactions",
       "get_categories",
+      "read_skill",
     ]);
   });
-
-  it("returns sync-expenses skill content when category enrichment fails", async () => {
-    const session: SupabaseMcpSession = {
-      executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
-      close: vi.fn(),
-    };
-    const context = createFinanceSkillScopedTools(session);
-    const readSkillTool = context.config.readSkillTool;
-
-    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-
-    expect(result).toContain("Sync Wise Expenses");
-    expect(result).toContain("action_error expense_categories:");
-    expect(result).toContain("database unavailable");
-  });
-
 
 
   describe("step counter", () => {

@@ -92,6 +92,39 @@ describe("finance subgraph tool batching", () => {
     expect(result.messages.at(-1)?.content).toBe("Finance sync completed.");
   });
 
+  it("continues sync-expenses step 1 when the model returns an empty continuation after read_skill", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue([]),
+      close: vi.fn(),
+    };
+    const tools = createFinanceSkillScopedTools(mockSession);
+    let financeCalls = 0;
+
+    const model = new FakeLLMConnector(() => {
+      financeCalls += 1;
+      return new AIMessage("");
+    }).getModel();
+
+    const financeNode = createFinanceNode(model, financeDefinition, tools);
+    const update = await financeNode({
+      messages: [
+        new HumanMessage("get yesterday transactions"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
+        }),
+        new ToolMessage({ tool_call_id: "read-1", content: "skill body" }),
+      ],
+      stepCount: 1,
+    });
+
+    expect(financeCalls).toBe(1);
+    expect(update.messages?.[0]?.tool_calls?.map((call) => call.name)).toEqual([
+      "get_categories",
+      "fetch_wise_transactions",
+    ]);
+  });
+
   it("completes the remaining tool call before prompting the model", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue([]),

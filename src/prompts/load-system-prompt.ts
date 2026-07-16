@@ -1,25 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { formatCurrentTime, getZonedDateDetails } from "../utils/datetime.js";
+import { formatCurrentTime, getZonedDateDetails, toUtcDayRange } from "../utils/datetime.js";
 import { formatSkillsForPrompt, listSkills } from "./skills-loader.js";
 
 export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
 export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
 
-const toUtcDayRange = (date: Date, timeZone: string = process.env.APP_TIMEZONE ?? "UTC") => {
-  const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
-  return {
-    since: `${year}-${monthNumber}-${dayNumber}T00:00:00Z`,
-    until: `${year}-${monthNumber}-${dayNumber}T23:59:59Z`,
-  };
-};
-
 const injectCurrentDatetime = (content: string): string => {
   const now = new Date();
   const currentDatetime = formatCurrentTime(now);
-  const yesterdayDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const today = toUtcDayRange(now);
-  const yesterday = toUtcDayRange(yesterdayDate);
+  const yesterday = toUtcDayRange(new Date(now.getTime() - 24 * 60 * 60 * 1000));
   const header = [
     `<system_metadata>`,
     `⏰ CURRENT DATETIME: ${currentDatetime}`,

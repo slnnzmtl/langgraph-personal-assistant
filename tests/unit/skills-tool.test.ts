@@ -33,7 +33,7 @@ describe("createReadSkillTool", () => {
     const readSkill = createReadSkillTool("finance", "xml");
     const result = String(await readSkill.invoke({ name: "sync-expenses" }));
 
-    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("# Expenses");
     expect(result).toContain("fetch_wise_transactions");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
@@ -63,7 +63,7 @@ describe("createReadSkillTool", () => {
 
     const result = String(await readSkill.invoke({ name: "sync-expenses" }));
 
-    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("# Expenses");
     expect(result).toContain("<available_tools>");
     expect(result).toContain("- exec_sql: Execute SQL");
   });
@@ -98,7 +98,7 @@ describe("createReadSkillTool", () => {
     const result = String(await readSkill.invoke({ name: "sync-expenses" }));
 
     expect(run).toHaveBeenCalledTimes(1);
-    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("# Expenses");
     expect(result).toContain("<skill_context>");
     expect(result).toContain("expense_categories:");
     expect(result).toContain('"name":"Food"');
@@ -115,7 +115,7 @@ describe("createReadSkillTool", () => {
     const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
     const result = String(await readSkill.invoke({ name: "sync-expenses" }));
 
-    expect(result).toContain("Sync Wise Expenses");
+    expect(result).toContain("# Expenses");
     expect(result).toContain("action_error expense_categories:");
     expect(result).toContain("database unavailable");
   });

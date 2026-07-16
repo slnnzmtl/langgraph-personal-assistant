@@ -1,12 +1,11 @@
 import { AIMessage } from "@langchain/core/messages";
-import type { BaseMessage } from "@langchain/core/messages";
-import type { StructuredToolInterface } from "@langchain/core/tools";
 import { END, START, StateGraph } from "@langchain/langgraph";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { createGuardedToolNode, createStaticToolNode } from "../../tools/guarded-tool-node.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
+import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import {
   isSkillScopedToolContext,
   resolveSubAgentTools,
@@ -81,7 +80,7 @@ export const createSubAgent = <TDeps>(config: SubAgentConfig<TDeps>) => {
     buildInitialState:
       config.buildInitialState
       ?? ((parentState) => ({
-        messages: parentState.messages,
+        messages: scopeSubAgentMessages(parentState.messages),
         stepCount: 0,
       })),
     compiledSubgraph,
@@ -108,38 +107,29 @@ export const createSubAgentOrStub = <TDeps>(
   return createSubAgent(config);
 };
 
-const filterToolsByNames = (
-  tools: StructuredToolInterface[],
-  allowedNames: string[],
-  options?: { alwaysInclude?: string[] },
-): StructuredToolInterface[] => {
-  const allowed = new Set([
-    ...allowedNames,
-    ...(options?.alwaysInclude ?? []),
-  ]);
+export const createMaxStepsExceededUpdate = (
+  name: string,
+  maxSteps: number,
+  message?: string,
+): AgentStateUpdate => ({
+  messages: [
+    new AIMessage(
+      message ?? `Unable to complete ${name}: exceeded the maximum of ${maxSteps} tool steps.`,
+    ),
+  ],
+});
 
-  return tools.filter((tool) => allowed.has(tool.name));
-};
-
-export const resolveTurnTools = (
-  toolSource: SubAgentToolSource,
-  messages: BaseMessage[],
-  options?: {
-    restrictToNames?: string[];
-    alwaysInclude?: string[];
-  },
-): StructuredToolInterface[] => {
-  const scopedTools = isSkillScopedToolContext(toolSource)
-    ? toolSource.resolveToolsForTurn(messages)
-    : resolveSubAgentTools(toolSource);
-
-  if (!options?.restrictToNames) {
-    return scopedTools;
+export const mapDefaultSubAgentResult = (
+  result: SubAgentState,
+  { maxSteps, name }: { maxSteps: number; name: string },
+  options?: { maxStepsMessage?: string },
+): AgentStateUpdate => {
+  if (result.stepCount >= maxSteps) {
+    return createMaxStepsExceededUpdate(name, maxSteps, options?.maxStepsMessage);
   }
 
-  const filterOptions = options.alwaysInclude
-    ? { alwaysInclude: options.alwaysInclude }
-    : undefined;
-
-  return filterToolsByNames(scopedTools, options.restrictToNames, filterOptions);
+  const lastMessage = result.messages[result.messages.length - 1];
+  return {
+    messages: [lastMessage as AIMessage],
+  };
 };

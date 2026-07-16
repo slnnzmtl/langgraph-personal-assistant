@@ -35,10 +35,11 @@ describe("named prompt loaders", () => {
   it("loads the Finance prompt from prompts/finance.xml and includes skills listing", () => {
     const prompt = loadFinanceSystemPrompt();
 
-    expect(prompt).toContain("Financial Assistant & Sync Agent");
+    expect(prompt).toContain("Financial Assistant");
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {
       expect(prompt).toContain("sync-expenses");
+      expect(prompt).toContain("View, summarize, and sync");
     }
   });
 

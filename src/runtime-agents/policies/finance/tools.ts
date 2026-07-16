@@ -3,13 +3,16 @@ import { z } from "zod";
 
 import type { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
-import { minimizeJsonString, serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
+import { serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
 import { createReadSkillTool } from "../../../tools/skill-management.js";
-import { createSkillActionRegistry, registerSkillActions } from "../../../tools/skill-actions.js";
 import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 import { fetchWiseTransactions } from "../../../services/wise/index.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
+
+const GetCategoriesSchema = z.object({
+  unused: z.string().optional().describe("Unused. Pass an empty object."),
+});
 
 export const createFinanceDomainToolsFromSession = (
   mcpSession: SupabaseMcpSession,
@@ -56,7 +59,7 @@ export const createFinanceDomainToolsFromSession = (
   );
 
   const getCategories = tool(
-    async () => {
+    async (_input: z.infer<typeof GetCategoriesSchema>) => {
       try {
         const result = await mcpSession.executeSql(CATEGORY_QUERY);
         const normalizedResult = normalizeToolOutput(result);
@@ -69,7 +72,7 @@ export const createFinanceDomainToolsFromSession = (
     {
       name: "get_categories",
       description: "Fetch all expense categories",
-      schema: z.object({}),
+      schema: GetCategoriesSchema,
     },
   );
 
@@ -77,21 +80,9 @@ export const createFinanceDomainToolsFromSession = (
 };
 
 export const createFinanceSkillScopedTools = (mcpSession: SupabaseMcpSession) => {
-  const skillActionRegistry = createSkillActionRegistry();
-  registerSkillActions(skillActionRegistry, "finance", "sync-expenses", [
-    {
-      label: "expense_categories",
-      run: async () => {
-        const result = await mcpSession.executeSql(CATEGORY_QUERY);
-        const normalizedResult = normalizeToolOutput(result);
-        return minimizeJsonString(normalizedResult);
-      },
-    },
-  ]);
-
   const financeDomainTools = createFinanceDomainToolsFromSession(mcpSession);
+  const viewTools = financeDomainTools.filter((tool) => tool.name !== "fetch_wise_transactions");
   const readSkillTool = createReadSkillTool("finance", "xml", {
-    actionRegistry: skillActionRegistry,
     toolBundles: {
       "sync-expenses": financeDomainTools,
     },
@@ -99,9 +90,9 @@ export const createFinanceSkillScopedTools = (mcpSession: SupabaseMcpSession) =>
 
   return createSkillScopedToolContextFromBundles({
     readSkillTool,
+    defaultTools: viewTools,
     bundles: {
       "sync-expenses": financeDomainTools,
     },
   });
 };
-

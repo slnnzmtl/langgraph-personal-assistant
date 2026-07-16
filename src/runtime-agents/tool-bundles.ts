@@ -9,7 +9,14 @@ import {
   RUNTIME_TOOL_BUNDLE_IDS,
   type RuntimeToolBundleCatalogEntry,
   type RuntimeToolBundleId,
-} from "../core/types/agent.js";
+} from "./tool-bundle-catalog.js";
+
+export type { RuntimeToolBundleCatalogEntry, RuntimeToolBundleId } from "./tool-bundle-catalog.js";
+export {
+  RUNTIME_TOOL_BUNDLE_CATALOG,
+  RUNTIME_TOOL_BUNDLE_IDS,
+  RuntimeToolBundleIdSchema,
+} from "./tool-bundle-catalog.js";
 
 export type RuntimeToolBundleDeps = {
   obsidianVaultPath: string;
@@ -69,7 +76,7 @@ export const listAvailableRuntimeToolBundles = (
   });
 
 export const validateRuntimeToolBundleIds = (
-  bundleIds: RuntimeToolBundleId[],
+  bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
 ): void => {
   const availableIds = new Set(listAvailableRuntimeToolBundles(deps).map((entry) => entry.id));
@@ -79,14 +86,14 @@ export const validateRuntimeToolBundleIds = (
       throw new Error(`Unknown tool bundle: ${bundleId}`);
     }
 
-    if (!availableIds.has(bundleId)) {
+    if (!availableIds.has(bundleId as RuntimeToolBundleId)) {
       throw new Error(`Tool bundle is unavailable in this deployment: ${bundleId}`);
     }
   }
 };
 
 export const resolveRuntimeToolBundles = (
-  bundleIds: RuntimeToolBundleId[],
+  bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
 ): StructuredToolInterface[] => {
   validateRuntimeToolBundleIds(bundleIds, deps);
@@ -95,7 +102,7 @@ export const resolveRuntimeToolBundles = (
   const tools: StructuredToolInterface[] = [];
 
   for (const bundleId of bundleIds) {
-    for (const tool of resolveBundleTools(bundleId, deps)) {
+    for (const tool of resolveBundleTools(bundleId as RuntimeToolBundleId, deps)) {
       if (seen.has(tool.name)) {
         continue;
       }

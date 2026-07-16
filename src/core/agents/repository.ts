@@ -1,13 +1,12 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { z } from "zod";
 
 import { fileExists, readTextFile, resolveSafePath } from "../../utils/file-system.js";
 import {
   RUNTIME_AGENT_SCHEMA_VERSION,
-  RuntimeAgentDefinitionSchema,
+  CreateRuntimeAgentInputSchema,
   RuntimeAgentsDocumentSchema,
-  SkillAttachmentRuleSchema,
+  UpdateRuntimeAgentInputSchema,
   isRuntimeAgentBuiltin,
   toRuntimeAgentId,
   type CreateRuntimeAgentInput,
@@ -23,20 +22,6 @@ export type RuntimeAgentRepository = {
   updateAgent(id: string, input: UpdateRuntimeAgentInput): Promise<RuntimeAgentDefinition>;
   deleteAgent(id: string): Promise<RuntimeAgentDefinition>;
 };
-
-const CreateRuntimeAgentInputSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  systemPrompt: z.string().min(1),
-  toolBundleIds: RuntimeAgentDefinitionSchema.shape.toolBundleIds,
-  skillAttachments: z.array(SkillAttachmentRuleSchema).optional(),
-  executor: RuntimeAgentDefinitionSchema.shape.executor.optional(),
-  modelKey: RuntimeAgentDefinitionSchema.shape.modelKey,
-  maxSteps: z.number().int().min(1).max(20).optional(),
-  enabled: z.boolean().optional(),
-});
-
-const UpdateRuntimeAgentInputSchema = CreateRuntimeAgentInputSchema.partial();
 
 const emptyDocument = (): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => ({
   version: RUNTIME_AGENT_SCHEMA_VERSION,

@@ -1,9 +1,10 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import { AIMessage } from "@langchain/core/messages";
-import { resolveModel, type RuntimeAgentExecutionContext } from "../../core/execution/context.js";
+import { resolveModel } from "../../core/execution/context.js";
+import type { PolicyContext } from "../../core/types/policy-context.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
-import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
+import { createSubAgent, createSubAgentOrStub, createMaxStepsExceededUpdate } from "../../core/execution/create-sub-agent.js";
 import {
   createRuntimeAgentNode,
   type SubAgentToolSource,
@@ -32,7 +33,7 @@ const createDomainLlmNode = (
 
 export const createFinancePolicy = (): RuntimeAgentPolicy => ({
   executor: "finance",
-  createHandler: (context: RuntimeAgentExecutionContext, definition) => {
+  createHandler: (context: PolicyContext, definition) => {
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const session = bundleDeps.supabaseSession;
 
@@ -80,9 +81,11 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
         ),
       mapResult: (result): AgentStateUpdate => {
         if (result.stepCount >= maxSteps) {
-          return {
-            messages: [new AIMessage(`Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`)],
-          };
+          return createMaxStepsExceededUpdate(
+            "Obsidian",
+            maxSteps,
+            `Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`,
+          );
         }
 
         const lastMessage = result.messages[result.messages.length - 1];

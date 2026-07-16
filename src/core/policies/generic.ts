@@ -1,10 +1,9 @@
-import { AIMessage } from "@langchain/core/messages";
-
-import { resolveModel, type RuntimeAgentExecutionContext } from "../execution/context.js";
-import { createCompiledSubAgentGraph } from "../execution/create-sub-agent.js";
+import { resolveModel } from "../execution/context.js";
+import {
+  createSubAgent,
+  mapDefaultSubAgentResult,
+} from "../execution/create-sub-agent.js";
 import { createRuntimeAgentNode } from "../execution/runtime-node.js";
-import { createSubgraphNodeWrapper } from "../execution/subgraph-wrapper.js";
-import type { SubAgentState } from "../execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentPolicy } from "../types/policy.js";
 
@@ -17,86 +16,29 @@ export type GenericPolicyDeps<
   ) => import("@langchain/core/tools").StructuredToolInterface[];
 };
 
-const compiledSubgraphCache = new WeakMap<
-  RuntimeAgentExecutionContext,
-  Map<string, ReturnType<typeof createCompiledSubAgentGraph>>
->();
-
-const getCompiledSubgraphCache = (
-  context: RuntimeAgentExecutionContext,
-): Map<string, ReturnType<typeof createCompiledSubAgentGraph>> => {
-  let cache = compiledSubgraphCache.get(context);
-
-  if (!cache) {
-    cache = new Map();
-    compiledSubgraphCache.set(context, cache);
-  }
-
-  return cache;
-};
-
 export const createGenericPolicy = <
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 >(
   deps: GenericPolicyDeps<TBundleDeps>,
 ): RuntimeAgentPolicy => ({
   executor: "generic",
-  createHandler: (context, definition) =>
-    createSubgraphNodeWrapper({
-      subgraphName: definition.name,
-      buildInitialState: (state) => ({
-        messages: state.messages,
-        stepCount: 0,
-      }),
-      compiledSubgraph: getCompiledGenericRuntimeSubgraph(context, definition, deps),
-      mapResult: (result: SubAgentState) => {
-        if (result.stepCount >= definition.maxSteps) {
-          return {
-            messages: [
-              new AIMessage(
-                `Unable to complete ${definition.name}: exceeded the maximum of ${definition.maxSteps} tool steps.`,
-              ),
-            ],
-          };
-        }
+  createHandler: (context, definition) => {
+    const bundleDeps = context.bundleDeps as TBundleDeps;
 
-        const lastMessage = result.messages[result.messages.length - 1];
-        return {
-          messages: [lastMessage as AIMessage],
-        };
+    return createSubAgent({
+      name: definition.name,
+      maxSteps: definition.maxSteps,
+      deps: {
+        model: resolveModel(context),
+        definition,
+        bundleDeps,
+        resolveToolBundles: deps.resolveToolBundles,
       },
-    }),
+      createTools: (agentDeps) =>
+        agentDeps.resolveToolBundles(agentDeps.definition.toolBundleIds, agentDeps.bundleDeps),
+      createLlmNode: (agentDeps, tools) =>
+        createRuntimeAgentNode(agentDeps.model, agentDeps.definition, tools),
+      mapResult: (result, config) => mapDefaultSubAgentResult(result, config),
+    });
+  },
 });
-
-const getCompiledGenericRuntimeSubgraph = <
-  TBundleDeps extends Record<string, unknown>,
->(
-  context: RuntimeAgentExecutionContext,
-  definition: RuntimeAgentDefinition,
-  deps: GenericPolicyDeps<TBundleDeps>,
-) => {
-  const cacheKey = [
-    context.instanceId,
-    definition.id,
-    definition.updatedAt,
-    context.defaultModelKey,
-    definition.toolBundleIds.join(","),
-  ].join(":");
-  const cache = getCompiledSubgraphCache(context);
-  const cached = cache.get(cacheKey);
-
-  if (cached) {
-    return cached;
-  }
-
-  const tools = deps.resolveToolBundles(
-    definition.toolBundleIds,
-    context.bundleDeps as TBundleDeps,
-  );
-  const model = resolveModel(context);
-  const llmNode = createRuntimeAgentNode(model, definition, tools);
-  const compiled = createCompiledSubAgentGraph(definition.name, definition.maxSteps, llmNode, tools);
-
-  cache.set(cacheKey, compiled);
-  return compiled;
-};

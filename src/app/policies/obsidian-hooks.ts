@@ -2,7 +2,7 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import { mkdir } from "node:fs/promises";
 
 import { isSkillScopedToolContext, type RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
-import { resolveTurnTools } from "../../core/execution/create-sub-agent.js";
+import { resolveTurnTools } from "../../core/execution/runtime-node.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { buildDirectoryTree } from "../../utils/file-system.js";
 import {

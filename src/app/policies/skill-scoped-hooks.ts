@@ -1,4 +1,4 @@
-import { resolveTurnTools } from "../../core/execution/create-sub-agent.js";
+import { resolveTurnTools } from "../../core/execution/runtime-node.js";
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { appendConfiguredSkillAttachments } from "../../runtime-agents/skill-attachments.js";
 

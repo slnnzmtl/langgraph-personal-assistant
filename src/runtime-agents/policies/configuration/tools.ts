@@ -10,11 +10,13 @@ import {
   validateRuntimeToolBundleIds,
 } from "../../tool-bundles.js";
 import {
-  RuntimeToolBundleIdSchema,
   SkillAttachmentRuleSchema,
   type RuntimeAgentDefinition,
-  type RuntimeToolBundleId,
 } from "../../../core/types/agent.js";
+import {
+  RuntimeToolBundleIdSchema,
+  type RuntimeToolBundleId,
+} from "../../tool-bundle-catalog.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
 import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 

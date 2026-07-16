@@ -1,11 +1,8 @@
 import type { AppConfig } from "../config.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
-import type {
-  RuntimeAgentDefinition,
-  RuntimeToolBundleId,
-  SkillAttachmentRule,
-} from "../core/types/agent.js";
-import { ROUTINE_SKILL_ATTACHMENTS } from "./skill-attachments.js";
+import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
+import type { RuntimeToolBundleId } from "./tool-bundle-catalog.js";
+import { FINANCE_SKILL_ATTACHMENTS, ROUTINE_SKILL_ATTACHMENTS } from "./skill-attachments.js";
 
 type AppModelConfigKey = "financeModel" | "obsidianModel" | "configurationModel";
 
@@ -32,7 +29,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     modelKey: "finance",
     promptSourceKey: "finance",
     toolBundleIds: ["finance-domain"],
-    skillAttachments: [],
+    skillAttachments: FINANCE_SKILL_ATTACHMENTS,
     maxSteps: 10,
     configModelKey: "financeModel",
     requiresSupabase: true,

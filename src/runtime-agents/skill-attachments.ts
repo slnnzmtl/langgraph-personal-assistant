@@ -173,6 +173,34 @@ export const appendConfiguredSkillAttachments = (
   return `${basePrompt}\n\n${attachmentPrompt}`;
 };
 
+export const FINANCE_SKILL_ATTACHMENTS: SkillAttachmentRule[] = [
+  {
+    owner: "finance",
+    skillName: "sync-expenses",
+    match: {
+      anyPhrases: [
+        "get yesterday transactions",
+        "get today transactions",
+        "show yesterday transactions",
+        "show today transactions",
+        "list yesterday transactions",
+        "list today transactions",
+        "yesterday transactions",
+        "today transactions",
+        "yesterday expenses",
+        "today expenses",
+        "summarize expenses",
+        "summarize spending",
+        "how much spent",
+        "total spending",
+        "view expenses",
+        "list expenses",
+        "show expenses",
+      ],
+    },
+  },
+];
+
 export const ROUTINE_SKILL_ATTACHMENTS: SkillAttachmentRule[] = [
   {
     owner: "obsidian",

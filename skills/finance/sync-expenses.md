@@ -1,54 +1,29 @@
 ---
 name: sync-expenses
-description: Sync Wise transactions into the expense ledger (fetch, categorize, dedup-insert, report).
+description: View, summarize, and sync Wise expenses in the expense ledger.
 ---
 
-# Skill: Sync Wise Expenses
+# Expenses
 
-Execute this skill sequentially when the user asks to sync, import, or fetch Wise transactions into the expense ledger.
+Pick **View**, **Sync**, or **Update** by intent. Infer dates from system headers — never ask when relative phrasing is enough. Postgres only. Confirm results only from tool history.
 
-<execution_guidelines>
-- Strict Step Sequence: Never jump ahead, merge, or skip steps.
-- Single Turn Execution: Each numbered major step (1, 2, 3, 4) represents exactly ONE model response. Do not execute step transitions until the preceding step's tool output is fully returned.
-</execution_guidelines>
+**Shared:** `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`). Category join: `LEFT JOIN public.category c ON e.category = c.id`. Writes/updates/deletes: PK only (`WHERE id = ...` / `WHERE id IN (...)`).
 
-### Step 1: Fetch categories and transactions in parallel
-- `get_categories()`
-- `fetch_wise_transactions(since, until)`
+## View
+`exec_sql` SELECT only — no `fetch_wise_transactions`, no writes. Summarize after results; if empty, say so and offer sync.
 
-<date_rules>
-- Calculate `since` and `until` using the system-injected datetime headers.
-- Never prompt the user for date inputs.
-</date_rules>
+## Sync
+1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)`
+2. `exec_sql` multi-row INSERT:
+   ```sql
+   INSERT INTO public.expense (name, amount, category, paid_date, paid)
+   VALUES (...), (...)
+   ON CONFLICT (name, amount, paid_date) DO NOTHING;
+   ```
+   - Round amounts up to integer
+   - `paid_date` = Wise `createdOn` (`YYYY-MM-DD`); `paid = true` for completed outward
+   - Grab: ≤1.50 → Taxi (35); >1.50 → Food (4); else nearest prefetched category
+3. Report insert count + range only after INSERT returns.
 
-### Step 2: Categorize & Insert
-Once tool responses from Step 1 are in the context history, compile and execute the SQL payload.
-
-<sql_rules>
-- Use multi-row insert syntax:
-  ```sql
-  INSERT INTO public.expense (name, amount, category, paid_date, paid) 
-  VALUES (...), (...), (...)
-  ON CONFLICT (name, amount, paid_date) DO NOTHING;
-  ```
-- Dedup constraint: You must append `ON CONFLICT (name, amount, paid_date) DO NOTHING` to prevent duplicate transaction entries.
-- Amount Math: Round all decimal amounts up to the next integer (e.g., 2.10 or 2.30 → 3).
-- Category Map: Map each transaction description to a category_id before building the insert.
-</sql_rules>
-
-<category_mapping_rules>
-- If the transaction name contains `Grab`:
-  - Amount ≤ 1.50 → Category `Taxi` (ID: 35)
-  - Amount > 1.50 → Category `Food` (ID: 4)
-- Match other merchants to the closest category from the prefetched `expense_categories` context.
-- Use `paid_date` from the Wise `createdOn` timestamp formatted as `YYYY-MM-DD`.
-- Set `paid` to `true` for completed outward transactions.
-</category_mapping_rules>
-
-- `exec_sql(sql)`
-
-### Step 3: Report
-After `exec_sql` returns, summarize how many transactions were inserted and which date range was synced. Never claim success before `exec_sql` has returned in the conversation history.
-
-### Step 4: Finish
-Return the user-facing summary only. Do not call additional tools unless the user requests a follow-up.
+## Update
+`get_categories()` if needed → narrow `SELECT` for IDs → scoped UPDATE by PK.

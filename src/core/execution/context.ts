@@ -1,21 +1,12 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { PromptResolver } from "../agents/prompt-resolver.js";
-import type { RuntimeAgentRepository } from "../agents/repository.js";
 import type { PolicyRegistry } from "../policies/registry.js";
-
-let nextExecutionContextId = 0;
+import type { PolicyContext } from "../types/policy-context.js";
 
 export type RuntimeAgentExecutionContext<
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
-> = {
-  instanceId: number;
-  models: Record<string, BaseChatModel>;
-  defaultModelKey: string;
-  repository: RuntimeAgentRepository;
-  cronJobRepository: import("../../cron/types.js").CronJobRepository;
-  runtimeCron?: import("../../cron/types.js").RuntimeCronService;
-  bundleDeps: TBundleDeps;
+> = PolicyContext<TBundleDeps> & {
   promptResolver: PromptResolver;
   policyRegistry: PolicyRegistry;
 };
@@ -25,16 +16,16 @@ export type CreateRuntimeAgentExecutionContextInput<
 > = {
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
-  repository: RuntimeAgentRepository;
-  cronJobRepository: import("../../cron/types.js").CronJobRepository;
-  runtimeCron?: import("../../cron/types.js").RuntimeCronService;
+  repository: PolicyContext<TBundleDeps>["repository"];
+  cronJobRepository: PolicyContext<TBundleDeps>["cronJobRepository"];
+  runtimeCron?: PolicyContext<TBundleDeps>["runtimeCron"];
   bundleDeps?: TBundleDeps;
   promptResolver: PromptResolver;
   policyRegistry: PolicyRegistry;
 };
 
 export const resolveModel = (
-  context: RuntimeAgentExecutionContext,
+  context: Pick<PolicyContext, "models" | "defaultModelKey">,
   key?: string,
 ): BaseChatModel => {
   const modelKey = key ?? context.defaultModelKey;
@@ -52,7 +43,6 @@ export const createRuntimeAgentExecutionContext = <
 >(
   input: CreateRuntimeAgentExecutionContextInput<TBundleDeps>,
 ): RuntimeAgentExecutionContext<TBundleDeps> => ({
-  instanceId: ++nextExecutionContextId,
   models: input.models,
   defaultModelKey: input.defaultModelKey ?? "generic",
   repository: input.repository,
