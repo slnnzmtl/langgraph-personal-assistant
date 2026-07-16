@@ -1,5 +1,3 @@
-import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import type { IFileSender } from "../../telegram/file-sender.js";
 import { AIMessage } from "@langchain/core/messages";
 import { resolveModel, type RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
@@ -9,24 +7,21 @@ import { FINANCE_MAX_STEPS, OBSIDIAN_MAX_STEPS, CONFIGURATION_MAX_STEPS } from "
 import { createFinanceSkillScopedTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianSkillScopedTools } from "../../runtime-agents/policies/obsidian/tools.js";
 import { createConfigurationSkillScopedTools } from "../../runtime-agents/policies/configuration/tools.js";
+import { getAppBundleDeps, type AppBundleDeps } from "../bundle-deps.js";
 import {
   createConfigurationLlmNode,
   createFinanceLlmNode,
   createObsidianLlmNode,
 } from "./factories.js";
 
-export type AppBundleDeps = {
-  obsidianVaultPath: string;
-  fileSender?: IFileSender;
-  supabaseSession?: SupabaseMcpSession;
-  cronTargetAgentIds?: readonly string[];
-};
+export type { AppBundleDeps };
 
 export const createFinancePolicy = (): RuntimeAgentPolicy => ({
   executor: "finance",
   createHandler: (context: RuntimeAgentExecutionContext, definition) => {
+    const bundleDeps = getAppBundleDeps(context);
     const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
-    const session = context.bundleDeps.supabaseSession as SupabaseMcpSession | undefined;
+    const session = bundleDeps.supabaseSession;
 
     return createSubAgentOrStub(
       (deps) => deps.session !== undefined,
@@ -50,18 +45,17 @@ export const createFinancePolicy = (): RuntimeAgentPolicy => ({
 export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
   executor: "obsidian",
   createHandler: (context, definition) => {
+    const bundleDeps = getAppBundleDeps(context);
     const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
     const maxSteps = resolvedDefinition.maxSteps ?? OBSIDIAN_MAX_STEPS;
-    const vaultRoot = context.bundleDeps.obsidianVaultPath as string;
-    const fileSender = context.bundleDeps.fileSender as IFileSender | undefined;
 
     return createSubAgent({
       name: "Obsidian",
       maxSteps,
       deps: {
         model: resolveModel(context, "obsidian"),
-        vaultRoot,
-        fileSender,
+        vaultRoot: bundleDeps.obsidianVaultPath,
+        fileSender: bundleDeps.fileSender,
         definition: resolvedDefinition,
       },
       createTools: (deps) => createObsidianSkillScopedTools(deps.vaultRoot, deps.fileSender),
@@ -92,11 +86,12 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
 export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
   executor: "configuration",
   createHandler: (context, definition) => {
+    const bundleDeps = getAppBundleDeps(context);
     const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
     const configurationTools = createConfigurationSkillScopedTools(
       context.cronJobRepository,
       context.repository,
-      context.bundleDeps as AppBundleDeps,
+      bundleDeps,
     );
 
     return createSubAgent({

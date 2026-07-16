@@ -1,4 +1,5 @@
 import { createPolicyRegistry } from "../core/policies/registry.js";
+import type { AppBundleDeps } from "./bundle-deps.js";
 import { createGenericPolicy } from "../core/policies/generic.js";
 import { createPromptResolver } from "../core/agents/prompt-resolver.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
@@ -24,8 +25,8 @@ export const createAppExecutionKit = (executors: Iterable<string> = Object.keys(
 
   const policyRegistry = createPolicyRegistry([
     createGenericPolicy({
-      resolveToolBundles: (bundleIds, bundleDeps) =>
-        resolveRuntimeToolBundles(bundleIds, bundleDeps as Parameters<typeof resolveRuntimeToolBundles>[1]),
+      resolveToolBundles: (bundleIds, bundleDeps: AppBundleDeps) =>
+        resolveRuntimeToolBundles(bundleIds, bundleDeps),
     }),
     ...domainPolicies,
   ]);

@@ -8,10 +8,12 @@ import type { SubAgentState } from "../execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentPolicy } from "../types/policy.js";
 
-export type GenericPolicyDeps = {
+export type GenericPolicyDeps<
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+> = {
   resolveToolBundles: (
     bundleIds: RuntimeAgentDefinition["toolBundleIds"],
-    bundleDeps: Record<string, unknown>,
+    bundleDeps: TBundleDeps,
   ) => import("@langchain/core/tools").StructuredToolInterface[];
 };
 
@@ -33,7 +35,11 @@ const getCompiledSubgraphCache = (
   return cache;
 };
 
-export const createGenericPolicy = (deps: GenericPolicyDeps): RuntimeAgentPolicy => ({
+export const createGenericPolicy = <
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+>(
+  deps: GenericPolicyDeps<TBundleDeps>,
+): RuntimeAgentPolicy => ({
   executor: "generic",
   createHandler: (context, definition) => {
     const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
@@ -65,10 +71,12 @@ export const createGenericPolicy = (deps: GenericPolicyDeps): RuntimeAgentPolicy
   },
 });
 
-const getCompiledGenericRuntimeSubgraph = (
+const getCompiledGenericRuntimeSubgraph = <
+  TBundleDeps extends Record<string, unknown>,
+>(
   context: RuntimeAgentExecutionContext,
   definition: RuntimeAgentDefinition,
-  deps: GenericPolicyDeps,
+  deps: GenericPolicyDeps<TBundleDeps>,
 ) => {
   const cacheKey = [
     context.instanceId,
@@ -84,7 +92,10 @@ const getCompiledGenericRuntimeSubgraph = (
     return cached;
   }
 
-  const tools = deps.resolveToolBundles(definition.toolBundleIds, context.bundleDeps);
+  const tools = deps.resolveToolBundles(
+    definition.toolBundleIds,
+    context.bundleDeps as TBundleDeps,
+  );
   const model = resolveModel(context);
   const llmNode = createRuntimeAgentNode(model, definition, tools);
   const compiled = createCompiledSubAgentGraph(definition.name, definition.maxSteps, llmNode, tools);

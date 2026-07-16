@@ -1,13 +1,14 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import { createFinanceDomainToolsFromSession } from "./policies/finance/domain-tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
-import type { IFileSender } from "../telegram/file-sender.js";
+import type { RuntimeToolBundleDeps } from "./bundle-deps.js";
 import {
   RUNTIME_TOOL_BUNDLE_IDS,
   type RuntimeToolBundleId,
 } from "../core/types/agent.js";
+
+export type { RuntimeToolBundleDeps } from "./bundle-deps.js";
 
 export type RuntimeToolBundleCatalogEntry = {
   id: RuntimeToolBundleId;
@@ -36,12 +37,6 @@ export const RUNTIME_TOOL_BUNDLE_CATALOG: RuntimeToolBundleCatalogEntry[] = [
     description: "Manage cron jobs, skills, and runtime sub-agents through skill-scoped configuration tools.",
   },
 ];
-
-export type RuntimeToolBundleDeps = {
-  obsidianVaultPath: string;
-  fileSender?: IFileSender;
-  supabaseSession?: SupabaseMcpSession;
-};
 
 const resolveBundleTools = (
   bundleId: RuntimeToolBundleId,

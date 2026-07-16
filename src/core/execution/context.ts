@@ -6,25 +6,29 @@ import type { PolicyRegistry } from "../policies/registry.js";
 
 let nextExecutionContextId = 0;
 
-export type RuntimeAgentExecutionContext = {
+export type RuntimeAgentExecutionContext<
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+> = {
   instanceId: number;
   models: Record<string, BaseChatModel>;
   defaultModelKey: string;
   repository: RuntimeAgentRepository;
   cronJobRepository: import("../../cron/types.js").CronJobRepository;
   runtimeCron?: import("../../cron/types.js").RuntimeCronService;
-  bundleDeps: Record<string, unknown>;
+  bundleDeps: TBundleDeps;
   promptResolver: PromptResolver;
   policyRegistry: PolicyRegistry;
 };
 
-export type CreateRuntimeAgentExecutionContextInput = {
+export type CreateRuntimeAgentExecutionContextInput<
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+> = {
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
   repository: RuntimeAgentRepository;
   cronJobRepository: import("../../cron/types.js").CronJobRepository;
   runtimeCron?: import("../../cron/types.js").RuntimeCronService;
-  bundleDeps?: Record<string, unknown>;
+  bundleDeps?: TBundleDeps;
   promptResolver: PromptResolver;
   policyRegistry: PolicyRegistry;
 };
@@ -43,16 +47,18 @@ export const resolveModel = (
   return model;
 };
 
-export const createRuntimeAgentExecutionContext = (
-  input: CreateRuntimeAgentExecutionContextInput,
-): RuntimeAgentExecutionContext => ({
+export const createRuntimeAgentExecutionContext = <
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+>(
+  input: CreateRuntimeAgentExecutionContextInput<TBundleDeps>,
+): RuntimeAgentExecutionContext<TBundleDeps> => ({
   instanceId: ++nextExecutionContextId,
   models: input.models,
   defaultModelKey: input.defaultModelKey ?? "generic",
   repository: input.repository,
   cronJobRepository: input.cronJobRepository,
   ...(input.runtimeCron ? { runtimeCron: input.runtimeCron } : {}),
-  bundleDeps: input.bundleDeps ?? {},
+  bundleDeps: (input.bundleDeps ?? {}) as TBundleDeps,
   promptResolver: input.promptResolver,
   policyRegistry: input.policyRegistry,
 });

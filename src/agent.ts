@@ -8,6 +8,7 @@ import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "./cron-triggers
 import { createAssistant } from "./core/create-assistant.js";
 import type { RuntimeAgentRepository } from "./core/agents/repository.js";
 import { createAppExecutionKit } from "./app/register-defaults.js";
+import { createAppBundleDeps } from "./app/bundle-deps.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 
 export type WorkflowGraphConfig = {
@@ -50,12 +51,11 @@ export const createWorkflowGraph = ({
     runtimeAgentRepository,
     cronJobRepository,
     ...(runtimeCron ? { runtimeCron } : {}),
-    bundleDeps: {
-      obsidianVaultPath,
+    bundleDeps: createAppBundleDeps(obsidianVaultPath, {
       cronTargetAgentIds,
       ...(fileSender ? { fileSender } : {}),
       ...(supabaseSession ? { supabaseSession } : {}),
-    },
+    }),
     promptResolver,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,

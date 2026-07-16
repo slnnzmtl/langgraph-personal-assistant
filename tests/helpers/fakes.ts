@@ -11,7 +11,9 @@ import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.j
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import { createRuntimeAgentExecutionContext } from "./runtime-execution-context.js";
+import type { AppBundleDeps } from "../../src/app/bundle-deps.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -123,7 +125,7 @@ export const createRuntimeAgentRepositoryFake = (
   };
 };
 
-export const defaultConfigurationBundleDeps = {
+export const defaultConfigurationBundleDeps: AppBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
   cronTargetAgentIds: defaultCronTargetAgentIds(),
 };
@@ -168,13 +170,16 @@ export const createRuntimeExecutionContextFake = (options?: {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();
 
-  return createRuntimeAgentExecutionContext({
+  return createAppRuntimeExecutionContext({
     defaultModel: model,
     repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
     cronJobRepository: options?.cronJobRepository ?? {
       loadJobs: async () => [],
       saveJobs: async () => {},
     },
-    obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
+    bundleDeps: {
+      obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
+      cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
+    },
   });
 };
