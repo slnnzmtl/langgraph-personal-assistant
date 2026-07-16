@@ -230,7 +230,6 @@ src/
   app.ts                    # Telegram + cron bootstrap
 
   runtime-agents/           # Domain tools and defaults
-    defaults.ts             # Built-in finance / obsidian / configuration agents
     bootstrap.ts            # Merge persisted agents with defaults
     tool-bundles.ts         # Tool bundle catalog
     policies/               # finance / obsidian / configuration tool implementations
@@ -250,6 +249,6 @@ tests/                      # Unit and e2e tests
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, register the factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`, and add a default agent in `defaults.ts`.
+- **New built-in domain agent:** add a spec to `BUILTIN_DOMAIN_SPECS` in `src/runtime-agents/builtin-domains.ts`, tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`.
 - **New custom runtime agent:** create via the configuration agent; the generic policy compiles a sub-graph from `toolBundleIds` in the repository.
 - **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `promptLoaders`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry` + `promptResolver`).

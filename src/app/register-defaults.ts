@@ -3,20 +3,24 @@ import type { AppBundleDeps } from "./bundle-deps.js";
 import { createGenericPolicy } from "../core/policies/generic.js";
 import { createPromptResolver } from "../core/agents/prompt-resolver.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
+import { BUILTIN_DOMAIN_EXECUTORS } from "../runtime-agents/builtin-domains.js";
 import { resolveRuntimeToolBundles } from "../runtime-agents/tool-bundles.js";
 import {
   createConfigurationPolicy,
   createFinancePolicy,
   createObsidianPolicy,
 } from "./policies/index.js";
+import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 
-const DOMAIN_POLICY_FACTORIES = {
+export const DOMAIN_POLICY_FACTORIES: Record<string, () => RuntimeAgentPolicy> = {
   finance: createFinancePolicy,
   obsidian: createObsidianPolicy,
   configuration: createConfigurationPolicy,
-} as const;
+};
 
-export const createAppExecutionKit = (executors: Iterable<string> = Object.keys(DOMAIN_POLICY_FACTORIES)) => {
+export const createAppExecutionKit = (
+  executors: Iterable<string> = BUILTIN_DOMAIN_EXECUTORS,
+) => {
   const promptResolver = createPromptResolver(loadSystemPromptByKey);
   const executorSet = new Set(executors);
   const domainPolicies = Object.entries(DOMAIN_POLICY_FACTORIES)

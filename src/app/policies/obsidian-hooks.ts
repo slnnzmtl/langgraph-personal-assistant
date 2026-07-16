@@ -16,7 +16,9 @@ import {
   resolveObsidianRetryPlan,
 } from "../../runtime-agents/policies/obsidian/turn-plan.js";
 
-const buildObsidianCompletionSummary = (messages: Parameters<typeof resolveObsidianRetryPlan>[0]): string => {
+export const buildObsidianCompletionSummary = (
+  messages: Parameters<typeof resolveObsidianRetryPlan>[0],
+): string => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!(message instanceof ToolMessage)) {

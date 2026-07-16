@@ -1,4 +1,3 @@
-import { AIMessage } from "@langchain/core/messages";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createWorkflowGraph, type WorkflowGraphConfig } from "../../src/agent.js";
 import {
@@ -26,11 +25,15 @@ export const createTestWorkflowGraph = ({
   ...config
 }: TestWorkflowGraphOptions) => {
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey);
-  const defaultHandler = () => new AIMessage("ok");
+  const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
+    ? supervisorLlm.getSharedRuntimeModel()
+    : supervisorLlm.getModel();
   const models = Object.fromEntries(
     [...modelKeys].map((modelKey) => [
       modelKey,
-      new FakeLLMConnector(modelHandlers[modelKey] ?? defaultHandler).getModel(),
+      modelHandlers[modelKey]
+        ? new FakeLLMConnector(modelHandlers[modelKey]!).getModel()
+        : sharedRuntimeModel,
     ]),
   );
 

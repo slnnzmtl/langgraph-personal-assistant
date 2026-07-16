@@ -12,7 +12,6 @@ import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js"
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { AppBundleDeps } from "../../src/app/bundle-deps.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
 
 export class FakeRunnable<TInput, TOutput> {
@@ -23,6 +22,22 @@ export class FakeRunnable<TInput, TOutput> {
   }
 }
 
+export const normalizeFakeRuntimeResponse = (result: unknown): AIMessage => {
+  if (result instanceof AIMessage) {
+    return result;
+  }
+
+  if (result && typeof result === "object" && "next" in result) {
+    return new AIMessage("");
+  }
+
+  if (typeof result === "string") {
+    return new AIMessage(result);
+  }
+
+  return new AIMessage("Completed.");
+};
+
 export class FakeLLMConnector implements ILLMConnector {
   constructor(private readonly handler: (input: any) => any) {}
 
@@ -31,6 +46,16 @@ export class FakeLLMConnector implements ILLMConnector {
       invoke: async (input: any) => this.handler(input),
       bindTools: () => ({
         invoke: async (input: any) => this.handler(input),
+      }),
+    } as unknown as BaseChatModel;
+  }
+
+  getSharedRuntimeModel(): BaseChatModel {
+    const handler = this.handler;
+    return {
+      invoke: async (input: unknown) => normalizeFakeRuntimeResponse(await handler(input)),
+      bindTools: () => ({
+        invoke: async (input: unknown) => normalizeFakeRuntimeResponse(await handler(input)),
       }),
     } as unknown as BaseChatModel;
   }

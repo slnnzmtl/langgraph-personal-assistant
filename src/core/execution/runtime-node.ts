@@ -190,9 +190,11 @@ export const createRuntimeAgentNode = (
 
       return { messages: [processed], stepCount };
     } catch (error) {
-      const message = hooks.buildErrorMessage
-        ? hooks.buildErrorMessage(error, definition)
-        : (error instanceof Error ? error.message : "Unknown error during runtime agent execution");
+      if (hooks.buildErrorMessage) {
+        return { messages: [new AIMessage(hooks.buildErrorMessage(error, definition))] };
+      }
+
+      const message = error instanceof Error ? error.message : "Unknown error during runtime agent execution";
       return { messages: [new AIMessage(`Unable to run runtime agent ${definition.name}: ${message}`)] };
     }
   };

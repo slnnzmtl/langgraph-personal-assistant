@@ -7,6 +7,7 @@ import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { appendConfiguredSkillAttachments } from "../../runtime-agents/skill-attachments.js";
+import { buildBuiltinDomainOwnerPattern } from "../../runtime-agents/builtin-domains.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
@@ -46,8 +47,10 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
+const BUILTIN_DOMAIN_OWNER_PATTERN = buildBuiltinDomainOwnerPattern();
+
 const mentionsSkillOwner = (text: string): boolean =>
-  /\b(finance|obsidian|configuration)\b/.test(text);
+  BUILTIN_DOMAIN_OWNER_PATTERN.test(text);
 
 export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
   const normalized = text.toLowerCase().replaceAll(/\s+/g, " ").trim();

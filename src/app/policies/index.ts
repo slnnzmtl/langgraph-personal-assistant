@@ -1,5 +1,6 @@
 import { AIMessage } from "@langchain/core/messages";
 import { resolveModel, type RuntimeAgentExecutionContext } from "../../core/execution/context.js";
+import { extractMessageTextContent } from "../../utils/message-content.js";
 import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
 import type { AgentStateUpdate } from "../../core/state.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
@@ -13,6 +14,7 @@ import {
   createFinanceLlmNode,
   createObsidianLlmNode,
 } from "./factories.js";
+import { buildObsidianCompletionSummary } from "./obsidian-hooks.js";
 
 export type { AppBundleDeps };
 
@@ -75,8 +77,16 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
         }
 
         const lastMessage = result.messages[result.messages.length - 1];
+        if (
+          lastMessage instanceof AIMessage
+          && !(lastMessage.tool_calls?.length)
+          && extractMessageTextContent(lastMessage.content).trim().length > 0
+        ) {
+          return { messages: [lastMessage] };
+        }
+
         return {
-          messages: [lastMessage as AIMessage],
+          messages: [new AIMessage(buildObsidianCompletionSummary(result.messages))],
         };
       },
     });

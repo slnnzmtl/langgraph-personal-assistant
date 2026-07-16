@@ -15,8 +15,9 @@ import {
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
 import { appendSkillToolsPreview, skillToolBundlesFromRecord } from "./skill-scoped-registry.js";
 import { truncateToolOutput } from "./output.js";
+import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 
-export const SKILL_OWNERS = ["finance", "obsidian", "configuration"] as const;
+export const SKILL_OWNERS = BUILTIN_DOMAIN_IDS;
 export type SkillOwner = (typeof SKILL_OWNERS)[number];
 
 const SkillOwnerSchema = z.enum(SKILL_OWNERS);

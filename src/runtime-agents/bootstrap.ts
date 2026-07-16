@@ -1,5 +1,5 @@
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
-import { buildDefaultRuntimeAgents } from "./defaults.js";
+import { applyBuiltinDomainAvailability, buildDefaultRuntimeAgents } from "./builtin-domains.js";
 import { isRuntimeAgentBuiltin } from "../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
@@ -46,16 +46,9 @@ export const ensureBuiltinRuntimeAgents = async (
   repository: RuntimeAgentRepository,
   options?: RuntimeAgentBootstrapOptions,
 ): Promise<RuntimeAgentDefinition[]> => {
-  const defaultAgents = buildDefaultRuntimeAgents().map((agent) => {
-    if (agent.id === "finance") {
-      return {
-        ...agent,
-        enabled: options?.financeAvailable ?? agent.enabled,
-      };
-    }
-
-    return agent;
-  });
+  const defaultAgents = buildDefaultRuntimeAgents().map((agent) =>
+    applyBuiltinDomainAvailability(agent, options),
+  );
 
   const persistedAgents = await repository.loadAgents();
   const mergedAgents = mergeRuntimeAgents(defaultAgents, persistedAgents);

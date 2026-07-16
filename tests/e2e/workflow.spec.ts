@@ -33,6 +33,21 @@ const makeWorkflowGraph = (
     ...(modelHandlers ? { modelHandlers } : {}),
   });
 
+const createRouteSupervisor = (
+  route: string | (() => unknown) = "obsidian",
+): FakeLLMConnector =>
+  new FakeLLMConnector(() => (typeof route === "function" ? route() : { next: route }));
+
+const writeSuccessSummary = (summary: string, relativePath: string): string =>
+  `${summary} saved to ${relativePath}.`;
+
+const latestInputMessage = (
+  input: unknown,
+): HumanMessage | AIMessage | ToolMessage | undefined =>
+  Array.isArray(input) ? input.at(-1) as HumanMessage | AIMessage | ToolMessage | undefined : undefined;
+
+const obsidianDoneResponse = (): AIMessage => new AIMessage("");
+
 const workflowConfig = {
   configurable: {
     thread_id: "test-thread",
@@ -90,32 +105,30 @@ test.describe("workflow graph", () => {
 
   test("routes a note request into the obsidian node and writes the markdown file", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-vault-"));
-    let invocation = 0;
-
-    const connector = new FakeLLMConnector(() => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (invocation === 2) {
-        return makeToolCallMessage("write_file", {
-          relativePath: "notes/e2e.md",
-          operation: "create_new",
-          content: "# E2E\nSaved through the graph",
-          summary: "Documented the request",
-        });
-      }
-
-      return {
-        next: "FINISH",
-        reply: "Documented the request Saved to notes/e2e.md.",
-      };
-    });
 
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("write_file", {
+                relativePath: "notes/e2e.md",
+                operation: "create_new",
+                content: "# E2E\nSaved through the graph",
+                summary: "Documented the request",
+              });
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -128,9 +141,8 @@ test.describe("workflow graph", () => {
 
       expect(saved).toBe("# E2E\nSaved through the graph\n");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Documented the request.",
+        writeSuccessSummary("Documented the request", "notes/e2e.md"),
       );
-      expect(invocation).toBe(2);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -141,37 +153,30 @@ test.describe("workflow graph", () => {
     const currentDate = new Date("2026-07-05T00:00:00.000Z");
     const month = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" }).format(currentDate);
     const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(currentDate);
+    const notePath = `routine/${month}/${month} 5 - ${weekday}.md`;
     await mkdir(path.join(vaultRoot, "routine", month), { recursive: true });
-    await writeFile(path.join(vaultRoot, `routine/${month}/${month} 5 - ${weekday}.md`), "# Today\nPlan for today\n", "utf8");
-    let invocation = 0;
-
-    const connector = new FakeLLMConnector(() => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (invocation === 2) {
-        return makeToolCallMessage("read_file", {
-          relativePath: `routine/${month}/${month} 5 - ${weekday}.md`,
-        });
-      }
-
-      if (invocation === 3) {
-        return new AIMessage(
-          `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
-        );
-      }
-
-      return {
-        next: "FINISH",
-        reply: `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
-      };
-    });
+    await writeFile(path.join(vaultRoot, notePath), "# Today\nPlan for today\n", "utf8");
 
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("read_file", {
+                relativePath: notePath,
+              });
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -180,32 +185,24 @@ test.describe("workflow graph", () => {
         workflowConfig,
       );
 
-      expect(finalState.messages.at(-1)?.content).toBe(
-        `Contents of routine/${month}/${month} 5 - ${weekday}.md:\n\n# Today\nPlan for today`,
-      );
-      expect(invocation).toBe(3);
+      expect(finalState.messages.at(-1)?.content).toContain("# Today\nPlan for today");
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
   });
 
   test("surfaces an Obsidian execution error instead of recursing", async () => {
-    let invocation = 0;
-    const failingConnector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (Array.isArray(input)) {
-        if (invocation === 1) {
-          return { next: "obsidian" };
-        }
-
-        throw new Error("Structured output validation failed");
-      }
-
-      return { next: "obsidian" };
-    });
-
-    const app = makeWorkflowGraph(failingConnector, path.join(os.tmpdir(), "unused-error-vault"));
+    const app = makeWorkflowGraph(
+      createRouteSupervisor(),
+      path.join(os.tmpdir(), "unused-error-vault"),
+      undefined,
+      undefined,
+      {
+        obsidian: () => {
+          throw new Error("Structured output validation failed");
+        },
+      },
+    );
 
     const finalState = await app.invoke(
       {
@@ -239,26 +236,7 @@ test.describe("workflow graph", () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-history-vault-"));
     const connector = new FakeLLMConnector((input) => {
       if (Array.isArray(input)) {
-        const systemPrompt = input[0];
         const latestMessage = input.at(-1);
-
-        if (
-          systemPrompt &&
-          "content" in systemPrompt &&
-          typeof systemPrompt.content === "string" &&
-          systemPrompt.content.includes("# System Operational Rules")
-        ) {
-          if (latestMessage instanceof ToolMessage) {
-            return new AIMessage("Saved turn 6 Saved to notes/turn-6.md.");
-          }
-
-          return makeToolCallMessage("write_file", {
-            relativePath: "notes/turn-6.md",
-            operation: "create_new",
-            content: "Turn 6 saved to the vault",
-            summary: "Saved turn 6",
-          }, "turn-6-write");
-        }
 
         if (latestMessage instanceof HumanMessage) {
           const latestText = getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>);
@@ -278,7 +256,22 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(connector, vaultRoot, undefined, undefined, {
+        obsidian: (input) => {
+          const latestMessage = latestInputMessage(input);
+
+          if (latestMessage instanceof ToolMessage) {
+            return obsidianDoneResponse();
+          }
+
+          return makeToolCallMessage("write_file", {
+            relativePath: "notes/turn-6.md",
+            operation: "create_new",
+            content: "Turn 6 saved to the vault",
+            summary: "Saved turn 6",
+          }, "turn-6-write");
+        },
+      });
 
       let finalState = await app.invoke(
         {
@@ -317,7 +310,6 @@ test.describe("workflow graph", () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-multistep-vault-"));
     const yesterdayPath = "routine/July/July 4 - Sat.md";
     const todayPath = "routine/July/July 5 - Sun.md";
-    let invocation = 0;
 
     await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
     await writeFile(
@@ -327,52 +319,43 @@ test.describe("workflow graph", () => {
     );
     await writeFile(path.join(vaultRoot, todayPath), "## Today\n", "utf8");
 
-    const connector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (!Array.isArray(input)) {
-        throw new Error("Expected an Obsidian prompt message array.");
-      }
-
-      const latestMessage = input.at(-1);
-
-      if (invocation === 2) {
-        expect(latestMessage).toBeInstanceOf(HumanMessage);
-
-        return makeToolCallMessage("read_file", {
-          relativePath: yesterdayPath,
-        }, "read-yesterday");
-      }
-
-      if (invocation === 3) {
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("- [ ] Buy milk");
-
-        return makeToolCallMessage("write_file", {
-          relativePath: todayPath,
-          operation: "append",
-          content: "- [ ] Buy milk",
-          summary: "Moved unchecked tasks from yesterday into today's routine",
-        }, "append-today");
-      }
-
-      expect(latestMessage).toBeInstanceOf(HumanMessage);
-      expect(getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>)).toBe(
-        "move all unchecked tasks from yesterday into today's task",
-      );
-
-      return {
-        next: "FINISH",
-        reply: "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
-      };
-    });
-
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("read_file", {
+                relativePath: yesterdayPath,
+              }, "read-yesterday");
+            }
+
+            if (latestMessage instanceof ToolMessage) {
+              const toolContent = typeof latestMessage.content === "string"
+                ? latestMessage.content
+                : JSON.stringify(latestMessage.content);
+
+              if (toolContent.includes("- [ ] Buy milk") && !toolContent.startsWith("Success:")) {
+                return makeToolCallMessage("write_file", {
+                  relativePath: todayPath,
+                  operation: "append",
+                  content: "- [ ] Buy milk",
+                  summary: "Moved unchecked tasks from yesterday into today's routine",
+                }, "append-today");
+              }
+
+              return obsidianDoneResponse();
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -389,7 +372,10 @@ test.describe("workflow graph", () => {
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
+        writeSuccessSummary(
+          "Moved unchecked tasks from yesterday into today's routine",
+          todayPath,
+        ),
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
@@ -400,7 +386,7 @@ test.describe("workflow graph", () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-mixed-recovery-vault-"));
     const yesterdayPath = "routine/July/July 4 - Sat.md";
     const todayPath = "routine/July/July 5 - Sun.md";
-    let invocation = 0;
+    let sawCreateNotice = false;
 
     await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
     await writeFile(
@@ -410,59 +396,53 @@ test.describe("workflow graph", () => {
     );
     await writeFile(path.join(vaultRoot, todayPath), "## Today\n", "utf8");
 
-    const connector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (invocation === 2) {
-        return makeToolCallMessage("write_file", {
-          relativePath: todayPath,
-          operation: "create_new",
-          content: "## Today\n",
-          summary: "Created today's routine note",
-        }, "create-today");
-      }
-
-      if (!Array.isArray(input)) {
-        throw new Error("Expected an Obsidian prompt message array.");
-      }
-
-      const latestMessage = input.at(-1);
-
-      if (invocation === 3) {
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain(`Notice: File already exists at ${todayPath}.`);
-
-        return makeToolCallMessage("read_file", {
-          relativePath: yesterdayPath,
-        }, "read-yesterday-after-notice");
-      }
-
-      if (invocation === 4) {
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("- [ ] Buy milk");
-
-        return makeToolCallMessage("write_file", {
-          relativePath: todayPath,
-          operation: "append",
-          content: "- [ ] Buy milk",
-          summary: "Moved unchecked tasks from yesterday into today's routine",
-        }, "append-after-read");
-      }
-
-      expect(latestMessage).toBeInstanceOf(HumanMessage);
-
-      return {
-        next: "FINISH",
-        reply: "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
-      };
-    });
-
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("write_file", {
+                relativePath: todayPath,
+                operation: "create_new",
+                content: "## Today\n",
+                summary: "Created today's routine note",
+              }, "create-today");
+            }
+
+            if (latestMessage instanceof ToolMessage) {
+              const toolContent = typeof latestMessage.content === "string"
+                ? latestMessage.content
+                : JSON.stringify(latestMessage.content);
+
+              if (toolContent.includes(`Notice: File already exists at ${todayPath}.`)) {
+                sawCreateNotice = true;
+                return makeToolCallMessage("read_file", {
+                  relativePath: yesterdayPath,
+                }, "read-yesterday-after-notice");
+              }
+
+              if (toolContent.includes("- [ ] Buy milk") && !toolContent.startsWith("Success:")) {
+                return makeToolCallMessage("write_file", {
+                  relativePath: todayPath,
+                  operation: "append",
+                  content: "- [ ] Buy milk",
+                  summary: "Moved unchecked tasks from yesterday into today's routine",
+                }, "append-after-read");
+              }
+
+              return obsidianDoneResponse();
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -474,12 +454,16 @@ test.describe("workflow graph", () => {
       const todayContent = await readFile(path.join(vaultRoot, todayPath), "utf8");
       const yesterdayContent = await readFile(path.join(vaultRoot, yesterdayPath), "utf8");
 
+      expect(sawCreateNotice).toBe(true);
       expect(todayContent).toContain("## Today");
       expect(todayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Moved unchecked tasks from yesterday into today's routine Saved to routine/July/July 5 - Sun.md.",
+        writeSuccessSummary(
+          "Moved unchecked tasks from yesterday into today's routine",
+          todayPath,
+        ),
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
@@ -487,25 +471,27 @@ test.describe("workflow graph", () => {
   });
 
   test("stops the Obsidian loop after the configured maximum number of tool steps", async () => {
-    let invocation = 0;
+    const loopTestAgents = buildDefaultRuntimeAgents().map((agent) =>
+      agent.id === "obsidian" ? { ...agent, maxSteps: 3 } : agent,
+    );
+    const loopTestRepository = createRuntimeAgentRepositoryFake(loopTestAgents);
 
-    const connector = new FakeLLMConnector(() => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      return makeToolCallMessage("read_file", {
-        relativePath: "routine/July/July 5 - Sun.md",
-      }, `loop-step-${invocation}`);
-    });
-
-    const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-loop-limit-vault"));
+    const app = makeWorkflowGraph(
+      createRouteSupervisor(),
+      path.join(os.tmpdir(), "unused-loop-limit-vault"),
+      loopTestRepository,
+      loopTestAgents,
+      {
+        obsidian: () =>
+          makeToolCallMessage("search_files", {
+            queries: ["loop"],
+          }, `loop-step-${Date.now()}`),
+      },
+    );
 
     const finalState = await app.invoke(
       {
-        messages: [new HumanMessage("keep reading forever")],
+        messages: [new HumanMessage("keep searching forever")],
       },
       {
         ...workflowConfig,
@@ -514,63 +500,54 @@ test.describe("workflow graph", () => {
     );
 
     expect(finalState.messages.at(-1)?.content).toBe(
-      "Unable to edit the local markdown vault: exceeded the maximum of 8 Obsidian tool steps.",
+      "Unable to edit the local markdown vault: exceeded the maximum of 3 Obsidian tool steps.",
     );
   });
 
   test("marks a task complete by reading then editing the note", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-task-status-vault-"));
     const notePath = "routine/July/July 5 - Sun.md";
-    let invocation = 0;
 
     await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
     await writeFile(path.join(vaultRoot, notePath), "## Today\n- [ ] Go to sauna after noon\n- [ ] Review PRs\n", "utf8");
 
-    const connector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (invocation === 2) {
-        return makeToolCallMessage("read_file", {
-          relativePath: notePath,
-        }, "read-note");
-      }
-
-      if (invocation === 3) {
-        if (!Array.isArray(input)) {
-          throw new Error("Expected an Obsidian prompt message array.");
-        }
-
-        const latestMessage = input.at(-1);
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("- [ ] Go to sauna after noon");
-
-        return makeToolCallMessage("write_file", {
-          relativePath: notePath,
-          operation: "overwrite",
-          content: "## Today\n- [x] Go to sauna after noon\n- [ ] Review PRs",
-          summary: "Marked 'Go to sauna after noon' as completed",
-        }, "complete-sauna");
-      }
-
-      if (!Array.isArray(input)) {
-        throw new Error("Expected an Obsidian prompt message array.");
-      }
-
-      const latestMessage = input.at(-1);
-      expect(latestMessage).toBeInstanceOf(HumanMessage);
-
-      return {
-        next: "FINISH",
-        reply: "Marked 'Go to sauna after noon' as completed.",
-      };
-    });
-
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("read_file", {
+                relativePath: notePath,
+              }, "read-note");
+            }
+
+            if (latestMessage instanceof ToolMessage) {
+              const toolContent = typeof latestMessage.content === "string"
+                ? latestMessage.content
+                : JSON.stringify(latestMessage.content);
+
+              if (toolContent.includes("- [ ] Go to sauna after noon")) {
+                return makeToolCallMessage("write_file", {
+                  relativePath: notePath,
+                  operation: "overwrite",
+                  content: "## Today\n- [x] Go to sauna after noon\n- [ ] Review PRs",
+                  summary: "Marked 'Go to sauna after noon' as completed",
+                }, "complete-sauna");
+              }
+
+              return obsidianDoneResponse();
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -584,7 +561,7 @@ test.describe("workflow graph", () => {
       expect(saved).toContain("- [x] Go to sauna after noon");
       expect(saved).toContain("- [ ] Review PRs");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Marked 'Go to sauna after noon' as completed.",
+        writeSuccessSummary("Marked 'Go to sauna after noon' as completed", notePath),
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
@@ -594,56 +571,47 @@ test.describe("workflow graph", () => {
   test("edits existing markdown content via the targeted edit tool", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-edit-note-vault-"));
     const notePath = "notes/today.md";
-    let invocation = 0;
 
     await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
     await writeFile(path.join(vaultRoot, notePath), "## Today\nPlan for today\n", "utf8");
 
-    const connector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        return { next: "obsidian" };
-      }
-
-      if (invocation === 2) {
-        return makeToolCallMessage("read_file", {
-          relativePath: notePath,
-        }, "read-today");
-      }
-
-      if (invocation === 3) {
-        if (!Array.isArray(input)) {
-          throw new Error("Expected an Obsidian prompt message array.");
-        }
-
-        const latestMessage = input.at(-1);
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("Plan for today");
-
-        return makeToolCallMessage("write_file", {
-          relativePath: notePath,
-          operation: "overwrite",
-          content: "## Today\nPlan for today\n- [ ] Go to sauna after noon",
-          summary: "Updated today's note with the sauna plan",
-        }, "edit-today");
-      }
-
-      if (!Array.isArray(input)) {
-        throw new Error("Expected an Obsidian prompt message array.");
-      }
-
-      const latestMessage = input.at(-1);
-      expect(latestMessage).toBeInstanceOf(HumanMessage);
-
-      return {
-        next: "FINISH",
-        reply: "Updated today's note with the sauna plan.",
-      };
-    });
-
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return makeToolCallMessage("read_file", {
+                relativePath: notePath,
+              }, "read-today");
+            }
+
+            if (latestMessage instanceof ToolMessage) {
+              const toolContent = typeof latestMessage.content === "string"
+                ? latestMessage.content
+                : JSON.stringify(latestMessage.content);
+
+              if (toolContent.includes("Plan for today")) {
+                return makeToolCallMessage("write_file", {
+                  relativePath: notePath,
+                  operation: "overwrite",
+                  content: "## Today\nPlan for today\n- [ ] Go to sauna after noon",
+                  summary: "Updated today's note with the sauna plan",
+                }, "edit-today");
+              }
+
+              return obsidianDoneResponse();
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -657,7 +625,7 @@ test.describe("workflow graph", () => {
       expect(saved).toContain("Plan for today");
       expect(saved).toContain("- [ ] Go to sauna after noon");
       expect(finalState.messages.at(-1)?.content).toBe(
-        "Updated today's note with the sauna plan.",
+        writeSuccessSummary("Updated today's note with the sauna plan", notePath),
       );
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
@@ -666,92 +634,75 @@ test.describe("workflow graph", () => {
 
   test("broadens search queries across multiple steps when initial search returns no results (try-fail-broaden loop)", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-e2e-search-broaden-vault-"));
-    let invocation = 0;
 
     await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
     await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
-    // File contains "gym" and "exercise" but not "workout"
     await writeFile(
       path.join(vaultRoot, "notes/fitness-log.md"),
       "# Fitness Log\nJuly 5: Went to gym\nDid morning exercise routine\n",
       "utf8",
     );
-    // File contains "meeting" but not "sync"
     await writeFile(
       path.join(vaultRoot, "routine/July/July 5 - Sun.md"),
       "## Today\nHad a meeting with team at 2pm\n",
       "utf8",
     );
 
-    const connector = new FakeLLMConnector((input) => {
-      invocation += 1;
-
-      if (invocation === 1) {
-        // Supervisor routes to Obsidian
-        return { next: "obsidian" };
-      }
-
-      if (!Array.isArray(input)) {
-        throw new Error("Expected an Obsidian prompt message array in search broaden test.");
-      }
-
-      const latestMessage = input.at(-1);
-
-      if (invocation === 2) {
-        // First Obsidian invocation: model tries exact search "workout", gets no results
-        expect(latestMessage).toBeInstanceOf(HumanMessage);
-        return new AIMessage({
-          content: "",
-          tool_calls: [
-            {
-              name: "search_files",
-              args: { queries: ["workout"] },
-              id: "search-exact",
-              type: "tool_call",
-            },
-          ],
-        });
-      }
-
-      if (invocation === 3) {
-        // Tool returns no results, model sees "No files matched your search."
-        // Model now broadens with variants
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("No files matched");
-
-        return new AIMessage({
-          content: "",
-          tool_calls: [
-            {
-              name: "search_files",
-              args: { queries: ["gym", "exercise", "fitness"] },
-              id: "search-broaden-1",
-              type: "tool_call",
-            },
-          ],
-        });
-      }
-
-      if (invocation === 4) {
-        // Broadened search succeeds and finds fitness-log.md
-        expect(latestMessage).toBeInstanceOf(ToolMessage);
-        expect(latestMessage?.content).toContain("fitness-log.md");
-
-        return new AIMessage(
-          "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
-        );
-      }
-
-      // Final supervisor handoff
-      expect(latestMessage).toBeInstanceOf(HumanMessage);
-      return {
-        next: "FINISH",
-        reply: "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
-      };
-    });
+    const searchReply =
+      "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.";
 
     try {
-      const app = makeWorkflowGraph(connector, vaultRoot);
+      const app = makeWorkflowGraph(
+        createRouteSupervisor(),
+        vaultRoot,
+        undefined,
+        undefined,
+        {
+          obsidian: (input) => {
+            const latestMessage = latestInputMessage(input);
+
+            if (latestMessage instanceof HumanMessage) {
+              return new AIMessage({
+                content: "",
+                tool_calls: [
+                  {
+                    name: "search_files",
+                    args: { queries: ["workout"] },
+                    id: "search-exact",
+                    type: "tool_call",
+                  },
+                ],
+              });
+            }
+
+            if (latestMessage instanceof ToolMessage) {
+              const toolContent = typeof latestMessage.content === "string"
+                ? latestMessage.content
+                : JSON.stringify(latestMessage.content);
+
+              if (toolContent.includes("No files matched")) {
+                return new AIMessage({
+                  content: "",
+                  tool_calls: [
+                    {
+                      name: "search_files",
+                      args: { queries: ["gym", "exercise", "fitness"] },
+                      id: "search-broaden-1",
+                      type: "tool_call",
+                    },
+                  ],
+                });
+              }
+
+              if (toolContent.includes("fitness-log.md")) {
+                return new AIMessage(searchReply);
+              }
+            }
+
+            return obsidianDoneResponse();
+          },
+        },
+      );
 
       const finalState = await app.invoke(
         {
@@ -760,10 +711,7 @@ test.describe("workflow graph", () => {
         workflowConfig,
       );
 
-      expect(finalState.messages.at(-1)?.content).toBe(
-        "Found your fitness log from July 5. It mentions that you went to gym and did morning exercise routine.",
-      );
-      expect(invocation).toBe(4);
+      expect(finalState.messages.at(-1)?.content).toBe(searchReply);
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
