@@ -1,7 +1,7 @@
 import type { BaseMessage } from "@langchain/core/messages";
 import { Annotation } from "@langchain/langgraph";
 
-import { reduceAgentMessages } from "../../state.js";
+import { reduceAgentMessages } from "../state.js";
 
 export const SubAgentStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({

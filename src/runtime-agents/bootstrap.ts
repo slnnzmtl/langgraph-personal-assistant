@@ -1,10 +1,8 @@
-import type { RuntimeAgentRepository } from "./repository.js";
+import type { RuntimeAgentRepository } from "../core/agents/repository.js";
+import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
 import { buildDefaultRuntimeAgents } from "./defaults.js";
-import { resolveBuiltinPromptSource } from "./prompt-resolver.js";
-import {
-  isBuiltinRuntimeAgentId,
-  type RuntimeAgentDefinition,
-} from "./types.js";
+import { isBuiltinRuntimeAgentId } from "../app/config.js";
+import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
 export type RuntimeAgentBootstrapOptions = {
   financeAvailable?: boolean;
@@ -30,8 +28,8 @@ export const mergeRuntimeAgents = (
         maxSteps: agent.maxSteps,
         enabled: agent.enabled,
         updatedAt: agent.updatedAt,
-        systemPrompt: resolveBuiltinPromptSource(agent.id),
-        promptSourceKey: agent.id,
+        systemPrompt: loadSystemPromptByKey(defaultAgent.promptSourceKey ?? defaultAgent.id),
+        promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
         executor: defaultAgent.executor,
         toolBundleIds: defaultAgent.toolBundleIds,
       });

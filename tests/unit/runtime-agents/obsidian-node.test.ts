@@ -14,10 +14,8 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import {
-  createObsidianNode,
-} from "../../../src/runtime-agents/policies/obsidian/node.js";
-import { extractMessageTextContent } from "../../../src/nodes/message-history.js";
+import { createObsidianNode } from "../../helpers/policy-nodes.js";
+import { extractMessageTextContent } from "../../../src/utils/message-content.js";
 import {
   createPromptLoader,
   loadObsidianSystemPrompt,
@@ -188,7 +186,7 @@ describe("createObsidianNode", () => {
     };
 
     expect(() => createObsidianNode(connector, vaultRoot, obsidianDefinition)).toThrow(
-      "Obsidian tool-bound model must support tool calling.",
+      "Runtime agent LLM model must support tool calling.",
     );
   });
 

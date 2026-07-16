@@ -7,7 +7,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import { createWorkflowGraph } from "../../src/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import { MESSAGE_HISTORY_LIMIT } from "../../src/state.js";
+import { MESSAGE_HISTORY_LIMIT } from "../../src/core/state.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";

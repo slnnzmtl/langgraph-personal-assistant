@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatConfigurationSkillCatalog,
   isConfigurationSkillCatalogRequest,
-} from "../../../src/runtime-agents/policies/configuration/node.js";
+} from "../../../src/app/policies/configuration-hooks.js";
 
 describe("isConfigurationSkillCatalogRequest", () => {
   it("matches requests for this agent's skill catalog", () => {

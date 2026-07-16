@@ -155,14 +155,21 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
 const loadDatedPrompt = (key: string, fileType: "md" | "xml" = "md"): string =>
   injectCurrentDatetime(loadPrompt(key, fileType));
 
+export const loadSystemPromptByKey = (key: string): string => {
+  const prompt = loadDatedPrompt(key, "xml");
+  if (key === "obsidian") {
+    return injectObsidianRoutineHint(prompt);
+  }
+  return prompt;
+};
+
 export const loadSupervisorSystemPrompt = (): string => loadDatedPrompt("supervisor", "xml");
 
-export const loadObsidianSystemPrompt = (): string =>
-  injectObsidianRoutineHint(loadDatedPrompt("obsidian", "xml"));
+export const loadObsidianSystemPrompt = (): string => loadSystemPromptByKey("obsidian");
 
-export const loadFinanceSystemPrompt = (): string => loadDatedPrompt("finance", "xml");
+export const loadFinanceSystemPrompt = (): string => loadSystemPromptByKey("finance");
 
-export const loadConfigurationSystemPrompt = (): string => loadDatedPrompt("configuration", "xml");
+export const loadConfigurationSystemPrompt = (): string => loadSystemPromptByKey("configuration");
 
 export const createPromptLoader = (
   key: string,

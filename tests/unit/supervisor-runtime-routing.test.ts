@@ -1,10 +1,9 @@
 import { AIMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
+import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/runtime-agents/types.js";
-import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
 
 describe("supervisor runtime routing", () => {
   it("maps a runtime agent id to Runtime_SG and stores the selection in context", async () => {
@@ -24,7 +23,7 @@ describe("supervisor runtime routing", () => {
       },
     ]);
 
-    const supervisorNode = createSupervisorNode(
+    const supervisorNode = createAppSupervisorNode(
       new FakeLLMConnector(() => ({ next: "daily-summary" })),
       { runtimeAgentRepository: repository },
     );
@@ -37,7 +36,7 @@ describe("supervisor runtime routing", () => {
 
   it("rejects unknown runtime agent ids with a FINISH fallback reply", async () => {
     const repository = createRuntimeAgentRepositoryFake();
-    const supervisorNode = createSupervisorNode(
+    const supervisorNode = createAppSupervisorNode(
       new FakeLLMConnector((input) => {
         if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
           return new AIMessage("That runtime agent is unavailable.");

@@ -2,22 +2,7 @@ import { z } from "zod";
 
 export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
-export const BUILTIN_RUNTIME_AGENT_IDS = ["finance", "obsidian", "configuration"] as const;
-
-export type BuiltinRuntimeAgentId = (typeof BUILTIN_RUNTIME_AGENT_IDS)[number];
-
-export const BUILTIN_PROMPT_SOURCE_KEYS = BUILTIN_RUNTIME_AGENT_IDS;
-
-export type BuiltinPromptSourceKey = BuiltinRuntimeAgentId;
-
-export const RUNTIME_AGENT_EXECUTORS = [
-  "generic",
-  "finance",
-  "obsidian",
-  "configuration",
-] as const;
-
-export type RuntimeAgentExecutor = (typeof RUNTIME_AGENT_EXECUTORS)[number];
+export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
 export const RUNTIME_TOOL_BUNDLE_IDS = [
   "none",
@@ -29,19 +14,6 @@ export const RUNTIME_TOOL_BUNDLE_IDS = [
 export type RuntimeToolBundleId = (typeof RUNTIME_TOOL_BUNDLE_IDS)[number];
 
 const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
-const RuntimeAgentExecutorSchema = z.enum(RUNTIME_AGENT_EXECUTORS);
-
-export const LEGACY_ROUTE_TO_AGENT_ID: Record<string, BuiltinRuntimeAgentId> = {
-  Finance_SG: "finance",
-  Obsidian_SG: "obsidian",
-  Config_SG: "configuration",
-};
-
-const BuiltinPromptSourceKeySchema = z.enum(BUILTIN_PROMPT_SOURCE_KEYS);
-
-export type SkillAttachmentOwner = (typeof RUNTIME_AGENT_EXECUTORS)[number];
-
-const SkillAttachmentOwnerSchema = z.enum(RUNTIME_AGENT_EXECUTORS);
 
 export const SkillAttachmentMatchSchema = z.object({
   anyPhrases: z.array(z.string().min(1)).optional(),
@@ -51,7 +23,7 @@ export const SkillAttachmentMatchSchema = z.object({
 export type SkillAttachmentMatch = z.infer<typeof SkillAttachmentMatchSchema>;
 
 export const SkillAttachmentRuleSchema = z.object({
-  owner: SkillAttachmentOwnerSchema,
+  owner: z.string().min(1),
   skillName: z.string().min(1),
   cronJobName: z.string().min(1).optional(),
   match: SkillAttachmentMatchSchema.optional(),
@@ -64,10 +36,10 @@ export const RuntimeAgentDefinitionSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  promptSourceKey: BuiltinPromptSourceKeySchema.optional(),
+  promptSourceKey: z.string().min(1).optional(),
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
   skillAttachments: z.array(SkillAttachmentRuleSchema).default([]),
-  executor: RuntimeAgentExecutorSchema.default("generic"),
+  executor: z.string().min(1).default("generic"),
   maxSteps: z.number().int().min(1).max(20).default(8),
   enabled: z.boolean().default(true),
   createdAt: z.string().min(1),
@@ -89,7 +61,7 @@ export type CreateRuntimeAgentInput = {
   systemPrompt: string;
   toolBundleIds: RuntimeToolBundleId[];
   skillAttachments?: SkillAttachmentRule[];
-  executor?: RuntimeAgentExecutor;
+  executor?: string;
   maxSteps?: number;
   enabled?: boolean;
 };
@@ -100,12 +72,10 @@ export type UpdateRuntimeAgentInput = {
   systemPrompt?: string;
   toolBundleIds?: RuntimeToolBundleId[];
   skillAttachments?: SkillAttachmentRule[];
-  executor?: RuntimeAgentExecutor;
+  executor?: string;
   maxSteps?: number;
   enabled?: boolean;
 };
-
-export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
 export const toRuntimeAgentId = (name: string): string =>
   name
@@ -117,8 +87,5 @@ export const toRuntimeAgentId = (name: string): string =>
 export const isRuntimeToolBundleId = (value: string): value is RuntimeToolBundleId =>
   (RUNTIME_TOOL_BUNDLE_IDS as readonly string[]).includes(value);
 
-export const isBuiltinRuntimeAgentId = (value: string): value is BuiltinRuntimeAgentId =>
-  (BUILTIN_RUNTIME_AGENT_IDS as readonly string[]).includes(value as BuiltinRuntimeAgentId);
-
 export const resolveRuntimeAgentId = (routeOrId: string): string =>
-  LEGACY_ROUTE_TO_AGENT_ID[routeOrId] ?? routeOrId;
+  routeOrId;

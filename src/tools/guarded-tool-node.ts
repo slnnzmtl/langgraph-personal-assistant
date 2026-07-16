@@ -2,7 +2,7 @@ import { ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
-import type { SubAgentState, SubAgentStateUpdate } from "../runtime-agents/execution/sub-agent-state.js";
+import type { SubAgentState, SubAgentStateUpdate } from "../core/execution/sub-agent-state.js";
 import {
   findUnauthorizedToolCalls,
   getAllowedToolNames,

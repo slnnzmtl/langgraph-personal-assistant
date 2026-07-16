@@ -1,6 +1,6 @@
 import { AIMessage, type BaseMessage } from "@langchain/core/messages";
 
-import type { AgentState, AgentStateUpdate } from "../../state.js";
+import type { AgentState, AgentStateUpdate } from "../state.js";
 
 export const createSubgraphNodeWrapper = <TState extends { messages: BaseMessage[] }>(options: {
   subgraphName: string;

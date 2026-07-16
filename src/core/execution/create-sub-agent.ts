@@ -3,32 +3,27 @@ import type { BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { END, START, StateGraph } from "@langchain/langgraph";
 
-import type { AgentState, AgentStateUpdate } from "../../state.js";
+import type { AgentState, AgentStateUpdate } from "../state.js";
 import { createGuardedToolNode, createStaticToolNode } from "../../tools/guarded-tool-node.js";
-import type { SkillScopedToolContext } from "../../tools/skill-scoped-registry.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
+import {
+  isSkillScopedToolContext,
+  resolveSubAgentTools,
+  type SubAgentToolSource,
+} from "./runtime-node.js";
 import {
   SubAgentStateAnnotation,
   type SubAgentState,
   type SubAgentStateUpdate,
 } from "./sub-agent-state.js";
 
+export type { SubAgentToolSource } from "./runtime-node.js";
+export { isSkillScopedToolContext, resolveSubAgentTools } from "./runtime-node.js";
+
 export type SubAgentLlmNode = (
   state: SubAgentState,
 ) => Promise<SubAgentStateUpdate>;
-
-export type SubAgentToolSource =
-  | StructuredToolInterface[]
-  | SkillScopedToolContext;
-
-export const isSkillScopedToolContext = (
-  source: SubAgentToolSource,
-): source is SkillScopedToolContext =>
-  !Array.isArray(source) && "resolveToolsForTurn" in source;
-
-export const resolveSubAgentTools = (source: SubAgentToolSource): StructuredToolInterface[] =>
-  isSkillScopedToolContext(source) ? source.allTools : source;
 
 export type SubAgentConfig<TDeps> = {
   name: string;

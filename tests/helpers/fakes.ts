@@ -3,13 +3,14 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { z } from "zod";
 
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
-import type { RuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
+import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
+import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import { createRuntimeAgentExecutionContext } from "../../src/runtime-agents/execution-context.js";
-import type {
-  BuiltinRuntimeAgentId,
-  RuntimeAgentDefinition,
-} from "../../src/runtime-agents/types.js";
+import { createRuntimeAgentExecutionContext } from "./runtime-execution-context.js";
+import type { AppBuiltinAgentId } from "../../src/app/config.js";
+import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 
 export class FakeRunnable<TInput, TOutput> {
@@ -127,7 +128,7 @@ export const defaultConfigurationBundleDeps = {
 };
 
 export const getBuiltinRuntimeAgentDefinition = (
-  id: BuiltinRuntimeAgentId,
+  id: AppBuiltinAgentId,
 ): RuntimeAgentDefinition => {
   const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
 
@@ -137,6 +138,24 @@ export const getBuiltinRuntimeAgentDefinition = (
 
   return definition;
 };
+
+export const createAppSupervisorNode = (
+  llmConnector: ILLMConnector,
+  options?: {
+    runtimeAgentRepository?: RuntimeAgentRepository;
+    loadSupervisorPrompt?: () => string;
+  },
+) =>
+  createSupervisorNode(llmConnector, {
+    loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
+    cronTriggerResolver: {
+      resolveCronTriggerRoute: (message) => resolveCronTriggerRoute(message) ?? undefined,
+      superviseCronRoute: SUPERVISE_CRON_ROUTE,
+    },
+    ...(options?.runtimeAgentRepository
+      ? { runtimeAgentRepository: options.runtimeAgentRepository }
+      : {}),
+  });
 
 export const createRuntimeExecutionContextFake = (options?: {
   repository?: RuntimeAgentRepository;

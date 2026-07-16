@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase.js";
 import { FINANCE_MAX_STEPS } from "../../../src/runtime-agents/constants.js";
-import { createCompiledSubAgentGraph } from "../../../src/runtime-agents/execution/create-sub-agent.js";
-import { createFinanceNode } from "../../../src/runtime-agents/policies/finance/node.js";
+import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
+import { createFinanceNode } from "../../helpers/policy-nodes.js";
 import { createFinanceSkillScopedTools } from "../../../src/runtime-agents/policies/finance/tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 

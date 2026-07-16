@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createConfigurationNode } from "../../../src/runtime-agents/policies/configuration/node.js";
+import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
@@ -12,7 +12,7 @@ const createRepository = () => {
     {
       jobName: "sync-wise-transactions",
       schedule: "0 7 * * *",
-      targetRoute: "Finance_SG",
+      targetRoute: "finance",
       payload: "sync wise transactions for yesterday with supabase",
     },
   ];

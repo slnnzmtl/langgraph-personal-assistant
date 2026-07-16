@@ -1,19 +1,17 @@
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import type { RuntimeAgentExecutionContext } from "./execution-context.js";
-import { createRuntimeAgentFailureMessage } from "./execution/generic-node.js";
-import { getRuntimeAgentPolicy } from "./policies/registry.js";
-import type { RuntimeAgentPolicyHandler } from "./policies/types.js";
-import { withResolvedSystemPrompt } from "./prompt-resolver.js";
-import { RUNTIME_AGENT_CONTEXT_KEY } from "./types.js";
+import { createRuntimeAgentFailureMessage } from "../execution/runtime-node.js";
+import type { RuntimeAgentPolicyHandler } from "../types/policy.js";
+import type { RuntimeAgentExecutionContext } from "../execution/context.js";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 
-const builtinHandlerCache = new WeakMap<RuntimeAgentExecutionContext, Map<string, RuntimeAgentPolicyHandler>>();
+const handlerCache = new WeakMap<RuntimeAgentExecutionContext, Map<string, RuntimeAgentPolicyHandler>>();
 
-const getBuiltinHandlerCache = (context: RuntimeAgentExecutionContext): Map<string, RuntimeAgentPolicyHandler> => {
-  let cache = builtinHandlerCache.get(context);
+const getHandlerCache = (context: RuntimeAgentExecutionContext): Map<string, RuntimeAgentPolicyHandler> => {
+  let cache = handlerCache.get(context);
 
   if (!cache) {
     cache = new Map();
-    builtinHandlerCache.set(context, cache);
+    handlerCache.set(context, cache);
   }
 
   return cache;
@@ -22,14 +20,14 @@ const getBuiltinHandlerCache = (context: RuntimeAgentExecutionContext): Map<stri
 const resolvePolicyHandler = (
   context: RuntimeAgentExecutionContext,
   executor: string,
-  definition: ReturnType<typeof withResolvedSystemPrompt>,
+  definition: ReturnType<RuntimeAgentExecutionContext["promptResolver"]["withResolvedSystemPrompt"]>,
 ): RuntimeAgentPolicyHandler => {
-  const policy = getRuntimeAgentPolicy(definition.executor ?? "generic");
+  const policy = context.policyRegistry.get(definition.executor ?? "generic");
   const cacheKey = executor === "generic"
     ? `${definition.id}:${definition.updatedAt}`
     : executor;
 
-  const cache = getBuiltinHandlerCache(context);
+  const cache = getHandlerCache(context);
   const cached = cache.get(cacheKey);
 
   if (cached) {
@@ -66,7 +64,7 @@ export const createRuntimeAgentDispatcher = (context: RuntimeAgentExecutionConte
     }
 
     try {
-      const resolvedDefinition = withResolvedSystemPrompt(definition);
+      const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
       const executor = resolvedDefinition.executor ?? "generic";
       const handler = resolvePolicyHandler(context, executor, resolvedDefinition);
       return handler(parentState);

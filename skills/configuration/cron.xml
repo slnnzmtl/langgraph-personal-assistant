@@ -1,7 +1,6 @@
 <skill name="cron" description="Manage cron scheduled jobs — list, create, and delete background schedules.">
 
 Valid target routes: `finance`, `obsidian`, `configuration`.
-Legacy routes `Finance_SG`, `Obsidian_SG`, and `Config_SG` are still accepted for compatibility.
 
 <cron_intent_routing>
 1. LIST (list, view, inspect, show):

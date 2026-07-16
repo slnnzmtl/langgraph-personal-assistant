@@ -15,14 +15,14 @@ describe("mergeCronJobs", () => {
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			],
 			[
 				{
 					jobName: "daily-report",
 					schedule: "0 1 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 					timezone: "America/New_York",
 				},
 			],
@@ -32,7 +32,7 @@ describe("mergeCronJobs", () => {
 			{
 				jobName: "daily-report",
 				schedule: "0 1 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 				timezone: "America/New_York",
 			},
 		]);
@@ -46,7 +46,7 @@ describe("startCronBootstrap", () => {
 				{
 					jobName: "",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
@@ -73,7 +73,7 @@ describe("startCronBootstrap", () => {
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
@@ -95,7 +95,7 @@ describe("startCronBootstrap", () => {
 			{
 				jobName: "daily-report",
 				schedule: "59 23 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 			},
 		]);
 		expect(schedule).not.toHaveBeenCalled();
@@ -109,7 +109,7 @@ describe("startCronBootstrap", () => {
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
@@ -131,7 +131,7 @@ describe("startCronBootstrap", () => {
 			{
 				jobName: "daily-report",
 				schedule: "59 23 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 			},
 		]);
 		expect(schedule).toHaveBeenCalledTimes(1);

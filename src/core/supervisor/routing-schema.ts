@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import type { RuntimeAgentDefinition } from "./runtime-agents/types.js";
-import { ROUTE_NAMES } from "./state.js";
+import type { RuntimeAgentDefinition } from "../types/agent.js";
+import { ROUTE_NAMES } from "../state.js";
 
 export const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
 
@@ -41,8 +41,6 @@ export const buildSupervisorRoutingSchema = (runtimeAgents: RuntimeAgentDefiniti
       ),
   });
 };
-
-export const MVPRoutingSchema = buildSupervisorRoutingSchema();
 
 export type RoutingDecision = z.infer<ReturnType<typeof buildSupervisorRoutingSchema>>;
 

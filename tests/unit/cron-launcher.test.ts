@@ -21,6 +21,11 @@ describe("setupCron", () => {
     );
   });
 
+  it("does not resolve legacy trigger names without an agent route prefix", () => {
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"))).toBeNull();
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian-daily-note"))).toBeNull();
+  });
+
   it("registers enabled declarative jobs with the default timezone", () => {
     const schedule = vi.fn();
     const run = vi.fn();
@@ -34,7 +39,7 @@ describe("setupCron", () => {
         {
           jobName: "finance-sync",
           schedule: "59 23 * * *",
-          targetRoute: "Finance_SG",
+          targetRoute: "finance",
         },
       ],
     });
@@ -59,7 +64,7 @@ describe("setupCron", () => {
         {
           jobName: "finance-sync",
           schedule: "59 23 * * *",
-          targetRoute: "Finance_SG",
+          targetRoute: "finance",
         },
       ],
     });
@@ -79,13 +84,13 @@ describe("setupCron", () => {
         {
           jobName: "finance-sync",
           schedule: "59 23 * * *",
-          targetRoute: "Finance_SG",
+          targetRoute: "finance",
           enabled: false,
         },
         {
           jobName: "obsidian-daily-note",
           schedule: "0 6 * * *",
-          targetRoute: "Obsidian_SG",
+          targetRoute: "obsidian",
           timezone: "America/New_York",
         },
       ],
@@ -112,7 +117,7 @@ describe("setupCron", () => {
         {
           jobName: "finance-sync",
           schedule: "59 23 * * *",
-          targetRoute: "Finance_SG",
+          targetRoute: "finance",
         },
       ],
     });
@@ -142,7 +147,7 @@ describe("setupCron", () => {
         {
           jobName: "finance-sync",
           schedule: "59 23 * * *",
-          targetRoute: "Finance_SG",
+          targetRoute: "finance",
           payload: "Sync the Wise transactions for yesterday.",
         },
       ],
@@ -173,12 +178,12 @@ describe("setupCron", () => {
           {
             jobName: "finance-sync",
             schedule: "59 23 * * *",
-            targetRoute: "Finance_SG",
+            targetRoute: "finance",
           },
           {
             jobName: "finance-sync",
             schedule: "0 6 * * *",
-            targetRoute: "Obsidian_SG",
+            targetRoute: "obsidian",
           },
         ],
       }),

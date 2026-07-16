@@ -4,23 +4,46 @@ A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.
 
 ## Architecture
 
+The codebase is split into a **reusable framework** (`src/core/`), an **app layer** (`src/app/`) for this assistant's policies and wiring, and **domain runtime** code (`src/runtime-agents/`) for tools, bundles, and defaults. The graph entry point is `createAssistant()` in `src/core/create-assistant.ts`; the Telegram app calls it via `createWorkflowGraph()` in `src/agent.ts`.
+
 ```mermaid
 graph TD
     User((User)) <-->|Telegram| Adapter[Telegram Adapter]
-    Cron[node-cron Scheduler] -->|Synthetic trigger| Adapter
+    Cron[node-cron Scheduler] -->|SYSTEM_CRON_TRIGGER:agentId:jobName| Adapter
+
+    subgraph AppLayer [App layer]
+        AppTS[app.ts bootstrap]
+        AgentTS[agent.ts createWorkflowGraph]
+        AppKit[createAppExecutionKit]
+        AppPolicies[finance / obsidian / configuration policies]
+    end
+
+    subgraph CoreFramework [Core framework]
+        CreateAssistant[createAssistant]
+        Supervisor{Supervisor}
+        Dispatcher[Runtime_SG dispatcher]
+        PolicyRegistry[PolicyRegistry per instance]
+        PromptResolver[PromptResolver per instance]
+    end
 
     subgraph RootGraph [Root LangGraph]
-        Adapter --> Supervisor{Supervisor}
-        Supervisor --> Runtime_SG[Runtime Agent Dispatcher]
-        Runtime_SG --> Supervisor
+        Adapter --> AppTS --> AgentTS --> CreateAssistant
+        CreateAssistant --> Supervisor
+        Supervisor --> Dispatcher
+        Dispatcher --> Supervisor
         Supervisor --> Adapter
     end
 
-    subgraph RuntimePolicies [Runtime Policies]
-        Runtime_SG --> FinancePolicy[finance]
-        Runtime_SG --> ObsidianPolicy[obsidian]
-        Runtime_SG --> ConfigurationPolicy[configuration]
-        Runtime_SG --> GenericPolicy[generic agents]
+    AppKit --> CreateAssistant
+    AppPolicies --> AppKit
+    PolicyRegistry --> Dispatcher
+    PromptResolver --> Dispatcher
+
+    subgraph RuntimePolicies [Policy executors]
+        Dispatcher --> FinancePolicy[finance]
+        Dispatcher --> ObsidianPolicy[obsidian]
+        Dispatcher --> ConfigurationPolicy[configuration]
+        Dispatcher --> GenericPolicy[generic agents]
     end
 
     FinancePolicy <-->|MCP| Supabase[(Supabase)]
@@ -28,16 +51,36 @@ graph TD
     ObsidianPolicy <-->|Read / Write| Vault[(Obsidian Vault)]
 ```
 
+### Layer responsibilities
+
+| Layer | Path | Responsibility |
+|---|---|---|
+| **Core framework** | `src/core/` | LangGraph topology, supervisor routing, runtime dispatch, sub-agent loops, policy registry API, agent repository, shared state |
+| **App layer** | `src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
+| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), built-in agent defaults, bootstrap |
+| **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
+
+Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `PromptResolver`, so multiple assistant instances do not share global policy or prompt state.
+
+### Runtime flow
+
+1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or `Runtime_SG`.
+2. **Dispatcher** loads the selected runtime agent from the repository, resolves its system prompt, and picks a policy by `executor` (`finance`, `obsidian`, `configuration`, or `generic`).
+3. **Policy handler** runs a nested sub-graph: LLM node ⇄ tools loop (via `createSubAgent()`), with domain behavior injected through **hooks** in `src/app/policies/*-hooks.ts`.
+4. The sub-agent reply returns to the supervisor; the loop continues until the supervisor chooses `FINISH`.
+
+Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Legacy graph node aliases such as `Finance_SG` / `Obsidian_SG` are no longer used.
+
 | Component | Role |
 |---|---|
-| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a runtime agent id such as `finance`, `obsidian`, `configuration`, or a persisted custom agent) |
+| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a runtime agent id) |
 | **Runtime dispatcher** | Selects a policy by the agent's `executor` and runs the matching sub-graph loop |
 | **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
 | **Obsidian policy** | Markdown vault read/write with multi-step tool loops (up to 8 steps per request) |
 | **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
 | **Generic policy** | User-created runtime agents with allowlisted tool bundles |
 | **Skills** | Reusable step-by-step playbooks in `skills/{owner}/` injected into agent prompts |
-| **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:` messages into the graph |
+| **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
 
 The assistant keeps only the last **10 messages** per thread. Older turns are trimmed once the window is exceeded, while preserving in-flight tool-call sequences as atomic units.
 
@@ -97,7 +140,7 @@ Without Supabase credentials the Finance sub-graph returns a configuration error
 
 ### Scheduler (optional)
 
-When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are loaded at startup and executed via synthetic `SYSTEM_CRON_TRIGGER:` messages. Jobs should target runtime agent ids such as `finance`, `obsidian`, or `configuration` (legacy `Finance_SG`, `Obsidian_SG`, and `Config_SG` values are still accepted). Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
+When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are loaded at startup and executed via synthetic `SYSTEM_CRON_TRIGGER:` messages. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
 ## Skills
 
@@ -169,19 +212,44 @@ pnpm check              # TypeScript type check
 
 ```
 src/
-  agent.ts              # Root LangGraph wiring
-  app.ts                # App bootstrap (Telegram, cron, subgraphs)
-  nodes/
-    supervisor-node.ts  # Intent router
-    finance/            # Finance sub-graph
-    obsidian/           # Obsidian sub-graph
-    configuration/       # Cron + skill management
-  prompts/              # Prompt and skill loading
-  cron/                 # Scheduler bootstrap and runner
-  tools/                # Shared tools (skills, routing)
-  telegram/             # Telegram adapter and file sender
-prompts/                # System prompt files (.xml / .md)
-skills/                 # Agent skill playbooks
-specs/                  # Design documents
-tests/                  # Unit and e2e tests
+  core/                     # Reusable assistant framework
+    create-assistant.ts     # createAssistant() — main graph API
+    state.ts                # AgentState, message trimming
+    supervisor/             # Supervisor node, routing schema, message sanitization
+    agents/                 # Dispatch, repository, prompt resolver
+    execution/              # Runtime LLM node, sub-agent graphs, execution context
+    policies/               # Policy registry, generic policy
+    types/                  # RuntimeAgentDefinition, policy types
+
+  app/                      # This assistant's configuration
+    config.ts               # Built-in agent ids, repository factory
+    register-defaults.ts    # createAppExecutionKit() — policies + prompt resolver
+    policies/               # Domain policies, hooks, shared LLM node factories
+
+  agent.ts                  # createWorkflowGraph() → createAssistant()
+  app.ts                    # Telegram + cron bootstrap
+
+  runtime-agents/           # Domain tools and defaults
+    defaults.ts             # Built-in finance / obsidian / configuration agents
+    bootstrap.ts            # Merge persisted agents with defaults
+    tool-bundles.ts         # Tool bundle catalog
+    policies/               # finance / obsidian / configuration tool implementations
+
+  cron/                     # Scheduler bootstrap, runner, job repository
+  telegram/                 # Telegram adapter and file sender
+  tools/                    # Shared tools (skills, routing, guarded tool nodes)
+  prompts/                  # Prompt and skill loading (load-system-prompt.ts)
+  services/                 # Obsidian vault, Wise, Supabase helpers
+
+prompts/                    # System prompt files (.xml / .md)
+skills/                     # Agent skill playbooks
+data/                       # Persisted cron jobs and runtime agents
+specs/                      # Design documents
+tests/                      # Unit and e2e tests
 ```
+
+### Extending the assistant
+
+- **New built-in domain agent:** add tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, register it in `createAppPolicies()`, and add a default agent in `defaults.ts`.
+- **New custom runtime agent:** create via the configuration agent; the generic policy compiles a sub-graph from `toolBundleIds` in the repository.
+- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `promptLoaders`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry` + `promptResolver`).

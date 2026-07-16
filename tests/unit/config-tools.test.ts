@@ -92,7 +92,7 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
     const tools = createConfigurationTools(repository).allTools;
@@ -104,7 +104,7 @@ describe("createConfigurationSkillScopedTools", () => {
 
     expect(result).toContain("Job name: finance-sync");
     expect(result).toContain("Schedule: 59 23 * * *");
-    expect(result).toContain("Target route: Finance_SG");
+    expect(result).toContain("Target route: finance");
   });
 
   it("creates and persists a new cron job", async () => {
@@ -117,7 +117,7 @@ describe("createConfigurationSkillScopedTools", () => {
     const result = await createTool!.invoke({
       jobName: "morning-note",
       schedule: "0 6 * * *",
-      targetRoute: "Obsidian_SG",
+      targetRoute: "obsidian",
       timezone: "America/New_York",
       payload: "Create my morning planning note",
     });
@@ -129,7 +129,7 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "morning-note",
         schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
+        targetRoute: "obsidian",
         timezone: "America/New_York",
         payload: "Create my morning planning note",
       },
@@ -141,7 +141,7 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
     const tools = createConfigurationTools(repository).allTools;
@@ -152,7 +152,7 @@ describe("createConfigurationSkillScopedTools", () => {
     const result = await createTool!.invoke({
       jobName: "finance-sync",
       schedule: "0 6 * * *",
-      targetRoute: "Obsidian_SG",
+      targetRoute: "obsidian",
     });
 
     expect(result).toContain("Error:");
@@ -164,12 +164,12 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
       {
         jobName: "daily-note",
         schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
+        targetRoute: "obsidian",
       },
     ]);
     const tools = createConfigurationTools(repository).allTools;
@@ -184,7 +184,7 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "daily-note",
         schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
+        targetRoute: "obsidian",
       },
     ]);
   });
@@ -194,7 +194,7 @@ describe("createConfigurationSkillScopedTools", () => {
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
     const tools = createConfigurationTools(repository).allTools;

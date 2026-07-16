@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
-import { createFinanceNode } from "../../../src/runtime-agents/policies/finance/node.js";
+import { createFinanceNode } from "../../helpers/policy-nodes.js";
 import { createFinanceSkillScopedTools, getFinanceDomainTool } from "../../../src/runtime-agents/policies/finance/tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 

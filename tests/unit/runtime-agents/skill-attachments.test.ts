@@ -20,7 +20,7 @@ describe("matchesSkillAttachmentRule", () => {
     "carry forward tasks from yesterday into today",
     "today's plan",
     "give me a plan for today",
-    "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation\n\nPayload:\nCreate today's routine note.",
+    "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today's routine note.",
   ])("matches routine attachment rules for %j", (text) => {
     expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
   });
@@ -47,12 +47,12 @@ describe("matchesCronJobTrigger", () => {
   it("detects the routine-note-creation cron job", () => {
     expect(
       matchesCronJobTrigger(
-        "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation\n\nPayload:\n{}",
+        "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\n{}",
         "routine-note-creation",
       ),
     ).toBe(true);
     expect(
-      matchesCronJobTrigger("SYSTEM_CRON_TRIGGER:Obsidian_SG:sync-finance", "routine-note-creation"),
+      matchesCronJobTrigger("SYSTEM_CRON_TRIGGER:obsidian:sync-finance", "routine-note-creation"),
     ).toBe(false);
   });
 });

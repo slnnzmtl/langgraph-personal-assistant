@@ -1,14 +1,14 @@
-import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
-
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createRuntimeAgentDispatcher } from "./runtime-agents/dispatch.js";
-import { createRuntimeAgentExecutionContext } from "./runtime-agents/execution-context.js";
-import { createSupervisorNode } from "./nodes/supervisor-node.js";
-import type { RuntimeAgentRepository } from "./runtime-agents/repository.js";
-import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
 import type { SupabaseMcpSession } from "./mcp/supabase.js";
+import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "./cron-triggers.js";
+import { createAssistant } from "./core/create-assistant.js";
+import type { RuntimeAgentRepository } from "./core/agents/repository.js";
+import { createAppExecutionKit } from "./app/register-defaults.js";
+import {
+  loadSupervisorSystemPrompt,
+} from "./prompts/load-system-prompt.js";
 
 export type WorkflowGraphConfig = {
   obsidianVaultPath: string;
@@ -27,42 +27,33 @@ export const createWorkflowGraph = (
   config: WorkflowGraphConfig,
 ) => {
   const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
-  const memory = new MemorySaver();
-  const supervisorNode = createSupervisorNode(supervisorLlmConnector, {
-    runtimeAgentRepository: config.runtimeAgentRepository,
-  });
+  const { promptResolver, policyRegistry } = createAppExecutionKit();
 
-  const runtimeExecutionContext = createRuntimeAgentExecutionContext({
-    genericModel: obsidianLlmConnector.getModel(),
-    financeModel: financeLlmConnector.getModel(),
-    obsidianLlmConnector,
-    configurationModel: configLlmConnector.getModel(),
-    repository: config.runtimeAgentRepository,
+  return createAssistant({
+    supervisorLlm: supervisorLlmConnector,
+    models: {
+      generic: obsidianLlmConnector.getModel(),
+      finance: financeLlmConnector.getModel(),
+      obsidian: obsidianLlmConnector.getModel(),
+      configuration: configLlmConnector.getModel(),
+    },
+    defaultModelKey: "generic",
+    runtimeAgentRepository: config.runtimeAgentRepository,
     cronJobRepository: config.cronJobRepository,
     ...(config.runtimeCron ? { runtimeCron: config.runtimeCron } : {}),
-    obsidianVaultPath: config.obsidianVaultPath,
-    ...(config.fileSender ? { fileSender: config.fileSender } : {}),
-    ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
+    bundleDeps: {
+      obsidianVaultPath: config.obsidianVaultPath,
+      obsidianLlmConnector,
+      ...(config.fileSender ? { fileSender: config.fileSender } : {}),
+      ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
+    },
+    promptResolver,
+    policyRegistry,
+    loadSupervisorPrompt: loadSupervisorSystemPrompt,
+    cronTriggerResolver: {
+      resolveCronTriggerRoute: (message) => resolveCronTriggerRoute(message) ?? undefined,
+      superviseCronRoute: SUPERVISE_CRON_ROUTE,
+    },
+    graphName: "personal-assistant-phase-1",
   });
-
-  const runtimeAgentDispatcher = createRuntimeAgentDispatcher(runtimeExecutionContext);
-
-  const graph = new StateGraph(AgentStateAnnotation)
-    .addNode("supervisor", supervisorNode)
-    .addNode("Runtime_SG", runtimeAgentDispatcher);
-
-  graph
-    .addEdge(START, "supervisor")
-    .addConditionalEdges(
-      "supervisor",
-      (state: AgentState) => state.next ?? "FINISH",
-      {
-        Runtime_SG: "Runtime_SG",
-        FINISH: END,
-      } satisfies Record<RouteName, "Runtime_SG" | typeof END>,
-    );
-
-  graph.addEdge("Runtime_SG", "supervisor");
-
-  return graph.compile({ checkpointer: memory, name: "personal-assistant-phase-1" });
 };

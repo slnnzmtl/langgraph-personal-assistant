@@ -7,7 +7,7 @@ import type { IFileSender } from "../telegram/file-sender.js";
 import {
   RUNTIME_TOOL_BUNDLE_IDS,
   type RuntimeToolBundleId,
-} from "./types.js";
+} from "../core/types/agent.js";
 
 export type RuntimeToolBundleCatalogEntry = {
   id: RuntimeToolBundleId;

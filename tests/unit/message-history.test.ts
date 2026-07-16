@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { stripToolsForSupervisor } from "../../src/nodes/message-history.js";
+import { stripToolsForSupervisor } from "../../src/core/supervisor/message-history.js";
 
 describe("stripToolsForSupervisor", () => {
   it("merges consecutive human and ai turns into a single turn each", () => {

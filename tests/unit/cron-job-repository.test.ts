@@ -33,12 +33,12 @@ describe("createCronJobRepository", () => {
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
       {
         jobName: "obsidian-daily-note",
         schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
+        targetRoute: "obsidian",
         timezone: "America/New_York",
       },
     ] as const;

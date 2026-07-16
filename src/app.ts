@@ -5,7 +5,7 @@ import type { AppConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createLazyCron, startCron } from "./cron/cron-startup.js";
 import { createCronJobRepositoryForConfig } from "./cron/cron-job-repository.js";
-import { createRuntimeAgentRepositoryForConfig } from "./runtime-agents/repository.js";
+import { createRuntimeAgentRepositoryForConfig } from "./app/config.js";
 import { ensureBuiltinRuntimeAgents } from "./runtime-agents/bootstrap.js";
 import { setupSupabaseSession } from "./services/supabase.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";

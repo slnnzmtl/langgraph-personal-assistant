@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { isCronTargetRoute } from "../../../cron-triggers.js";
 import type { CronJobDefinition, CronJobRepository } from "../../../cron/types.js";
-import type { RuntimeAgentRepository } from "../../repository.js";
+import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
 import {
   formatRuntimeToolBundleCatalog,
   type RuntimeToolBundleDeps,
@@ -14,7 +14,7 @@ import {
   SkillAttachmentRuleSchema,
   type RuntimeAgentDefinition,
   type RuntimeToolBundleId,
-} from "../../types.js";
+} from "../../../core/types/agent.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
 import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 
@@ -348,14 +348,4 @@ export const createConfigurationSkillScopedTools = (
     readSkillTool,
     bundles,
   });
-};
-
-/** @deprecated Use createConfigurationSkillScopedTools for scoped access. */
-export const createCronConfigTools = (
-  repository: CronJobRepository,
-  runtimeAgentRepository: RuntimeAgentRepository,
-  bundleDeps: ConfigurationToolDeps,
-): StructuredToolInterface[] => {
-  const context = createConfigurationSkillScopedTools(repository, runtimeAgentRepository, bundleDeps);
-  return context.allTools;
 };

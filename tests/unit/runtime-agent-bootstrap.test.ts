@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ensureBuiltinRuntimeAgents } from "../../src/runtime-agents/bootstrap.js";
-import { createRuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
+import { createRuntimeAgentRepository } from "../../src/core/agents/repository.js";
 
 const tempPaths: string[] = [];
 

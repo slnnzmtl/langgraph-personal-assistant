@@ -1,20 +1,27 @@
 import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import type { ILLMConnector } from "../connectors/llm-connector.js";
-import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
-import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
-import { loadSupervisorSystemPrompt } from "../prompts/load-system-prompt.js";
-import type { RuntimeAgentRepository } from "../runtime-agents/repository.js";
-import { RUNTIME_AGENT_CONTEXT_KEY, resolveRuntimeAgentId } from "../runtime-agents/types.js";
+import type { ILLMConnector } from "../../connectors/llm-connector.js";
+import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
+import { extractMessageTextContent } from "../../utils/message-content.js";
+import { stripToolsForSupervisor } from "./message-history.js";
+import type { RuntimeAgentRepository } from "../agents/repository.js";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 import {
   buildSupervisorRoutingSchema,
   type RoutingDecision,
-} from "../routing-schema.js";
+} from "./routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import { extractMessageTextContent, stripToolsForSupervisor } from "./message-history.js";
 
-type SupervisorNodeOptions = {
+export type CronTriggerResolver = {
+  resolveCronTriggerRoute: (message: BaseMessage | undefined) => string | undefined;
+  superviseCronRoute: string;
+};
+
+export type SupervisorNodeOptions = {
   runtimeAgentRepository?: RuntimeAgentRepository;
+  loadSupervisorPrompt: () => string;
+  cronTriggerResolver?: CronTriggerResolver;
+  resolveAgentId?: (routeOrId: string) => string;
 };
 
 const buildFailureReply = async (
@@ -48,15 +55,17 @@ const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
 
 export const createSupervisorNode = (
   llmConnector: ILLMConnector,
-  options?: SupervisorNodeOptions,
+  options: SupervisorNodeOptions,
 ) =>
   async (state: AgentState): Promise<AgentStateUpdate> => {
-    const supervisorPromptText = loadSupervisorSystemPrompt();
+    const supervisorPromptText = options.loadSupervisorPrompt();
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
-    const cronRoute = resolveCronTriggerRoute(state.messages[state.messages.length - 1]);
+    const lastMessage = state.messages[state.messages.length - 1];
+    const cronRoute = options.cronTriggerResolver?.resolveCronTriggerRoute(lastMessage);
 
-    if (cronRoute && cronRoute !== SUPERVISE_CRON_ROUTE) {
-      return routeToRuntimeAgent(resolveRuntimeAgentId(cronRoute));
+    if (cronRoute && cronRoute !== options.cronTriggerResolver?.superviseCronRoute) {
+      const resolveAgentId = options.resolveAgentId ?? ((routeOrId: string) => routeOrId);
+      return routeToRuntimeAgent(resolveAgentId(cronRoute));
     }
 
     const rawPromptMessages = [
@@ -101,7 +110,7 @@ export const createSupervisorNode = (
 
     await logSystemPromptInvocation("supervisor-system-prompt", rawPromptMessages);
 
-    const runtimeAgents = options?.runtimeAgentRepository
+    const runtimeAgents = options.runtimeAgentRepository
       ? await options.runtimeAgentRepository.loadAgents()
       : [];
     const enabledAgentIds = new Set(
@@ -158,7 +167,8 @@ export const createSupervisorNode = (
       };
     }
 
-    const agentId = resolveRuntimeAgentId(response.next);
+    const resolveAgentId = options.resolveAgentId ?? ((routeOrId: string) => routeOrId);
+    const agentId = resolveAgentId(response.next);
 
     if (!enabledAgentIds.has(agentId)) {
       return {

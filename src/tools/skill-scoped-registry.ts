@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import { extractMessageTextContent } from "../nodes/message-history.js";
+import { extractMessageTextContent } from "../utils/message-content.js";
 import { findLastAIMessage } from "./routing.js";
 
 export type ActiveSkillSelection = {

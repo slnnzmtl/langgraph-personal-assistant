@@ -5,7 +5,7 @@ import {
   MESSAGE_HISTORY_LIMIT,
   reduceAgentMessages,
   trimMessagesToLast,
-} from "../../src/state.js";
+} from "../../src/core/state.js";
 
 const makeMessages = (count: number) =>
   Array.from({ length: count }, (_, index) => new HumanMessage(`message-${index + 1}`));

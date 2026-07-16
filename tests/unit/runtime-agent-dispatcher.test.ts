@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createRuntimeAgentDispatcher } from "../../src/runtime-agents/dispatch.js";
-import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/runtime-agents/types.js";
+import { createRuntimeAgentDispatcher } from "../../src/core/agents/dispatch.js";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
 import {
   FakeLLMConnector,
   createRuntimeAgentRepositoryFake,
@@ -10,6 +10,7 @@ import {
 } from "../helpers/fakes.js";
 
 describe("createRuntimeAgentDispatcher", () => {
+
   it("rejects dispatch when no runtime agent id is present in context", async () => {
     const dispatcher = createRuntimeAgentDispatcher(createRuntimeExecutionContextFake());
 

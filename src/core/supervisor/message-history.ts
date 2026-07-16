@@ -1,8 +1,6 @@
 import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "../utils/message-content.js";
-
-export { extractMessageTextContent } from "../utils/message-content.js";
+import { extractMessageTextContent } from "../../utils/message-content.js";
 
 const mergeMessages = (message: BaseMessage, nextMessage: BaseMessage): BaseMessage => {
   const mergedContent = `${extractMessageTextContent(message.content)}\n${extractMessageTextContent(nextMessage.content)}`.trim();

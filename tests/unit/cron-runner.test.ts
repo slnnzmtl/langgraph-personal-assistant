@@ -2,6 +2,9 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import { createCronRunner } from "../../src/cron/cron-runner.js";
+import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
+
+const financeSyncTrigger = buildCronTriggerForJob("finance", "finance-sync");
 
 const deferred = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -19,8 +22,8 @@ describe("createCronRunner", () => {
     const invoke = vi.fn().mockResolvedValue({ messages: [new AIMessage("Completed")] });
     const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
     expect(invoke).toHaveBeenCalledTimes(2);
 
@@ -36,14 +39,14 @@ describe("createCronRunner", () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
     const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
     expect(invoke).toHaveBeenCalledTimes(1);
 
     const input = invoke.mock.calls[0]?.[0];
     expect(input?.messages).toHaveLength(1);
     expect(input?.messages[0]).toBeInstanceOf(HumanMessage);
-    expect(input?.messages[0]?.content).toBe("SYSTEM_CRON_TRIGGER:finance-sync");
+    expect(input?.messages[0]?.content).toBe(financeSyncTrigger);
   });
 
   it("includes cron payload text in the llm input without changing the trigger line", async () => {
@@ -52,13 +55,13 @@ describe("createCronRunner", () => {
 
     await runner.run({
       jobName: "finance-sync",
-      trigger: "SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync",
+      trigger: "SYSTEM_CRON_TRIGGER:finance:finance-sync",
       payload: "Sync the Wise transactions for yesterday.",
     });
 
     const input = invoke.mock.calls[0]?.[0];
     expect(input?.messages).toHaveLength(1);
-    expect(input?.messages[0]?.content).toContain("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync");
+    expect(input?.messages[0]?.content).toContain("SYSTEM_CRON_TRIGGER:finance:finance-sync");
     expect(input?.messages[0]?.content).toContain("Payload:");
     expect(input?.messages[0]?.content).toContain("Sync the Wise transactions for yesterday.");
   });
@@ -68,11 +71,11 @@ describe("createCronRunner", () => {
     const invoke = vi.fn().mockReturnValue(inFlight.promise);
     const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
-    const firstRun = runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    const firstRun = runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await Promise.resolve();
 
     await expect(
-      runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" }),
+      runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger }),
     ).resolves.toBeUndefined();
 
     expect(invoke).toHaveBeenCalledTimes(1);
@@ -88,7 +91,7 @@ describe("createCronRunner", () => {
     const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError });
 
     await expect(
-      runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" }),
+      runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger }),
     ).resolves.toBeUndefined();
 
     expect(onError).toHaveBeenCalledTimes(1);
@@ -96,7 +99,7 @@ describe("createCronRunner", () => {
       error,
       expect.objectContaining({
         jobName: "finance-sync",
-        trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+        trigger: financeSyncTrigger,
       }),
     );
   });
@@ -112,12 +115,12 @@ describe("createCronRunner", () => {
     const summaryModel = { invoke: vi.fn().mockResolvedValue(new AIMessage("Model summary")) };
     const runner = createCronRunner({ graph: { invoke }, summaryModel: summaryModel as never, onError: vi.fn(), reporter });
 
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
     expect(reporter.onStart).toHaveBeenCalledWith(
       expect.objectContaining({
         jobName: "finance-sync",
-        trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+        trigger: financeSyncTrigger,
       }),
     );
     expect(reporter.onProgress).toHaveBeenCalledWith(
@@ -129,7 +132,7 @@ describe("createCronRunner", () => {
     expect(reporter.onSuccess).toHaveBeenCalledWith(
       expect.objectContaining({
         jobName: "finance-sync",
-        trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+        trigger: financeSyncTrigger,
         messages: [expect.any(AIMessage)],
         summary: "Model summary",
       }),
@@ -149,16 +152,16 @@ describe("createCronRunner", () => {
       onError: vi.fn(),
     });
 
-    const firstRun = runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    const firstRun = runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await Promise.resolve();
 
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     expect(invoke).toHaveBeenCalledTimes(1);
 
     inFlight.resolve(undefined);
     await firstRun;
 
-    await runner.run({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     expect(invoke).toHaveBeenCalledTimes(2);
   });
 });
@@ -167,7 +170,7 @@ describe("cron summary context", () => {
   it("sends the full sanitized dialog to the summary model", async () => {
     const graphInvoke = vi.fn().mockResolvedValue({
       messages: [
-        new HumanMessage("SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation\n\nPayload:\nCreate today\'s routine note."),
+        new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today\'s routine note."),
         new AIMessage({ content: "", tool_calls: [{ name: "read_file", args: {}, id: "read-1" }] }),
         new ToolMessage({ content: "Yesterday tasks: - [ ] Review inbox", tool_call_id: "read-1", name: "read_file" }),
         new AIMessage({ content: "", tool_calls: [{ name: "write_file", args: {}, id: "write-1" }] }),
@@ -178,7 +181,7 @@ describe("cron summary context", () => {
     const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("The routine note was updated."));
     const runner = createCronRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
 
-    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation" });
+    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 
     const summaryInput = summaryInvoke.mock.calls[0]?.[0]?.[1]?.content as string;
     expect(summaryInput).toContain("Create today's routine note.");
@@ -198,7 +201,7 @@ describe("cron summary ordering", () => {
     const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("Updated the routine note."));
     const runner = createCronRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
 
-    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:Obsidian_SG:routine-note-creation" });
+    await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 
     expect(graphInvoke).toHaveBeenCalledTimes(2);
     expect(summaryInvoke).toHaveBeenCalledTimes(1);

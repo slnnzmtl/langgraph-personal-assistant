@@ -2,11 +2,10 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import { createSupervisorNode } from "../../src/nodes/supervisor-node.js";
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
+import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
-import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/state.js";
-import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
+import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/core/state.js";
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -37,7 +36,7 @@ describe("createSupervisorNode", () => {
         reply: "Datetime checked",
       };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -50,7 +49,7 @@ describe("createSupervisorNode", () => {
       next: "FINISH",
       reply: "Direct answer",
     }));
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -70,7 +69,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("Final explanatory answer"),
       } as BaseChatModel),
     };
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -92,7 +91,7 @@ describe("createSupervisorNode", () => {
         invoke: modelInvoke,
       } as BaseChatModel),
     };
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -108,7 +107,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "finance" };
     });
-    const supervisorNode = createSupervisorNode(connector, {
+    const supervisorNode = createAppSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -128,7 +127,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
     const history = trimMessagesToLast(
       Array.from({ length: MESSAGE_HISTORY_LIMIT + 4 }, (_, index) =>
         new HumanMessage(`turn-${index + 1}`),
@@ -157,7 +156,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "obsidian" };
     });
-    const supervisorNode = createSupervisorNode(connector, {
+    const supervisorNode = createAppSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -180,7 +179,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "configuration" };
     });
-    const supervisorNode = createSupervisorNode(connector, {
+    const supervisorNode = createAppSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -200,7 +199,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "FINISH", reply: "Sanitized" };
     });
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode({
       messages: [
@@ -234,7 +233,7 @@ describe("createSupervisorNode", () => {
       next: "obsidian",
     }));
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector, {
+    const supervisorNode = createAppSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -252,29 +251,16 @@ describe("createSupervisorNode", () => {
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
-  it("routes reserved scheduler finance triggers without invoking the LLM", async () => {
+  it("routes scheduler finance triggers without invoking the LLM", async () => {
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
-    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:finance-sync"));
-
-    expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("finance");
-    expect(result.messages).toBeUndefined();
-    expect(invokeSpy).not.toHaveBeenCalled();
-  });
-
-  it("routes route-derived scheduler finance triggers without invoking the LLM", async () => {
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run for scheduler trigger");
-    });
-    const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
-
-    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync"));
+    const result = await supervisorNode(
+      makeHumanState(buildCronTriggerForJob("finance", "finance-sync")),
+    );
 
     expect(result.next).toBe("Runtime_SG");
     expect(result.context?.runtimeAgentId).toBe("finance");
@@ -285,11 +271,11 @@ describe("createSupervisorNode", () => {
   it("only treats the latest message as a scheduler trigger", async () => {
     const invokeSpy = vi.fn(() => ({ next: "FINISH", reply: "Handled by LLM" }));
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode({
       messages: [
-        new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"),
+        new HumanMessage(buildCronTriggerForJob("finance", "finance-sync")),
         new HumanMessage("tell me what changed today"),
       ],
       context: {},
@@ -301,14 +287,16 @@ describe("createSupervisorNode", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("routes reserved scheduler obsidian triggers without invoking the LLM", async () => {
+  it("routes scheduler obsidian triggers without invoking the LLM", async () => {
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
-    const result = await supervisorNode(makeHumanState("SYSTEM_CRON_TRIGGER:obsidian-daily-note"));
+    const result = await supervisorNode(
+      makeHumanState(buildCronTriggerForJob("obsidian", "obsidian-daily-note")),
+    );
 
     expect(result.next).toBe("Runtime_SG");
     expect(result.context?.runtimeAgentId).toBe("obsidian");
@@ -322,7 +310,7 @@ describe("createSupervisorNode", () => {
       reply: "Handled by the main supervisor",
     }));
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(
       makeHumanState("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review\n\nPayload:\nReview today's priorities."),
@@ -338,11 +326,11 @@ describe("createSupervisorNode", () => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createSupervisorNode(connector);
+    const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode({
       messages: [
-        new HumanMessage("SYSTEM_CRON_TRIGGER:Finance_SG:finance-sync\n\nPayload:\nSync the Wise transactions for yesterday."),
+        new HumanMessage(buildCronTriggerForJob("finance", "finance-sync") + "\n\nPayload:\nSync the Wise transactions for yesterday."),
       ],
       context: {},
       next: undefined,

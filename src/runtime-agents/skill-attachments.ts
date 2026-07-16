@@ -2,8 +2,8 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import { readSkillContent } from "../prompts/skills-loader.js";
-import { extractMessageTextContent } from "../nodes/message-history.js";
-import type { RuntimeAgentDefinition, SkillAttachmentRule } from "./types.js";
+import { extractMessageTextContent } from "../utils/message-content.js";
+import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
 
 const normalizeText = (text: string): string =>
   text.toLowerCase().replaceAll(/\s+/g, " ").trim();

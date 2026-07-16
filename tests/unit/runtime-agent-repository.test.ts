@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createRuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
+import { createRuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { ROUTINE_SKILL_ATTACHMENTS } from "../../src/runtime-agents/skill-attachments.js";
 
 const tempPaths: string[] = [];

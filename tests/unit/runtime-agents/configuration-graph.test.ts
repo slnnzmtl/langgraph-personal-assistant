@@ -1,10 +1,10 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { configurationPolicy } from "../../../src/runtime-agents/policies/configuration/policy.js";
-import { createConfigurationNode } from "../../../src/runtime-agents/policies/configuration/node.js";
+import { configurationPolicy } from "../../../src/app/policies/index.js";
+import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
-import { createCompiledSubAgentGraph } from "../../../src/runtime-agents/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
 import {
   FakeLLMConnector,
   createRuntimeAgentRepositoryFake,
@@ -49,7 +49,7 @@ describe("configuration subgraph", () => {
               args: {
                 jobName: "daily-note",
                 schedule: "0 6 * * *",
-                targetRoute: "Obsidian_SG",
+                targetRoute: "obsidian",
                 payload: "Create my daily note",
               },
               id: "config-tool-1",

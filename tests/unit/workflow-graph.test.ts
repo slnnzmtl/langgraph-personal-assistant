@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCronTrigger } from "../../src/cron-triggers.js";
+import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { createWorkflowGraph } from "../../src/agent.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
@@ -83,7 +83,7 @@ describe("createWorkflowGraph", () => {
     vi.useRealTimers();
   });
 
-  it("visits the finance node on Finance_SG route (fallback when no repository)", async () => {
+  it("visits the finance node on finance route (fallback when no repository)", async () => {
     let calls = 0;
     const app = makeGraph(() => {
       calls += 1;
@@ -97,7 +97,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
   });
 
-  it("visits the finance node on Finance_SG route (real integration with mock session)", async () => {
+  it("visits the finance node on finance route (real integration with mock session)", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
@@ -164,7 +164,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
   });
 
-  it("visits the obsidian node on Obsidian_SG route", async () => {
+  it("visits the obsidian node on obsidian route", async () => {
     let supervisorCalls = 0;
     const app = makeGraph(
       () => {
@@ -181,7 +181,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toBe("obsidian result");
   });
 
-  it("visits the configuration node on Config_SG route", async () => {
+  it("visits the configuration node on configuration route", async () => {
     let supervisorCalls = 0;
     const app = makeGraph(() => {
       supervisorCalls += 1;
@@ -268,7 +268,7 @@ describe("createWorkflowGraph", () => {
     );
 
     const state = await app.invoke(
-      { messages: [new HumanMessage(buildCronTrigger("finance-sync"))] },
+      { messages: [new HumanMessage(buildCronTriggerForJob("finance", "finance-sync"))] },
       threadConfig,
     );
 
