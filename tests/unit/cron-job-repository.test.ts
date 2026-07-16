@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
 import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 
 const tempPaths: string[] = [];
 

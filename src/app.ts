@@ -5,7 +5,7 @@ import type { AppConfig } from "./config.js";
 import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createLazyCron, startCron } from "./cron/cron-startup.js";
 import { createCronJobRepositoryForConfig } from "./cron/cron-job-repository.js";
-import { createRuntimeAgentRepositoryForConfig } from "./app/config.js";
+import { createRuntimeAgentRepositoryForConfig } from "./core/agents/repository.js";
 import { buildModelRegistry } from "./app/model-registry.js";
 import {
   deriveCronTargetAgentIds,
@@ -48,7 +48,7 @@ export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp
     models,
     defaultModelKey,
     executors: deriveExecutors(runtimeAgents),
-    cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
+    cronTargetAgentIds,
     obsidianVaultPath: config.obsidianVaultPath,
     cronJobRepository,
     runtimeAgentRepository,

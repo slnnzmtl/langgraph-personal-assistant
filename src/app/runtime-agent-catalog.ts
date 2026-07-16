@@ -25,6 +25,3 @@ export const deriveExecutors = (agents: RuntimeAgentDefinition[]): Set<string> =
 
 export const deriveCronTargetAgentIds = (agents: RuntimeAgentDefinition[]): string[] =>
   agents.filter((agent) => agent.enabled).map((agent) => agent.id);
-
-export const deriveBuiltinAgentIds = (agents: RuntimeAgentDefinition[]): string[] =>
-  agents.filter((agent) => agent.builtin === true).map((agent) => agent.id);

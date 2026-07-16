@@ -1,11 +1,8 @@
 import { z } from "zod";
 
 import type { RuntimeAgentDefinition } from "../types/agent.js";
-import { ROUTE_NAMES } from "../state.js";
 
-export const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
-
-export type BuiltinSupervisorRoute = (typeof BUILTIN_SUPERVISOR_ROUTES)[number];
+const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
 
 const buildRoutingDescription = (runtimeAgents: RuntimeAgentDefinition[]): string => {
   const base = [
@@ -43,9 +40,3 @@ export const buildSupervisorRoutingSchema = (runtimeAgents: RuntimeAgentDefiniti
 };
 
 export type RoutingDecision = z.infer<ReturnType<typeof buildSupervisorRoutingSchema>>;
-
-export const isBuiltinSupervisorRoute = (value: string): value is BuiltinSupervisorRoute =>
-  (BUILTIN_SUPERVISOR_ROUTES as readonly string[]).includes(value);
-
-export const isGraphRouteName = (value: string): value is (typeof ROUTE_NAMES)[number] =>
-  (ROUTE_NAMES as readonly string[]).includes(value);

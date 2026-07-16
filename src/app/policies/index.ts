@@ -122,13 +122,3 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
     });
   },
 });
-
-export const createAppPolicies = (): RuntimeAgentPolicy[] => [
-  createFinancePolicy(),
-  createObsidianPolicy(),
-  createConfigurationPolicy(),
-];
-
-export const financePolicy = createFinancePolicy();
-export const obsidianPolicy = createObsidianPolicy();
-export const configurationPolicy = createConfigurationPolicy();

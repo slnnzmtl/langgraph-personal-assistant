@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { configurationPolicy } from "../../../src/app/policies/index.js";
+import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
 import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
@@ -66,7 +66,7 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const wrapper = configurationPolicy.createHandler(context, configurationDefinition);
+    const wrapper = createConfigurationPolicy().createHandler(context, configurationDefinition);
 
     const result = await wrapper({
       messages: [new HumanMessage("set up a cron job for daily notes")],
