@@ -53,7 +53,7 @@ export type RuntimeAgentNodeHooks = {
   emptyResponseMessage?: (definition: RuntimeAgentDefinition) => string;
 };
 
-const sanitizeResponseToolCalls = (
+export const sanitizeResponseToolCalls = (
   response: AIMessage,
   allowedToolNames: Set<string>,
   unavailableMessage = "That tool is not available for this runtime agent.",

@@ -5,11 +5,6 @@ import type {
   RuntimeToolBundleId,
   SkillAttachmentRule,
 } from "../core/types/agent.js";
-import {
-  CONFIGURATION_MAX_STEPS,
-  FINANCE_MAX_STEPS,
-  OBSIDIAN_MAX_STEPS,
-} from "./constants.js";
 import { ROUTINE_SKILL_ATTACHMENTS } from "./skill-attachments.js";
 
 type AppModelConfigKey = "financeModel" | "obsidianModel" | "configurationModel";
@@ -38,7 +33,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     promptSourceKey: "finance",
     toolBundleIds: ["finance-domain"],
     skillAttachments: [],
-    maxSteps: FINANCE_MAX_STEPS,
+    maxSteps: 10,
     configModelKey: "financeModel",
     requiresSupabase: true,
   },
@@ -51,7 +46,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     promptSourceKey: "obsidian",
     toolBundleIds: ["obsidian-vault"],
     skillAttachments: ROUTINE_SKILL_ATTACHMENTS,
-    maxSteps: OBSIDIAN_MAX_STEPS,
+    maxSteps: 8,
     configModelKey: "obsidianModel",
   },
   {
@@ -61,16 +56,14 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     executor: "configuration",
     modelKey: "configuration",
     promptSourceKey: "configuration",
-    toolBundleIds: ["configuration"],
+    toolBundleIds: ["none"],
     skillAttachments: [],
-    maxSteps: CONFIGURATION_MAX_STEPS,
+    maxSteps: 10,
     configModelKey: "configurationModel",
   },
 ];
 
 export const BUILTIN_DOMAIN_IDS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.id) as readonly string[];
-
-export const BUILTIN_DOMAIN_EXECUTORS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.executor);
 
 const buildTimestamp = (): string => new Date().toISOString();
 

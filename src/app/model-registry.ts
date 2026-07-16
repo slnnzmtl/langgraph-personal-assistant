@@ -4,9 +4,6 @@ import type { AppConfig } from "../config.js";
 import { GeminiConnector } from "../connectors/llm-connector.js";
 import { resolveBuiltinModelName } from "../runtime-agents/builtin-domains.js";
 
-const resolveModelNameForKey = (config: AppConfig, modelKey: string): string =>
-  resolveBuiltinModelName(config, modelKey);
-
 export const buildModelRegistry = (
   config: AppConfig,
   requiredKeys: Iterable<string>,
@@ -18,7 +15,7 @@ export const buildModelRegistry = (
       continue;
     }
 
-    const connector = new GeminiConnector(config.googleApiKey, resolveModelNameForKey(config, modelKey));
+    const connector = new GeminiConnector(config.googleApiKey, resolveBuiltinModelName(config, modelKey));
     models[modelKey] = connector.getModel();
   }
 

@@ -8,6 +8,7 @@ export type RuntimeAgentPolicyHandler = (
 
 export type RuntimeAgentPolicy = {
   readonly executor: string;
+  /** Definition must have its system prompt already resolved when invoked from dispatch. */
   createHandler: (
     context: RuntimeAgentExecutionContext,
     definition: RuntimeAgentDefinition,

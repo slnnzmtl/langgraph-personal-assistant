@@ -41,22 +41,20 @@ export const createGenericPolicy = <
   deps: GenericPolicyDeps<TBundleDeps>,
 ): RuntimeAgentPolicy => ({
   executor: "generic",
-  createHandler: (context, definition) => {
-    const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
-
-    return createSubgraphNodeWrapper({
-      subgraphName: resolvedDefinition.name,
+  createHandler: (context, definition) =>
+    createSubgraphNodeWrapper({
+      subgraphName: definition.name,
       buildInitialState: (state) => ({
         messages: state.messages,
         stepCount: 0,
       }),
-      compiledSubgraph: getCompiledGenericRuntimeSubgraph(context, resolvedDefinition, deps),
+      compiledSubgraph: getCompiledGenericRuntimeSubgraph(context, definition, deps),
       mapResult: (result: SubAgentState) => {
-        if (result.stepCount >= resolvedDefinition.maxSteps) {
+        if (result.stepCount >= definition.maxSteps) {
           return {
             messages: [
               new AIMessage(
-                `Unable to complete ${resolvedDefinition.name}: exceeded the maximum of ${resolvedDefinition.maxSteps} tool steps.`,
+                `Unable to complete ${definition.name}: exceeded the maximum of ${definition.maxSteps} tool steps.`,
               ),
             ],
           };
@@ -67,8 +65,7 @@ export const createGenericPolicy = <
           messages: [lastMessage as AIMessage],
         };
       },
-    });
-  },
+    }),
 });
 
 const getCompiledGenericRuntimeSubgraph = <

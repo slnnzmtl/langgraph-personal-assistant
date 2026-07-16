@@ -1,26 +1,39 @@
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+
 import { AIMessage } from "@langchain/core/messages";
 import { resolveModel, type RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
+import {
+  createRuntimeAgentNode,
+  type SubAgentToolSource,
+} from "../../core/execution/runtime-node.js";
+import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { AgentStateUpdate } from "../../core/state.js";
+import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
-import { FINANCE_MAX_STEPS, OBSIDIAN_MAX_STEPS, CONFIGURATION_MAX_STEPS } from "../../runtime-agents/constants.js";
 import { createFinanceSkillScopedTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianSkillScopedTools } from "../../runtime-agents/policies/obsidian/tools.js";
 import { createConfigurationSkillScopedTools } from "../../runtime-agents/policies/configuration/tools.js";
-import { getAppBundleDeps } from "../bundle-deps.js";
-import {
-  createConfigurationLlmNode,
-  createFinanceLlmNode,
-  createObsidianLlmNode,
-} from "./factories.js";
-import { buildObsidianCompletionSummary } from "./obsidian-hooks.js";
+import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
+import { createConfigurationNodeHooks } from "./configuration-hooks.js";
+import { createFinanceNodeHooks } from "./finance-hooks.js";
+import { buildObsidianCompletionSummary, createObsidianNodeHooks } from "./obsidian-hooks.js";
+
+const createDomainLlmNode = (
+  model: BaseChatModel,
+  definition: RuntimeAgentDefinition,
+  tools: SubAgentToolSource | undefined,
+  hooks: Parameters<typeof createRuntimeAgentNode>[3],
+) =>
+  createRuntimeAgentNode(model, definition, tools, hooks) as (
+    state: SubAgentState,
+  ) => Promise<SubAgentStateUpdate>;
 
 export const createFinancePolicy = (): RuntimeAgentPolicy => ({
   executor: "finance",
   createHandler: (context: RuntimeAgentExecutionContext, definition) => {
-    const bundleDeps = getAppBundleDeps(context);
-    const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
+    const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const session = bundleDeps.supabaseSession;
 
     return createSubAgentOrStub(
@@ -28,15 +41,15 @@ export const createFinancePolicy = (): RuntimeAgentPolicy => ({
       "Supabase session is not configured.",
       {
         name: "Finance",
-        maxSteps: resolvedDefinition.maxSteps ?? FINANCE_MAX_STEPS,
+        maxSteps: definition.maxSteps,
         deps: {
           model: resolveModel(context, "finance"),
-          definition: resolvedDefinition,
+          definition,
           session,
         },
         createTools: (deps) => createFinanceSkillScopedTools(deps.session!),
         createLlmNode: (deps, tools) =>
-          createFinanceLlmNode(context.promptResolver, deps.model, deps.definition, tools),
+          createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks()),
       },
     );
   },
@@ -45,9 +58,8 @@ export const createFinancePolicy = (): RuntimeAgentPolicy => ({
 export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
   executor: "obsidian",
   createHandler: (context, definition) => {
-    const bundleDeps = getAppBundleDeps(context);
-    const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
-    const maxSteps = resolvedDefinition.maxSteps ?? OBSIDIAN_MAX_STEPS;
+    const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
+    const maxSteps = definition.maxSteps;
 
     return createSubAgent({
       name: "Obsidian",
@@ -56,16 +68,15 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
         model: resolveModel(context, "obsidian"),
         vaultRoot: bundleDeps.obsidianVaultPath,
         fileSender: bundleDeps.fileSender,
-        definition: resolvedDefinition,
+        definition,
       },
       createTools: (deps) => createObsidianSkillScopedTools(deps.vaultRoot, deps.fileSender),
       createLlmNode: (deps, tools) =>
-        createObsidianLlmNode(
-          context.promptResolver,
+        createDomainLlmNode(
           deps.model,
-          deps.vaultRoot,
           deps.definition,
           tools,
+          createObsidianNodeHooks(deps.vaultRoot),
         ),
       mapResult: (result): AgentStateUpdate => {
         if (result.stepCount >= maxSteps) {
@@ -94,8 +105,7 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
 export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
   executor: "configuration",
   createHandler: (context, definition) => {
-    const bundleDeps = getAppBundleDeps(context);
-    const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
+    const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const configurationTools = createConfigurationSkillScopedTools(
       context.cronJobRepository,
       context.repository,
@@ -104,23 +114,24 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
 
     return createSubAgent({
       name: "Configuration",
-      maxSteps: resolvedDefinition.maxSteps ?? CONFIGURATION_MAX_STEPS,
+      maxSteps: definition.maxSteps,
       deps: {
         model: resolveModel(context, "configuration"),
         tools: configurationTools,
-        definition: resolvedDefinition,
+        definition,
+        repository: context.cronJobRepository,
+        runtimeCron: context.runtimeCron,
       },
       createTools: (deps) => deps.tools,
       createLlmNode: (deps, toolSource) =>
-        createConfigurationLlmNode(
-          context.promptResolver,
+        createDomainLlmNode(
           deps.model,
+          deps.definition,
           toolSource,
-          {
-            repository: context.cronJobRepository,
-            runtimeCron: context.runtimeCron,
-            definition: deps.definition,
-          },
+          createConfigurationNodeHooks({
+            repository: deps.repository,
+            runtimeCron: deps.runtimeCron,
+          }),
         ),
     });
   },

@@ -1,31 +1,14 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { createConfigurationSkillScopedTools } from "../../src/runtime-agents/policies/configuration/tools.js";
-import type { CronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
-
-const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRepository => {
-  let storedJobs = [...jobs] as any[];
-
-  return {
-    loadJobs: vi.fn(async () => storedJobs),
-    saveJobs: vi.fn(async (nextJobs) => {
-      storedJobs = [...nextJobs];
-    }),
-  };
-};
-
-const createConfigurationTools = (repository: CronJobRepository) =>
-  createConfigurationSkillScopedTools(
-    repository,
-    createRuntimeAgentRepositoryFake(),
-    defaultConfigurationBundleDeps,
-  );
+import {
+  createConfigurationTools,
+  createCronRepositoryFake,
+} from "../helpers/configuration-tools.js";
 
 describe("createConfigurationSkillScopedTools", () => {
   it("includes skill CRUD tools in the full registry", () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const context = createConfigurationTools(repository);
     const toolNames = context.allTools.map((tool) => tool.name);
 
@@ -46,7 +29,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("exposes only read_skill before a configuration skill is loaded", () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const context = createConfigurationTools(repository);
 
     const initialTools = context.resolveToolsForTurn([]);
@@ -54,7 +37,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("exposes cron tools after read_skill(cron)", () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const context = createConfigurationTools(repository);
 
     const tools = context.resolveToolsForTurn([
@@ -75,7 +58,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("previews cron tools when reading the cron skill", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const context = createConfigurationTools(repository);
     const result = String(await context.config.readSkillTool.invoke({ name: "cron" }));
 
@@ -88,7 +71,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("lists saved cron jobs from the repository", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
@@ -108,7 +91,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("creates and persists a new cron job", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const tools = createConfigurationTools(repository).allTools;
 
     const createTool = tools.find((tool) => tool.name === "create_cron_job");
@@ -137,7 +120,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("rejects duplicate cron job names", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
@@ -160,7 +143,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("deletes a cron job and removes it from persistence", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
@@ -190,7 +173,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("returns not-found error when deleting a non-existent cron job", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
@@ -210,7 +193,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("includes runtime agent tools in the full registry", () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const context = createConfigurationTools(repository);
     const toolNames = context.allTools.map((tool) => tool.name);
 
@@ -227,7 +210,7 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("creates and lists a runtime agent without exposing the full prompt in list output", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake();
     const tools = createConfigurationTools(repository).allTools;
     const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
     const listTool = tools.find((tool) => tool.name === "list_runtime_agents");

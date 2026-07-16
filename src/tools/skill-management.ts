@@ -17,10 +17,11 @@ import { appendSkillToolsPreview, skillToolBundlesFromRecord } from "./skill-sco
 import { truncateToolOutput } from "./output.js";
 import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 
-export const SKILL_OWNERS = BUILTIN_DOMAIN_IDS;
-export type SkillOwner = (typeof SKILL_OWNERS)[number];
+export type SkillOwner = (typeof BUILTIN_DOMAIN_IDS)[number];
 
-const SkillOwnerSchema = z.enum(SKILL_OWNERS);
+const SkillOwnerSchema = z.enum(
+  BUILTIN_DOMAIN_IDS as unknown as [SkillOwner, ...SkillOwner[]],
+);
 
 export const ReadSkillToolSchema = z.object({
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
@@ -72,7 +73,7 @@ const resolveOwnerSkillsDir = (
   owner: SkillOwner,
   resolveSkillsDir?: (owner: SkillOwner) => string,
 ): string => {
-  if (!SKILL_OWNERS.includes(owner)) {
+  if (!(BUILTIN_DOMAIN_IDS as readonly string[]).includes(owner)) {
     throw new Error(`Unknown skill owner: ${owner}`);
   }
 

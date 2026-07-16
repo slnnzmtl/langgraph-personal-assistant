@@ -5,7 +5,9 @@ import type { IFileSender } from "../telegram/file-sender.js";
 import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import {
+  RUNTIME_TOOL_BUNDLE_CATALOG,
   RUNTIME_TOOL_BUNDLE_IDS,
+  type RuntimeToolBundleCatalogEntry,
   type RuntimeToolBundleId,
 } from "../core/types/agent.js";
 
@@ -16,33 +18,19 @@ export type RuntimeToolBundleDeps = {
   cronTargetAgentIds?: readonly string[];
 };
 
-export type RuntimeToolBundleCatalogEntry = {
-  id: RuntimeToolBundleId;
-  description: string;
-  requiresSupabase?: boolean;
-  requiresVault?: boolean;
-};
-
-export const RUNTIME_TOOL_BUNDLE_CATALOG: RuntimeToolBundleCatalogEntry[] = [
-  {
-    id: "none",
-    description: "Prompt-only agent with no tools.",
-  },
-  {
-    id: "obsidian-vault",
-    description: "Read, write, search, and send files from the Obsidian vault.",
-    requiresVault: true,
-  },
-  {
-    id: "finance-domain",
-    description: "Execute SQL, fetch Wise transactions, and load expense categories.",
-    requiresSupabase: true,
-  },
-  {
-    id: "configuration",
-    description: "Manage cron jobs, skills, and runtime sub-agents through skill-scoped configuration tools.",
-  },
-];
+export const createRuntimeToolBundleDeps = (
+  obsidianVaultPath: string,
+  options: {
+    fileSender?: RuntimeToolBundleDeps["fileSender"];
+    supabaseSession?: RuntimeToolBundleDeps["supabaseSession"];
+    cronTargetAgentIds?: readonly string[];
+  } = {},
+): RuntimeToolBundleDeps => ({
+  obsidianVaultPath,
+  ...(options.fileSender ? { fileSender: options.fileSender } : {}),
+  ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
+  ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
+});
 
 const resolveBundleTools = (
   bundleId: RuntimeToolBundleId,
@@ -58,8 +46,6 @@ const resolveBundleTools = (
         throw new Error("finance-domain bundle requires a configured Supabase session.");
       }
       return createFinanceDomainToolsFromSession(deps.supabaseSession);
-    case "configuration":
-      return [];
     default:
       throw new Error(`Unknown runtime tool bundle: ${bundleId as string}`);
   }
@@ -69,11 +55,13 @@ export const listAvailableRuntimeToolBundles = (
   deps: RuntimeToolBundleDeps,
 ): RuntimeToolBundleCatalogEntry[] =>
   RUNTIME_TOOL_BUNDLE_CATALOG.filter((entry) => {
-    if (entry.requiresSupabase && !deps.supabaseSession) {
+    const catalogEntry = entry as RuntimeToolBundleCatalogEntry;
+
+    if (catalogEntry.requiresSupabase && !deps.supabaseSession) {
       return false;
     }
 
-    if (entry.requiresVault && !deps.obsidianVaultPath) {
+    if (catalogEntry.requiresVault && !deps.obsidianVaultPath) {
       return false;
     }
 

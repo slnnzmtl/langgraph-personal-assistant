@@ -1,7 +1,5 @@
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { resolveRuntimeAgentId } from "./core/types/agent.js";
-
 const CRON_TRIGGER_PREFIX = "SYSTEM_CRON_TRIGGER:";
 const ROUTE_TRIGGER_SEPARATOR = ":";
 
@@ -39,16 +37,14 @@ export const createCronTriggerResolver = (
     const triggerName = triggerText.slice(CRON_TRIGGER_PREFIX.length).trim();
     const derivedRoute = triggerName.split(ROUTE_TRIGGER_SEPARATOR, 1)[0];
     if (derivedRoute && isCronTargetRoute(derivedRoute)) {
-      return resolveRuntimeAgentId(derivedRoute);
+      return derivedRoute;
     }
 
     return null;
   };
 
-  const buildCronTriggerForJob = (targetRoute: CronTargetRoute, jobName: string): string => {
-    const normalizedRoute = resolveRuntimeAgentId(targetRoute);
-    return `${CRON_TRIGGER_PREFIX}${normalizedRoute}${ROUTE_TRIGGER_SEPARATOR}${jobName}`;
-  };
+  const buildCronTriggerForJob = (targetRoute: CronTargetRoute, jobName: string): string =>
+    `${CRON_TRIGGER_PREFIX}${targetRoute}${ROUTE_TRIGGER_SEPARATOR}${jobName}`;
 
   return {
     isCronTargetRoute,

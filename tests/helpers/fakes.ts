@@ -11,7 +11,7 @@ import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.j
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import type { AppBundleDeps } from "../../src/app/bundle-deps.js";
+import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
 import type { AgentStateUpdate } from "../../src/core/state.js";
 import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
 
@@ -164,7 +164,7 @@ export const createRuntimeAgentRepositoryFake = (
   };
 };
 
-export const defaultConfigurationBundleDeps: AppBundleDeps = {
+export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
   cronTargetAgentIds: defaultCronTargetAgentIds(),
 };

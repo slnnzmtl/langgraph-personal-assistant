@@ -4,16 +4,42 @@ export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
 export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
-export const RUNTIME_TOOL_BUNDLE_IDS = [
-  "none",
-  "obsidian-vault",
-  "finance-domain",
-  "configuration",
+export const RUNTIME_TOOL_BUNDLE_CATALOG = [
+  {
+    id: "none",
+    description: "Prompt-only agent with no tools.",
+  },
+  {
+    id: "obsidian-vault",
+    description: "Read, write, search, and send files from the Obsidian vault.",
+    requiresVault: true,
+  },
+  {
+    id: "finance-domain",
+    description: "Execute SQL, fetch Wise transactions, and load expense categories.",
+    requiresSupabase: true,
+  },
 ] as const;
 
-export type RuntimeToolBundleId = (typeof RUNTIME_TOOL_BUNDLE_IDS)[number];
+export type RuntimeToolBundleId = (typeof RUNTIME_TOOL_BUNDLE_CATALOG)[number]["id"];
 
-export const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
+export type RuntimeToolBundleCatalogEntry = {
+  id: RuntimeToolBundleId;
+  description: string;
+  requiresSupabase?: boolean;
+  requiresVault?: boolean;
+};
+
+export const RUNTIME_TOOL_BUNDLE_IDS = RUNTIME_TOOL_BUNDLE_CATALOG.map(
+  (entry) => entry.id,
+) as unknown as readonly RuntimeToolBundleId[];
+
+export const RuntimeToolBundleIdSchema = z.enum(
+  RUNTIME_TOOL_BUNDLE_CATALOG.map((entry) => entry.id) as [
+    RuntimeToolBundleId,
+    ...RuntimeToolBundleId[],
+  ],
+);
 
 export const SkillAttachmentMatchSchema = z.object({
   anyPhrases: z.array(z.string().min(1)).optional(),
@@ -87,9 +113,6 @@ export const toRuntimeAgentId = (name: string): string =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-+|-+$/g, "");
-
-export const resolveRuntimeAgentId = (routeOrId: string): string =>
-  routeOrId;
 
 export const resolveAgentModelKey = (
   definition: RuntimeAgentDefinition,

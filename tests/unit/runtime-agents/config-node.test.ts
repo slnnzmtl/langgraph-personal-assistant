@@ -2,37 +2,26 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
-import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
-import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import {
+  createConfigurationTools,
+  createCronRepositoryFake,
+} from "../../helpers/configuration-tools.js";
+import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
 
-const createRepository = () => {
-  const jobs = [
-    {
-      jobName: "sync-wise-transactions",
-      schedule: "0 7 * * *",
-      targetRoute: "finance",
-      payload: "sync wise transactions for yesterday with supabase",
-    },
-  ];
-
-  return {
-    loadJobs: vi.fn(async () => jobs),
-    saveJobs: vi.fn(),
-  };
-};
-
-const createConfigurationTools = (repository: ReturnType<typeof createRepository>) =>
-  createConfigurationSkillScopedTools(
-    repository,
-    createRuntimeAgentRepositoryFake(),
-    defaultConfigurationBundleDeps,
-  );
+const defaultCronJobs = [
+  {
+    jobName: "sync-wise-transactions",
+    schedule: "0 7 * * *",
+    targetRoute: "finance",
+    payload: "sync wise transactions for yesterday with supabase",
+  },
+];
 
 describe("createConfigurationNode", () => {
   it("lists cron jobs directly without invoking the llm or runtime scheduler", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for list requests");
     });
@@ -68,7 +57,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("lists configuration skills directly without invoking the llm", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for configuration skill catalog requests");
     });
@@ -99,7 +88,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("delegates cross-owner skill list requests to the model", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () =>
       new AIMessage({
         content: "",
@@ -137,7 +126,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("strips hallucinated tool calls that are not currently bound", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () =>
       new AIMessage({
         content: "",
@@ -176,7 +165,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("returns preview_skill tool output directly without invoking the llm again", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run after read-only skill tool results");
     });
@@ -223,7 +212,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("returns list_skills tool output directly without invoking the llm again", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run after read-only skill tool results");
     });
@@ -270,7 +259,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 

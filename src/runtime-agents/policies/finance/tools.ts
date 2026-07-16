@@ -105,8 +105,3 @@ export const createFinanceSkillScopedTools = (mcpSession: SupabaseMcpSession) =>
   });
 };
 
-export const getFinanceDomainTool = (
-  mcpSession: SupabaseMcpSession,
-  toolName: "exec_sql" | "fetch_wise_transactions" | "get_categories",
-): StructuredToolInterface | undefined =>
-  createFinanceDomainToolsFromSession(mcpSession).find((tool) => tool.name === toolName);

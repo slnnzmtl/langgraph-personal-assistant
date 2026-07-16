@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
-import { createFinanceSkillScopedTools, getFinanceDomainTool } from "../../../src/runtime-agents/policies/finance/tools.js";
+import { createFinanceSkillScopedTools } from "../../../src/runtime-agents/policies/finance/tools.js";
+import { getFinanceDomainTool } from "../../helpers/finance-tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const financeDefinition = getBuiltinRuntimeAgentDefinition("finance");

@@ -1,6 +1,6 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { AppBundleDeps, AppRuntimeAgentExecutionContext } from "../../src/app/bundle-deps.js";
+import type { RuntimeAgentExecutionContext } from "../../src/core/execution/context.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import {
   deriveCronTargetAgentIds,
@@ -11,6 +11,7 @@ import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js
 import { createRuntimeAgentExecutionContext as createCoreExecutionContext } from "../../src/core/execution/context.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
@@ -18,13 +19,13 @@ export type CreateAppRuntimeExecutionContextInput = {
   repository?: RuntimeAgentRepository;
   cronJobRepository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
-  bundleDeps: AppBundleDeps;
+  bundleDeps: RuntimeToolBundleDeps;
   executors?: Iterable<string>;
 };
 
 export const createAppRuntimeExecutionContext = (
   input: CreateAppRuntimeExecutionContextInput,
-): AppRuntimeAgentExecutionContext => {
+): RuntimeAgentExecutionContext<RuntimeToolBundleDeps> => {
   const runtimeAgents = buildDefaultRuntimeAgents();
   const defaultModelKey = "generic";
   const executors = input.executors ?? deriveExecutors(runtimeAgents);
@@ -32,7 +33,7 @@ export const createAppRuntimeExecutionContext = (
   const cronTargetAgentIds = input.bundleDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
-  return createCoreExecutionContext<AppBundleDeps>({
+  return createCoreExecutionContext<RuntimeToolBundleDeps>({
     models: Object.fromEntries(
       [...deriveModelKeys(runtimeAgents, defaultModelKey)].map((modelKey) => [
         modelKey,
