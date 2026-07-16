@@ -13,7 +13,7 @@ import {
   resolveModel,
 } from "../../src/core/execution/context.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type { AppBundleDeps, AppRuntimeAgentExecutionContext };

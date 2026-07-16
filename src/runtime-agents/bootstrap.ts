@@ -7,7 +7,7 @@ export type RuntimeAgentBootstrapOptions = {
   financeAvailable?: boolean;
 };
 
-export const mergeRuntimeAgents = (
+const mergeRuntimeAgents = (
   defaultAgents: RuntimeAgentDefinition[],
   persistedAgents: RuntimeAgentDefinition[],
 ): RuntimeAgentDefinition[] => {

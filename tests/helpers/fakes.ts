@@ -8,11 +8,40 @@ import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
 import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { AppBundleDeps } from "../../src/app/bundle-deps.js";
+import type { AgentStateUpdate } from "../../src/core/state.js";
 import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
+
+export const getStateUpdateMessages = (
+  update: Pick<AgentStateUpdate, "messages">,
+): BaseMessage[] | undefined =>
+  Array.isArray(update.messages) ? update.messages : undefined;
+
+export const firstStateUpdateMessage = (
+  update: Pick<AgentStateUpdate, "messages">,
+): BaseMessage | undefined =>
+  getStateUpdateMessages(update)?.[0];
+
+export const getStateUpdateContext = (
+  update: Pick<AgentStateUpdate, "context">,
+): Record<string, unknown> | undefined => {
+  const { context } = update;
+  if (context === undefined || typeof context !== "object" || Array.isArray(context)) {
+    return undefined;
+  }
+
+  return context as Record<string, unknown>;
+};
+
+export const getStateUpdateRuntimeAgentId = (
+  update: Pick<AgentStateUpdate, "context">,
+): string | undefined => {
+  const value = getStateUpdateContext(update)?.[RUNTIME_AGENT_CONTEXT_KEY];
+  return typeof value === "string" ? value : undefined;
+};
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -65,27 +94,11 @@ export class FakeLLMConnector implements ILLMConnector {
   }
 }
 
-export const latestMessageText = (messages: BaseMessage[]): string => {
-  const lastMessage = messages[messages.length - 1];
-
-  if (!lastMessage) {
-    throw new Error("No messages found.");
-  }
-
-  if (typeof lastMessage.content === "string") {
-    return lastMessage.content;
-  }
-
-  return JSON.stringify(lastMessage.content);
-};
-
 export const makeHumanState = (text: string) => ({
   messages: [new HumanMessage(text)],
   context: {},
   next: undefined,
 });
-
-export const makeAiMessage = (text: string) => new AIMessage(text);
 
 export const createRuntimeAgentRepositoryFake = (
   initialAgents: RuntimeAgentDefinition[] = buildDefaultRuntimeAgents(),
@@ -109,6 +122,7 @@ export const createRuntimeAgentRepositoryFake = (
         toolBundleIds: input.toolBundleIds,
         skillAttachments: input.skillAttachments ?? [],
         executor: input.executor ?? "generic",
+        builtin: false,
         maxSteps: input.maxSteps ?? 8,
         enabled: input.enabled ?? true,
         createdAt: timestamp,

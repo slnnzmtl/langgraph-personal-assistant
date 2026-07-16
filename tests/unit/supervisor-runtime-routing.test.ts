@@ -2,7 +2,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
 
 describe("supervisor runtime routing", () => {

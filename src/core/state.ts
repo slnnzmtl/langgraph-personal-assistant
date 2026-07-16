@@ -1,8 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
-export const BUILTIN_ROUTE_NAMES = ["Runtime_SG", "FINISH"] as const;
-export const ROUTE_NAMES = BUILTIN_ROUTE_NAMES;
+export const ROUTE_NAMES = ["Runtime_SG", "FINISH"] as const;
 export const MESSAGE_HISTORY_LIMIT = 10;
 
 export type RouteName = (typeof ROUTE_NAMES)[number];

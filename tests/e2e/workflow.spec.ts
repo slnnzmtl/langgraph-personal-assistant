@@ -9,7 +9,7 @@ import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import { MESSAGE_HISTORY_LIMIT } from "../../src/core/state.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 
 const testCronRepository: CronJobRepository = {
@@ -55,7 +55,7 @@ const workflowConfig = {
 };
 
 const makeToolCallMessage = (
-  name: "read_file" | "write_file" | "delete_file",
+  name: "read_file" | "write_file" | "search_files" | "search_files_by_name" | "list_files",
   args: Record<string, unknown>,
   id = `${name}-call`,
 ) => new AIMessage({
@@ -718,14 +718,16 @@ test.describe("workflow graph", () => {
   });
 
   test("routes a persisted runtime agent through Runtime_SG", async () => {
-    const customAgents = [
+    const customAgents: RuntimeAgentDefinition[] = [
       {
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"] as const,
+        toolBundleIds: ["none"],
+        skillAttachments: [],
         executor: "generic",
+        builtin: false,
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",

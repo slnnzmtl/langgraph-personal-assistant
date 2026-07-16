@@ -111,7 +111,7 @@ export const createSubAgentOrStub = <TDeps>(
   return createSubAgent(config);
 };
 
-export const filterToolsByNames = (
+const filterToolsByNames = (
   tools: StructuredToolInterface[],
   allowedNames: string[],
   options?: { alwaysInclude?: string[] },

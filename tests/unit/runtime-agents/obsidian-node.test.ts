@@ -203,47 +203,6 @@ describe("createObsidianNode", () => {
     expect(firstMessage?.content).toBe("Completed the Obsidian task.");
   });
 
-  it("retries chat-only replies for mutation requests and forces a tool call", async () => {
-    const vaultRoot = await createTempVault();
-    let calls = 0;
-    const connector = new FakeLLMConnector((input) => {
-      calls += 1;
-
-      if (calls === 1) {
-        return new AIMessage("Great! I'll mark that as complete.");
-      }
-
-      expect(Array.isArray(input)).toBe(true);
-      const promptContent = (input as Array<{ content: unknown }>)
-        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
-        .join("\n");
-
-      expect(promptContent).toMatch(/Do not confirm in chat/i);
-
-      return new AIMessage({
-        content: "",
-        tool_calls: [
-          {
-            name: "read_file",
-            args: { relativePath: "routine/July/July 16 - Thu.md" },
-            id: "read-today",
-            type: "tool_call",
-          },
-        ],
-      });
-    });
-    const tools = createObsidianVaultTools(vaultRoot);
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition, tools);
-
-    const result = await obsidianNode({
-      messages: [new HumanMessage("Buy washing liquid is done")],
-    });
-
-    expect(calls).toBe(2);
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
-    expect(firstMessage?.tool_calls?.[0]?.name).toBe("read_file");
-  });
-
   it("includes the current date and routine path hint in the prompt", async () => {
     const vaultRoot = await createTempVault();
     const currentInstant = new Date("2026-07-05T00:30:00.000Z");

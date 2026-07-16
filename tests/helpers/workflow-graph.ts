@@ -7,7 +7,7 @@ import {
 } from "../../src/app/runtime-agent-catalog.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { FakeLLMConnector } from "./fakes.js";
 
 export type TestWorkflowGraphOptions = WorkflowGraphConfig & {
@@ -46,18 +46,3 @@ export const createTestWorkflowGraph = ({
     ...config,
   });
 };
-
-export const createTestWorkflowGraphFromRepository = (
-  supervisorLlm: ILLMConnector,
-  config: WorkflowGraphConfig,
-  repository: RuntimeAgentRepository,
-  modelHandlers?: TestWorkflowGraphOptions["modelHandlers"],
-) =>
-  repository.loadAgents().then((agents) =>
-    createTestWorkflowGraph({
-      supervisorLlm,
-      runtimeAgents: agents,
-      modelHandlers,
-      ...config,
-    }),
-  );

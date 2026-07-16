@@ -2,7 +2,8 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
+import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/core/state.js";
@@ -41,7 +42,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("hello"));
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Datetime checked");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Datetime checked");
   });
 
   it("appends a direct AI reply for the FINISH path", async () => {
@@ -54,8 +55,8 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("hello"));
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages).toHaveLength(1);
-    expect(result.messages?.[0]?.content).toBe("Direct answer");
+    expect(getStateUpdateMessages(result)).toHaveLength(1);
+    expect(firstStateUpdateMessage(result)?.content).toBe("Direct answer");
   });
 
   it("generates a model-written final reply when structured routing fails", async () => {
@@ -67,14 +68,14 @@ describe("createSupervisorNode", () => {
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("Final explanatory answer"),
-      } as BaseChatModel),
+      } as unknown as BaseChatModel),
     };
     const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Final explanatory answer");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Final explanatory answer");
   });
 
   it("generates a model-written final reply when FINISH omits a reply", async () => {
@@ -89,14 +90,14 @@ describe("createSupervisorNode", () => {
       }),
       getModel: () => ({
         invoke: modelInvoke,
-      } as BaseChatModel),
+      } as unknown as BaseChatModel),
     };
     const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Final explanation for missing reply");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Final explanation for missing reply");
     expect(modelInvoke).toHaveBeenCalledTimes(1);
   });
 
@@ -114,7 +115,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("finance");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });
 
   it("receives at most the system prompt plus the last 10 state messages", async () => {
@@ -141,7 +142,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Trimmed reply");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Trimmed reply");
   });
 
   it("passes the raw latest user request through the sanitized history", async () => {
@@ -170,7 +171,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("obsidian");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
   });
 
   it("can route scheduling requests to the configuration branch", async () => {
@@ -186,7 +187,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("set up a cron message every weekday at 9am"));
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("configuration");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("configuration");
   });
 
   it("sanitizes prior tool messages before routing", async () => {
@@ -225,7 +226,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Sanitized");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Sanitized");
   });
 
   it("finishes instead of re-delegating when a runtime agent returns an empty reply", async () => {
@@ -247,7 +248,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Completed your request.");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Completed your request.");
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
@@ -263,7 +264,7 @@ describe("createSupervisorNode", () => {
     );
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("finance");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
@@ -283,7 +284,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Handled by LLM");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Handled by LLM");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -299,7 +300,7 @@ describe("createSupervisorNode", () => {
     );
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("obsidian");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
@@ -317,7 +318,7 @@ describe("createSupervisorNode", () => {
     );
 
     expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toBe("Handled by the main supervisor");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Handled by the main supervisor");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -337,7 +338,7 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("Runtime_SG");
-    expect(result.context?.runtimeAgentId).toBe("finance");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });

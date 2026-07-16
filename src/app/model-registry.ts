@@ -4,7 +4,7 @@ import type { AppConfig } from "../config.js";
 import { GeminiConnector } from "../connectors/llm-connector.js";
 import { resolveBuiltinModelName } from "../runtime-agents/builtin-domains.js";
 
-export const resolveModelNameForKey = (config: AppConfig, modelKey: string): string =>
+const resolveModelNameForKey = (config: AppConfig, modelKey: string): string =>
   resolveBuiltinModelName(config, modelKey);
 
 export const buildModelRegistry = (

@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdir } from "node:fs/promises";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
@@ -9,16 +9,8 @@ import {
   appendConfiguredSkillAttachments,
   getAttachedSkillNames,
 } from "../../runtime-agents/skill-attachments.js";
-import {
-  obsidianTurnPlanBindOptions,
-  resolveObsidianMutationToolPlan,
-  resolveObsidianPendingWritePlan,
-  resolveObsidianRetryPlan,
-} from "../../runtime-agents/policies/obsidian/turn-plan.js";
 
-export const buildObsidianCompletionSummary = (
-  messages: Parameters<typeof resolveObsidianRetryPlan>[0],
-): string => {
+export const buildObsidianCompletionSummary = (messages: BaseMessage[]): string => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!(message instanceof ToolMessage)) {
@@ -71,45 +63,6 @@ export const createObsidianNodeHooks = (vaultRoot: string): RuntimeAgentNodeHook
     return appendConfiguredSkillAttachments(basePrompt, ctx.definition, ctx.state.messages);
   },
   resolveToolsForTurn: resolveObsidianToolsForTurn,
-  getBindToolsOptions: (ctx) => {
-    const plan = resolveObsidianPendingWritePlan(ctx.state.messages)
-      ?? resolveObsidianMutationToolPlan(ctx.state.messages);
-
-    return plan ? obsidianTurnPlanBindOptions(plan) : undefined;
-  },
-  afterModelInvoke: async (ctx, { response, promptMessages, model, toolsForTurn }) => {
-    const responseText = extractMessageTextContent(response.content).trim();
-    const toolCalls = response.tool_calls ?? [];
-    const effectiveTools = toolsForTurn.length > 0 ? toolsForTurn : resolveObsidianToolsForTurn(ctx);
-
-    if (toolCalls.length > 0 || effectiveTools.length === 0) {
-      return response;
-    }
-
-    const retryPlan = resolveObsidianRetryPlan(ctx.state.messages, responseText);
-    if (!retryPlan) {
-      return response;
-    }
-
-    const bindOptions = obsidianTurnPlanBindOptions(retryPlan);
-    if (typeof model.bindTools !== "function") {
-      throw new Error("Obsidian LLM model must support tool calling.");
-    }
-
-    const modelForRetry = model.bindTools(effectiveTools, bindOptions);
-    const retryMessages = [
-      ...promptMessages,
-      response,
-      new HumanMessage(retryPlan.nudgeMessage),
-    ];
-
-    const retryResponse = await modelForRetry.invoke(retryMessages);
-    if (!(retryResponse instanceof AIMessage)) {
-      throw new Error("Obsidian LLM model must return an AI message.");
-    }
-
-    return retryResponse;
-  },
   processResponse: (ctx, response) => {
     const responseText = extractMessageTextContent(response.content).trim();
     const toolCalls = response.tool_calls ?? [];

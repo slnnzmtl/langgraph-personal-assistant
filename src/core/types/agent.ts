@@ -77,6 +77,7 @@ export type UpdateRuntimeAgentInput = {
   skillAttachments?: SkillAttachmentRule[];
   executor?: string;
   modelKey?: string;
+  maxSteps?: number;
   enabled?: boolean;
 };
 
@@ -86,9 +87,6 @@ export const toRuntimeAgentId = (name: string): string =>
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-+|-+$/g, "");
-
-export const isRuntimeToolBundleId = (value: string): value is RuntimeToolBundleId =>
-  (RUNTIME_TOOL_BUNDLE_IDS as readonly string[]).includes(value);
 
 export const resolveRuntimeAgentId = (routeOrId: string): string =>
   routeOrId;

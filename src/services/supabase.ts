@@ -25,4 +25,3 @@ export const setupSupabaseSession = async (
   }
 };
 
-export default setupSupabaseSession;

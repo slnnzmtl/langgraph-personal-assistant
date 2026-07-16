@@ -1,6 +1,6 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import { createFinanceDomainToolsFromSession } from "./policies/finance/domain-tools.js";
+import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import type { RuntimeToolBundleDeps } from "./bundle-deps.js";
 import {

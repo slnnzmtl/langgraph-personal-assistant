@@ -8,7 +8,7 @@ import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
 import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
@@ -132,7 +132,7 @@ describe("createWorkflowGraph", () => {
     // The LLM has access to the session but chooses when to invoke tools
   });
 
-  it("preserves every finance tool result when the model emits a six-call batch", async () => {
+  it("preserves every finance tool result when the model emits parallel tool calls", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
@@ -147,6 +147,18 @@ describe("createWorkflowGraph", () => {
         if (financeCalls === 1) {
           return new AIMessage({
             content: "",
+            tool_calls: [{
+              name: "read_skill",
+              args: { name: "sync-expenses" },
+              id: "read-sync-expenses",
+              type: "tool_call" as const,
+            }],
+          });
+        }
+
+        if (financeCalls === 2) {
+          return new AIMessage({
+            content: "",
             tool_calls: Array.from({ length: 6 }, (_, index) => ({
               name: "exec_sql",
               args: { sql: `SELECT ${index + 1};` },
@@ -157,8 +169,11 @@ describe("createWorkflowGraph", () => {
         }
 
         const toolResults = input.filter((message: { _getType?: () => string }) => message._getType?.() === "tool");
-        expect(toolResults).toHaveLength(6);
-        expect(toolResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
+        const execSqlResults = toolResults.filter(
+          (message: { tool_call_id?: string }) => message.tool_call_id?.startsWith("finance-tool-"),
+        );
+        expect(execSqlResults).toHaveLength(6);
+        expect(execSqlResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
           Array.from({ length: 6 }, (_, index) => `finance-tool-${index + 1}`),
         );
 
@@ -169,7 +184,7 @@ describe("createWorkflowGraph", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("sync yesterday's transactions")] }, threadConfig);
 
-    expect(financeCalls).toBe(2);
+    expect(financeCalls).toBe(3);
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
   });
 

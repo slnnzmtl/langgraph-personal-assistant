@@ -222,14 +222,15 @@ src/
     types/                  # RuntimeAgentDefinition, policy types
 
   app/                      # This assistant's configuration
-    config.ts               # Built-in agent ids, repository factory
     register-defaults.ts    # createAppExecutionKit() — policies + prompt resolver
     policies/               # Domain policies, hooks, shared LLM node factories
 
+  config.ts                 # Environment config (models, vault path, API keys)
   agent.ts                  # createWorkflowGraph() → createAssistant()
   app.ts                    # Telegram + cron bootstrap
 
-  runtime-agents/           # Domain tools and defaults
+  runtime-agents/           # Domain tools and built-in agent specs
+    builtin-domains.ts      # BUILTIN_DOMAIN_SPECS — finance / obsidian / configuration
     bootstrap.ts            # Merge persisted agents with defaults
     tool-bundles.ts         # Tool bundle catalog
     policies/               # finance / obsidian / configuration tool implementations
