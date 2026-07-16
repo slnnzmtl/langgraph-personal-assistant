@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
-import { isSkillScopedToolContext, resolveTurnTools } from "../../core/execution/create-sub-agent.js";
+import { resolveTurnTools } from "../../core/execution/create-sub-agent.js";
 import { getSkillsDir } from "../../prompts/load-system-prompt.js";
 import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
@@ -133,9 +133,7 @@ export const createConfigurationNodeHooks = (
       return [];
     }
 
-    return isSkillScopedToolContext(ctx.tools)
-      ? resolveTurnTools(ctx.tools, ctx.state.messages)
-      : ctx.tools;
+    return resolveTurnTools(ctx.tools, ctx.state.messages);
   },
   processResponse: (ctx, response) => {
     const toolCalls = response.tool_calls ?? [];

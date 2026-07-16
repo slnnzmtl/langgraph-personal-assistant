@@ -8,8 +8,6 @@ import {
   type RuntimeToolBundleId,
 } from "../core/types/agent.js";
 
-export type { RuntimeToolBundleDeps } from "./bundle-deps.js";
-
 export type RuntimeToolBundleCatalogEntry = {
   id: RuntimeToolBundleId;
   description: string;

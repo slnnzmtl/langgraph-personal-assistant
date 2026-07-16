@@ -18,9 +18,6 @@ import {
   type SubAgentStateUpdate,
 } from "./sub-agent-state.js";
 
-export type { SubAgentToolSource } from "./runtime-node.js";
-export { isSkillScopedToolContext, resolveSubAgentTools } from "./runtime-node.js";
-
 export type SubAgentLlmNode = (
   state: SubAgentState,
 ) => Promise<SubAgentStateUpdate>;

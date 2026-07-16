@@ -6,11 +6,11 @@ import type { CronJobDefinition, CronJobRepository } from "../../../cron/types.j
 import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
 import {
   formatRuntimeToolBundleCatalog,
-  type RuntimeToolBundleDeps,
   validateRuntimeToolBundleIds,
 } from "../../tool-bundles.js";
+import type { RuntimeToolBundleDeps } from "../../bundle-deps.js";
 import {
-  RUNTIME_TOOL_BUNDLE_IDS,
+  RuntimeToolBundleIdSchema,
   SkillAttachmentRuleSchema,
   type RuntimeAgentDefinition,
   type RuntimeToolBundleId,
@@ -31,8 +31,6 @@ const DeleteCronJobToolSchema = z.object({
 });
 
 const ListCronJobsToolSchema = z.object({});
-
-const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
 
 const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),

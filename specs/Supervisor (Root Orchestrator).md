@@ -1,3 +1,6 @@
+> **Superseded:** This spec describes the pre–runtime-agent architecture (`Finance_SG`, `Obsidian_SG`, etc.). Current routing uses agent ids (`finance`, `obsidian`, `configuration`) via `Runtime_SG`. See [README.md](../README.md) for the current architecture.
+>
+
 ### **1. Core Identity & Responsibility**
 
 - **Node Identifier:** `Root_Supervisor`

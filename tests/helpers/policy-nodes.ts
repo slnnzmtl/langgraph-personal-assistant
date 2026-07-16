@@ -7,7 +7,7 @@ import {
   createFinanceLlmNode,
   createObsidianLlmNode,
 } from "../../src/app/policies/factories.js";
-import type { SubAgentToolSource } from "../../src/core/execution/create-sub-agent.js";
+import type { SubAgentToolSource } from "../../src/core/execution/runtime-node.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 
@@ -15,10 +15,13 @@ const testPromptResolver = createPromptResolver(loadSystemPromptByKey);
 
 type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
 
+type ModelConnector = { getModel(): BaseChatModel };
+
+const isModelConnector = (source: ModelSource): source is ModelConnector =>
+  typeof (source as ModelConnector).getModel === "function";
+
 const resolveModel = (source: ModelSource): BaseChatModel =>
-  typeof (source as { getModel?: () => BaseChatModel }).getModel === "function"
-    ? (source as { getModel(): BaseChatModel }).getModel()
-    : source;
+  isModelConnector(source) ? source.getModel() : source;
 
 export const createFinanceNode = (
   model: ModelSource,

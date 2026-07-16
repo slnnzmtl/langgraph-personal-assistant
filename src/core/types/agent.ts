@@ -13,7 +13,7 @@ export const RUNTIME_TOOL_BUNDLE_IDS = [
 
 export type RuntimeToolBundleId = (typeof RUNTIME_TOOL_BUNDLE_IDS)[number];
 
-const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
+export const RuntimeToolBundleIdSchema = z.enum(RUNTIME_TOOL_BUNDLE_IDS);
 
 export const SkillAttachmentMatchSchema = z.object({
   anyPhrases: z.array(z.string().min(1)).optional(),

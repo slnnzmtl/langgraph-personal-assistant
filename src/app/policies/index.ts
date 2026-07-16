@@ -8,15 +8,13 @@ import { FINANCE_MAX_STEPS, OBSIDIAN_MAX_STEPS, CONFIGURATION_MAX_STEPS } from "
 import { createFinanceSkillScopedTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianSkillScopedTools } from "../../runtime-agents/policies/obsidian/tools.js";
 import { createConfigurationSkillScopedTools } from "../../runtime-agents/policies/configuration/tools.js";
-import { getAppBundleDeps, type AppBundleDeps } from "../bundle-deps.js";
+import { getAppBundleDeps } from "../bundle-deps.js";
 import {
   createConfigurationLlmNode,
   createFinanceLlmNode,
   createObsidianLlmNode,
 } from "./factories.js";
 import { buildObsidianCompletionSummary } from "./obsidian-hooks.js";
-
-export type { AppBundleDeps };
 
 export const createFinancePolicy = (): RuntimeAgentPolicy => ({
   executor: "finance",

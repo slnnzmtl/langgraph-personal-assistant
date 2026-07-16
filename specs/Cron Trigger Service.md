@@ -1,3 +1,6 @@
+> **Superseded:** This spec describes the pre–runtime-agent architecture (`Finance_SG`, `Obsidian_SG`, etc.). Current routing uses agent ids (`finance`, `obsidian`, `configuration`) via `Runtime_SG`. See [README.md](../README.md) for the current architecture.
+>
+
 ### **The Architecture: External Trigger, Internal Execution**
 
 1. **The Infrastructure Layer (External):** A standard Node.js script using a library like `node-cron` (or a serverless CRON trigger if you are on Vercel/AWS).

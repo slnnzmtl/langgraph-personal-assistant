@@ -8,15 +8,10 @@ import {
   deriveModelKeys,
 } from "../../src/app/runtime-agent-catalog.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
-import {
-  createRuntimeAgentExecutionContext as createCoreExecutionContext,
-  resolveModel,
-} from "../../src/core/execution/context.js";
+import { createRuntimeAgentExecutionContext as createCoreExecutionContext } from "../../src/core/execution/context.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
-
-export type { AppBundleDeps, AppRuntimeAgentExecutionContext };
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
@@ -56,5 +51,3 @@ export const createAppRuntimeExecutionContext = (
     policyRegistry,
   });
 };
-
-export { resolveModel };

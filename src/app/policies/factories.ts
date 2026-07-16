@@ -2,7 +2,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { PromptResolver } from "../../core/agents/prompt-resolver.js";
 import { createRuntimeAgentNode } from "../../core/execution/runtime-node.js";
-import type { SubAgentToolSource } from "../../core/execution/create-sub-agent.js";
+import type { SubAgentToolSource } from "../../core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
