@@ -1,9 +1,7 @@
 import type { RuntimeAgentExecutionContext } from "../core/execution/context.js";
-import type { RuntimeToolBundleDeps } from "../runtime-agents/bundle-deps.js";
+import type { RuntimeToolBundleDeps } from "../runtime-agents/tool-bundles.js";
 
-export type AppBundleDeps = RuntimeToolBundleDeps & {
-  cronTargetAgentIds?: readonly string[];
-};
+export type AppBundleDeps = RuntimeToolBundleDeps;
 
 export type AppRuntimeAgentExecutionContext = RuntimeAgentExecutionContext<AppBundleDeps>;
 

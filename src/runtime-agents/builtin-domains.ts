@@ -68,11 +68,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
   },
 ];
 
-export const BUILTIN_DOMAIN_IDS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.id) as [
-  "finance",
-  "obsidian",
-  "configuration",
-];
+export const BUILTIN_DOMAIN_IDS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.id) as readonly string[];
 
 export const BUILTIN_DOMAIN_EXECUTORS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.executor);
 

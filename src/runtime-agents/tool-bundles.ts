@@ -1,12 +1,20 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import type { IFileSender } from "../telegram/file-sender.js";
 import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
-import type { RuntimeToolBundleDeps } from "./bundle-deps.js";
 import {
   RUNTIME_TOOL_BUNDLE_IDS,
   type RuntimeToolBundleId,
 } from "../core/types/agent.js";
+
+export type RuntimeToolBundleDeps = {
+  obsidianVaultPath: string;
+  fileSender?: IFileSender;
+  supabaseSession?: SupabaseMcpSession;
+  cronTargetAgentIds?: readonly string[];
+};
 
 export type RuntimeToolBundleCatalogEntry = {
   id: RuntimeToolBundleId;

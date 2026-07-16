@@ -6,9 +6,9 @@ import type { CronJobDefinition, CronJobRepository } from "../../../cron/types.j
 import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
 import {
   formatRuntimeToolBundleCatalog,
+  type RuntimeToolBundleDeps,
   validateRuntimeToolBundleIds,
 } from "../../tool-bundles.js";
-import type { RuntimeToolBundleDeps } from "../../bundle-deps.js";
 import {
   RuntimeToolBundleIdSchema,
   SkillAttachmentRuleSchema,
@@ -328,14 +328,10 @@ export const createRuntimeAgentTools = (
   ];
 };
 
-export type ConfigurationToolDeps = RuntimeToolBundleDeps & {
-  cronTargetAgentIds?: readonly string[];
-};
-
 export const createConfigurationSkillScopedTools = (
   repository: CronJobRepository,
   runtimeAgentRepository: RuntimeAgentRepository,
-  bundleDeps: ConfigurationToolDeps,
+  bundleDeps: RuntimeToolBundleDeps,
 ) => {
   const cronTools = createCronTools(repository, bundleDeps.cronTargetAgentIds ?? []);
   const runtimeAgentTools = createRuntimeAgentTools(runtimeAgentRepository, bundleDeps);
