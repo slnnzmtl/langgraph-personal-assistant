@@ -22,9 +22,13 @@ export type SetupCronOptions = {
   schedule: ScheduleFn;
   runner: CronRunner;
   jobs: CronJobDefinition[];
+  cronTargetAgentIds?: readonly string[];
 };
 
-export const validateCronJobs = (jobs: CronJobDefinition[]): void => {
+export const validateCronJobs = (
+  jobs: CronJobDefinition[],
+  cronTargetAgentIds: readonly string[] = [],
+): void => {
   const seenJobNames = new Set<string>();
 
   for (const job of jobs) {
@@ -36,7 +40,7 @@ export const validateCronJobs = (jobs: CronJobDefinition[]): void => {
       throw new Error(`Cron schedule is required for job: ${job.jobName}`);
     }
 
-    if (!isCronTargetRoute(job.targetRoute)) {
+    if (!isCronTargetRoute(job.targetRoute, cronTargetAgentIds)) {
       throw new Error(`Unknown target route: ${job.targetRoute}`);
     }
 
@@ -53,7 +57,7 @@ export const setupCron = (options: SetupCronOptions): void => {
     return;
   }
 
-  validateCronJobs(options.jobs);
+  validateCronJobs(options.jobs, options.cronTargetAgentIds ?? []);
 
   for (const job of options.jobs) {
     if (job.enabled === false) {

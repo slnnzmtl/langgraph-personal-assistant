@@ -6,6 +6,12 @@ import { GeminiConnector } from "./connectors/llm-connector.js";
 import { createLazyCron, startCron } from "./cron/cron-startup.js";
 import { createCronJobRepositoryForConfig } from "./cron/cron-job-repository.js";
 import { createRuntimeAgentRepositoryForConfig } from "./app/config.js";
+import { buildModelRegistry } from "./app/model-registry.js";
+import {
+  deriveCronTargetAgentIds,
+  deriveExecutors,
+  deriveModelKeys,
+} from "./app/runtime-agent-catalog.js";
 import { ensureBuiltinRuntimeAgents } from "./runtime-agents/bootstrap.js";
 import { setupSupabaseSession } from "./services/supabase.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
@@ -21,20 +27,28 @@ export type PersonalAssistantApp = {
 export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp> => {
   const bot = new Telegraf(config.telegramBotToken);
   const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
-  const obsidianConnector = new GeminiConnector(config.googleApiKey, config.obsidianModel);
-  const financeConnector = new GeminiConnector(config.googleApiKey, config.financeModel);
 
   const supabaseSession = await setupSupabaseSession(config);
-  const cronJobRepository = createCronJobRepositoryForConfig(config.cronJobsFilePath);
   const runtimeAgentRepository = createRuntimeAgentRepositoryForConfig(config.runtimeAgentsFilePath);
   const fileSender = new TelegramFileSender(bot.telegram);
   const lazyCron = createLazyCron();
 
-  await ensureBuiltinRuntimeAgents(runtimeAgentRepository, {
+  const runtimeAgents = await ensureBuiltinRuntimeAgents(runtimeAgentRepository, {
     financeAvailable: supabaseSession !== undefined,
   });
 
-  const graph = createWorkflowGraph(supervisorConnector, obsidianConnector, financeConnector, {
+  const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
+  const cronJobRepository = createCronJobRepositoryForConfig(config.cronJobsFilePath, cronTargetAgentIds);
+
+  const defaultModelKey = "generic";
+  const models = buildModelRegistry(config, deriveModelKeys(runtimeAgents, defaultModelKey));
+
+  const graph = createWorkflowGraph({
+    supervisorLlm: supervisorConnector,
+    models,
+    defaultModelKey,
+    executors: deriveExecutors(runtimeAgents),
+    cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
     obsidianVaultPath: config.obsidianVaultPath,
     cronJobRepository,
     runtimeAgentRepository,
@@ -50,6 +64,7 @@ export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp
     lazyCron,
     cronJobRepository,
     telegram: bot.telegram,
+    cronTargetAgentIds,
   });
 
   const telegramAdapter = new TelegramAdapter(graph, config, bot, fileSender);

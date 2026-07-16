@@ -40,6 +40,8 @@ export const RuntimeAgentDefinitionSchema = z.object({
   toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
   skillAttachments: z.array(SkillAttachmentRuleSchema).default([]),
   executor: z.string().min(1).default("generic"),
+  modelKey: z.string().min(1).optional(),
+  builtin: z.boolean().default(false),
   maxSteps: z.number().int().min(1).max(20).default(8),
   enabled: z.boolean().default(true),
   createdAt: z.string().min(1),
@@ -62,6 +64,7 @@ export type CreateRuntimeAgentInput = {
   toolBundleIds: RuntimeToolBundleId[];
   skillAttachments?: SkillAttachmentRule[];
   executor?: string;
+  modelKey?: string;
   maxSteps?: number;
   enabled?: boolean;
 };
@@ -73,7 +76,7 @@ export type UpdateRuntimeAgentInput = {
   toolBundleIds?: RuntimeToolBundleId[];
   skillAttachments?: SkillAttachmentRule[];
   executor?: string;
-  maxSteps?: number;
+  modelKey?: string;
   enabled?: boolean;
 };
 
@@ -89,3 +92,11 @@ export const isRuntimeToolBundleId = (value: string): value is RuntimeToolBundle
 
 export const resolveRuntimeAgentId = (routeOrId: string): string =>
   routeOrId;
+
+export const resolveAgentModelKey = (
+  definition: RuntimeAgentDefinition,
+  defaultModelKey = "generic",
+): string => definition.modelKey ?? definition.executor ?? defaultModelKey;
+
+export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boolean =>
+  definition.builtin === true;

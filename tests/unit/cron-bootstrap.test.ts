@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDefaultCronJobs, mergeCronJobs, startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 
 describe("buildDefaultCronJobs", () => {
 	it("returns no default jobs", () => {
@@ -40,6 +41,8 @@ describe("mergeCronJobs", () => {
 });
 
 describe("startCronBootstrap", () => {
+	const cronTargetAgentIds = defaultCronTargetAgentIds();
+
 	it("rejects invalid cron jobs even when scheduling is disabled", async () => {
 		const repository = {
 			loadJobs: vi.fn().mockResolvedValue([
@@ -61,6 +64,7 @@ describe("startCronBootstrap", () => {
 				},
 				runner: { run: vi.fn() },
 				schedule: vi.fn(),
+				cronTargetAgentIds,
 			}),
 		).rejects.toThrow(/cron job name is required/i);
 
@@ -89,6 +93,7 @@ describe("startCronBootstrap", () => {
 			},
 			runner: { run },
 			schedule,
+			cronTargetAgentIds,
 		});
 
 		expect(jobs).toEqual([
@@ -125,6 +130,7 @@ describe("startCronBootstrap", () => {
 			},
 			runner: { run },
 			schedule,
+			cronTargetAgentIds,
 		});
 
 		expect(jobs).toEqual([

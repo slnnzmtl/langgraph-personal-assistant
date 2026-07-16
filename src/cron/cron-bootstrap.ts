@@ -35,12 +35,13 @@ export const startCronBootstrap = async (options: {
 	config: Pick<AppConfig, "appTimezone" | "schedulerEnabled">;
 	runner: CronRunner;
 	schedule: CronScheduleFn;
+	cronTargetAgentIds?: readonly string[];
 }): Promise<CronJobDefinition[]> => {
 	const jobs = await loadCronJobsForStartup({
 		repository: options.repository,
 	});
 
-	validateCronJobs(jobs);
+	validateCronJobs(jobs, options.cronTargetAgentIds ?? []);
 
 	if (!jobs.length) {
 		return jobs;
@@ -53,6 +54,7 @@ export const startCronBootstrap = async (options: {
 			schedule: options.schedule,
 			runner: options.runner,
 			jobs,
+			cronTargetAgentIds: options.cronTargetAgentIds ?? [],
 		});
 	}
 

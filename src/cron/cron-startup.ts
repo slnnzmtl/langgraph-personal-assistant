@@ -24,6 +24,7 @@ export type StartCronOptions = {
   lazyCron: LazyCronService;
   cronJobRepository: CronJobRepository;
   telegram: Telegram;
+  cronTargetAgentIds?: readonly string[];
 };
 
 export const startCron = async (options: StartCronOptions): Promise<void> => {
@@ -62,5 +63,6 @@ export const startCron = async (options: StartCronOptions): Promise<void> => {
     },
     runner: cronRunner,
     schedule: cron.schedule.bind(cron),
+    ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   });
 };

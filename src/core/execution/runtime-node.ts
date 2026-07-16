@@ -45,6 +45,8 @@ export type RuntimeAgentNodeHooks = {
       response: AIMessage;
       promptMessages: BaseMessage[];
       modelForTurn: Runnable;
+      model: BaseChatModel;
+      toolsForTurn: StructuredToolInterface[];
     },
   ) => Promise<AIMessage>;
   processResponse?: (ctx: RuntimeAgentTurnContext, response: AIMessage) => AIMessage;
@@ -160,7 +162,13 @@ export const createRuntimeAgentNode = (
       }
 
       if (hooks.afterModelInvoke) {
-        response = await hooks.afterModelInvoke(ctx, { response, promptMessages, modelForTurn });
+        response = await hooks.afterModelInvoke(ctx, {
+          response,
+          promptMessages,
+          modelForTurn,
+          model,
+          toolsForTurn,
+        });
         if (!(response instanceof AIMessage)) {
           throw new Error("Runtime agent LLM model must return an AI message.");
         }

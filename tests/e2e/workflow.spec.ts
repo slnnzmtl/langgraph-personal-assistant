@@ -5,26 +5,33 @@ import path from "node:path";
 
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
-import { createWorkflowGraph } from "../../src/agent.js";
+import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import { MESSAGE_HISTORY_LIMIT } from "../../src/core/state.js";
-import { FakeLLMConnector } from "../helpers/fakes.js";
-
-import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 
 const testCronRepository: CronJobRepository = {
   loadJobs: async () => [],
   saveJobs: async () => {},
 };
 
-const makeWorkflowGraphConfig = (
+const makeWorkflowGraph = (
+  connector: FakeLLMConnector,
   obsidianVaultPath: string,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
-) => ({
-  obsidianVaultPath,
-  cronJobRepository: testCronRepository,
-  runtimeAgentRepository,
-});
+  runtimeAgents?: RuntimeAgentDefinition[],
+  modelHandlers?: Parameters<typeof createTestWorkflowGraph>[0]["modelHandlers"],
+) =>
+  createTestWorkflowGraph({
+    supervisorLlm: connector,
+    obsidianVaultPath,
+    cronJobRepository: testCronRepository,
+    runtimeAgentRepository,
+    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    ...(modelHandlers ? { modelHandlers } : {}),
+  });
 
 const workflowConfig = {
   configurable: {
@@ -69,7 +76,7 @@ test.describe("workflow graph", () => {
       reply: "Direct answer from supervisor",
     }));
 
-    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-vault")));
+    const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-vault"));
 
     const finalState = await app.invoke(
       {
@@ -108,7 +115,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -164,7 +171,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -198,7 +205,7 @@ test.describe("workflow graph", () => {
       return { next: "obsidian" };
     });
 
-    const app = createWorkflowGraph(failingConnector, failingConnector, failingConnector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-error-vault")));
+    const app = makeWorkflowGraph(failingConnector, path.join(os.tmpdir(), "unused-error-vault"));
 
     const finalState = await app.invoke(
       {
@@ -214,7 +221,7 @@ test.describe("workflow graph", () => {
 
   test("routes a finance request to the finance mock branch", async () => {
     const connector = new FakeLLMConnector(() => ({ next: "finance" }));
-    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-finance-vault")));
+    const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-finance-vault"));
 
     const finalState = await app.invoke(
       {
@@ -271,7 +278,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       let finalState = await app.invoke(
         {
@@ -365,7 +372,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -455,7 +462,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -494,7 +501,7 @@ test.describe("workflow graph", () => {
       }, `loop-step-${invocation}`);
     });
 
-    const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-loop-limit-vault")));
+    const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-loop-limit-vault"));
 
     const finalState = await app.invoke(
       {
@@ -563,7 +570,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -636,7 +643,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -744,7 +751,7 @@ test.describe("workflow graph", () => {
     });
 
     try {
-      const app = createWorkflowGraph(connector, connector, connector, makeWorkflowGraphConfig(vaultRoot));
+      const app = makeWorkflowGraph(connector, vaultRoot);
 
       const finalState = await app.invoke(
         {
@@ -763,28 +770,29 @@ test.describe("workflow graph", () => {
   });
 
   test("routes a persisted runtime agent through Runtime_SG", async () => {
-    const runtimeAgentRepository = createRuntimeAgentRepositoryFake([
+    const customAgents = [
       {
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"],
+        toolBundleIds: ["none"] as const,
         executor: "generic",
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
       },
-    ]);
+    ];
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 
     const connector = new FakeLLMConnector(() => ({ next: "daily-summary" }));
-    const runtimeModel = new FakeLLMConnector(() => new AIMessage("Here is your daily summary for today."));
-    const app = createWorkflowGraph(
+    const app = makeWorkflowGraph(
       connector,
-      runtimeModel,
-      connector,
-      makeWorkflowGraphConfig(path.join(os.tmpdir(), "unused-runtime-agent-vault"), runtimeAgentRepository),
+      path.join(os.tmpdir(), "unused-runtime-agent-vault"),
+      runtimeAgentRepository,
+      customAgents,
+      { generic: () => new AIMessage("Here is your daily summary for today.") },
     );
 
     const finalState = await app.invoke(

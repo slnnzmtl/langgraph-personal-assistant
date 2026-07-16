@@ -7,11 +7,11 @@ import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt
 import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import { createRuntimeAgentExecutionContext } from "./runtime-execution-context.js";
-import type { AppBuiltinAgentId } from "../../src/app/config.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
+import { createRuntimeAgentExecutionContext } from "./runtime-execution-context.js";
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -125,10 +125,11 @@ export const createRuntimeAgentRepositoryFake = (
 
 export const defaultConfigurationBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
+  cronTargetAgentIds: defaultCronTargetAgentIds(),
 };
 
 export const getBuiltinRuntimeAgentDefinition = (
-  id: AppBuiltinAgentId,
+  id: string,
 ): RuntimeAgentDefinition => {
   const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
 
@@ -149,7 +150,8 @@ export const createAppSupervisorNode = (
   createSupervisorNode(llmConnector, {
     loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
     cronTriggerResolver: {
-      resolveCronTriggerRoute: (message) => resolveCronTriggerRoute(message) ?? undefined,
+      resolveCronTriggerRoute: (message) =>
+        resolveCronTriggerRoute(message, defaultCronTargetAgentIds()) ?? undefined,
       superviseCronRoute: SUPERVISE_CRON_ROUTE,
     },
     ...(options?.runtimeAgentRepository
@@ -167,10 +169,7 @@ export const createRuntimeExecutionContextFake = (options?: {
   const model = llmConnector.getModel();
 
   return createRuntimeAgentExecutionContext({
-    genericModel: model,
-    financeModel: model,
-    obsidianLlmConnector: llmConnector,
-    configurationModel: model,
+    defaultModel: model,
     repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
     cronJobRepository: options?.cronJobRepository ?? {
       loadJobs: async () => [],

@@ -11,35 +11,34 @@ import {
 } from "../../src/core/execution/context.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import {
+  deriveCronTargetAgentIds,
+  deriveExecutors,
+  deriveModelKeys,
+} from "../../src/app/runtime-agent-catalog.js";
 
 export type RuntimeToolBundleDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
+  cronTargetAgentIds?: readonly string[];
 };
 
 export type RuntimeAgentExecutionContext = CoreRuntimeAgentExecutionContext & {
-  obsidianLlmConnector: ILLMConnector;
   bundleDeps: RuntimeToolBundleDeps;
-  models: {
-    generic: BaseChatModel;
-    finance: BaseChatModel;
-    obsidian: BaseChatModel;
-    configuration: BaseChatModel;
-  };
 };
 
 export type CreateRuntimeAgentExecutionContextInput = {
-  genericModel: BaseChatModel;
-  financeModel: BaseChatModel;
-  obsidianLlmConnector: ILLMConnector;
-  configurationModel: BaseChatModel;
-  repository: RuntimeAgentRepository;
+  models?: Record<string, BaseChatModel>;
+  defaultModel?: BaseChatModel;
+  repository?: RuntimeAgentRepository;
   cronJobRepository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
+  cronTargetAgentIds?: readonly string[];
   promptResolver?: CoreRuntimeAgentExecutionContext["promptResolver"];
   policyRegistry?: CoreRuntimeAgentExecutionContext["policyRegistry"];
 };
@@ -47,24 +46,46 @@ export type CreateRuntimeAgentExecutionContextInput = {
 export const createRuntimeAgentExecutionContext = (
   input: CreateRuntimeAgentExecutionContextInput,
 ): RuntimeAgentExecutionContext => {
+  const runtimeAgents = buildDefaultRuntimeAgents();
+  const defaultModelKey = "generic";
+  const defaultModel = input.defaultModel ?? input.models?.[defaultModelKey];
+
+  if (!defaultModel) {
+    throw new Error("createRuntimeAgentExecutionContext requires defaultModel or models.generic");
+  }
+
+  const models = input.models ?? Object.fromEntries(
+    [...deriveModelKeys(runtimeAgents, defaultModelKey)].map((modelKey) => [modelKey, defaultModel]),
+  );
+
+  const cronTargetAgentIds = input.cronTargetAgentIds ?? deriveCronTargetAgentIds(runtimeAgents);
+  const executors = deriveExecutors(runtimeAgents);
   const { promptResolver, policyRegistry } = input.promptResolver && input.policyRegistry
     ? { promptResolver: input.promptResolver, policyRegistry: input.policyRegistry }
-    : createAppExecutionKit();
+    : createAppExecutionKit(executors);
 
   const coreContext = createCoreExecutionContext({
-    models: {
-      generic: input.genericModel,
-      finance: input.financeModel,
-      obsidian: input.obsidianLlmConnector.getModel(),
-      configuration: input.configurationModel,
+    models,
+    defaultModelKey,
+    repository: input.repository ?? {
+      loadAgents: async () => runtimeAgents,
+      getAgent: async (id) => runtimeAgents.find((agent) => agent.id === id),
+      saveAgents: async () => {},
+      createAgent: async () => {
+        throw new Error("Not implemented in test fake.");
+      },
+      updateAgent: async () => {
+        throw new Error("Not implemented in test fake.");
+      },
+      deleteAgent: async () => {
+        throw new Error("Not implemented in test fake.");
+      },
     },
-    defaultModelKey: "generic",
-    repository: input.repository,
     cronJobRepository: input.cronJobRepository,
     ...(input.runtimeCron ? { runtimeCron: input.runtimeCron } : {}),
     bundleDeps: {
       obsidianVaultPath: input.obsidianVaultPath,
-      obsidianLlmConnector: input.obsidianLlmConnector,
+      cronTargetAgentIds,
       ...(input.fileSender ? { fileSender: input.fileSender } : {}),
       ...(input.supabaseSession ? { supabaseSession: input.supabaseSession } : {}),
     },
@@ -74,14 +95,7 @@ export const createRuntimeAgentExecutionContext = (
 
   return {
     ...coreContext,
-    obsidianLlmConnector: input.obsidianLlmConnector,
     bundleDeps: coreContext.bundleDeps as RuntimeToolBundleDeps,
-    models: {
-      generic: resolveModel(coreContext, "generic"),
-      finance: resolveModel(coreContext, "finance"),
-      obsidian: resolveModel(coreContext, "obsidian"),
-      configuration: resolveModel(coreContext, "configuration"),
-    },
   };
 };
 

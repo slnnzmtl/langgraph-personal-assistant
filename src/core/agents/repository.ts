@@ -8,15 +8,12 @@ import {
   RuntimeAgentDefinitionSchema,
   RuntimeAgentsDocumentSchema,
   SkillAttachmentRuleSchema,
+  isRuntimeAgentBuiltin,
   toRuntimeAgentId,
   type CreateRuntimeAgentInput,
   type RuntimeAgentDefinition,
   type UpdateRuntimeAgentInput,
 } from "../types/agent.js";
-
-export type RuntimeAgentRepositoryOptions = {
-  builtinAgentIds?: readonly string[];
-};
 
 export type RuntimeAgentRepository = {
   loadAgents(): Promise<RuntimeAgentDefinition[]>;
@@ -34,6 +31,7 @@ const CreateRuntimeAgentInputSchema = z.object({
   toolBundleIds: RuntimeAgentDefinitionSchema.shape.toolBundleIds,
   skillAttachments: z.array(SkillAttachmentRuleSchema).optional(),
   executor: RuntimeAgentDefinitionSchema.shape.executor.optional(),
+  modelKey: RuntimeAgentDefinitionSchema.shape.modelKey,
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -82,11 +80,7 @@ const validateUniqueAgentId = (agents: RuntimeAgentDefinition[], id: string): vo
 export const createRuntimeAgentRepository = (
   rootDir: string,
   relativePath: string,
-  options?: RuntimeAgentRepositoryOptions,
 ): RuntimeAgentRepository => {
-  const builtinAgentIds = new Set(options?.builtinAgentIds ?? []);
-  const isBuiltin = (id: string): boolean => builtinAgentIds.has(id);
-
   return {
     async loadAgents(): Promise<RuntimeAgentDefinition[]> {
       if (!(await fileExists(rootDir, relativePath))) {
@@ -139,6 +133,7 @@ export const createRuntimeAgentRepository = (
         toolBundleIds: parsed.toolBundleIds,
         skillAttachments: parsed.skillAttachments ?? [],
         executor: "generic",
+        builtin: false,
         maxSteps: parsed.maxSteps ?? 8,
         enabled: parsed.enabled ?? true,
         createdAt: timestamp,
@@ -159,10 +154,14 @@ export const createRuntimeAgentRepository = (
       }
 
       const current = agents[index]!;
-      const builtin = isBuiltin(id);
+      const builtin = isRuntimeAgentBuiltin(current);
 
       if (builtin && parsed.executor !== undefined && parsed.executor !== current.executor) {
         throw new Error(`Cannot change executor for built-in runtime agent: ${id}`);
+      }
+
+      if (builtin && parsed.modelKey !== undefined && parsed.modelKey !== current.modelKey) {
+        throw new Error(`Cannot change model key for built-in runtime agent: ${id}`);
       }
 
       if (builtin && parsed.systemPrompt !== undefined) {
@@ -177,6 +176,7 @@ export const createRuntimeAgentRepository = (
         ...(parsed.toolBundleIds !== undefined && !builtin ? { toolBundleIds: parsed.toolBundleIds } : {}),
         ...(parsed.skillAttachments !== undefined && !builtin ? { skillAttachments: parsed.skillAttachments } : {}),
         ...(parsed.executor !== undefined && !builtin ? { executor: parsed.executor } : {}),
+        ...(parsed.modelKey !== undefined && !builtin ? { modelKey: parsed.modelKey } : {}),
         ...(parsed.maxSteps !== undefined ? { maxSteps: parsed.maxSteps } : {}),
         ...(parsed.enabled !== undefined ? { enabled: parsed.enabled } : {}),
         updatedAt: new Date().toISOString(),
@@ -189,15 +189,15 @@ export const createRuntimeAgentRepository = (
     },
 
     async deleteAgent(id: string): Promise<RuntimeAgentDefinition> {
-      if (isBuiltin(id)) {
-        throw new Error(`Cannot delete built-in runtime agent: ${id}`);
-      }
-
       const agents = await this.loadAgents();
       const found = agents.find((agent) => agent.id === id);
 
       if (!found) {
         throw new Error(`Runtime agent not found: ${id}`);
+      }
+
+      if (isRuntimeAgentBuiltin(found)) {
+        throw new Error(`Cannot delete built-in runtime agent: ${id}`);
       }
 
       await this.saveAgents(agents.filter((agent) => agent.id !== id));
@@ -208,7 +208,6 @@ export const createRuntimeAgentRepository = (
 
 export const createRuntimeAgentRepositoryForConfig = (
   runtimeAgentsFilePath: string,
-  options?: RuntimeAgentRepositoryOptions,
   cwd = process.cwd(),
 ): RuntimeAgentRepository =>
-  createRuntimeAgentRepository(cwd, path.relative(cwd, runtimeAgentsFilePath), options);
+  createRuntimeAgentRepository(cwd, path.relative(cwd, runtimeAgentsFilePath));

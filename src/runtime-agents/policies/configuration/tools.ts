@@ -109,7 +109,10 @@ export const formatRuntimeAgentPreview = (agent: RuntimeAgentDefinition): string
   return lines.join("\n\n");
 };
 
-export const createCronTools = (repository: CronJobRepository): StructuredToolInterface[] => {
+export const createCronTools = (
+  repository: CronJobRepository,
+  cronTargetAgentIds: readonly string[] = [],
+): StructuredToolInterface[] => {
   const listCronJobs = tool(
     async () => {
       try {
@@ -130,7 +133,7 @@ export const createCronTools = (repository: CronJobRepository): StructuredToolIn
   const createCronJob = tool(
     async (input: z.infer<typeof CreateCronJobToolSchema>) => {
       try {
-        if (!isCronTargetRoute(input.targetRoute)) {
+        if (!isCronTargetRoute(input.targetRoute, cronTargetAgentIds)) {
           throw new Error(`Unknown target route: ${input.targetRoute}`);
         }
 
@@ -327,14 +330,16 @@ export const createRuntimeAgentTools = (
   ];
 };
 
-export type ConfigurationToolDeps = RuntimeToolBundleDeps;
+export type ConfigurationToolDeps = RuntimeToolBundleDeps & {
+  cronTargetAgentIds?: readonly string[];
+};
 
 export const createConfigurationSkillScopedTools = (
   repository: CronJobRepository,
   runtimeAgentRepository: RuntimeAgentRepository,
   bundleDeps: ConfigurationToolDeps,
 ) => {
-  const cronTools = createCronTools(repository);
+  const cronTools = createCronTools(repository, bundleDeps.cronTargetAgentIds ?? []);
   const runtimeAgentTools = createRuntimeAgentTools(runtimeAgentRepository, bundleDeps);
   const skillManagementTools = createSkillCrudTools();
   const bundles = {

@@ -27,14 +27,14 @@ export const createFinanceLlmNode = (
 
 export const createObsidianLlmNode = (
   promptResolver: PromptResolver,
-  llmConnector: { getModel(): BaseChatModel },
+  model: BaseChatModel,
   vaultRoot: string,
   definition: RuntimeAgentDefinition,
   prebuiltTools?: SubAgentToolSource,
 ) => {
   const resolvedDefinition = promptResolver.withResolvedSystemPrompt(definition);
   return createRuntimeAgentNode(
-    llmConnector.getModel(),
+    model,
     resolvedDefinition,
     prebuiltTools,
     createObsidianNodeHooks(vaultRoot),
@@ -64,5 +64,3 @@ export const createConfigurationLlmNode = (
     }),
   ) as (state: SubAgentState) => Promise<SubAgentStateUpdate>;
 };
-
-export type ObsidianLlmConnector = { getModel(): BaseChatModel };

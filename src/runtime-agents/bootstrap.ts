@@ -1,7 +1,6 @@
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
-import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
 import { buildDefaultRuntimeAgents } from "./defaults.js";
-import { isBuiltinRuntimeAgentId } from "../app/config.js";
+import { isRuntimeAgentBuiltin } from "../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
 export type RuntimeAgentBootstrapOptions = {
@@ -21,17 +20,18 @@ export const mergeRuntimeAgents = (
   for (const agent of persistedAgents) {
     const defaultAgent = merged.get(agent.id);
 
-    if (defaultAgent && isBuiltinRuntimeAgentId(agent.id)) {
+    if (defaultAgent && isRuntimeAgentBuiltin(defaultAgent)) {
       merged.set(agent.id, {
         ...defaultAgent,
         description: agent.description,
         maxSteps: agent.maxSteps,
         enabled: agent.enabled,
         updatedAt: agent.updatedAt,
-        systemPrompt: loadSystemPromptByKey(defaultAgent.promptSourceKey ?? defaultAgent.id),
+        modelKey: defaultAgent.modelKey,
         promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
         executor: defaultAgent.executor,
         toolBundleIds: defaultAgent.toolBundleIds,
+        skillAttachments: defaultAgent.skillAttachments,
       });
       continue;
     }

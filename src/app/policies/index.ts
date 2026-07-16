@@ -1,9 +1,8 @@
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
+import { AIMessage } from "@langchain/core/messages";
 import { resolveModel, type RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
-import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { AIMessage } from "@langchain/core/messages";
 import type { AgentStateUpdate } from "../../core/state.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
 import { FINANCE_MAX_STEPS, OBSIDIAN_MAX_STEPS, CONFIGURATION_MAX_STEPS } from "../../runtime-agents/constants.js";
@@ -20,7 +19,7 @@ export type AppBundleDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
-  obsidianLlmConnector?: ILLMConnector;
+  cronTargetAgentIds?: readonly string[];
 };
 
 export const createFinancePolicy = (): RuntimeAgentPolicy => ({
@@ -55,13 +54,12 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
     const maxSteps = resolvedDefinition.maxSteps ?? OBSIDIAN_MAX_STEPS;
     const vaultRoot = context.bundleDeps.obsidianVaultPath as string;
     const fileSender = context.bundleDeps.fileSender as IFileSender | undefined;
-    const obsidianLlmConnector = context.bundleDeps.obsidianLlmConnector as ILLMConnector;
 
     return createSubAgent({
       name: "Obsidian",
       maxSteps,
       deps: {
-        llmConnector: obsidianLlmConnector,
+        model: resolveModel(context, "obsidian"),
         vaultRoot,
         fileSender,
         definition: resolvedDefinition,
@@ -70,7 +68,7 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
       createLlmNode: (deps, tools) =>
         createObsidianLlmNode(
           context.promptResolver,
-          deps.llmConnector,
+          deps.model,
           deps.vaultRoot,
           deps.definition,
           tools,

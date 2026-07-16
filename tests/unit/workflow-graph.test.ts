@@ -4,36 +4,45 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
-import { createWorkflowGraph } from "../../src/agent.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
 const makeCronJobsFilePath = () => path.join(process.cwd(), ".tmp", `workflow-graph-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
 
 const makeGraph = (
-  supervisorHandler: (input: any) => any,
-  obsidianHandler?: (input: any) => any,
-  financeHandler?: (input: any) => any,
+  supervisorHandler: (input: unknown) => unknown,
+  obsidianHandler?: (input: unknown) => unknown,
+  financeHandler?: (input: unknown) => unknown,
   supabaseSession?: SupabaseMcpSession,
-  configHandler?: (input: any) => any,
-  runtimeAgents?: ReturnType<typeof createRuntimeAgentRepositoryFake>,
+  configHandler?: (input: unknown) => unknown,
+  runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
+  runtimeAgents?: ReturnType<typeof buildDefaultRuntimeAgents>,
+  modelHandlerOverrides?: Record<string, (input: unknown) => unknown>,
 ) =>
-  createWorkflowGraph(
-    new FakeLLMConnector(supervisorHandler),
-    new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
-    new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
-    {
-      obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
-      cronJobRepository: createCronJobRepository(process.cwd(), path.relative(process.cwd(), makeCronJobsFilePath())),
-      runtimeAgentRepository: runtimeAgents ?? createRuntimeAgentRepositoryFake(),
-      supabaseSession,
-      configLlmConnector: new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup."))),
+  createTestWorkflowGraph({
+    supervisorLlm: new FakeLLMConnector(supervisorHandler),
+    modelHandlers: {
+      generic: modelHandlerOverrides?.generic ?? (() => new AIMessage("ok")),
+      obsidian: obsidianHandler ?? modelHandlerOverrides?.obsidian ?? (() => new AIMessage("obsidian done")),
+      finance: financeHandler ?? modelHandlerOverrides?.finance ?? (() => new AIMessage("Finance sync completed successfully")),
+      configuration: configHandler ?? modelHandlerOverrides?.configuration ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup.")),
     },
-  );
+    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
+    cronJobRepository: createCronJobRepository(
+      process.cwd(),
+      path.relative(process.cwd(), makeCronJobsFilePath()),
+      defaultCronTargetAgentIds(),
+    ),
+    runtimeAgentRepository,
+    ...(supabaseSession ? { supabaseSession } : {}),
+  });
 
 describe("createWorkflowGraph", () => {
   it("compiles without throwing", () => {
@@ -277,21 +286,22 @@ describe("createWorkflowGraph", () => {
   });
 
   it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
-    const runtimeAgents = createRuntimeAgentRepositoryFake([
+    const customAgents = [
       ...buildDefaultRuntimeAgents(),
       {
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"],
+        toolBundleIds: ["none"] as const,
         executor: "generic",
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
       },
-    ]);
+    ];
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 
     let supervisorCalls = 0;
     const app = makeGraph(
@@ -299,11 +309,15 @@ describe("createWorkflowGraph", () => {
         supervisorCalls += 1;
         return { next: "daily-summary" };
       },
-      () => new AIMessage("Here is your daily summary."),
       undefined,
       undefined,
       undefined,
-      runtimeAgents,
+      undefined,
+      runtimeAgentRepository,
+      customAgents,
+      {
+        generic: () => new AIMessage("Here is your daily summary."),
+      },
     );
 
     const state = await app.invoke({ messages: [new HumanMessage("summarize my day")] }, threadConfig);

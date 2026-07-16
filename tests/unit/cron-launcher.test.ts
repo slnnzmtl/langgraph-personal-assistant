@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HumanMessage } from "@langchain/core/messages";
 
 import { setupCron } from "../../src/cron/cron-launcher.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import {
   buildCronTriggerForJob,
   isCronTargetRoute,
@@ -11,19 +12,21 @@ import {
 } from "../../src/cron-triggers.js";
 
 describe("setupCron", () => {
+  const cronTargetAgentIds = defaultCronTargetAgentIds();
+
   it("accepts the main supervisor as a cron target", () => {
-    expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE)).toBe(true);
+    expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE, cronTargetAgentIds)).toBe(true);
     expect(buildCronTriggerForJob(SUPERVISE_CRON_ROUTE, "morning-review")).toBe(
       "SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review",
     );
-    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"))).toBe(
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"), cronTargetAgentIds)).toBe(
       SUPERVISE_CRON_ROUTE,
     );
   });
 
   it("does not resolve legacy trigger names without an agent route prefix", () => {
-    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"))).toBeNull();
-    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian-daily-note"))).toBeNull();
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"), cronTargetAgentIds)).toBeNull();
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian-daily-note"), cronTargetAgentIds)).toBeNull();
   });
 
   it("registers enabled declarative jobs with the default timezone", () => {
@@ -35,6 +38,7 @@ describe("setupCron", () => {
       defaultTimezone: "UTC",
       schedule,
       runner: { run },
+      cronTargetAgentIds,
       jobs: [
         {
           jobName: "finance-sync",
@@ -60,6 +64,7 @@ describe("setupCron", () => {
       defaultTimezone: "UTC",
       schedule,
       runner: { run: vi.fn() },
+      cronTargetAgentIds,
       jobs: [
         {
           jobName: "finance-sync",
@@ -80,6 +85,7 @@ describe("setupCron", () => {
       defaultTimezone: "UTC",
       schedule,
       runner: { run: vi.fn() },
+      cronTargetAgentIds,
       jobs: [
         {
           jobName: "finance-sync",
@@ -113,6 +119,7 @@ describe("setupCron", () => {
       defaultTimezone: "UTC",
       schedule,
       runner: { run },
+      cronTargetAgentIds,
       jobs: [
         {
           jobName: "finance-sync",
@@ -143,6 +150,7 @@ describe("setupCron", () => {
       defaultTimezone: "UTC",
       schedule,
       runner: { run },
+      cronTargetAgentIds,
       jobs: [
         {
           jobName: "finance-sync",
@@ -174,6 +182,7 @@ describe("setupCron", () => {
         defaultTimezone: "UTC",
         schedule,
         runner: { run: vi.fn() },
+        cronTargetAgentIds,
         jobs: [
           {
             jobName: "finance-sync",
@@ -201,6 +210,7 @@ describe("setupCron", () => {
         defaultTimezone: "UTC",
         schedule,
         runner: { run: vi.fn() },
+        cronTargetAgentIds,
         jobs: [
           {
             jobName: "bad-job",

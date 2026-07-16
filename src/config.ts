@@ -18,6 +18,7 @@ export interface AppConfig {
   supervisorModel: string;
   obsidianModel: string;
   financeModel: string;
+  configurationModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
   schedulerEnabled: boolean;
@@ -80,6 +81,7 @@ export const loadConfig = (): AppConfig => {
     supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,
     obsidianModel: process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
     financeModel: process.env.FINANCE_MODEL ?? defaultGeminiModel,
+    configurationModel: process.env.CONFIGURATION_MODEL ?? process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
