@@ -12,5 +12,11 @@ export const extractMessageTextContent = (content: BaseMessage["content"]): stri
       .replaceAll("\\n", "\n");
   }
 
-  return content ? JSON.stringify(content) : "[Action completed via internal tool]";
+  // Gemini empty candidates can arrive as undefined/null content. Treat those as
+  // empty so empty-response retry/fallback logic can run; never invent placeholder text.
+  if (content == null) {
+    return "";
+  }
+
+  return JSON.stringify(content);
 };

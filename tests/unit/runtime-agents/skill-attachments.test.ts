@@ -2,6 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
+  FINANCE_SKILL_ATTACHMENTS,
   ROUTINE_SKILL_ATTACHMENTS,
   appendConfiguredSkillAttachments,
   extractTriggerUserText,
@@ -31,6 +32,23 @@ describe("matchesSkillAttachmentRule", () => {
     "sync expenses",
   ])("does not match routine attachment rules for %j", (text) => {
     expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
+  });
+
+  it.each([
+    "what the last expense date in db?",
+    "show me the last expense",
+    "expense date in db",
+    "sync expenses",
+    "view expenses",
+  ])("matches finance attachment rules for %j", (text) => {
+    expect(FINANCE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
+  });
+
+  it.each([
+    "read my fitness log",
+    "create today's routine note",
+  ])("does not match finance attachment rules for %j", (text) => {
+    expect(FINANCE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });
 
   it("matches weak task triggers only with routine context", () => {
@@ -147,5 +165,18 @@ describe("appendConfiguredSkillAttachments", () => {
     );
 
     expect(prompt).toBe("Base prompt");
+  });
+
+  it("appends sync-expenses for finance expense-db queries", () => {
+    const definition = getBuiltinRuntimeAgentDefinition("finance");
+    const prompt = appendConfiguredSkillAttachments(
+      "Base prompt",
+      definition,
+      [new HumanMessage("what the last expense date in db?")],
+    );
+
+    expect(prompt).toContain("Base prompt");
+    expect(prompt).toContain('<attached_skill name="sync-expenses">');
+    expect(prompt).toContain("public.expense");
   });
 });

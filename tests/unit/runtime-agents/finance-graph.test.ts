@@ -92,7 +92,7 @@ describe("finance subgraph tool batching", () => {
     expect(result.messages.at(-1)?.content).toBe("Finance sync completed.");
   });
 
-  it("continues sync-expenses step 1 when the model returns an empty continuation after read_skill", async () => {
+  it("falls back when the model keeps returning empty after read_skill", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
@@ -118,11 +118,52 @@ describe("finance subgraph tool batching", () => {
       stepCount: 1,
     });
 
-    expect(financeCalls).toBe(1);
-    expect(update.messages?.[0]?.tool_calls?.map((call) => call.name)).toEqual([
-      "get_categories",
-      "fetch_wise_transactions",
-    ]);
+    expect(financeCalls).toBe(2);
+    expect(update.messages?.[0]?.content).toBe(
+      "Unable to continue the finance request because the model returned an empty response. Please try again.",
+    );
+  });
+
+  it("retries the model when it returns empty after exec_sql so the agent answers", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue([{ max: "2026-07-16" }]),
+      close: vi.fn(),
+    };
+    const tools = createFinanceTools(mockSession);
+    let financeCalls = 0;
+
+    const model = new FakeLLMConnector(() => {
+      financeCalls += 1;
+      if (financeCalls === 1) {
+        return new AIMessage("");
+      }
+      return new AIMessage("The last expense date in the database is 2026-07-16.");
+    }).getModel();
+
+    const financeNode = createFinanceNode(model, financeDefinition, tools);
+    const update = await financeNode({
+      messages: [
+        new HumanMessage("what the last expense date in db?"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "exec_sql",
+            args: { sql: "SELECT MAX(paid_date) FROM public.expense" },
+            id: "sql-1",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({
+          name: "exec_sql",
+          tool_call_id: "sql-1",
+          content: JSON.stringify([{ max: "2026-07-16" }]),
+        }),
+      ],
+      stepCount: 1,
+    });
+
+    expect(financeCalls).toBe(2);
+    expect(update.messages?.[0]?.content).toBe("The last expense date in the database is 2026-07-16.");
   });
 
   it("completes the remaining tool call before prompting the model", async () => {

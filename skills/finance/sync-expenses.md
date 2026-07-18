@@ -7,10 +7,12 @@ description: View, summarize, and sync Wise expenses in the expense ledger.
 
 Pick **View**, **Sync**, or **Update** by intent. Infer dates from system headers — never ask when relative phrasing is enough. Postgres only. Confirm results only from tool history.
 
+After every tool result: emit the next tool call **or** a plain-text reply. Never end a turn with empty content.
+
 **Shared:** `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`). Category join: `LEFT JOIN public.category c ON e.category = c.id`. Writes/updates/deletes: PK only (`WHERE id = ...` / `WHERE id IN (...)`).
 
 ## View
-`exec_sql` SELECT only — no `fetch_wise_transactions`, no writes. Summarize after results; if empty, say so and offer sync.
+`exec_sql` SELECT only — no `fetch_wise_transactions`, no writes. Immediately after results, reply in plain text with the answer (e.g. last paid date). If empty, say so and offer sync.
 
 ## Sync
 1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)`

@@ -183,17 +183,17 @@ export const createRuntimeAgentNode = (
 
       let response: AIMessage = await modelForTurn.invoke(promptMessages);
 
-      if (
-        isEmptyModelResponse(response)
-        && isLoopContinuation
-        && toolsForTurn.length > 0
-        && !hooks.afterModelInvoke
-      ) {
-        response = await modelForTurn.invoke(promptMessages);
-      }
-
       if (!(response instanceof AIMessage)) {
         throw new Error("Runtime agent LLM model must return an AI message.");
+      }
+
+      // Flash-lite and similar models sometimes return empty candidates after tool
+      // results. Retry once so the agent can produce a real reply.
+      if (isEmptyModelResponse(response) && isLoopContinuation) {
+        response = await modelForTurn.invoke(promptMessages);
+        if (!(response instanceof AIMessage)) {
+          throw new Error("Runtime agent LLM model must return an AI message.");
+        }
       }
 
       if (hooks.afterModelInvoke) {

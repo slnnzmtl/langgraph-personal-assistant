@@ -76,4 +76,8 @@ describe("isEmptyModelResponse", () => {
       tool_calls: [{ name: "get_categories", args: {}, id: "1", type: "tool_call" }],
     }))).toBe(false);
   });
+
+  it("treats undefined/null content as empty so Gemini empty candidates retry", () => {
+    expect(isEmptyModelResponse(new AIMessage({ content: undefined as unknown as string }))).toBe(true);
+  });
 });
