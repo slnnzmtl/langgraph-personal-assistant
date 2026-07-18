@@ -63,7 +63,7 @@ describe("named prompt loaders", () => {
 
     expect(prompt).toContain("Configuration Manager");
     expect(prompt).toContain("<tool_access>");
-    expect(prompt).toContain("read_skill(\"skill-management\")");
+    expect(prompt).toContain("All configuration tools are available from the start");
     expect(prompt).toContain("read_skill(skill_name)");
     expect(prompt).toContain("<output_template>");
     expect(prompt).toContain("<skill_output_template>");

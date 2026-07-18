@@ -18,7 +18,6 @@ import {
   type RuntimeToolBundleId,
 } from "../../tool-bundle-catalog.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
-import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -330,23 +329,19 @@ export const createRuntimeAgentTools = (
   ];
 };
 
-export const createConfigurationSkillScopedTools = (
+export const createConfigurationTools = (
   repository: CronJobRepository,
   runtimeAgentRepository: RuntimeAgentRepository,
   bundleDeps: RuntimeToolBundleDeps,
-) => {
+): StructuredToolInterface[] => {
   const cronTools = createCronTools(repository, bundleDeps.cronTargetAgentIds ?? []);
   const runtimeAgentTools = createRuntimeAgentTools(runtimeAgentRepository, bundleDeps);
   const skillManagementTools = createSkillCrudTools();
-  const bundles = {
-    cron: cronTools,
-    "skill-management": skillManagementTools,
-    "runtime-agents": runtimeAgentTools,
-  };
-  const readSkillTool = createReadSkillTool("configuration", "xml", { toolBundles: bundles });
 
-  return createSkillScopedToolContextFromBundles({
-    readSkillTool,
-    bundles,
-  });
+  return [
+    createReadSkillTool("configuration", "xml"),
+    ...cronTools,
+    ...skillManagementTools,
+    ...runtimeAgentTools,
+  ];
 };

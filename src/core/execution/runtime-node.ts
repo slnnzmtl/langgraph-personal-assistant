@@ -14,17 +14,7 @@ import {
   isEmptyModelResponse,
 } from "./sub-agent-messages.js";
 
-import type { SkillScopedToolContext } from "../../tools/skill-scoped-registry.js";
-
-export type SubAgentToolSource = StructuredToolInterface[] | SkillScopedToolContext;
-
-export const isSkillScopedToolContext = (
-  source: SubAgentToolSource,
-): source is SkillScopedToolContext =>
-  !Array.isArray(source) && "resolveToolsForTurn" in source && "config" in source;
-
-export const resolveSubAgentTools = (source: SubAgentToolSource): StructuredToolInterface[] =>
-  isSkillScopedToolContext(source) ? source.allTools : source;
+export type SubAgentToolSource = StructuredToolInterface[];
 
 const filterToolsByNames = (
   tools: StructuredToolInterface[],
@@ -41,25 +31,21 @@ const filterToolsByNames = (
 
 export const resolveTurnTools = (
   toolSource: SubAgentToolSource,
-  messages: BaseMessage[],
+  _messages: BaseMessage[],
   options?: {
     restrictToNames?: string[];
     alwaysInclude?: string[];
   },
 ): StructuredToolInterface[] => {
-  const scopedTools = isSkillScopedToolContext(toolSource)
-    ? toolSource.resolveToolsForTurn(messages)
-    : resolveSubAgentTools(toolSource);
-
   if (!options?.restrictToNames) {
-    return scopedTools;
+    return toolSource;
   }
 
   const filterOptions = options.alwaysInclude
     ? { alwaysInclude: options.alwaysInclude }
     : undefined;
 
-  return filterToolsByNames(scopedTools, options.restrictToNames, filterOptions);
+  return filterToolsByNames(toolSource, options.restrictToNames, filterOptions);
 };
 
 export type RuntimeAgentTurnContext = {
@@ -137,7 +123,7 @@ const defaultBuildSystemPrompt = (
 export const createRuntimeAgentNode = (
   model: BaseChatModel,
   definition: RuntimeAgentDefinition,
-  tools: SubAgentToolSource | StructuredToolInterface[] | undefined,
+  tools: SubAgentToolSource | undefined,
   hooks: RuntimeAgentNodeHooks = {},
 ) => {
   if (typeof model.bindTools !== "function") {

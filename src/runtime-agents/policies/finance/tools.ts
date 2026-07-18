@@ -5,7 +5,6 @@ import type { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
 import { createReadSkillTool } from "../../../tools/skill-management.js";
-import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 import { fetchWiseTransactions } from "../../../services/wise/index.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
@@ -77,20 +76,7 @@ export const createFinanceDomainToolsFromSession = (
   return [execSql, fetchWise, getCategories];
 };
 
-export const createFinanceSkillScopedTools = (mcpSession: SupabaseMcpSession) => {
-  const financeDomainTools = createFinanceDomainToolsFromSession(mcpSession);
-  const viewTools = financeDomainTools.filter((tool) => tool.name !== "fetch_wise_transactions");
-  const readSkillTool = createReadSkillTool("finance", "xml", {
-    toolBundles: {
-      "sync-expenses": financeDomainTools,
-    },
-  });
-
-  return createSkillScopedToolContextFromBundles({
-    readSkillTool,
-    defaultTools: viewTools,
-    bundles: {
-      "sync-expenses": financeDomainTools,
-    },
-  });
-};
+export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredToolInterface[] => [
+  createReadSkillTool("finance", "xml"),
+  ...createFinanceDomainToolsFromSession(mcpSession),
+];

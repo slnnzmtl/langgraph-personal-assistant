@@ -13,7 +13,6 @@ import {
   updateSkillFile,
 } from "../prompts/skills-loader.js";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
-import { appendSkillToolsPreview, skillToolBundlesFromRecord } from "./skill-scoped-registry.js";
 import { truncateToolOutput } from "./output.js";
 import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 
@@ -62,7 +61,6 @@ export const DeleteSkillToolSchema = z.object({
 
 export type ReadSkillToolOptions = {
   actionRegistry?: SkillActionRegistry;
-  toolBundles?: Record<string, StructuredToolInterface[]>;
 };
 
 export type SkillCrudToolsOptions = {
@@ -97,27 +95,13 @@ const enrichSkillContent = async (
   promptKey: string,
   skillName: string,
   options?: ReadSkillToolOptions,
-): Promise<string> => {
-  const withActions = await enrichSkillWithActions({
+): Promise<string> =>
+  enrichSkillWithActions({
     content,
     promptKey,
     skillName,
     ...(options?.actionRegistry ? { actionRegistry: options.actionRegistry } : {}),
   });
-
-  if (!options?.toolBundles) {
-    return withActions;
-  }
-
-  const bundles = new Map(
-    Object.entries(skillToolBundlesFromRecord(options.toolBundles)).map(([name, tools]) => [
-      name,
-      { tools },
-    ]),
-  );
-
-  return appendSkillToolsPreview(withActions, skillName, bundles);
-};
 
 export const createReadSkillTool = (
   promptKey: string,

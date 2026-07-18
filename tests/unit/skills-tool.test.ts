@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { tool } from "@langchain/core/tools";
-import { z } from "zod";
 
 import {
   createSkillActionRegistry,
@@ -47,25 +45,6 @@ describe("createReadSkillTool", () => {
     expect(result).toContain("sync-expenses");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
-  });
-
-  it("previews registered tools after a successful skill read", async () => {
-    const execSql = tool(async () => "ok", {
-      name: "exec_sql",
-      description: "Execute SQL",
-      schema: z.object({ sql: z.string() }),
-    });
-    const readSkill = createReadSkillTool("finance", "xml", {
-      toolBundles: {
-        "sync-expenses": [execSql],
-      },
-    });
-
-    const result = String(await readSkill.invoke({ name: "sync-expenses" }));
-
-    expect(result).toContain("# Expenses");
-    expect(result).toContain("<available_tools>");
-    expect(result).toContain("- exec_sql: Execute SQL");
   });
 
   it("exposes the shared read_skill tool name", () => {

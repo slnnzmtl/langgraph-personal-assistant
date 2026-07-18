@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
-import { createFinanceSkillScopedTools } from "../../../src/runtime-agents/policies/finance/tools.js";
+import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";
 import { getFinanceDomainTool } from "../../helpers/finance-tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
@@ -106,50 +106,24 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const context = createFinanceSkillScopedTools(session);
-    const readSkillTool = context.config.readSkillTool;
+    const tools = createFinanceTools(session);
+    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
 
     expect(readSkillTool).toBeDefined();
 
     const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
     expect(result).toContain("# Expenses");
     expect(result).not.toContain("<skill_context>");
-    expect(result).toContain("<available_tools>");
-    expect(result).toContain("- exec_sql:");
-    expect(result).toContain("- fetch_wise_transactions:");
-    expect(result).toContain("- get_categories:");
+    expect(result).not.toContain("<available_tools>");
     expect(session.executeSql).not.toHaveBeenCalled();
   });
 
-  it("exposes view tools by default before any skill is loaded", () => {
+  it("attaches all finance tools to the agent", () => {
     const session: SupabaseMcpSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const context = createFinanceSkillScopedTools(session);
-
-    expect(context.resolveToolsForTurn([new HumanMessage("get yesterday transactions")]).map((tool) => tool.name)).toEqual([
-      "read_skill",
-      "exec_sql",
-      "get_categories",
-    ]);
-  });
-
-  it("does not expose fetch_wise_transactions until sync-expenses is loaded", () => {
-    const session: SupabaseMcpSession = {
-      executeSql: vi.fn(),
-      close: vi.fn(),
-    };
-    const context = createFinanceSkillScopedTools(session);
-
-    const tools = context.resolveToolsForTurn([
-      new HumanMessage("sync finances"),
-      new AIMessage({
-        content: "",
-        tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
-      }),
-      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
-    ]);
+    const tools = createFinanceTools(session);
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",

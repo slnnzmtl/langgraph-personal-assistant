@@ -132,9 +132,9 @@ describe("createConfigurationNode", () => {
         content: "",
         tool_calls: [
           {
-            name: "list_skills",
+            name: "not_a_real_tool",
             args: {},
-            id: "list-1",
+            id: "fake-1",
             type: "tool_call",
           },
         ],
@@ -160,7 +160,9 @@ describe("createConfigurationNode", () => {
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
     expect(result.messages?.[0]?.tool_calls ?? []).toHaveLength(0);
-    expect(String(result.messages?.[0]?.content)).toContain("read_skill");
+    expect(String(result.messages?.[0]?.content)).toContain(
+      "That tool is not available for this runtime agent.",
+    );
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 

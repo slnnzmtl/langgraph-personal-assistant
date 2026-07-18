@@ -128,10 +128,6 @@ export const createConfigurationNodeHooks = (
       return null;
     },
   processResponse: (ctx, response) =>
-    sanitizeResponseToolCalls(
-      response,
-      ctx.allowedToolNames,
-      "That tool is not available yet. Call read_skill with the matching configuration skill name first.",
-    ),
+    sanitizeResponseToolCalls(response, ctx.allowedToolNames),
   emptyResponseMessage: () => "Completed the configuration task.",
   });

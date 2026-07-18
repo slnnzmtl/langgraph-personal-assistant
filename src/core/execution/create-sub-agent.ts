@@ -1,16 +1,12 @@
 import { AIMessage } from "@langchain/core/messages";
 import { END, START, StateGraph } from "@langchain/langgraph";
+import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import { createGuardedToolNode, createStaticToolNode } from "../../tools/guarded-tool-node.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
 import { scopeSubAgentMessages } from "./sub-agent-messages.js";
-import {
-  isSkillScopedToolContext,
-  resolveSubAgentTools,
-  type SubAgentToolSource,
-} from "./runtime-node.js";
+import type { SubAgentToolSource } from "./runtime-node.js";
 import {
   SubAgentStateAnnotation,
   type SubAgentState,
@@ -40,9 +36,8 @@ export const createCompiledSubAgentGraph = (
   llmNode: SubAgentLlmNode,
   tools: SubAgentToolSource,
 ) => {
-  const toolsNode = isSkillScopedToolContext(tools)
-    ? createGuardedToolNode(tools)
-    : createStaticToolNode(resolveSubAgentTools(tools));
+  const toolNode = new ToolNode(tools);
+  const toolsNode = toolNode.invoke.bind(toolNode);
 
   const graph = new StateGraph(SubAgentStateAnnotation)
     .addNode("llm", llmNode)

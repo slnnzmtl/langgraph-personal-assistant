@@ -1,8 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdir } from "node:fs/promises";
 
-import { isSkillScopedToolContext, type RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
-import { resolveTurnTools } from "../../core/execution/runtime-node.js";
+import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { buildDirectoryTree } from "../../utils/file-system.js";
 import {
@@ -81,9 +80,7 @@ const resolveObsidianToolsForTurn = (
     return [];
   }
 
-  let toolsForTurn = isSkillScopedToolContext(ctx.tools)
-    ? resolveTurnTools(ctx.tools, ctx.state.messages)
-    : ctx.tools;
+  let toolsForTurn = ctx.tools;
 
   const attachedSkillNames = getAttachedSkillNames(ctx.definition, ctx.state.messages);
   if (attachedSkillNames.size > 0) {

@@ -3,8 +3,7 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import { extractTriggerUserText } from "../../skill-attachments.js";
 import { isEmptyModelResponse } from "../../../core/execution/sub-agent-messages.js";
 import { resolveRelativeDayRange } from "../../../utils/datetime.js";
-import { resolveActiveSkillFromHistory } from "../../../tools/skill-scoped-registry.js";
-
+import { resolveActiveSkillFromHistory } from "../../../tools/skill-history.js";
 const SYNC_EXPENSES_SKILL = "sync-expenses";
 
 const hasFulfilledToolCall = (messages: BaseMessage[], toolName: string): boolean => {
