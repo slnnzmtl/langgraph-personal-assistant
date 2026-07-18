@@ -66,6 +66,7 @@ describe("state message window", () => {
   });
 
   it("preserves the initiating call when the tool batch itself exceeds the limit", () => {
+    const priorMessages = makeMessages(MESSAGE_HISTORY_LIMIT);
     const toolCalls = Array.from({ length: MESSAGE_HISTORY_LIMIT + 1 }, (_, index) => ({
       name: "exec_sql",
       args: { sql: `SELECT ${index + 1};` },
@@ -78,11 +79,67 @@ describe("state message window", () => {
     );
 
     const updated = reduceAgentMessages(
-      reduceAgentMessages(makeMessages(MESSAGE_HISTORY_LIMIT), toolCallMessage),
+      reduceAgentMessages(priorMessages, toolCallMessage),
       toolResults,
     );
 
+    expect(updated[0]).toBe(priorMessages.at(-1));
     expect(updated.at(-(toolCalls.length + 1))).toBe(toolCallMessage);
-    expect(updated).toHaveLength(toolCalls.length + 1);
+    expect(updated).toHaveLength(toolCalls.length + 2);
+  });
+
+  it("does not wipe history across many completed tool rounds", () => {
+    const userMessage = new HumanMessage("Save to note English learning");
+    let messages: ReturnType<typeof reduceAgentMessages> = [userMessage];
+
+    for (let round = 1; round <= 8; round += 1) {
+      const toolCallId = `search-${round}`;
+      messages = reduceAgentMessages(
+        messages,
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "search_files_by_name",
+            args: { queries: ["English"] },
+            id: toolCallId,
+            type: "tool_call",
+          }],
+        }),
+      );
+      messages = reduceAgentMessages(
+        messages,
+        new ToolMessage({
+          tool_call_id: toolCallId,
+          content: "No files matched your search.",
+          name: "search_files_by_name",
+        }),
+      );
+    }
+
+    expect(messages.length).toBeGreaterThan(0);
+    expect(messages[0]).toBe(userMessage);
+    expect(messages.some((message) => message instanceof HumanMessage)).toBe(true);
+    expect(messages.at(-1)).toBeInstanceOf(ToolMessage);
+  });
+
+  it("strips only orphaned leading tool messages after a window cut", () => {
+    // Force a cut that would otherwise land on a tool message mid-batch.
+    const history = [
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "list_files", args: {}, id: "orphan-parent", type: "tool_call" }],
+      }),
+      new ToolMessage({ tool_call_id: "orphan-parent", content: "orphan" }),
+      new HumanMessage("keep me"),
+      ...Array.from({ length: MESSAGE_HISTORY_LIMIT - 1 }, (_, index) =>
+        new AIMessage(`reply-${index + 1}`),
+      ),
+    ];
+
+    const trimmed = trimMessagesToLast(history);
+
+    expect(trimmed[0]).toBeInstanceOf(HumanMessage);
+    expect(trimmed[0]?.content).toBe("keep me");
+    expect(trimmed.some((message) => message instanceof ToolMessage && message.tool_call_id === "orphan-parent")).toBe(false);
   });
 });

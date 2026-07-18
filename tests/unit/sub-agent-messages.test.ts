@@ -9,17 +9,33 @@ import {
 import { SystemMessage } from "@langchain/core/messages";
 
 describe("scopeSubAgentMessages", () => {
-  it("keeps only the latest user turn and later messages", () => {
+  it("keeps recent human turns so clarification follow-ups retain context", () => {
     const messages = [
-      new HumanMessage("today's plan"),
-      new AIMessage("Obsidian completed the note."),
-      new HumanMessage("list cron jobs"),
-      new AIMessage("Here are the cron jobs."),
-      new HumanMessage("get yesterday transactions"),
+      new HumanMessage("Create english learning note and save this link\n\nhttps://example.com/a"),
+      new AIMessage("What content should I save?"),
+      new HumanMessage("Only the link: https://example.com/a"),
+      new AIMessage("I can't open external links."),
+      new HumanMessage("DO NOT OPEN JUST SAVE"),
     ];
 
-    expect(scopeSubAgentMessages(messages)).toEqual([
-      new HumanMessage("get yesterday transactions"),
+    expect(scopeSubAgentMessages(messages)).toEqual(messages);
+  });
+
+  it("keeps at most the configured number of human turns", () => {
+    const messages = [
+      new HumanMessage("turn-1"),
+      new AIMessage("a1"),
+      new HumanMessage("turn-2"),
+      new AIMessage("a2"),
+      new HumanMessage("turn-3"),
+      new AIMessage("a3"),
+      new HumanMessage("turn-4"),
+    ];
+
+    expect(scopeSubAgentMessages(messages, 2)).toEqual([
+      new HumanMessage("turn-3"),
+      new AIMessage("a3"),
+      new HumanMessage("turn-4"),
     ]);
   });
 

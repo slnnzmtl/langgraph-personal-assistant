@@ -3,7 +3,7 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
-import type { RoutingDecision } from "./routing-schema.js";
+import { normalizeSupervisorReply, type RoutingDecision } from "./routing-schema.js";
 
 export type ResolveAgentId = (routeOrId: string) => string;
 
@@ -82,13 +82,15 @@ export const resolveRoutingDecision = async (
   onFailure: (failureContext: string) => Promise<AgentStateUpdate>,
 ): Promise<AgentStateUpdate> => {
   if (response.next === "FINISH") {
-    if (typeof response.reply !== "string" || response.reply.trim().length === 0) {
+    const reply = normalizeSupervisorReply(response.reply);
+
+    if (reply === undefined) {
       return onFailure("The routing model returned FINISH without a reply.");
     }
 
     return {
       next: response.next,
-      messages: [new AIMessage(response.reply)],
+      messages: [new AIMessage(reply)],
     };
   }
 

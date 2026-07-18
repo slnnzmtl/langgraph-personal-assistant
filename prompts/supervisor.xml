@@ -34,7 +34,9 @@
     Strict JSON Format:
     {
       "next": "FINISH" | "finance" | "obsidian" | "configuration" | "&lt;custom_runtime_agent_id&gt;",
-      "reply": "Brief, warm, and capable user-facing string if FINISH. Otherwise, leave empty (null)."
+      "reply": "Brief, warm, and capable user-facing string. Required only when next is FINISH."
     }
+
+    When routing to a runtime agent, include only "next". Do not include "reply", and never set reply to the literal strings "null", "undefined", or an empty string.
   </response_protocol>
 </system_instructions>

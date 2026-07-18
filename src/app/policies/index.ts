@@ -1,9 +1,7 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import { AIMessage } from "@langchain/core/messages";
 import { resolveModel } from "../../core/execution/context.js";
 import type { PolicyContext } from "../../core/types/policy-context.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
 import { createSubAgent, createSubAgentOrStub, createMaxStepsExceededUpdate } from "../../core/execution/create-sub-agent.js";
 import {
   createRuntimeAgentNode,
@@ -11,7 +9,6 @@ import {
 } from "../../core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { AgentStateUpdate } from "../../core/state.js";
-import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
 import { createFinanceSkillScopedTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianSkillScopedTools } from "../../runtime-agents/policies/obsidian/tools.js";
@@ -19,7 +16,7 @@ import { createConfigurationSkillScopedTools } from "../../runtime-agents/polici
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import { createFinanceNodeHooks } from "./finance-hooks.js";
-import { buildObsidianCompletionSummary, createObsidianNodeHooks } from "./obsidian-hooks.js";
+import { createObsidianNodeHooks, mapObsidianSubAgentResult } from "./obsidian-hooks.js";
 
 const createDomainLlmNode = (
   model: BaseChatModel,
@@ -79,28 +76,14 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
           tools,
           createObsidianNodeHooks(deps.vaultRoot),
         ),
-      mapResult: (result): AgentStateUpdate => {
-        if (result.stepCount >= maxSteps) {
-          return createMaxStepsExceededUpdate(
+      mapResult: (result): AgentStateUpdate =>
+        mapObsidianSubAgentResult(result, maxSteps, () =>
+          createMaxStepsExceededUpdate(
             "Obsidian",
             maxSteps,
             `Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`,
-          );
-        }
-
-        const lastMessage = result.messages[result.messages.length - 1];
-        if (
-          lastMessage instanceof AIMessage
-          && !(lastMessage.tool_calls?.length)
-          && extractMessageTextContent(lastMessage.content).trim().length > 0
-        ) {
-          return { messages: [lastMessage] };
-        }
-
-        return {
-          messages: [new AIMessage(buildObsidianCompletionSummary(result.messages))],
-        };
-      },
+          ),
+        ),
     });
   },
 });

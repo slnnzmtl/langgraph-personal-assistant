@@ -43,7 +43,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     promptSourceKey: "obsidian",
     toolBundleIds: ["obsidian-vault"],
     skillAttachments: ROUTINE_SKILL_ATTACHMENTS,
-    maxSteps: 8,
+    maxSteps: 12,
     configModelKey: "obsidianModel",
   },
   {

@@ -2,6 +2,21 @@ import { z } from "zod";
 
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 
+const PLACEHOLDER_REPLY_VALUES = new Set(["null", "undefined", "none", "n/a"]);
+
+export const normalizeSupervisorReply = (reply: string | undefined): string | undefined => {
+  if (typeof reply !== "string") {
+    return undefined;
+  }
+
+  const trimmed = reply.trim();
+  if (trimmed.length === 0 || PLACEHOLDER_REPLY_VALUES.has(trimmed.toLowerCase())) {
+    return undefined;
+  }
+
+  return trimmed;
+};
+
 const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
 
 const buildRoutingDescription = (runtimeAgents: RuntimeAgentDefinition[]): string => {
@@ -33,8 +48,9 @@ export const buildSupervisorRoutingSchema = (runtimeAgents: RuntimeAgentDefiniti
     reply: z
       .string()
       .optional()
+      .transform(normalizeSupervisorReply)
       .describe(
-        "The conversational response sent back to the user. Include this whenever 'next' is 'FINISH'. Omit it when routing to a runtime agent.",
+        "The conversational response sent back to the user. Required when 'next' is 'FINISH'. Omit this field entirely when routing to a runtime agent.",
       ),
   });
 };

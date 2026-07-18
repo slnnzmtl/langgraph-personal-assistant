@@ -14,6 +14,7 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
+import { mapObsidianSubAgentResult } from "../../../src/app/policies/obsidian-hooks.js";
 import { createObsidianNode } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "../../../src/utils/message-content.js";
 import {
@@ -43,6 +44,103 @@ const createTempVault = async (): Promise<string> => {
   tempPaths.push(tempVault);
   return tempVault;
 };
+
+describe("mapObsidianSubAgentResult", () => {
+  it("returns the final reply even when stepCount equals maxSteps", () => {
+    const finalReply = new AIMessage("OK. I've created English learning.md.");
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("Save to note English learning"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "write_file",
+              args: { relativePath: "English learning.md" },
+              id: "write-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "write-1",
+            content: "Success: Create English learning note and add link. saved to English learning.md.",
+          }),
+          finalReply,
+        ],
+        stepCount: 8,
+      },
+      8,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toBe("OK. I've created English learning.md.");
+  });
+
+  it("summarizes a successful write when maxSteps is hit without a final reply", () => {
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("Save to note English learning"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "write_file",
+              args: { relativePath: "English learning.md" },
+              id: "write-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "write-1",
+            content: "Success: Create English learning note and add link. saved to English learning.md.",
+          }),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "list_files",
+              args: { relativeDir: "." },
+              id: "list-1",
+              type: "tool_call",
+            }],
+          }),
+        ],
+        stepCount: 8,
+      },
+      8,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toContain("Create English learning note and add link");
+  });
+
+  it("reports max steps only when the edit did not complete", () => {
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("keep searching forever"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "search_files",
+              args: { queries: ["loop"] },
+              id: "search-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "search-1",
+            content: "No files matched your search.",
+          }),
+        ],
+        stepCount: 3,
+      },
+      3,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toBe("exceeded max steps");
+  });
+});
 
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
@@ -164,11 +262,13 @@ describe("createObsidianNode", () => {
 
     expect(prompt).toContain("Obsidian Vault Manager");
     expect(prompt).toContain("<role_and_rules>");
+    expect(prompt).toContain("<priority>");
     expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
     expect(prompt).toContain("CURRENT DATETIME:");
     expect(prompt).toContain('<intent type="READ">');
     expect(prompt).toContain('<intent type="WRITE">');
     expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
+    expect(prompt).toContain("file deletion is not available");
   });
 
   it("loads skill_usage guidance from prompts/obsidian.xml", () => {

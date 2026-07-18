@@ -10,9 +10,7 @@ import { fetchWiseTransactions } from "../../../services/wise/index.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
-const GetCategoriesSchema = z.object({
-  unused: z.string().optional().describe("Unused. Pass an empty object."),
-});
+const GetCategoriesSchema = z.object({});
 
 export const createFinanceDomainToolsFromSession = (
   mcpSession: SupabaseMcpSession,

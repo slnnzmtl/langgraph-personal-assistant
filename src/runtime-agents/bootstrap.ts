@@ -24,7 +24,8 @@ const mergeRuntimeAgents = (
       merged.set(agent.id, {
         ...defaultAgent,
         description: agent.description,
-        maxSteps: agent.maxSteps,
+        // Keep user raises; allow builtin default bumps to lift older lower values.
+        maxSteps: Math.max(defaultAgent.maxSteps, agent.maxSteps),
         enabled: agent.enabled,
         updatedAt: agent.updatedAt,
         modelKey: defaultAgent.modelKey,

@@ -2,15 +2,36 @@ import { AIMessage, HumanMessage, mergeMessageRuns, type BaseMessage } from "@la
 
 import { extractMessageTextContent } from "../../utils/message-content.js";
 
-/** Keep only the latest user turn and any sub-agent messages appended after it. */
-export const scopeSubAgentMessages = (messages: BaseMessage[]): BaseMessage[] => {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index] instanceof HumanMessage) {
-      return messages.slice(index);
+/** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
+export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
+
+const isHumanMessage = (message: BaseMessage): boolean =>
+  message instanceof HumanMessage || message._getType() === "human";
+
+/**
+ * Keep recent conversational context for the runtime agent: the last N human
+ * turns plus any assistant messages between/after them. This preserves
+ * clarification follow-ups without sending the full thread.
+ */
+export const scopeSubAgentMessages = (
+  messages: BaseMessage[],
+  humanTurns = SUB_AGENT_CONTEXT_HUMAN_TURNS,
+): BaseMessage[] => {
+  const humanIndexes: number[] = [];
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message && isHumanMessage(message)) {
+      humanIndexes.push(index);
     }
   }
 
-  return messages;
+  if (humanIndexes.length === 0) {
+    return messages;
+  }
+
+  const startIndex = humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!;
+  return messages.slice(startIndex);
 };
 
 export const buildRuntimeAgentPromptMessages = (

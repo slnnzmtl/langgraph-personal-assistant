@@ -101,6 +101,44 @@ describe("createSupervisorNode", () => {
     expect(modelInvoke).toHaveBeenCalledTimes(1);
   });
 
+  it("routes specialized branches even when the model returns a placeholder reply string", async () => {
+    const connector = new FakeLLMConnector(() => ({
+      next: "obsidian",
+      reply: "null",
+    }));
+    const supervisorNode = createAppSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(makeHumanState("create today routine note"));
+
+    expect(result.next).toBe("Runtime_SG");
+    expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
+    expect(result.messages).toBeUndefined();
+  });
+
+  it("does not treat the literal string null as a FINISH reply", async () => {
+    const modelInvoke = vi.fn(async () => new AIMessage("Please rephrase your request."));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => ({
+          next: "FINISH",
+          reply: "null",
+        }),
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createAppSupervisorNode(connector);
+
+    const result = await supervisorNode(makeHumanState("hello"));
+
+    expect(result.next).toBe("FINISH");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Please rephrase your request.");
+    expect(modelInvoke).toHaveBeenCalledTimes(1);
+  });
+
   it("returns a route without appending a message for specialized branches", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);

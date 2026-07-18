@@ -1,4 +1,4 @@
-import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
 export const ROUTE_NAMES = ["Runtime_SG", "FINISH"] as const;
@@ -9,7 +9,8 @@ export type RouteName = (typeof ROUTE_NAMES)[number];
 /**
  * Returns a bounded history beginning at a clean semantic boundary. An active
  * assistant tool-call message and its trailing tool results are retained as one
- * atomic suffix, even when that suffix is larger than `limit`.
+ * atomic suffix, even when that suffix is larger than `limit`. The latest human
+ * message is also retained so tool-heavy turns cannot drop the user request.
  */
 export const trimMessagesToLast = (
   messages: BaseMessage[],
@@ -41,25 +42,25 @@ export const trimMessagesToLast = (
     }
   }
 
-  const startIndex = activeToolCallIndex >= 0
+  let startIndex = activeToolCallIndex >= 0
     ? Math.min(Math.max(0, messages.length - limit), activeToolCallIndex)
     : Math.max(0, messages.length - limit);
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index] instanceof HumanMessage) {
+      startIndex = Math.min(startIndex, index);
+      break;
+    }
+  }
+
   let sliced = messages.slice(startIndex);
 
+  // Only strip leading tool results whose parent AI message fell outside the window.
+  // Do not strip AI messages that merely have tool_calls — completed tool rounds are valid history.
   while (sliced.length > 0 && startIndex !== activeToolCallIndex) {
-    const first = sliced[0];
-    const isOrphanedToolMessage = first instanceof ToolMessage;
-    const isAIWithPendingToolCalls =
-      first instanceof AIMessage &&
-      (
-        (Array.isArray(first.tool_calls) && first.tool_calls.length > 0) ||
-        Boolean(
-          (first as AIMessage & { additional_kwargs?: Record<string, unknown> })
-            .additional_kwargs?.functionCall,
-        )
-      );
-
-    if (!isOrphanedToolMessage && !isAIWithPendingToolCalls) break;
+    if (!(sliced[0] instanceof ToolMessage)) {
+      break;
+    }
     sliced = sliced.slice(1);
   }
 
