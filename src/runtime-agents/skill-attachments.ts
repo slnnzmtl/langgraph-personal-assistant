@@ -1,5 +1,6 @@
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
+import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
 import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import { readSkillContent } from "../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
@@ -32,6 +33,17 @@ const matchesPhrase = (normalized: string, phrase: string): boolean => {
 };
 
 export const extractTriggerUserText = (messages: BaseMessage[]): string | undefined => {
+  const recent = extractRecentHumanTexts(messages, 1);
+  return recent[0];
+};
+
+/** Recent non-empty human texts, oldest → newest, capped to the sub-agent context window. */
+export const extractRecentHumanTexts = (
+  messages: BaseMessage[],
+  humanTurns = SUB_AGENT_CONTEXT_HUMAN_TURNS,
+): string[] => {
+  const texts: string[] = [];
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!(message instanceof HumanMessage)) {
@@ -39,12 +51,17 @@ export const extractTriggerUserText = (messages: BaseMessage[]): string | undefi
     }
 
     const text = extractMessageTextContent(message.content).trim();
-    if (text.length > 0) {
-      return text;
+    if (text.length === 0) {
+      continue;
+    }
+
+    texts.push(text);
+    if (texts.length >= Math.max(1, humanTurns)) {
+      break;
     }
   }
 
-  return undefined;
+  return texts.reverse();
 };
 
 export const matchesCronJobTrigger = (text: string, cronJobName: string): boolean =>
@@ -122,15 +139,18 @@ export const resolveSkillAttachments = (
   rules: SkillAttachmentRule[],
   messages: BaseMessage[],
 ): ResolvedSkillAttachment[] => {
-  const triggerText = extractTriggerUserText(messages);
-  if (!triggerText) {
+  // Match against recent human turns so short follow-ups ("for yesterday") keep
+  // the skill attached after an earlier matching request ("sync expenses").
+  const triggerTexts = extractRecentHumanTexts(messages);
+  if (triggerTexts.length === 0) {
     return [];
   }
 
   const resolved = new Map<string, ResolvedSkillAttachment>();
 
   for (const rule of rules) {
-    if (!matchesSkillAttachmentRule(triggerText, rule)) {
+    const matched = triggerTexts.some((text) => matchesSkillAttachmentRule(text, rule));
+    if (!matched) {
       continue;
     }
 
@@ -179,31 +199,20 @@ export const FINANCE_SKILL_ATTACHMENTS: SkillAttachmentRule[] = [
     skillName: "sync-expenses",
     match: {
       anyPhrases: [
-        // "get yesterday transactions",
-        // "get today transactions",
-        // "show yesterday transactions",
-        // "show today transactions",
-        // "list yesterday transactions",
-        // "list today transactions",
-        // "yesterday transactions",
-        // "today transactions",
+        "sync expenses",
+        "sync expense",
         "transactions",
-        // "yesterday expenses",
-        // "today expenses",
-        // "summarize expenses",
-        // "summarize spending",
         "spending",
         "how much spent",
         "total spending",
         "expense",
         "expenses",
-        // "list expenses",
-        // "show expenses",
-        // "expense date",
-        // "last expense",
-        // "in db",
-        // "expense in db",
-        // "sync expenses",
+        "for yesterday",
+        "for today",
+        "yesterday expenses",
+        "today expenses",
+        "yesterday transactions",
+        "today transactions",
       ],
     },
   },

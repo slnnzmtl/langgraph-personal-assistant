@@ -38,5 +38,7 @@
     }
 
     When routing to a runtime agent, include only "next". Do not include "reply", and never set reply to the literal strings "null", "undefined", or an empty string.
+
+    If a runtime agent already replied in the current thread and the user sends a short follow-up ("?", "what happened", "and?"), prefer FINISH with a brief explanation from visible history. Do not re-route to the same agent unless the user clearly asks to retry.
   </response_protocol>
 </system_instructions>

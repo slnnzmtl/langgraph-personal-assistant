@@ -9,6 +9,7 @@ import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
+import { createEmptySubAgentHandoffMessage } from "./empty-subagent-handoff.js";
 import {
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
@@ -218,9 +219,15 @@ export const createRuntimeAgentNode = (
       const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
 
       if (!hasToolCalls && responseText.length === 0) {
-        const fallback = hooks.emptyResponseMessage?.(definition)
-          ?? `The ${definition.name} agent did not produce a response. Please try again.`;
-        return { messages: [new AIMessage(fallback)], stepCount };
+        if (hooks.emptyResponseMessage) {
+          return { messages: [new AIMessage(hooks.emptyResponseMessage(definition))], stepCount };
+        }
+
+        // Hand an empty reply + last tool context to the supervisor for a user-facing summary.
+        return {
+          messages: [createEmptySubAgentHandoffMessage(state.messages, definition.name)],
+          stepCount,
+        };
       }
 
       return { messages: [processed], stepCount };

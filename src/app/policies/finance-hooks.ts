@@ -6,6 +6,4 @@ export const createFinanceNodeHooks = (): RuntimeAgentNodeHooks =>
     logLabel: "finance-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
-    emptyResponseMessage: () =>
-      "Unable to continue the finance request because the model returned an empty response. Please try again.",
   });

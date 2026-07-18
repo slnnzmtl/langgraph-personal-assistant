@@ -92,7 +92,7 @@ describe("finance subgraph tool batching", () => {
     expect(result.messages.at(-1)?.content).toBe("Finance sync completed.");
   });
 
-  it("falls back when the model keeps returning empty after read_skill", async () => {
+  it("hands empty replies to the supervisor with last tool context", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
@@ -113,15 +113,19 @@ describe("finance subgraph tool batching", () => {
           content: "",
           tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
         }),
-        new ToolMessage({ tool_call_id: "read-1", content: "skill body" }),
+        new ToolMessage({ tool_call_id: "read-1", name: "read_skill", content: "skill body" }),
       ],
       stepCount: 1,
     });
 
     expect(financeCalls).toBe(2);
-    expect(update.messages?.[0]?.content).toBe(
-      "Unable to continue the finance request because the model returned an empty response. Please try again.",
-    );
+    const handoff = update.messages?.[0] as AIMessage;
+    expect(handoff.content).toBe("");
+    expect(handoff.additional_kwargs).toMatchObject({
+      emptySubAgentHandoff: true,
+      agentName: "Finance",
+    });
+    expect(String(handoff.additional_kwargs?.toolContext ?? "")).toContain("skill body");
   });
 
   it("retries the model when it returns empty after exec_sql so the agent answers", async () => {

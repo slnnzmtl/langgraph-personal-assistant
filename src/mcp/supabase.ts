@@ -35,8 +35,6 @@ export function parseExecuteSqlResponse(response: unknown): unknown {
   const content = (response as { content?: TextContent[] }).content;
   const text = content?.find((item) => item.type === "text")?.text;
 
-  console.log(text);
-
   if (!text) {
     throw new Error("Unexpected response format from execute_sql tool");
   }

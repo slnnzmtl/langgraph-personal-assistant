@@ -1,5 +1,6 @@
-import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, type BaseMessage } from "@langchain/core/messages";
 
+import { getEmptySubAgentHandoff, isEmptyAiReply } from "../execution/empty-subagent-handoff.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
@@ -34,10 +35,22 @@ export const tryCronRouteUpdate = (
 const getAiMessageText = (message: BaseMessage | undefined): string =>
   message instanceof AIMessage ? extractMessageTextContent(message.content).trim() : "";
 
+export const needsEmptySubAgentSummary = (state: AgentState): boolean => {
+  const lastMessage = state.messages[state.messages.length - 1];
+  // Empty AI from a runtime agent (with or without handoff metadata) must be
+  // summarized by the supervisor — never re-routed.
+  return Boolean(getEmptySubAgentHandoff(lastMessage)) || isEmptyAiReply(lastMessage);
+};
+
 export const detectCompletionState = (
   state: AgentState,
   promptMessages: BaseMessage[],
 ): AgentStateUpdate | null => {
+  if (needsEmptySubAgentSummary(state)) {
+    // Supervisor node will generate a user-facing summary before FINISH.
+    return null;
+  }
+
   const lastStripped = promptMessages[promptMessages.length - 1];
   const lastStrippedText = getAiMessageText(lastStripped);
 
@@ -48,28 +61,6 @@ export const detectCompletionState = (
 
   if (isSubAgentComplete) {
     return { next: "FINISH" };
-  }
-
-  const hasDelegatedToRuntimeAgent = state.messages.some((message) => message instanceof AIMessage);
-  const hadRecentToolResult = state.messages.some((message) => {
-    if (!(message instanceof ToolMessage)) {
-      return false;
-    }
-
-    return extractMessageTextContent(message.content).trim().length > 0;
-  });
-
-  if (
-    hasDelegatedToRuntimeAgent
-    && !hadRecentToolResult
-    && lastStripped instanceof AIMessage
-    && (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0)
-    && lastStrippedText.length === 0
-  ) {
-    return {
-      next: "FINISH",
-      messages: [new AIMessage("Completed your request.")],
-    };
   }
 
   return null;
@@ -98,6 +89,12 @@ export const resolveRoutingDecision = async (
 
   if (!enabledAgentIds.has(agentId)) {
     return onFailure(`Unknown or disabled runtime agent route: ${response.next}`);
+  }
+
+  if (response.reply !== undefined) {
+    console.warn(
+      `Supervisor routing ignored a reply while delegating to ${response.next}.`,
+    );
   }
 
   return routeToRuntimeAgent(agentId);

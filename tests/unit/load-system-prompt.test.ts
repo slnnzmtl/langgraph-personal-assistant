@@ -38,6 +38,7 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("Financial Assistant");
     expect(prompt).toContain("<skill_usage>");
     expect(prompt).toContain('read_skill("sync-expenses")');
+    expect(prompt).toContain("MUST call");
     expect(prompt).toContain("Never return an empty message");
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {

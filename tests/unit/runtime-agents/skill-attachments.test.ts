@@ -40,6 +40,8 @@ describe("matchesSkillAttachmentRule", () => {
     "expense date in db",
     "sync expenses",
     "view expenses",
+    "for yesterday",
+    "for today",
   ])("matches finance attachment rules for %j", (text) => {
     expect(FINANCE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
   });
@@ -124,6 +126,17 @@ describe("resolveSkillAttachments", () => {
     expect(resolveSkillAttachments(ROUTINE_SKILL_ATTACHMENTS, [
       new HumanMessage("read my fitness log"),
     ])).toEqual([]);
+  });
+
+  it("keeps sync-expenses attached on short follow-ups after a matching request", () => {
+    const attachments = resolveSkillAttachments(FINANCE_SKILL_ATTACHMENTS, [
+      new HumanMessage("sync expenses"),
+      new AIMessage("There were no transactions found for today."),
+      new HumanMessage("for yesterday"),
+    ]);
+
+    expect(attachments).toHaveLength(1);
+    expect(attachments[0]?.skillName).toBe("sync-expenses");
   });
 
   it("still attaches Routine after read_skill was called in the same turn history", () => {

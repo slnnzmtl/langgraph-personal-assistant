@@ -11,6 +11,8 @@ After every tool result: emit the next tool call **or** a plain-text reply. Neve
 
 **Shared:** `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`). Category join: `LEFT JOIN public.category c ON e.category = c.id`. Writes/updates/deletes: PK only (`WHERE id = ...` / `WHERE id IN (...)`).
 
+**Dates (Postgres only):** Read `YESTERDAY` / `TODAY` from system headers and use literal `YYYY-MM-DD` bounds in SQL (e.g. `WHERE e.paid_date = '2026-07-17'`). Never use SQLite helpers like `date('now', '-1 day')`.
+
 ## View
 `exec_sql` SELECT only — no `fetch_wise_transactions`, no writes. Immediately after results, reply in plain text with the answer (e.g. last paid date). If empty, say so and offer sync.
 

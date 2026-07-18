@@ -267,11 +267,21 @@ describe("createSupervisorNode", () => {
     expect(firstStateUpdateMessage(result)?.content).toBe("Sanitized");
   });
 
-  it("finishes instead of re-delegating when a runtime agent returns an empty reply", async () => {
-    const invokeSpy = vi.fn(() => ({
+  it("summarizes instead of re-delegating when a runtime agent returns an empty reply", async () => {
+    const routingInvoke = vi.fn(async () => ({
       next: "obsidian",
     }));
-    const connector = new FakeLLMConnector(invokeSpy);
+    const modelInvoke = vi.fn(async () =>
+      new AIMessage("I couldn't finish that step cleanly. Please try again."),
+    );
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke,
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
     const supervisorNode = createAppSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
@@ -286,8 +296,55 @@ describe("createSupervisorNode", () => {
     });
 
     expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Completed your request.");
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(firstStateUpdateMessage(result)?.content).toBe(
+      "I couldn't finish that step cleanly. Please try again.",
+    );
+    expect(modelInvoke).toHaveBeenCalledOnce();
+    expect(routingInvoke).not.toHaveBeenCalled();
+  });
+
+  it("includes tool context when summarizing an empty sub-agent handoff", async () => {
+    const modelInvoke = vi.fn(async (input: unknown) => {
+      const messages = input as Array<{ content?: unknown }>;
+      const systemText = String(messages[0]?.content ?? "");
+      expect(systemText).toContain("exec_sql:");
+      expect(systemText).toContain("expenses");
+      expect(systemText).toContain("does not exist");
+      return new AIMessage("The query failed because the expenses table name was wrong.");
+    });
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => ({ next: "finance" }),
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createAppSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("for yesterday only"),
+        new AIMessage({
+          content: "",
+          additional_kwargs: {
+            emptySubAgentHandoff: true,
+            agentName: "Finance",
+            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
+          },
+        }),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("FINISH");
+    expect(firstStateUpdateMessage(result)?.content).toBe(
+      "The query failed because the expenses table name was wrong.",
+    );
+    expect(modelInvoke).toHaveBeenCalledOnce();
   });
 
   it("routes scheduler finance triggers without invoking the LLM", async () => {
