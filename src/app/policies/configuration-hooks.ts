@@ -4,7 +4,8 @@ import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
 import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
-import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
+import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
+import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
 import { buildBuiltinDomainOwnerPattern } from "../../runtime-agents/builtin-domains.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
 import { createSkillAttachmentNodeHooks } from "./skill-scoped-hooks.js";
@@ -14,31 +15,6 @@ const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 type ConfigurationHooksOptions = {
   repository: CronJobRepository;
   runtimeCron?: RuntimeCronService | undefined;
-};
-
-const reconcileRuntimeCron = async (
-  repository: CronJobRepository,
-  runtimeCron?: RuntimeCronService,
-): Promise<void> => {
-  if (!runtimeCron) {
-    return;
-  }
-
-  const persistedJobs = await repository.loadJobs();
-  const persistedJobsByName = new Map(persistedJobs.map((job) => [job.jobName, job]));
-  const activeJobsByName = new Map(runtimeCron.listActiveJobs().map((job: CronJobDefinition) => [job.jobName, job]));
-
-  for (const [jobName] of activeJobsByName) {
-    if (!persistedJobsByName.has(jobName as string)) {
-      await runtimeCron.removeJob(jobName);
-    }
-  }
-
-  for (const [jobName, job] of persistedJobsByName) {
-    if (!activeJobsByName.has(jobName)) {
-      await runtimeCron.addJob(job as CronJobDefinition);
-    }
-  }
 };
 
 const isCronJobListRequest = (text: string): boolean => {
