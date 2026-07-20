@@ -12,7 +12,7 @@ export const SkillAttachmentMatchSchema = z.object({
 export type SkillAttachmentMatch = z.infer<typeof SkillAttachmentMatchSchema>;
 
 export const SkillAttachmentRuleSchema = z.object({
-  owner: z.string().min(1),
+  module: z.string().min(1),
   skillName: z.string().min(1),
   cronJobName: z.string().min(1).optional(),
   match: SkillAttachmentMatchSchema.optional(),

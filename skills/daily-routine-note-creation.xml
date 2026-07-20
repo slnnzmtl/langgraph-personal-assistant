@@ -1,4 +1,4 @@
-<skill name="daily-routine-note-creation" description="Create daily routine notes with unchecked tasks from yesterday.">
+<skill name="daily-routine-note-creation" module="obsidian" description="Create daily routine notes with unchecked tasks from yesterday.">
 <skill_attachments>
   <attachment cronJobName="routine-note-creation">
     <anyPhrases>routine,todos,todo,daily,plan,plans,daily routine,unchecked,carry forward,carry-over</anyPhrases>

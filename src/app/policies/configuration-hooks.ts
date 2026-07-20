@@ -2,7 +2,6 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
-import { getSkillsDir } from "../../prompts/load-system-prompt.js";
 import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "../../cron/types.js";
@@ -70,8 +69,7 @@ export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
 };
 
 export const formatConfigurationSkillCatalog = (): string => {
-  const skillsDir = getSkillsDir("configuration", "xml");
-  const skills = listSkills(skillsDir);
+  const skills = listSkills({ module: "configuration" });
   return formatSkillsForDisplay("configuration", skills, "Listed");
 };
 

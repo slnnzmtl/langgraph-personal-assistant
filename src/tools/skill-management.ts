@@ -1,8 +1,8 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import {
+  SKILLS_ROOT,
   createSkillFile,
   deleteSkillFile,
   formatSkillsForDisplay,
@@ -16,10 +16,10 @@ import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-action
 import { truncateToolOutput } from "./output.js";
 import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 
-export type SkillOwner = (typeof BUILTIN_DOMAIN_IDS)[number];
+export type SkillModule = (typeof BUILTIN_DOMAIN_IDS)[number];
 
-const SkillOwnerSchema = z.enum(
-  BUILTIN_DOMAIN_IDS as unknown as [SkillOwner, ...SkillOwner[]],
+const SkillModuleSchema = z.enum(
+  BUILTIN_DOMAIN_IDS as unknown as [SkillModule, ...SkillModule[]],
 );
 
 export const ReadSkillToolSchema = z.object({
@@ -27,35 +27,35 @@ export const ReadSkillToolSchema = z.object({
 });
 
 export const ListSkillsToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
 });
 
 export const ConfigurationReadSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
 });
 
 export const PreviewSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().describe("The name of the skill to preview (e.g., 'sync-expenses')"),
 });
 
 export const CreateSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The skill name used in frontmatter and as the filename"),
   description: z.string().min(1).describe("Short description shown in available skills lists"),
-  content: z.string().min(1).describe("Full markdown body for the skill"),
+  content: z.string().min(1).describe("Full skill body for the skill"),
 });
 
 export const EditSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The existing skill name to update"),
   description: z.string().min(1).describe("Replacement description for the skill"),
-  content: z.string().min(1).describe("Replacement markdown body for the skill"),
+  content: z.string().min(1).describe("Replacement skill body"),
 });
 
 export const DeleteSkillToolSchema = z.object({
-  owner: SkillOwnerSchema.describe("The skill owner (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
   name: z.string().min(1).describe("The skill name to delete"),
 });
 
@@ -64,29 +64,25 @@ export type ReadSkillToolOptions = {
 };
 
 export type SkillCrudToolsOptions = {
-  resolveSkillsDir?: (owner: SkillOwner) => string;
+  skillsDir?: string;
 };
 
-const resolveOwnerSkillsDir = (
-  owner: SkillOwner,
-  resolveSkillsDir?: (owner: SkillOwner) => string,
-): string => {
-  if (!(BUILTIN_DOMAIN_IDS as readonly string[]).includes(owner)) {
-    throw new Error(`Unknown skill owner: ${owner}`);
-  }
+const resolveSkillsDir = (options?: SkillCrudToolsOptions): string =>
+  options?.skillsDir ?? SKILLS_ROOT;
 
-  return resolveSkillsDir ? resolveSkillsDir(owner) : getSkillsDir(owner);
+const formatSkillList = (module: SkillModule, skillsDir: string): string => {
+  const skills = listSkills({ module, skillsDir });
+  return formatSkillsForDisplay(module, skills, "Listed");
 };
 
-const formatSkillList = (owner: SkillOwner, skillsDir: string): string => {
-  const skills = listSkills(skillsDir);
-  return formatSkillsForDisplay(owner, skills, "Listed");
-};
-
-const formatSkillPreview = (skillsDir: string, name: string): string => {
-  const skill = readFullSkill(skillsDir, name);
+const formatSkillPreview = (module: SkillModule, skillsDir: string, name: string): string => {
+  const skill = readFullSkill(name, { module, skillsDir });
   return truncateToolOutput(
-    serializeSkillFile({ name: skill.name, description: skill.description }, skill.body, skill.fileName),
+    serializeSkillFile(
+      { name: skill.name, description: skill.description, module: skill.module ?? module },
+      skill.body,
+      skill.fileName,
+    ),
   );
 };
 
@@ -105,19 +101,17 @@ const enrichSkillContent = async (
 
 export const createReadSkillTool = (
   promptKey: string,
-  fileType: "md" | "xml" = "md",
+  _fileType: "md" | "xml" = "md",
   options?: ReadSkillToolOptions,
 ): StructuredToolInterface =>
   tool(
     async (input: z.infer<typeof ReadSkillToolSchema>) => {
-      const skillsDir = getSkillsDir(promptKey, fileType);
-
       try {
-        const content = readSkillContent(skillsDir, input.name);
+        const content = readSkillContent(input.name, { module: promptKey });
         const enriched = await enrichSkillContent(content, promptKey, input.name, options);
         return truncateToolOutput(enriched);
       } catch (error) {
-        const availableSkills = listSkills(skillsDir);
+        const availableSkills = listSkills({ module: promptKey });
         const skillNames = availableSkills.map((skill) => skill.name).join(", ");
         const message = error instanceof Error ? error.message : String(error);
         return `Error reading skill: ${message}\nAvailable skills: ${skillNames || "none"}`;
@@ -134,14 +128,12 @@ export const createReadSkillTool = (
 export const createSkillCrudTools = (
   options?: SkillCrudToolsOptions,
 ): StructuredToolInterface[] => {
-  const resolveSkillsDir = (owner: SkillOwner) =>
-    resolveOwnerSkillsDir(owner, options?.resolveSkillsDir);
+  const skillsDir = resolveSkillsDir(options);
 
   const listSkillsTool = tool(
     async (input: z.infer<typeof ListSkillsToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
-        return formatSkillList(input.owner, skillsDir);
+        return formatSkillList(input.module, skillsDir);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -149,7 +141,7 @@ export const createSkillCrudTools = (
     },
     {
       name: "list_skills",
-      description: "List all skills configured for a skill owner.",
+      description: "List all skills configured for a skill module.",
       schema: ListSkillsToolSchema,
     },
   );
@@ -157,11 +149,9 @@ export const createSkillCrudTools = (
   const readSkillForEditTool = tool(
     async (input: z.infer<typeof ConfigurationReadSkillToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
-        return formatSkillPreview(skillsDir, input.name);
+        return formatSkillPreview(input.module, skillsDir, input.name);
       } catch (error) {
-        const skillsDir = resolveSkillsDir(input.owner);
-        const availableSkills = listSkills(skillsDir);
+        const availableSkills = listSkills({ module: input.module, skillsDir });
         const skillNames = availableSkills.map((skill) => skill.name).join(", ");
         const message = error instanceof Error ? error.message : String(error);
         return `Error reading skill: ${message}\nAvailable skills: ${skillNames || "none"}`;
@@ -170,7 +160,7 @@ export const createSkillCrudTools = (
     {
       name: "read_skill_for_edit",
       description:
-        "Load the full skill file for a named owner and skill before editing it.",
+        "Load the full skill file for a named module and skill before editing it.",
       schema: ConfigurationReadSkillToolSchema,
     },
   );
@@ -178,11 +168,9 @@ export const createSkillCrudTools = (
   const previewSkillTool = tool(
     async (input: z.infer<typeof PreviewSkillToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
-        return formatSkillPreview(skillsDir, input.name);
+        return formatSkillPreview(input.module, skillsDir, input.name);
       } catch (error) {
-        const skillsDir = resolveSkillsDir(input.owner);
-        const availableSkills = listSkills(skillsDir);
+        const availableSkills = listSkills({ module: input.module, skillsDir });
         const skillNames = availableSkills.map((skill) => skill.name).join(", ");
         const message = error instanceof Error ? error.message : String(error);
         return `Error previewing skill: ${message}\nAvailable skills: ${skillNames || "none"}`;
@@ -199,14 +187,14 @@ export const createSkillCrudTools = (
   const createSkillTool = tool(
     async (input: z.infer<typeof CreateSkillToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
         const filePath = createSkillFile(
-          skillsDir,
           input.name,
           input.description,
           input.content,
+          input.module,
+          skillsDir,
         );
-        return `Created skill ${input.name} for ${input.owner}.\nPath: ${filePath}`;
+        return `Created skill ${input.name} for module ${input.module}.\nPath: ${filePath}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -214,7 +202,7 @@ export const createSkillCrudTools = (
     },
     {
       name: "create_skill",
-      description: "Create and persist a new skill for a skill owner.",
+      description: "Create and persist a new skill for a skill module.",
       schema: CreateSkillToolSchema,
     },
   );
@@ -222,14 +210,14 @@ export const createSkillCrudTools = (
   const editSkillTool = tool(
     async (input: z.infer<typeof EditSkillToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
         const filePath = updateSkillFile(
-          skillsDir,
           input.name,
           input.description,
           input.content,
+          input.module,
+          skillsDir,
         );
-        return `Updated skill ${input.name} for ${input.owner}.\nPath: ${filePath}`;
+        return `Updated skill ${input.name} for module ${input.module}.\nPath: ${filePath}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -237,7 +225,7 @@ export const createSkillCrudTools = (
     },
     {
       name: "edit_skill",
-      description: "Replace an existing skill's description and body for a skill owner.",
+      description: "Replace an existing skill's description and body for a skill module.",
       schema: EditSkillToolSchema,
     },
   );
@@ -245,9 +233,8 @@ export const createSkillCrudTools = (
   const deleteSkillTool = tool(
     async (input: z.infer<typeof DeleteSkillToolSchema>) => {
       try {
-        const skillsDir = resolveSkillsDir(input.owner);
-        const fileName = deleteSkillFile(skillsDir, input.name);
-        return `Deleted skill ${input.name} for ${input.owner}.\nFile: ${fileName}`;
+        const fileName = deleteSkillFile(input.name, skillsDir);
+        return `Deleted skill ${input.name} for module ${input.module}.\nFile: ${fileName}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -255,7 +242,7 @@ export const createSkillCrudTools = (
     },
     {
       name: "delete_skill",
-      description: "Delete a persisted skill for a skill owner.",
+      description: "Delete a persisted skill for a skill module.",
       schema: DeleteSkillToolSchema,
     },
   );

@@ -3,12 +3,15 @@ import path from "node:path";
 
 import type { SkillAttachmentRule } from "../core/types/agent.js";
 
+export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
+
 /**
- * Metadata extracted from a skill file's frontmatter.
+ * Metadata extracted from a skill file.
  */
 export interface SkillMeta {
   name: string;
   description: string;
+  module?: string;
   fileName: string;
 }
 
@@ -19,6 +22,11 @@ export type SkillFileType = "md" | "xml";
 export const SKILL_FILE_EXTENSIONS: Record<SkillFileType, string> = {
   md: ".md",
   xml: ".xml",
+};
+
+export type ListSkillsOptions = {
+  module?: string;
+  skillsDir?: string;
 };
 
 /**
@@ -88,7 +96,7 @@ export const parseSkillAttachmentsFromXmlBody = (body: string): SkillAttachmentR
     }
 
     rules.push({
-      owner: "",
+      module: "",
       skillName: "",
       ...(cronJobName ? { cronJobName } : {}),
       ...(matchRules ? { match: matchRules } : {}),
@@ -115,6 +123,7 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
   const attrs = openTagMatch[1] ?? "";
   const nameMatch = attrs.match(/name=["']([^"']+)["']/);
   const descriptionMatch = attrs.match(/description=["']([^"']+)["']/);
+  const moduleMatch = attrs.match(/module=["']([^"']+)["']/);
 
   let body = trimmed.slice(openTagMatch[0].length);
   const closeTagIndex = body.lastIndexOf("</skill>");
@@ -129,41 +138,34 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
   if (descriptionMatch?.[1]) {
     data.description = descriptionMatch[1];
   }
+  if (moduleMatch?.[1]) {
+    data.module = moduleMatch[1];
+  }
 
   return { data, body: stripSkillAttachmentsBlock(body.trim()) };
 };
 
 export const loadSkillAttachmentRules = (
-  skillsDir: string,
-  owner: string,
+  module: string,
+  skillsDir: string = SKILLS_ROOT,
 ): SkillAttachmentRule[] => {
-  if (!existsSync(skillsDir)) {
-    return [];
-  }
-
+  const skills = listSkills({ module, skillsDir });
   const rules: SkillAttachmentRule[] = [];
-  const files = readdirSync(skillsDir).filter((fileName) => fileName.endsWith(".xml"));
 
-  for (const fileName of files) {
+  for (const skill of skills) {
     try {
-      const content = readFileSync(path.join(skillsDir, fileName), "utf8");
-      const { data, body } = parseXmlSkill(content);
-      const skillName = data.name;
-      if (!skillName) {
-        continue;
-      }
-
-      const rawBody = content.match(/^<skill\s+[^>]+>([\s\S]*)<\/skill>\s*$/s)?.[1]?.trim() ?? body;
+      const content = readFileSync(path.join(skillsDir, skill.fileName), "utf8");
+      const rawBody = content.match(/^<skill\s+[^>]+>([\s\S]*)<\/skill>\s*$/s)?.[1]?.trim() ?? "";
       const attachmentRules = parseSkillAttachmentsFromXmlBody(rawBody);
       for (const rule of attachmentRules) {
         rules.push({
           ...rule,
-          owner,
-          skillName,
+          module,
+          skillName: skill.name,
         });
       }
     } catch (error) {
-      console.warn(`Failed to parse attachment rules from skill file ${fileName}:`, error);
+      console.warn(`Failed to parse attachment rules from skill file ${skill.fileName}:`, error);
     }
   }
 
@@ -188,7 +190,7 @@ export const parseSkillFile = (raw: string, fileName: string): FrontmatterResult
  */
 export const parseFrontmatter = (raw: string): FrontmatterResult => {
   const lines = raw.split("\n");
-  
+
   if (!lines[0]?.startsWith("---")) {
     return { data: {}, body: raw };
   }
@@ -223,12 +225,14 @@ export const parseFrontmatter = (raw: string): FrontmatterResult => {
   return { data, body };
 };
 
+const resolveSkillsDir = (options?: ListSkillsOptions): string =>
+  options?.skillsDir ?? SKILLS_ROOT;
+
 /**
- * List all skills in a directory by reading and parsing frontmatter.
- * Returns SkillMeta[] sorted by name. Warns and skips files without name/description.
- * Returns [] if directory does not exist.
+ * List skills in the flat skills store, optionally filtered by module.
  */
-export const listSkills = (skillsDir: string): SkillMeta[] => {
+export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
+  const skillsDir = resolveSkillsDir(options);
   if (!existsSync(skillsDir)) {
     return [];
   }
@@ -245,14 +249,24 @@ export const listSkills = (skillsDir: string): SkillMeta[] => {
 
       if (!data.name || !data.description) {
         console.warn(
-          `Skill file ${fileName} missing 'name' or 'description' frontmatter; skipping.`
+          `Skill file ${fileName} missing 'name' or 'description'; skipping.`,
         );
+        continue;
+      }
+
+      if (getSkillFileType(fileName) === "xml" && !data.module) {
+        console.warn(`Skill file ${fileName} missing 'module' attribute; skipping.`);
+        continue;
+      }
+
+      if (options?.module && data.module !== options.module) {
         continue;
       }
 
       skills.push({
         name: data.name,
         description: data.description,
+        ...(data.module ? { module: data.module } : {}),
         fileName,
       });
     } catch (error) {
@@ -279,7 +293,7 @@ const assertPathWithinDir = (filePath: string, dir: string): string => {
   return resolved;
 };
 
-const validateSkillFields = (name: string, description: string): void => {
+const validateSkillFields = (name: string, description: string, module?: string): void => {
   if (!name.trim()) {
     throw new Error("Skill name is required.");
   }
@@ -287,15 +301,21 @@ const validateSkillFields = (name: string, description: string): void => {
   if (!description.trim()) {
     throw new Error("Skill description is required.");
   }
+
+  if (module !== undefined && !module.trim()) {
+    throw new Error("Skill module is required.");
+  }
 };
 
 /**
- * Find a skill by frontmatter name (case-insensitive) or filename.
- * Path-safe: ensures resolved path stays within skillsDir.
- * Throws on not found or path traversal attempt.
+ * Find a skill by name (case-insensitive) or filename within the flat store.
  */
-export const resolveSkillMeta = (skillsDir: string, name: string): ResolvedSkill => {
-  const skills = listSkills(skillsDir);
+export const resolveSkillMeta = (
+  name: string,
+  options?: ListSkillsOptions,
+): ResolvedSkill => {
+  const skillsDir = resolveSkillsDir(options);
+  const skills = listSkills(options);
 
   const byName = skills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
   if (byName) {
@@ -332,13 +352,18 @@ export const formatSkillFile = (
  * Serialize skill metadata and body into an XML file.
  */
 export const formatXmlSkillFile = (
-  frontmatter: Pick<SkillMeta, "name" | "description">,
+  frontmatter: Pick<SkillMeta, "name" | "description" | "module">,
   body: string,
-): string =>
-  `<skill name="${escapeXmlAttr(frontmatter.name)}" description="${escapeXmlAttr(frontmatter.description)}">\n\n${body.trim()}\n\n</skill>\n`;
+): string => {
+  const moduleAttr = frontmatter.module
+    ? ` module="${escapeXmlAttr(frontmatter.module)}"`
+    : "";
+
+  return `<skill name="${escapeXmlAttr(frontmatter.name)}"${moduleAttr} description="${escapeXmlAttr(frontmatter.description)}">\n\n${body.trim()}\n\n</skill>\n`;
+};
 
 export const serializeSkillFile = (
-  frontmatter: Pick<SkillMeta, "name" | "description">,
+  frontmatter: Pick<SkillMeta, "name" | "description" | "module">,
   body: string,
   fileName: string,
 ): string => {
@@ -350,31 +375,30 @@ export const serializeSkillFile = (
 };
 
 /**
- * Read a skill's body content by name (case-insensitive match on frontmatter name)
- * or fileName. Path-safe: ensures resolved path stays within skillsDir.
- * Throws on not found or path traversal attempt.
+ * Read a skill's body content by name.
  */
-export const readSkillContent = (skillsDir: string, name: string): string => {
-  const { filePath } = resolveSkillMeta(skillsDir, name);
+export const readSkillContent = (name: string, options?: ListSkillsOptions): string => {
+  const { filePath } = resolveSkillMeta(name, options);
   const content = readFileSync(filePath, "utf8");
   const { body } = parseSkillFile(content, path.basename(filePath));
   return body;
 };
 
 /**
- * Read a skill's full frontmatter and body.
+ * Read a skill's full metadata and body.
  */
 export const readFullSkill = (
-  skillsDir: string,
   name: string,
+  options?: ListSkillsOptions,
 ): SkillMeta & { body: string } => {
-  const { meta, filePath } = resolveSkillMeta(skillsDir, name);
+  const { meta, filePath } = resolveSkillMeta(name, options);
   const content = readFileSync(filePath, "utf8");
   const { data, body } = parseSkillFile(content, meta.fileName);
 
   return {
     name: data.name ?? meta.name,
     description: data.description ?? meta.description,
+    ...(data.module ?? meta.module ? { module: data.module ?? meta.module } : {}),
     fileName: meta.fileName,
     body,
   };
@@ -384,17 +408,22 @@ export const readFullSkill = (
  * Write a skill file to disk, creating the directory if needed.
  */
 export const writeSkillFile = (
-  skillsDir: string,
   fileName: string,
   name: string,
   description: string,
   body: string,
+  module?: string,
+  skillsDir: string = SKILLS_ROOT,
 ): string => {
-  validateSkillFields(name, description);
+  validateSkillFields(name, description, module);
 
   const filePath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
   mkdirSync(skillsDir, { recursive: true });
-  writeFileSync(filePath, serializeSkillFile({ name, description }, body, fileName), "utf8");
+  writeFileSync(
+    filePath,
+    serializeSkillFile({ name, description, ...(module ? { module } : {}) }, body, fileName),
+    "utf8",
+  );
   return filePath;
 };
 
@@ -402,46 +431,48 @@ export const writeSkillFile = (
  * Create a new skill file. Throws if the skill already exists.
  */
 export const createSkillFile = (
-  skillsDir: string,
   name: string,
   description: string,
   body: string,
+  module: string,
+  skillsDir: string = SKILLS_ROOT,
 ): string => {
-  validateSkillFields(name, description);
+  validateSkillFields(name, description, module);
 
-  const existingSkills = listSkills(skillsDir);
+  const existingSkills = listSkills({ skillsDir });
   if (existingSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
     throw new Error(`Skill already exists: ${name}`);
   }
 
-  const fileName = `${name}.md`;
+  const fileName = `${name}.xml`;
   const targetPath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
   if (existsSync(targetPath)) {
     throw new Error(`Skill file already exists: ${fileName}`);
   }
 
-  return writeSkillFile(skillsDir, fileName, name, description, body);
+  return writeSkillFile(fileName, name, description, body, module, skillsDir);
 };
 
 /**
- * Replace an existing skill's frontmatter and body.
+ * Replace an existing skill's metadata and body.
  */
 export const updateSkillFile = (
-  skillsDir: string,
   name: string,
   description: string,
   body: string,
+  module: string,
+  skillsDir: string = SKILLS_ROOT,
 ): string => {
-  validateSkillFields(name, description);
-  const { meta } = resolveSkillMeta(skillsDir, name);
-  return writeSkillFile(skillsDir, meta.fileName, meta.name, description, body);
+  validateSkillFields(name, description, module);
+  const { meta } = resolveSkillMeta(name, { skillsDir });
+  return writeSkillFile(meta.fileName, meta.name, description, body, module, skillsDir);
 };
 
 /**
  * Delete an existing skill file.
  */
-export const deleteSkillFile = (skillsDir: string, name: string): string => {
-  const { meta, filePath } = resolveSkillMeta(skillsDir, name);
+export const deleteSkillFile = (name: string, skillsDir: string = SKILLS_ROOT): string => {
+  const { meta, filePath } = resolveSkillMeta(name, { skillsDir });
   unlinkSync(filePath);
   return meta.fileName;
 };
@@ -450,12 +481,12 @@ export const deleteSkillFile = (skillsDir: string, name: string): string => {
  * Format a single skill using the configuration skill_output_template.
  */
 export const formatSkillForDisplay = (
-  owner: string,
+  module: string,
   skill: Pick<SkillMeta, "name" | "description">,
   status: SkillDisplayStatus,
 ): string =>
   [
-    `Owner: ${owner}`,
+    `Module: ${module}`,
     `Skill Name: ${skill.name}`,
     `Description: ${skill.description}`,
     `Status: ${status}`,
@@ -465,20 +496,19 @@ export const formatSkillForDisplay = (
  * Format a skill list for user-facing LIST responses.
  */
 export const formatSkillsForDisplay = (
-  owner: string,
+  module: string,
   skills: SkillMeta[],
   status: SkillDisplayStatus = "Listed",
 ): string => {
   if (skills.length === 0) {
-    return `No skills configured for ${owner}.`;
+    return `No skills configured for ${module}.`;
   }
 
-  return skills.map((skill) => formatSkillForDisplay(owner, skill, status)).join("\n\n");
+  return skills.map((skill) => formatSkillForDisplay(module, skill, status)).join("\n\n");
 };
 
 /**
  * Format a list of skills for insertion into a system prompt.
- * Returns a string block with skill name and description.
  */
 export const formatSkillsForPrompt = (skills: SkillMeta[]): string => {
   if (skills.length === 0) {

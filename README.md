@@ -79,7 +79,7 @@ Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom id
 | **Obsidian policy** | Markdown vault read/write with multi-step tool loops (up to 8 steps per request) |
 | **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
 | **Generic policy** | User-created runtime agents with allowlisted tool bundles |
-| **Skills** | Reusable step-by-step playbooks in `skills/{owner}/` injected into agent prompts |
+| **Skills** | Reusable step-by-step playbooks in flat `skills/` with a `module` attribute, injected into agent prompts |
 | **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
 
 The assistant keeps only the last **10 messages** per thread. Older turns are trimmed once the window is exceeded, while preserving in-flight tool-call sequences as atomic units.
@@ -144,17 +144,18 @@ When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are load
 
 ## Skills
 
-Skills are markdown playbooks with YAML frontmatter, organized by owner:
+Skills are XML playbooks stored in a flat `skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
 
 ```
 skills/
-  finance/
-    sync-expenses.md
-  obsidian/
-  configuration/
+  sync-expenses.xml
+  daily-routine-note-creation.xml
+  cron.xml
+  runtime-agents.xml
+  skill-management.xml
 ```
 
-Each skill file requires `name` and `description` in frontmatter. Agent prompts automatically list available skills for their domain and expose `read_skill` (execution agents) or full CRUD tools (configuration). The finance `sync-expenses` skill drives the Wise → categorize → dedup-insert pipeline.
+The `module` attribute (`finance`, `obsidian`, or `configuration`) controls which runtime agent lists and auto-attaches the skill. Optional `<skill_attachments>` blocks define phrase/cron triggers for auto-attachment. Agent prompts list available skills for their module and expose `read_skill` (execution agents) or full CRUD tools (configuration). The finance `sync-expenses` skill drives the Wise → categorize → dedup-insert pipeline.
 
 ## System prompts
 

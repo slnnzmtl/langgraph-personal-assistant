@@ -1,4 +1,4 @@
-<skill name="cron" description="Manage cron scheduled jobs — list, create, and delete background schedules.">
+<skill name="cron" module="configuration" description="Manage cron scheduled jobs — list, create, and delete background schedules.">
 
 Valid target routes: `finance`, `obsidian`, `configuration`.
 

@@ -1,4 +1,4 @@
-<skill name="sync-expenses" description="View, summarize, and sync Wise expenses in the expense ledger.">
+<skill name="sync-expenses" module="finance" description="View, summarize, and sync Wise expenses in the expense ledger.">
 <skill_attachments>
   <attachment>
     <anyPhrases>sync expenses,sync expense,transactions,spending,how much spent,total spending,expense,expenses,for yesterday,for today,yesterday expenses,today expenses,yesterday transactions,today transactions</anyPhrases>

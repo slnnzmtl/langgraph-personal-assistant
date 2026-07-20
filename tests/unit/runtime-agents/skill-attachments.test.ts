@@ -8,13 +8,13 @@ import {
   formatAttachedSkillsPrompt,
   matchesCronJobTrigger,
   matchesSkillAttachmentRule,
-  resolveSkillAttachmentRulesForOwner,
+  resolveSkillAttachmentRulesForModule,
   resolveSkillAttachments,
 } from "../../../src/runtime-agents/skill-attachments.js";
 import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
-const routineRules = () => resolveSkillAttachmentRulesForOwner("obsidian");
-const financeRules = () => resolveSkillAttachmentRulesForOwner("finance");
+const routineRules = () => resolveSkillAttachmentRulesForModule("obsidian");
+const financeRules = () => resolveSkillAttachmentRulesForModule("finance");
 
 describe("matchesSkillAttachmentRule", () => {
   it.each([

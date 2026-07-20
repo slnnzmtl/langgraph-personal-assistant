@@ -26,7 +26,7 @@ describe("formatConfigurationSkillCatalog", () => {
   it("formats configuration skills using the skill_output_template", () => {
     const catalog = formatConfigurationSkillCatalog();
 
-    expect(catalog).toContain("Owner: configuration");
+    expect(catalog).toContain("Module: configuration");
     expect(catalog).toContain("Skill Name: cron");
     expect(catalog).toContain("Skill Name: skill-management");
     expect(catalog).toContain("Status: Listed");

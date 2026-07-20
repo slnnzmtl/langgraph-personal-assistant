@@ -9,22 +9,12 @@ import {
 import {
   createReadSkillTool,
   createSkillCrudTools,
-  type SkillOwner,
 } from "../../src/tools/skill-management.js";
 
 const createTempSkillsRoot = (): string => mkdtempSync(path.join(process.cwd(), "test-skill-tools-"));
 
-const createCrudTools = (rootDir: string) => {
-  const ownerDirs = new Map<SkillOwner, string>([
-    ["finance", path.join(rootDir, "finance")],
-    ["obsidian", path.join(rootDir, "obsidian")],
-    ["configuration", path.join(rootDir, "configuration")],
-  ]);
-
-  return createSkillCrudTools({
-    resolveSkillsDir: (owner) => ownerDirs.get(owner)!,
-  });
-};
+const createCrudTools = (rootDir: string) =>
+  createSkillCrudTools({ skillsDir: rootDir });
 
 describe("createReadSkillTool", () => {
   it("loads a finance skill by name", async () => {
@@ -109,61 +99,61 @@ describe("createSkillCrudTools", () => {
     }
   });
 
-  it("lists skills for an owner", async () => {
+  it("lists skills for a module", async () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);
     const createTool = tools.find((tool) => tool.name === "create_skill");
     const listTool = tools.find((tool) => tool.name === "list_skills");
 
     await createTool!.invoke({
-      owner: "finance",
+      module: "finance",
       name: "sync-expenses",
       description: "Sync expenses",
       content: "# Sync",
     });
 
-    const result = String(await listTool!.invoke({ owner: "finance" }));
-    expect(result).toContain("Owner: finance");
+    const result = String(await listTool!.invoke({ module: "finance" }));
+    expect(result).toContain("Module: finance");
     expect(result).toContain("Skill Name: sync-expenses");
     expect(result).toContain("Description: Sync expenses");
     expect(result).toContain("Status: Listed");
   });
 
-  it("previews a full skill file for an owner", async () => {
+  it("previews a full skill file for a module", async () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);
     const createTool = tools.find((tool) => tool.name === "create_skill");
     const previewTool = tools.find((tool) => tool.name === "preview_skill");
 
     await createTool!.invoke({
-      owner: "obsidian",
+      module: "obsidian",
       name: "daily-note",
       description: "Create daily note",
       content: "# Daily note steps",
     });
 
-    const result = String(await previewTool!.invoke({ owner: "obsidian", name: "daily-note" }));
-    expect(result).toContain("name: daily-note");
-    expect(result).toContain("description: Create daily note");
+    const result = String(await previewTool!.invoke({ module: "obsidian", name: "daily-note" }));
+    expect(result).toContain('name="daily-note"');
+    expect(result).toContain('module="obsidian"');
     expect(result).toContain("# Daily note steps");
   });
 
-  it("reads a full skill file for an owner", async () => {
+  it("reads a full skill file for a module", async () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);
     const createTool = tools.find((tool) => tool.name === "create_skill");
     const readTool = tools.find((tool) => tool.name === "read_skill_for_edit");
 
     await createTool!.invoke({
-      owner: "obsidian",
+      module: "obsidian",
       name: "daily-note",
       description: "Create daily note",
       content: "# Daily note steps",
     });
 
-    const result = String(await readTool!.invoke({ owner: "obsidian", name: "daily-note" }));
-    expect(result).toContain("name: daily-note");
-    expect(result).toContain("description: Create daily note");
+    const result = String(await readTool!.invoke({ module: "obsidian", name: "daily-note" }));
+    expect(result).toContain('name="daily-note"');
+    expect(result).toContain('module="obsidian"');
     expect(result).toContain("# Daily note steps");
   });
 
@@ -177,7 +167,7 @@ describe("createSkillCrudTools", () => {
 
     const createResult = String(
       await createTool!.invoke({
-        owner: "configuration",
+        module: "configuration",
         name: "manage-cron",
         description: "Manage cron jobs",
         content: "# Cron",
@@ -187,7 +177,7 @@ describe("createSkillCrudTools", () => {
 
     const editResult = String(
       await editTool!.invoke({
-        owner: "configuration",
+        module: "configuration",
         name: "manage-cron",
         description: "Manage cron and schedules",
         content: "# Updated cron",
@@ -195,15 +185,15 @@ describe("createSkillCrudTools", () => {
     );
     expect(editResult).toContain("Updated skill manage-cron");
 
-    const readResult = String(await readTool!.invoke({ owner: "configuration", name: "manage-cron" }));
-    expect(readResult).toContain("description: Manage cron and schedules");
+    const readResult = String(await readTool!.invoke({ module: "configuration", name: "manage-cron" }));
+    expect(readResult).toContain("Manage cron and schedules");
     expect(readResult).toContain("# Updated cron");
 
     const deleteResult = String(
-      await deleteTool!.invoke({ owner: "configuration", name: "manage-cron" }),
+      await deleteTool!.invoke({ module: "configuration", name: "manage-cron" }),
     );
     expect(deleteResult).toContain("Deleted skill manage-cron");
-    expect(() => readFileSync(path.join(tempRoot, "configuration", "manage-cron.md"), "utf8")).toThrow();
+    expect(() => readFileSync(path.join(tempRoot, "manage-cron.xml"), "utf8")).toThrow();
   });
 
   it("returns errors for duplicate create and missing delete", async () => {
@@ -213,7 +203,7 @@ describe("createSkillCrudTools", () => {
     const deleteTool = tools.find((tool) => tool.name === "delete_skill");
 
     await createTool!.invoke({
-      owner: "finance",
+      module: "finance",
       name: "dup-skill",
       description: "First",
       content: "Body",
@@ -221,7 +211,7 @@ describe("createSkillCrudTools", () => {
 
     const duplicateResult = String(
       await createTool!.invoke({
-        owner: "finance",
+        module: "finance",
         name: "dup-skill",
         description: "Second",
         content: "Body two",
@@ -231,7 +221,7 @@ describe("createSkillCrudTools", () => {
     expect(duplicateResult).toContain("already exists");
 
     const deleteResult = String(
-      await deleteTool!.invoke({ owner: "finance", name: "missing-skill" }),
+      await deleteTool!.invoke({ module: "finance", name: "missing-skill" }),
     );
     expect(deleteResult).toContain("Error:");
     expect(deleteResult).toContain("not found");

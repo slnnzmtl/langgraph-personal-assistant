@@ -1,4 +1,4 @@
-<skill name="runtime-agents" description="Create, list, preview, update, enable, disable, and delete reusable runtime sub-agents.">
+<skill name="runtime-agents" module="configuration" description="Create, list, preview, update, enable, disable, and delete reusable runtime sub-agents.">
 
 <runtime_agent_intent_routing>
 1. LIST (list, view, inspect, show):
@@ -15,7 +15,7 @@
    - Call `create_runtime_agent(name, description, systemPrompt, toolBundleIds, maxSteps?, enabled?)`.
    - Use a concise kebab-case-friendly name and a routing description the supervisor can match later.
    - Only choose bundle ids from the allowlisted catalog.
-   - Configure skill auto-attachment triggers in each skill file's `<skill_attachments>` block, not on the runtime agent.
+   - Configure skill auto-attachment triggers in each skill file's `<skill_attachments>` block with `module` on the root `<skill>` tag.
 
 4. UPDATE (edit, update, change, rewrite, enable, disable):
    - Call `preview_runtime_agent(id)` first when the current definition is unknown.

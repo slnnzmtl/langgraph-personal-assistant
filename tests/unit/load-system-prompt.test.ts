@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPromptLoader,
-  getSkillsDir,
+  getSkillsRoot,
   loadConfigurationSystemPrompt,
   loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
@@ -125,12 +125,12 @@ describe("loadPrompt", () => {
     expect(prompt).toContain("Obsidian Vault Manager");
   });
 
-  it("resolves skill files via legacy key shape finance/skills/sync-expenses", () => {
-    const prompt = loadPrompt("finance/skills/sync-expenses");
+  it("resolves skill files via skills/{skillName} key shape", () => {
+    const prompt = loadPrompt("skills/sync-expenses");
 
     expect(typeof prompt).toBe("string");
     expect(prompt.length).toBeGreaterThan(0);
-    expect(prompt).toContain("sync-expenses");
+    expect(prompt).toContain("# Expenses");
   });
 
   it("throws when prompt key does not exist", () => {
@@ -151,10 +151,10 @@ describe("loadPrompt", () => {
   });
 });
 
-describe("getSkillsDir", () => {
-  it("resolves skills from skills/{agent} instead of prompts/{agent}/skills", () => {
-    const skillsDir = getSkillsDir("finance", "xml");
+describe("getSkillsRoot", () => {
+  it("resolves the flat skills directory", () => {
+    const skillsRoot = getSkillsRoot();
 
-    expect(skillsDir).toMatch(/skills[/\\]finance$/);
+    expect(skillsRoot).toMatch(/skills[/\\]?$/);
   });
 });

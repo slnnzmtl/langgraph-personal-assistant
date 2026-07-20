@@ -80,7 +80,7 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toContain("Owner: configuration");
+    expect(result.messages?.[0]?.content).toContain("Module: configuration");
     expect(result.messages?.[0]?.content).toContain("Skill Name: cron");
     expect(result.messages?.[0]?.content).toContain("Skill Name: skill-management");
     expect(result.messages?.[0]?.content).toContain("Status: Listed");
@@ -193,7 +193,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "preview_skill",
-              args: { owner: "finance", name: "sync-expenses" },
+              args: { module: "finance", name: "sync-expenses" },
               id: "preview-1",
               type: "tool_call",
             },
@@ -240,7 +240,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "list_skills",
-              args: { owner: "finance" },
+              args: { module: "finance" },
               id: "list-1",
               type: "tool_call",
             },
@@ -285,7 +285,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "read_skill_for_edit",
-              args: { owner: "finance", name: "sync-expenses" },
+              args: { module: "finance", name: "sync-expenses" },
               id: "read-1",
               type: "tool_call",
             },

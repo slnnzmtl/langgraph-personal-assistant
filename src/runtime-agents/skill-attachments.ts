@@ -1,7 +1,6 @@
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
-import { getSkillsDir } from "../prompts/load-system-prompt.js";
 import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
@@ -127,25 +126,21 @@ export const formatAttachedSkillsPrompt = (
 };
 
 export type ResolvedSkillAttachment = {
-  owner: string;
+  module: string;
   skillName: string;
   content: string;
 };
 
-const attachmentKey = (owner: string, skillName: string): string =>
-  `${owner.toLowerCase()}:${skillName.toLowerCase()}`;
+const attachmentKey = (module: string, skillName: string): string =>
+  `${module.toLowerCase()}:${skillName.toLowerCase()}`;
 
-export const resolveSkillAttachmentRulesForOwner = (owner: string): SkillAttachmentRule[] => {
-  const skillsDir = getSkillsDir(owner, "xml");
-  return loadSkillAttachmentRules(skillsDir, owner);
-};
+export const resolveSkillAttachmentRulesForModule = (module: string): SkillAttachmentRule[] =>
+  loadSkillAttachmentRules(module);
 
 export const resolveSkillAttachments = (
   rules: SkillAttachmentRule[],
   messages: BaseMessage[],
 ): ResolvedSkillAttachment[] => {
-  // Match against recent human turns so short follow-ups ("for yesterday") keep
-  // the skill attached after an earlier matching request ("sync expenses").
   const triggerTexts = extractRecentHumanTexts(messages);
   if (triggerTexts.length === 0) {
     return [];
@@ -159,15 +154,14 @@ export const resolveSkillAttachments = (
       continue;
     }
 
-    const key = attachmentKey(rule.owner, rule.skillName);
+    const key = attachmentKey(rule.module, rule.skillName);
     if (resolved.has(key)) {
       continue;
     }
 
-    const skillsDir = getSkillsDir(rule.owner, "xml");
-    const content = readSkillContent(skillsDir, rule.skillName);
+    const content = readSkillContent(rule.skillName, { module: rule.module });
     resolved.set(key, {
-      owner: rule.owner,
+      module: rule.module,
       skillName: rule.skillName,
       content,
     });
@@ -181,7 +175,7 @@ export const appendConfiguredSkillAttachments = (
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
 ): string => {
-  const rules = resolveSkillAttachmentRulesForOwner(definition.id);
+  const rules = resolveSkillAttachmentRulesForModule(definition.id);
   if (rules.length === 0) {
     return basePrompt;
   }
@@ -203,6 +197,6 @@ export const getAttachedSkillNames = (
   messages: BaseMessage[],
 ): Set<string> =>
   new Set(
-    resolveSkillAttachments(resolveSkillAttachmentRulesForOwner(definition.id), messages)
+    resolveSkillAttachments(resolveSkillAttachmentRulesForModule(definition.id), messages)
       .map((attachment) => attachment.skillName),
   );
