@@ -10,8 +10,12 @@ import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types
 import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
 import { createFinanceNodeHooks } from "../../src/app/policies/finance-hooks.js";
 import { createObsidianNodeHooks } from "../../src/app/policies/obsidian-hooks.js";
+import { createDefaultRuntimeShellFormatters } from "../../src/app/runtime-shell-formatters.js";
+import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 
 const testPromptResolver = createPromptResolver(loadSystemPromptByKey);
+const testSkillCatalog = createFilesystemSkillCatalog();
+const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
 
 type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
 
@@ -41,7 +45,7 @@ export const createFinanceNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(definition),
   tools,
-  createFinanceNodeHooks(),
+  createFinanceNodeHooks(testShellFormatters),
 );
 
 export const createObsidianNode = (
@@ -53,7 +57,7 @@ export const createObsidianNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(definition),
   prebuiltTools,
-  createObsidianNodeHooks(vaultRoot),
+  createObsidianNodeHooks(vaultRoot, testShellFormatters),
 );
 
 type ConfigurationNodeOptions = {
@@ -72,6 +76,8 @@ export const createConfigurationNode = (
   tools,
   createConfigurationNodeHooks({
     repository: options.repository,
-    runtimeCron: options.runtimeCron,
+    ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+    skillCatalog: testSkillCatalog,
+    shellFormatters: testShellFormatters,
   }),
 );

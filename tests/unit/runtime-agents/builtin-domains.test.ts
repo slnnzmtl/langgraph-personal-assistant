@@ -30,8 +30,9 @@ describe("configurator manifest", () => {
   });
 
   it("builds a skill module owner pattern from discovered modules", () => {
-    const pattern = buildSkillModuleOwnerPattern();
-    for (const module of listSkillModules()) {
+    const modules = listSkillModules();
+    const pattern = buildSkillModuleOwnerPattern(modules);
+    for (const module of modules) {
       expect(pattern.test(`${module} skills`)).toBe(true);
     }
   });

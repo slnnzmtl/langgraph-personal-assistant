@@ -3,7 +3,9 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
 import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
+import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
+import { resolveAgentSkillModule } from "../core/types/agent.js";
 
 const normalizeText = (text: string): string =>
   text.toLowerCase().replaceAll(/\s+/g, " ").trim();
@@ -134,12 +136,22 @@ export type ResolvedSkillAttachment = {
 const attachmentKey = (module: string, skillName: string): string =>
   `${module.toLowerCase()}:${skillName.toLowerCase()}`;
 
-export const resolveSkillAttachmentRulesForModule = (module: string): SkillAttachmentRule[] =>
-  loadSkillAttachmentRules(module);
+export const resolveSkillAttachmentRulesForModule = (
+  module: string,
+  skillCatalog?: SkillCatalog,
+): SkillAttachmentRule[] => {
+  if (skillCatalog && "loadAttachmentRules" in skillCatalog) {
+    return (skillCatalog as SkillCatalog & { loadAttachmentRules: (module: string) => SkillAttachmentRule[] })
+      .loadAttachmentRules(module);
+  }
+
+  return loadSkillAttachmentRules(module);
+};
 
 export const resolveSkillAttachments = (
   rules: SkillAttachmentRule[],
   messages: BaseMessage[],
+  skillCatalog?: SkillCatalog,
 ): ResolvedSkillAttachment[] => {
   const triggerTexts = extractRecentHumanTexts(messages);
   if (triggerTexts.length === 0) {
@@ -159,7 +171,9 @@ export const resolveSkillAttachments = (
       continue;
     }
 
-    const content = readSkillContent(rule.skillName, { module: rule.module });
+    const content = skillCatalog
+      ? skillCatalog.readContent(rule.skillName, { module: rule.module })
+      : readSkillContent(rule.skillName, { module: rule.module });
     resolved.set(key, {
       module: rule.module,
       skillName: rule.skillName,
@@ -174,13 +188,15 @@ export const appendConfiguredSkillAttachments = (
   basePrompt: string,
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
+  skillCatalog?: SkillCatalog,
 ): string => {
-  const rules = resolveSkillAttachmentRulesForModule(definition.id);
+  const module = resolveAgentSkillModule(definition);
+  const rules = resolveSkillAttachmentRulesForModule(module, skillCatalog);
   if (rules.length === 0) {
     return basePrompt;
   }
 
-  const attachments = resolveSkillAttachments(rules, messages);
+  const attachments = resolveSkillAttachments(rules, messages, skillCatalog);
   if (attachments.length === 0) {
     return basePrompt;
   }
@@ -195,8 +211,12 @@ export const appendConfiguredSkillAttachments = (
 export const getAttachedSkillNames = (
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
-): Set<string> =>
-  new Set(
-    resolveSkillAttachments(resolveSkillAttachmentRulesForModule(definition.id), messages)
+  skillCatalog?: SkillCatalog,
+): Set<string> => {
+  const module = resolveAgentSkillModule(definition);
+
+  return new Set(
+    resolveSkillAttachments(resolveSkillAttachmentRulesForModule(module, skillCatalog), messages, skillCatalog)
       .map((attachment) => attachment.skillName),
   );
+};

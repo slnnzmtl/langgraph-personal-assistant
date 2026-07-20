@@ -12,7 +12,7 @@ import { createRuntimeAgentExecutionContext as createCoreExecutionContext } from
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
-import { createRuntimeAgentRepositoryFake } from "./fakes.js";
+import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
@@ -29,7 +29,9 @@ export const createAppRuntimeExecutionContext = (
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
   const executors = input.executors ?? deriveExecutors(runtimeAgents);
-  const { promptResolver, policyRegistry } = createAppExecutionKit(executors);
+  const { promptResolver, policyRegistry } = createAppExecutionKit(executors, {
+    skillCatalog: createFilesystemSkillCatalog(),
+  });
   const cronTargetAgentIds = input.bundleDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 

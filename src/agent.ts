@@ -7,8 +7,9 @@ import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "./cron-triggers.js";
 import { createAssistant } from "./core/create-assistant.js";
 import type { RuntimeAgentRepository } from "./core/agents/repository.js";
-import { createAppExecutionKit } from "./app/register-defaults.js";
-import { createRuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
+import type { PolicyRegistry } from "./core/policies/registry.js";
+import type { PromptResolver } from "./core/agents/prompt-resolver.js";
+import type { RuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 
 export type WorkflowGraphConfig = {
@@ -27,6 +28,9 @@ export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
   cronTargetAgentIds: readonly string[];
   defaultModelKey?: string;
   messageHistoryMaxTokens: number;
+  promptResolver?: PromptResolver;
+  policyRegistry?: PolicyRegistry;
+  bundleDeps?: RuntimeToolBundleDeps;
 };
 
 export const createWorkflowGraph = ({
@@ -42,8 +46,14 @@ export const createWorkflowGraph = ({
   fileSender,
   supabaseSession,
   messageHistoryMaxTokens,
+  promptResolver,
+  policyRegistry,
+  bundleDeps,
 }: CreateWorkflowGraphInput) => {
-  const { promptResolver, policyRegistry } = createAppExecutionKit(executors);
+  if (!promptResolver || !policyRegistry || !bundleDeps) {
+    throw new Error("createWorkflowGraph requires promptResolver, policyRegistry, and bundleDeps.");
+  }
+
   const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
 
   return createAssistant({
@@ -53,13 +63,7 @@ export const createWorkflowGraph = ({
     runtimeAgentRepository,
     cronJobRepository,
     ...(runtimeCron ? { runtimeCron } : {}),
-    bundleDeps: createRuntimeToolBundleDeps(obsidianVaultPath, {
-      cronTargetAgentIds,
-      cronJobRepository,
-      runtimeAgentRepository,
-      ...(fileSender ? { fileSender } : {}),
-      ...(supabaseSession ? { supabaseSession } : {}),
-    }),
+    bundleDeps,
     promptResolver,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,

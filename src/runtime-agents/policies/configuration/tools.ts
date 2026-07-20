@@ -12,11 +12,12 @@ import {
 import {
   type RuntimeAgentDefinition,
 } from "../../../core/types/agent.js";
+import type { CapabilityCatalog } from "../../../capabilities/index.js";
 import {
-  RuntimeToolBundleIdSchema,
-  type RuntimeToolBundleId,
-} from "../../tool-bundle-catalog.js";
+  createDefaultCapabilityCatalog,
+} from "../../tool-bundles.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
+import type { SkillCatalog } from "../../../core/skills/catalog.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -36,7 +37,7 @@ const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1),
+  toolBundleIds: z.array(z.string().min(1)).min(1),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -46,7 +47,7 @@ const UpdateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
-  toolBundleIds: z.array(RuntimeToolBundleIdSchema).min(1).optional(),
+  toolBundleIds: z.array(z.string().min(1)).min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -56,6 +57,12 @@ const RuntimeAgentIdToolSchema = z.object({
 });
 
 const ListRuntimeAgentsToolSchema = z.object({});
+
+export type SystemConfigToolsOptions = {
+  writeAccess?: boolean;
+  skillCatalog?: SkillCatalog;
+  capabilityCatalog?: CapabilityCatalog;
+};
 
 export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   const lines = [
@@ -103,6 +110,7 @@ export const formatRuntimeAgentPreview = (agent: RuntimeAgentDefinition): string
 export const createCronTools = (
   repository: CronJobRepository,
   cronTargetAgentIds: readonly string[] = [],
+  options: { writeAccess?: boolean } = {},
 ): StructuredToolInterface[] => {
   const listCronJobs = tool(
     async () => {
@@ -120,6 +128,10 @@ export const createCronTools = (
       schema: ListCronJobsToolSchema,
     },
   );
+
+  if (!options.writeAccess) {
+    return [listCronJobs];
+  }
 
   const createCronJob = tool(
     async (input: z.infer<typeof CreateCronJobToolSchema>) => {
@@ -173,7 +185,11 @@ export const createCronTools = (
 export const createRuntimeAgentTools = (
   repository: RuntimeAgentRepository,
   bundleDeps: RuntimeToolBundleDeps,
+  options: { writeAccess?: boolean; capabilityCatalog?: CapabilityCatalog } = {},
 ): StructuredToolInterface[] => {
+  const capabilityCatalog = options.capabilityCatalog ?? createDefaultCapabilityCatalog();
+  const capabilityIdSchema = capabilityCatalog.createIdSchema();
+
   const listRuntimeAgents = tool(
     async () => {
       try {
@@ -214,15 +230,34 @@ export const createRuntimeAgentTools = (
     },
   );
 
+  const listRuntimeToolBundles = tool(
+    async () => formatRuntimeToolBundleCatalog(bundleDeps),
+    {
+      name: "list_runtime_tool_bundles",
+      description: "List the allowlisted runtime tool bundles available in this deployment.",
+      schema: z.object({}),
+    },
+  );
+
+  const readTools = [
+    listRuntimeAgents,
+    previewRuntimeAgent,
+    listRuntimeToolBundles,
+  ];
+
+  if (!options.writeAccess) {
+    return readTools;
+  }
+
   const createRuntimeAgent = tool(
     async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
       try {
-        validateRuntimeToolBundleIds(input.toolBundleIds as RuntimeToolBundleId[], bundleDeps);
+        validateRuntimeToolBundleIds(input.toolBundleIds, bundleDeps);
         const agent = await repository.createAgent({
           name: input.name,
           description: input.description,
           systemPrompt: input.systemPrompt,
-          toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[],
+          toolBundleIds: input.toolBundleIds,
           executor: "generic",
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
@@ -237,7 +272,9 @@ export const createRuntimeAgentTools = (
     {
       name: "create_runtime_agent",
       description: "Create and persist a reusable runtime sub-agent from a name, routing description, system prompt, and allowlisted tool bundles.",
-      schema: CreateRuntimeAgentToolSchema,
+      schema: CreateRuntimeAgentToolSchema.extend({
+        toolBundleIds: z.array(capabilityIdSchema).min(1),
+      }),
     },
   );
 
@@ -245,14 +282,14 @@ export const createRuntimeAgentTools = (
     async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
       try {
         if (input.toolBundleIds) {
-          validateRuntimeToolBundleIds(input.toolBundleIds as RuntimeToolBundleId[], bundleDeps);
+          validateRuntimeToolBundleIds(input.toolBundleIds, bundleDeps);
         }
 
         const agent = await repository.updateAgent(input.id, {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
-          ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds as RuntimeToolBundleId[] } : {}),
+          ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds } : {}),
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
@@ -266,7 +303,9 @@ export const createRuntimeAgentTools = (
     {
       name: "update_runtime_agent",
       description: "Update a persisted runtime agent definition, including enable/disable status.",
-      schema: UpdateRuntimeAgentToolSchema,
+      schema: UpdateRuntimeAgentToolSchema.extend({
+        toolBundleIds: z.array(capabilityIdSchema).min(1).optional(),
+      }),
     },
   );
 
@@ -287,41 +326,40 @@ export const createRuntimeAgentTools = (
     },
   );
 
-  const listRuntimeToolBundles = tool(
-    async () => formatRuntimeToolBundleCatalog(bundleDeps),
-    {
-      name: "list_runtime_tool_bundles",
-      description: "List the allowlisted runtime tool bundles available in this deployment.",
-      schema: z.object({}),
-    },
-  );
-
   return [
-    listRuntimeAgents,
-    previewRuntimeAgent,
+    ...readTools,
     createRuntimeAgent,
     updateRuntimeAgent,
     deleteRuntimeAgent,
-    listRuntimeToolBundles,
   ];
 };
 
 export const createSystemConfigDomainTools = (
   bundleDeps: RuntimeToolBundleDeps,
+  options: SystemConfigToolsOptions = {},
 ): StructuredToolInterface[] => {
   if (!bundleDeps.cronJobRepository || !bundleDeps.runtimeAgentRepository) {
-    throw new Error("system-config bundle requires cron and runtime agent repositories.");
+    throw new Error("system-config capability requires cron and runtime agent repositories.");
   }
 
+  const writeAccess = options.writeAccess ?? true;
   const cronTools = createCronTools(
     bundleDeps.cronJobRepository,
     bundleDeps.cronTargetAgentIds ?? [],
+    { writeAccess },
   );
   const runtimeAgentTools = createRuntimeAgentTools(
     bundleDeps.runtimeAgentRepository,
     bundleDeps,
+    {
+      writeAccess,
+      ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),
+    },
   );
-  const skillManagementTools = createSkillCrudTools();
+  const skillManagementTools = createSkillCrudTools({
+    writeAccess,
+    ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
+  });
 
   return [
     ...cronTools,
@@ -333,7 +371,8 @@ export const createSystemConfigDomainTools = (
 export const createConfigurationTools = (
   bundleDeps: RuntimeToolBundleDeps,
   skillModule: string,
+  options: SystemConfigToolsOptions = {},
 ): StructuredToolInterface[] => [
-  createReadSkillTool(skillModule, "xml"),
-  ...createSystemConfigDomainTools(bundleDeps),
+  createReadSkillTool(skillModule, "xml", options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
+  ...createSystemConfigDomainTools(bundleDeps, options),
 ];

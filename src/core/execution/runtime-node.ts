@@ -5,9 +5,9 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import {
-  appendDynamicSections,
-  formatSystemMetadata,
-} from "../../prompts/load-system-prompt.js";
+  defaultAppendDynamicSections,
+  type SystemContextFormatter,
+} from "../system-context.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
@@ -109,11 +109,26 @@ export const sanitizeResponseToolCalls = (
   return new AIMessage(responseText.length > 0 ? responseText : unavailableMessage);
 };
 
+const defaultFormatSystemMetadata: SystemContextFormatter = (date, options) => {
+  const lines = [
+    "<system_metadata>",
+    `CURRENT DATETIME: ${date.toISOString()}`,
+  ];
+
+  if (options?.runtimeAgent) {
+    lines.push(`RUNTIME_AGENT: ${options.runtimeAgent}`);
+  }
+
+  lines.push("</system_metadata>");
+  return lines.join("\n");
+};
+
 const defaultBuildSystemPrompt = (
   definition: RuntimeAgentDefinition,
   basePrompt: string,
+  formatSystemMetadata: SystemContextFormatter = defaultFormatSystemMetadata,
 ): string =>
-  appendDynamicSections(
+  defaultAppendDynamicSections(
     basePrompt.trim(),
     formatSystemMetadata(new Date(), { runtimeAgent: definition.name }),
   );

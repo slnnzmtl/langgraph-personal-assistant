@@ -1,0 +1,139 @@
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+import {
+  createCapabilityCatalog,
+  isCapabilityAvailable,
+} from "../../src/capabilities/index.js";
+import {
+  BUILTIN_CAPABILITY_DESCRIPTORS,
+  createDefaultCapabilityCatalog,
+  resolveRuntimeToolBundles,
+} from "../../src/runtime-agents/tool-bundles.js";
+import { createRuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
+import { resolveAgentCapabilityTools } from "../../src/app/composition/resolve-agent-tools.js";
+import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
+import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+
+const CORE_ROOT = path.resolve("src/core");
+
+const collectSourceFiles = (dir: string): string[] => {
+  const entries = readdirSync(dir);
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry);
+    const stats = statSync(fullPath);
+
+    if (stats.isDirectory()) {
+      files.push(...collectSourceFiles(fullPath));
+      continue;
+    }
+
+    if (fullPath.endsWith(".ts")) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+};
+
+describe("framework boundaries", () => {
+  it("keeps core free of runtime-agents imports", () => {
+    const forbidden = ["runtime-agents/", "app/policies/", "integrations/"];
+
+    for (const file of collectSourceFiles(CORE_ROOT)) {
+      const content = readFileSync(file, "utf8");
+
+      for (const segment of forbidden) {
+        expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+      }
+    }
+  });
+
+  it("rejects unavailable capability grants", () => {
+    const catalog = createDefaultCapabilityCatalog();
+
+    expect(() =>
+      catalog.validateIds(["finance-domain"], {
+        supabaseAvailable: false,
+        obsidianVaultPath: "/tmp/vault",
+        configurationReposAvailable: false,
+      }),
+    ).toThrow(/unavailable/i);
+  });
+
+  it("resolves the same finance bundle tools for generic and domain-style definitions", () => {
+    const deps = createRuntimeToolBundleDeps("/tmp/vault", {
+      supabaseSession: { executeSql: async () => [] } as never,
+    });
+
+    const definition = {
+      id: "finance",
+      name: "Finance",
+      description: "Finance",
+      systemPrompt: "Finance",
+      promptSourceKey: "finance",
+      toolBundleIds: ["finance-domain"],
+      executor: "finance",
+      builtin: false,
+      maxSteps: 8,
+      enabled: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    const unified = resolveAgentCapabilityTools(definition, deps).map((tool) => tool.name);
+    const bundleOnly = resolveRuntimeToolBundles(["finance-domain"], deps).map((tool) => tool.name);
+
+    expect(unified).toEqual(expect.arrayContaining(bundleOnly));
+    expect(unified).toContain("read_skill");
+  });
+
+  it("seeds only the configuration built-in from code", () => {
+    expect(buildDefaultRuntimeAgents().map((agent) => agent.id)).toEqual(["configuration"]);
+  });
+
+  it("exposes read-only system configuration separately from write", () => {
+    const deps = createRuntimeToolBundleDeps("/tmp/vault", {
+      cronJobRepository: createCronRepositoryFake(),
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const readTools = resolveRuntimeToolBundles(["system-config-read"], deps).map((tool) => tool.name);
+    const writeTools = resolveRuntimeToolBundles(["system-config-write"], deps).map((tool) => tool.name);
+
+    expect(readTools).toContain("list_cron_jobs");
+    expect(readTools).not.toContain("create_cron_job");
+    expect(writeTools).toContain("create_cron_job");
+  });
+
+  it("marks configurable capabilities in the catalog", () => {
+    const configurable = BUILTIN_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable);
+    expect(configurable.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining(["none", "obsidian-vault", "finance-domain", "system-config-read"]),
+    );
+    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
+    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
+  });
+});
+
+describe("capability catalog", () => {
+  it("deduplicates tools resolved from multiple capability ids", () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "alpha", description: "Alpha tools" },
+        resolveTools: () => [{ name: "shared_tool" }, { name: "alpha_only" }] as never,
+      },
+      {
+        descriptor: { id: "beta", description: "Beta tools" },
+        resolveTools: () => [{ name: "shared_tool" }, { name: "beta_only" }] as never,
+      },
+    ]);
+
+    const tools = catalog.resolveTools(["alpha", "beta"], {}, {});
+    expect(tools.map((tool) => tool.name)).toEqual(["shared_tool", "alpha_only", "beta_only"]);
+  });
+});

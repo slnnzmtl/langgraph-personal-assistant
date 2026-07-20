@@ -10,15 +10,20 @@ import {
 } from "../../core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
-import { resolveAgentModelKey, resolveAgentSkillModule } from "../../core/types/agent.js";
+import { resolveAgentModelKey } from "../../core/types/agent.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
-import { createFinanceTools } from "../../runtime-agents/policies/finance/tools.js";
-import { createObsidianTools } from "../../runtime-agents/policies/obsidian/tools.js";
-import { createConfigurationTools } from "../../runtime-agents/policies/configuration/tools.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
+import type { SkillCatalog } from "../../core/skills/catalog.js";
+import type { RuntimeShellFormatters } from "../../core/system-context.js";
+import { resolveAgentCapabilityTools } from "../composition/resolve-agent-tools.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import { createFinanceNodeHooks } from "./finance-hooks.js";
 import { createObsidianNodeHooks, mapObsidianSubAgentResult } from "./obsidian-hooks.js";
+
+type DomainPolicyOptions = {
+  skillCatalog?: SkillCatalog | undefined;
+  shellFormatters?: RuntimeShellFormatters;
+};
 
 const createDomainLlmNode = (
   model: BaseChatModel,
@@ -30,9 +35,14 @@ const createDomainLlmNode = (
     state: SubAgentState,
   ) => Promise<SubAgentStateUpdate>;
 
-export const createFinancePolicy = (): RuntimeAgentPolicy => ({
+export const createFinancePolicy = (
+  options: DomainPolicyOptions = {},
+): RuntimeAgentPolicy => ({
   executor: "finance",
   createHandler: (context: PolicyContext, definition) => {
+    if (!options.shellFormatters) {
+      throw new Error("createFinancePolicy requires runtime shell formatters.");
+    }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const session = bundleDeps.supabaseSession;
 
@@ -46,19 +56,28 @@ export const createFinancePolicy = (): RuntimeAgentPolicy => ({
           model: resolveModel(context, resolveAgentModelKey(definition)),
           definition,
           session,
+          bundleDeps,
+          skillCatalog: options.skillCatalog,
         },
         createTools: (deps) =>
-          createFinanceTools(deps.session!, resolveAgentSkillModule(deps.definition)),
+          resolveAgentCapabilityTools(deps.definition, deps.bundleDeps, {
+            ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+          }),
         createLlmNode: (deps, tools) =>
-          createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks()),
+          createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks(options.shellFormatters)),
       },
     );
   },
 });
 
-export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
+export const createObsidianPolicy = (
+  options: DomainPolicyOptions = {},
+): RuntimeAgentPolicy => ({
   executor: "obsidian",
   createHandler: (context, definition) => {
+    if (!options.shellFormatters) {
+      throw new Error("createObsidianPolicy requires runtime shell formatters.");
+    }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const maxSteps = definition.maxSteps;
 
@@ -70,19 +89,19 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
         vaultRoot: bundleDeps.obsidianVaultPath,
         fileSender: bundleDeps.fileSender,
         definition,
+        bundleDeps,
+        skillCatalog: options.skillCatalog,
       },
       createTools: (deps) =>
-        createObsidianTools(
-          deps.vaultRoot,
-          deps.fileSender,
-          resolveAgentSkillModule(deps.definition),
-        ),
+        resolveAgentCapabilityTools(deps.definition, deps.bundleDeps, {
+          ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+        }),
       createLlmNode: (deps, tools) =>
         createDomainLlmNode(
           deps.model,
           deps.definition,
           tools,
-          createObsidianNodeHooks(deps.vaultRoot),
+          createObsidianNodeHooks(deps.vaultRoot, options.shellFormatters!),
         ),
       mapResult: (result) =>
         mapObsidianSubAgentResult(result, maxSteps, () => ({
@@ -96,9 +115,14 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
   },
 });
 
-export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
+export const createConfigurationPolicy = (
+  options: DomainPolicyOptions = {},
+): RuntimeAgentPolicy => ({
   executor: "configuration",
   createHandler: (context, definition) => {
+    if (!options.shellFormatters) {
+      throw new Error("createConfigurationPolicy requires runtime shell formatters.");
+    }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
 
     return createSubAgent({
@@ -110,9 +134,12 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
         bundleDeps,
         repository: context.cronJobRepository,
         runtimeCron: context.runtimeCron,
+        skillCatalog: options.skillCatalog,
       },
       createTools: (deps) =>
-        createConfigurationTools(deps.bundleDeps, resolveAgentSkillModule(deps.definition)),
+        resolveAgentCapabilityTools(deps.definition, deps.bundleDeps, {
+          ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+        }),
       createLlmNode: (deps, toolSource) =>
         createDomainLlmNode(
           deps.model,
@@ -120,7 +147,9 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
           toolSource,
           createConfigurationNodeHooks({
             repository: deps.repository,
-            runtimeCron: deps.runtimeCron,
+            ...(deps.runtimeCron ? { runtimeCron: deps.runtimeCron } : {}),
+            ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+            shellFormatters: options.shellFormatters!,
           }),
         ),
     });

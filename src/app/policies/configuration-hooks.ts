@@ -2,19 +2,23 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
-import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
-import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../../runtime-agents/builtin-domains.js";
+import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
 import { createSkillAttachmentNodeHooks } from "./skill-scoped-hooks.js";
+import type { SkillCatalog } from "../../core/skills/catalog.js";
+import type { RuntimeShellFormatters } from "../../core/system-context.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
+const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);
 
 type ConfigurationHooksOptions = {
   repository: CronJobRepository;
-  runtimeCron?: RuntimeCronService | undefined;
+  runtimeCron?: RuntimeCronService;
+  skillCatalog?: SkillCatalog | undefined;
+  shellFormatters: RuntimeShellFormatters;
 };
 
 const isCronJobListRequest = (text: string): boolean => {
@@ -22,15 +26,16 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
-const SKILL_MODULE_OWNER_PATTERN = buildSkillModuleOwnerPattern();
+const mentionsSkillOwner = (text: string, modules: readonly string[]): boolean =>
+  buildSkillModuleOwnerPattern(modules).test(text);
 
-const mentionsSkillOwner = (text: string): boolean =>
-  SKILL_MODULE_OWNER_PATTERN.test(text);
-
-export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
+export const isConfigurationSkillCatalogRequest = (
+  text: string,
+  modules: readonly string[],
+): boolean => {
   const normalized = text.toLowerCase().replaceAll(/\s+/g, " ").trim();
 
-  if (mentionsSkillOwner(normalized)) {
+  if (mentionsSkillOwner(normalized, modules)) {
     return false;
   }
 
@@ -44,9 +49,9 @@ export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
   );
 };
 
-export const formatConfigurationSkillCatalog = (): string => {
-  const skills = listSkills({ module: CONFIGURATOR_AGENT_ID });
-  return formatSkillsForDisplay(CONFIGURATOR_AGENT_ID, skills, "Listed");
+export const formatConfigurationSkillCatalog = (skillCatalog: SkillCatalog): string => {
+  const skills = skillCatalog.listSkills({ module: CONFIGURATOR_AGENT_ID });
+  return skillCatalog.formatForDisplay(CONFIGURATOR_AGENT_ID, skills, "Listed");
 };
 
 const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): string | undefined => {
@@ -58,10 +63,15 @@ const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): str
   return toolContent.length > 0 ? toolContent : undefined;
 };
 
+const shouldReconcileCron = (messages: readonly { name?: string }[]): boolean =>
+  messages.some((message) => message.name && MUTATING_CRON_TOOLS.has(message.name));
+
 export const createConfigurationNodeHooks = (
   options: ConfigurationHooksOptions,
-): RuntimeAgentNodeHooks =>
-  createSkillAttachmentNodeHooks({
+): RuntimeAgentNodeHooks => {
+  const skillModules = options.skillCatalog?.listModules() ?? [CONFIGURATOR_AGENT_ID];
+
+  return createSkillAttachmentNodeHooks(options.shellFormatters, {
     logLabel: "configuration-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
@@ -85,12 +95,15 @@ export const createConfigurationNodeHooks = (
       if (
         latestMessage instanceof HumanMessage
         && latestMessageText
-        && isConfigurationSkillCatalogRequest(latestMessageText)
+        && options.skillCatalog
+        && isConfigurationSkillCatalogRequest(latestMessageText, skillModules)
       ) {
-        return { messages: [new AIMessage(formatConfigurationSkillCatalog())] };
+        return { messages: [new AIMessage(formatConfigurationSkillCatalog(options.skillCatalog))] };
       }
 
-      await reconcileRuntimeCron(options.repository, options.runtimeCron);
+      if (shouldReconcileCron(ctx.state.messages)) {
+        await reconcileRuntimeCron(options.repository, options.runtimeCron);
+      }
 
       const readOnlySkillToolResult = getReadOnlySkillToolResult(
         latestMessage instanceof ToolMessage ? latestMessage : undefined,
@@ -101,7 +114,8 @@ export const createConfigurationNodeHooks = (
 
       return null;
     },
-  processResponse: (ctx, response) =>
-    sanitizeResponseToolCalls(response, ctx.allowedToolNames),
-  emptyResponseMessage: () => "Completed the configuration task.",
+    processResponse: (ctx, response) =>
+      sanitizeResponseToolCalls(response, ctx.allowedToolNames),
+    emptyResponseMessage: () => "Completed the configuration task.",
   });
+};

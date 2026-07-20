@@ -1,25 +1,60 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
 import type { CronJobRepository } from "../cron/types.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
+import {
+  createCapabilityCatalog,
+  type CapabilityAvailabilityContext,
+  type CapabilityCatalog,
+  type CapabilityDescriptor,
+  type CapabilityProvider,
+} from "../capabilities/index.js";
 import { createSystemConfigDomainTools } from "./policies/configuration/tools.js";
 import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
-import {
-  RUNTIME_TOOL_BUNDLE_CATALOG,
-  RUNTIME_TOOL_BUNDLE_IDS,
-  type RuntimeToolBundleCatalogEntry,
-  type RuntimeToolBundleId,
-} from "./tool-bundle-catalog.js";
 
-export type { RuntimeToolBundleCatalogEntry, RuntimeToolBundleId } from "./tool-bundle-catalog.js";
-export {
-  RUNTIME_TOOL_BUNDLE_CATALOG,
-  RUNTIME_TOOL_BUNDLE_IDS,
-  RuntimeToolBundleIdSchema,
-} from "./tool-bundle-catalog.js";
+export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
+  {
+    id: "none",
+    description: "Prompt-only agent with no tools.",
+    configurable: true,
+  },
+  {
+    id: "obsidian-vault",
+    description: "Read, write, search, and send files from the Obsidian vault.",
+    requiresVault: true,
+    configurable: true,
+  },
+  {
+    id: "finance-domain",
+    description: "Execute SQL, fetch Wise transactions, and load expense categories.",
+    requiresSupabase: true,
+    configurable: true,
+  },
+  {
+    id: "system-config",
+    description: "Manage cron jobs, runtime agents, and skill definitions (read and write).",
+    requiresConfigurationRepos: true,
+    configurable: false,
+  },
+  {
+    id: "system-config-read",
+    description: "List cron jobs, runtime agents, skills, and available capabilities.",
+    requiresConfigurationRepos: true,
+    configurable: true,
+  },
+  {
+    id: "system-config-write",
+    description: "Create, update, and delete cron jobs, runtime agents, and skills.",
+    requiresConfigurationRepos: true,
+    configurable: false,
+  },
+];
+
+export type RuntimeToolBundleId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
 
 export type RuntimeToolBundleDeps = {
   obsidianVaultPath: string;
@@ -28,6 +63,8 @@ export type RuntimeToolBundleDeps = {
   cronTargetAgentIds?: readonly string[];
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
+  capabilityCatalog?: CapabilityCatalog;
+  skillCatalog?: SkillCatalog;
 };
 
 export const createRuntimeToolBundleDeps = (
@@ -38,6 +75,8 @@ export const createRuntimeToolBundleDeps = (
     cronTargetAgentIds?: readonly string[];
     cronJobRepository?: CronJobRepository;
     runtimeAgentRepository?: RuntimeAgentRepository;
+    capabilityCatalog?: CapabilityCatalog;
+    skillCatalog?: SkillCatalog;
   } = {},
 ): RuntimeToolBundleDeps => ({
   obsidianVaultPath,
@@ -46,104 +85,98 @@ export const createRuntimeToolBundleDeps = (
   ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
   ...(options.runtimeAgentRepository ? { runtimeAgentRepository: options.runtimeAgentRepository } : {}),
+  ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),
+  ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
 });
 
-const resolveBundleTools = (
-  bundleId: RuntimeToolBundleId,
-  deps: RuntimeToolBundleDeps,
-): StructuredToolInterface[] => {
-  switch (bundleId) {
-    case "none":
-      return [];
-    case "obsidian-vault":
-      return createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender);
-    case "finance-domain":
+const systemConfigOptions = (deps: RuntimeToolBundleDeps, writeAccess: boolean) => ({
+  writeAccess,
+  ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+  ...(deps.capabilityCatalog ? { capabilityCatalog: deps.capabilityCatalog } : {}),
+});
+
+const createBuiltinCapabilityProviders = (): CapabilityProvider<RuntimeToolBundleDeps>[] => [
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[0]!,
+    resolveTools: () => [],
+  },
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[1]!,
+    resolveTools: (deps) => createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender),
+  },
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[2]!,
+    resolveTools: (deps) => {
       if (!deps.supabaseSession) {
-        throw new Error("finance-domain bundle requires a configured Supabase session.");
+        throw new Error("finance-domain capability requires a configured Supabase session.");
       }
+
       return createFinanceDomainToolsFromSession(deps.supabaseSession);
-    case "system-config":
-      if (!deps.cronJobRepository || !deps.runtimeAgentRepository) {
-        throw new Error("system-config bundle requires cron and runtime agent repositories.");
-      }
-      return createSystemConfigDomainTools(deps);
-    default:
-      throw new Error(`Unknown runtime tool bundle: ${bundleId as string}`);
-  }
-};
+    },
+  },
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[3]!,
+    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
+  },
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[4]!,
+    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, false)),
+  },
+  {
+    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[5]!,
+    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
+  },
+];
+
+export const createDefaultCapabilityCatalog = (): CapabilityCatalog =>
+  createCapabilityCatalog(createBuiltinCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
+
+export const toCapabilityAvailabilityContext = (
+  deps: RuntimeToolBundleDeps,
+): CapabilityAvailabilityContext => ({
+  obsidianVaultPath: deps.obsidianVaultPath,
+  supabaseAvailable: deps.supabaseSession !== undefined,
+  configurationReposAvailable:
+    deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined,
+});
+
+export const getCapabilityCatalog = (deps: RuntimeToolBundleDeps): CapabilityCatalog =>
+  deps.capabilityCatalog ?? createDefaultCapabilityCatalog();
 
 export const listAvailableRuntimeToolBundles = (
   deps: RuntimeToolBundleDeps,
-): RuntimeToolBundleCatalogEntry[] =>
-  RUNTIME_TOOL_BUNDLE_CATALOG.filter((entry) => {
-    const catalogEntry = entry as RuntimeToolBundleCatalogEntry;
-
-    if (catalogEntry.requiresSupabase && !deps.supabaseSession) {
-      return false;
-    }
-
-    if (catalogEntry.requiresVault && !deps.obsidianVaultPath) {
-      return false;
-    }
-
-    if (
-      catalogEntry.requiresConfigurationRepos
-      && (!deps.cronJobRepository || !deps.runtimeAgentRepository)
-    ) {
-      return false;
-    }
-
-    return true;
-  });
+): CapabilityDescriptor[] =>
+  getCapabilityCatalog(deps).listAvailable(toCapabilityAvailabilityContext(deps));
 
 export const validateRuntimeToolBundleIds = (
   bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
 ): void => {
-  const availableIds = new Set(listAvailableRuntimeToolBundles(deps).map((entry) => entry.id));
-
-  for (const bundleId of bundleIds) {
-    if (!(RUNTIME_TOOL_BUNDLE_IDS as readonly string[]).includes(bundleId)) {
-      throw new Error(`Unknown tool bundle: ${bundleId}`);
-    }
-
-    if (!availableIds.has(bundleId as RuntimeToolBundleId)) {
-      throw new Error(`Tool bundle is unavailable in this deployment: ${bundleId}`);
-    }
-  }
+  getCapabilityCatalog(deps).validateIds(bundleIds, toCapabilityAvailabilityContext(deps));
 };
 
 export const resolveRuntimeToolBundles = (
   bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
-): StructuredToolInterface[] => {
-  validateRuntimeToolBundleIds(bundleIds, deps);
+): StructuredToolInterface[] =>
+  getCapabilityCatalog(deps).resolveTools(
+    bundleIds,
+    deps,
+    toCapabilityAvailabilityContext(deps),
+  );
 
-  const seen = new Set<string>();
-  const tools: StructuredToolInterface[] = [];
+export const formatRuntimeToolBundleCatalog = (deps: RuntimeToolBundleDeps): string =>
+  getCapabilityCatalog(deps).formatCatalog(toCapabilityAvailabilityContext(deps));
 
-  for (const bundleId of bundleIds) {
-    for (const tool of resolveBundleTools(bundleId as RuntimeToolBundleId, deps)) {
-      if (seen.has(tool.name)) {
-        continue;
-      }
+/** @deprecated Use BUILTIN_CAPABILITY_DESCRIPTORS */
+export const RUNTIME_TOOL_BUNDLE_CATALOG = BUILTIN_CAPABILITY_DESCRIPTORS;
 
-      seen.add(tool.name);
-      tools.push(tool);
-    }
-  }
+/** @deprecated Use createDefaultCapabilityCatalog().createIdSchema() */
+export { createDefaultCapabilityCatalog as createRuntimeToolBundleIdSchemaSource };
 
-  return tools;
-};
+/** @deprecated Use BUILTIN_CAPABILITY_DESCRIPTORS ids */
+export const RUNTIME_TOOL_BUNDLE_IDS = BUILTIN_CAPABILITY_DESCRIPTORS.map(
+  (entry) => entry.id,
+) as unknown as readonly RuntimeToolBundleId[];
 
-export const formatRuntimeToolBundleCatalog = (deps: RuntimeToolBundleDeps): string => {
-  const entries = listAvailableRuntimeToolBundles(deps);
-
-  if (entries.length === 0) {
-    return "No runtime tool bundles are available in this deployment.";
-  }
-
-  return entries
-    .map((entry) => `- ${entry.id}: ${entry.description}`)
-    .join("\n");
-};
+export type RuntimeToolBundleCatalogEntry = CapabilityDescriptor;

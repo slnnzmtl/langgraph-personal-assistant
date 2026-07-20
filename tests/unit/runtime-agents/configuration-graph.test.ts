@@ -1,6 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
+import { createDefaultRuntimeShellFormatters } from "../../../src/app/runtime-shell-formatters.js";
 import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
@@ -10,6 +11,10 @@ import {
   createRuntimeExecutionContextFake,
   getBuiltinRuntimeAgentDefinition,
 } from "../../helpers/fakes.js";
+
+import { createFilesystemSkillCatalog } from "../../../src/integrations/skills/filesystem-skill-catalog.js";
+
+const configurationShellFormatters = createDefaultRuntimeShellFormatters(createFilesystemSkillCatalog());
 
 const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
 
@@ -55,7 +60,7 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const wrapper = createConfigurationPolicy().createHandler(context, configurationDefinition);
+    const wrapper = createConfigurationPolicy({ shellFormatters: configurationShellFormatters }).createHandler(context, configurationDefinition);
 
     const result = await wrapper({
       messages: [new HumanMessage("set up a cron job for daily notes")],
