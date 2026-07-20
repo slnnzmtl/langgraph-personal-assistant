@@ -352,7 +352,7 @@ describe("createObsidianNode", () => {
         .join("\n");
 
       expect(promptContent).toContain("<attached_skills>");
-      expect(promptContent).toContain('<attached_skill name="Routine">');
+      expect(promptContent).toContain('<attached_skill name="daily-routine-note-creation">');
       expect(promptContent).toContain("Step 1: Read yesterday's note");
       expect(promptContent).toContain("Follow the attached skill instructions exactly");
 
@@ -377,7 +377,7 @@ describe("createObsidianNode", () => {
         .join("\n");
 
       expect(promptContent).not.toContain("<attached_skills>");
-      expect(promptContent).not.toContain('<attached_skill name="Routine">');
+      expect(promptContent).not.toContain('<attached_skill name="daily-routine-note-creation">');
 
       return new AIMessage("Read the fitness log.");
     });
@@ -834,6 +834,42 @@ describe("obsidian tool: search_files", () => {
     expect(
       lower.includes("no files") || lower.includes("no results") || lower.includes("no matches") || result.trim() === "",
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search_files_by_name tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: search_files_by_name", () => {
+  it("finds files whose filename matches all query terms (AND semantics)", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "July 1 - Tue.md"), "# Day 1");
+    await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
+    await wf(path.join(vaultRoot, "August 1 - Fri.md"), "# Wrong month");
+
+    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
+    const result = await searchTool!.invoke({ queries: ["July", "1"] }) as string;
+
+    expect(result).toContain("July 1 - Tue.md");
+    expect(result).not.toContain("July 2 - Wed.md");
+    expect(result).not.toContain("August 1 - Fri.md");
+  });
+
+  it("auto-splits multi-word query strings before matching", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "July 1 - Tue.md"), "# Day 1");
+    await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
+
+    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
+    const result = await searchTool!.invoke({ queries: ["July 1"] }) as string;
+
+    expect(result).toContain("July 1 - Tue.md");
+    expect(result).not.toContain("July 2 - Wed.md");
   });
 });
 

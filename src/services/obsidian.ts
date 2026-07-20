@@ -198,7 +198,7 @@ export const searchFilesByName = async (
   });
 
   return allFiles.filter((file) => {
-    const lowerFile = file.toLowerCase();
-    return regexes.every((rx) => rx.test(lowerFile));
+    const fileName = file.split("/").pop() ?? file;
+    return regexes.every((rx) => rx.test(fileName));
   });
 };
