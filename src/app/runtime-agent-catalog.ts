@@ -1,9 +1,5 @@
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import { resolveAgentModelKey } from "../core/types/agent.js";
-import { buildDefaultRuntimeAgents } from "../runtime-agents/builtin-domains.js";
-
-export const defaultCronTargetAgentIds = (): readonly string[] =>
-  deriveCronTargetAgentIds(buildDefaultRuntimeAgents());
 
 export const deriveModelKeys = (
   agents: RuntimeAgentDefinition[],

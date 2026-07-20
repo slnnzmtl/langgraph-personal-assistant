@@ -2,13 +2,13 @@ import { AIMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
 
 describe("supervisor runtime routing", () => {
   it("maps a runtime agent id to Runtime_SG and stores the selection in context", async () => {
     const repository = createRuntimeAgentRepositoryFake([
-      ...buildDefaultRuntimeAgents(),
+      ...buildTestRuntimeAgents(),
       {
         id: "daily-summary",
         name: "Daily Summary",

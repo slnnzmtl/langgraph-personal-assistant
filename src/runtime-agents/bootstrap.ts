@@ -1,57 +1,45 @@
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
-import { applyBuiltinDomainAvailability, buildDefaultRuntimeAgents } from "./builtin-domains.js";
+import {
+  CONFIGURATOR_AGENT_ID,
+  buildDefaultRuntimeAgents,
+} from "./builtin-domains.js";
 import { isRuntimeAgentBuiltin } from "../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
-export type RuntimeAgentBootstrapOptions = {
-  financeAvailable?: boolean;
-};
-
-const mergeRuntimeAgents = (
-  defaultAgents: RuntimeAgentDefinition[],
+const mergeConfiguratorAgent = (
+  defaultAgent: RuntimeAgentDefinition,
   persistedAgents: RuntimeAgentDefinition[],
-): RuntimeAgentDefinition[] => {
-  const merged = new Map<string, RuntimeAgentDefinition>();
+): RuntimeAgentDefinition => {
+  const persisted = persistedAgents.find((agent) => agent.id === CONFIGURATOR_AGENT_ID);
 
-  for (const agent of defaultAgents) {
-    merged.set(agent.id, agent);
+  if (!persisted || !isRuntimeAgentBuiltin(defaultAgent)) {
+    return defaultAgent;
   }
 
-  for (const agent of persistedAgents) {
-    const defaultAgent = merged.get(agent.id);
-
-    if (defaultAgent && isRuntimeAgentBuiltin(defaultAgent)) {
-      merged.set(agent.id, {
-        ...defaultAgent,
-        description: agent.description,
-        // Keep user raises; allow builtin default bumps to lift older lower values.
-        maxSteps: Math.max(defaultAgent.maxSteps, agent.maxSteps),
-        enabled: agent.enabled,
-        updatedAt: agent.updatedAt,
-        modelKey: defaultAgent.modelKey,
-        promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
-        executor: defaultAgent.executor,
-        toolBundleIds: defaultAgent.toolBundleIds,
-      });
-      continue;
-    }
-
-    merged.set(agent.id, agent);
-  }
-
-  return Array.from(merged.values()).sort((left, right) => left.id.localeCompare(right.id));
+  return {
+    ...defaultAgent,
+    description: persisted.description,
+    maxSteps: Math.max(defaultAgent.maxSteps, persisted.maxSteps),
+    enabled: persisted.enabled,
+    updatedAt: persisted.updatedAt,
+    modelKey: defaultAgent.modelKey,
+    promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
+    executor: defaultAgent.executor,
+    toolBundleIds: defaultAgent.toolBundleIds,
+  };
 };
 
 export const ensureBuiltinRuntimeAgents = async (
   repository: RuntimeAgentRepository,
-  options?: RuntimeAgentBootstrapOptions,
 ): Promise<RuntimeAgentDefinition[]> => {
-  const defaultAgents = buildDefaultRuntimeAgents().map((agent) =>
-    applyBuiltinDomainAvailability(agent, options),
+  const configurator = buildDefaultRuntimeAgents()[0]!;
+  const persistedAgents = await repository.loadAgents();
+  const localAgents = persistedAgents.filter((agent) => agent.id !== CONFIGURATOR_AGENT_ID);
+  const mergedConfigurator = mergeConfiguratorAgent(configurator, persistedAgents);
+  const mergedAgents = [...localAgents, mergedConfigurator].sort((left, right) =>
+    left.id.localeCompare(right.id),
   );
 
-  const persistedAgents = await repository.loadAgents();
-  const mergedAgents = mergeRuntimeAgents(defaultAgents, persistedAgents);
   const persistedById = new Map(persistedAgents.map((agent) => [agent.id, agent]));
   const changed = mergedAgents.length !== persistedAgents.length
     || mergedAgents.some((agent) => {

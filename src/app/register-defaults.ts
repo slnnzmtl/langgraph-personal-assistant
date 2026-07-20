@@ -2,7 +2,6 @@ import { createPolicyRegistry } from "../core/policies/registry.js";
 import { createGenericPolicy } from "../core/policies/generic.js";
 import { createPromptResolver } from "../core/agents/prompt-resolver.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
-import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 import { resolveRuntimeToolBundles } from "../runtime-agents/tool-bundles.js";
 import type { RuntimeToolBundleDeps } from "../runtime-agents/tool-bundles.js";
 import {
@@ -18,8 +17,10 @@ export const DOMAIN_POLICY_FACTORIES: Record<string, () => RuntimeAgentPolicy> =
   configuration: createConfigurationPolicy,
 };
 
+export const DEPLOYMENT_EXECUTOR_IDS = Object.keys(DOMAIN_POLICY_FACTORIES);
+
 export const createAppExecutionKit = (
-  executors: Iterable<string> = BUILTIN_DOMAIN_IDS,
+  executors: Iterable<string> = DEPLOYMENT_EXECUTOR_IDS,
 ) => {
   const promptResolver = createPromptResolver(loadSystemPromptByKey);
   const executorSet = new Set(executors);

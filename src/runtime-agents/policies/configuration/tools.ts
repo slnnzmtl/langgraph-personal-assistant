@@ -332,7 +332,8 @@ export const createSystemConfigDomainTools = (
 
 export const createConfigurationTools = (
   bundleDeps: RuntimeToolBundleDeps,
+  skillModule: string,
 ): StructuredToolInterface[] => [
-  createReadSkillTool("configuration", "xml"),
+  createReadSkillTool(skillModule, "xml"),
   ...createSystemConfigDomainTools(bundleDeps),
 ];

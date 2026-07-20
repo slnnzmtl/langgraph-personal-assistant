@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 
 import { createConfigurationTools as createConfigurationToolsImpl } from "../../src/runtime-agents/policies/configuration/tools.js";
+import { CONFIGURATOR_AGENT_ID } from "../../src/runtime-agents/builtin-domains.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "./fakes.js";
@@ -38,9 +39,13 @@ export const createCronRepositoryFake = (
 export const createConfigurationTools = (
   repository: CronJobRepository = createCronRepositoryFake(),
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
+  skillModule: string = CONFIGURATOR_AGENT_ID,
 ) =>
-  createConfigurationToolsImpl({
-    ...defaultConfigurationBundleDeps,
-    cronJobRepository: repository,
-    runtimeAgentRepository,
-  });
+  createConfigurationToolsImpl(
+    {
+      ...defaultConfigurationBundleDeps,
+      cronJobRepository: repository,
+      runtimeAgentRepository,
+    },
+    skillModule,
+  );

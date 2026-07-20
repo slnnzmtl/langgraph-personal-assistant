@@ -10,11 +10,11 @@ import {
 } from "../../core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
+import { resolveAgentModelKey, resolveAgentSkillModule } from "../../core/types/agent.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
 import { createFinanceTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianTools } from "../../runtime-agents/policies/obsidian/tools.js";
-import { createReadSkillTool } from "../../tools/skill-management.js";
-import { resolveRuntimeToolBundles } from "../../runtime-agents/tool-bundles.js";
+import { createConfigurationTools } from "../../runtime-agents/policies/configuration/tools.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import { createFinanceNodeHooks } from "./finance-hooks.js";
@@ -43,11 +43,12 @@ export const createFinancePolicy = (): RuntimeAgentPolicy => ({
         name: "Finance",
         maxSteps: definition.maxSteps,
         deps: {
-          model: resolveModel(context, "finance"),
+          model: resolveModel(context, resolveAgentModelKey(definition)),
           definition,
           session,
         },
-        createTools: (deps) => createFinanceTools(deps.session!),
+        createTools: (deps) =>
+          createFinanceTools(deps.session!, resolveAgentSkillModule(deps.definition)),
         createLlmNode: (deps, tools) =>
           createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks()),
       },
@@ -65,12 +66,17 @@ export const createObsidianPolicy = (): RuntimeAgentPolicy => ({
       name: "Obsidian",
       maxSteps,
       deps: {
-        model: resolveModel(context, "obsidian"),
+        model: resolveModel(context, resolveAgentModelKey(definition)),
         vaultRoot: bundleDeps.obsidianVaultPath,
         fileSender: bundleDeps.fileSender,
         definition,
       },
-      createTools: (deps) => createObsidianTools(deps.vaultRoot, deps.fileSender),
+      createTools: (deps) =>
+        createObsidianTools(
+          deps.vaultRoot,
+          deps.fileSender,
+          resolveAgentSkillModule(deps.definition),
+        ),
       createLlmNode: (deps, tools) =>
         createDomainLlmNode(
           deps.model,
@@ -99,16 +105,14 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
       name: "Configuration",
       maxSteps: definition.maxSteps,
       deps: {
-        model: resolveModel(context, "configuration"),
+        model: resolveModel(context, resolveAgentModelKey(definition)),
         definition,
         bundleDeps,
         repository: context.cronJobRepository,
         runtimeCron: context.runtimeCron,
       },
-      createTools: (deps) => [
-        createReadSkillTool("configuration", "xml"),
-        ...resolveRuntimeToolBundles(deps.definition.toolBundleIds, deps.bundleDeps),
-      ],
+      createTools: (deps) =>
+        createConfigurationTools(deps.bundleDeps, resolveAgentSkillModule(deps.definition)),
       createLlmNode: (deps, toolSource) =>
         createDomainLlmNode(
           deps.model,

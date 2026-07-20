@@ -277,6 +277,18 @@ export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
   return skills.sort((a, b) => a.name.localeCompare(b.name));
 };
 
+export const listSkillModules = (options?: Pick<ListSkillsOptions, "skillsDir">): string[] => {
+  const modules = new Set<string>();
+
+  for (const skill of listSkills(options)) {
+    if (skill.module) {
+      modules.add(skill.module);
+    }
+  }
+
+  return [...modules].sort();
+};
+
 export interface ResolvedSkill {
   meta: SkillMeta;
   filePath: string;

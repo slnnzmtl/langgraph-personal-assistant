@@ -6,6 +6,7 @@ import {
   createSkillFile,
   deleteSkillFile,
   formatSkillsForDisplay,
+  listSkillModules,
   listSkills,
   readFullSkill,
   readSkillContent,
@@ -14,48 +15,54 @@ import {
 } from "../prompts/skills-loader.js";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
 import { truncateToolOutput } from "./output.js";
-import { BUILTIN_DOMAIN_IDS } from "../runtime-agents/builtin-domains.js";
 
-export type SkillModule = (typeof BUILTIN_DOMAIN_IDS)[number];
+export type SkillModule = string;
 
-const SkillModuleSchema = z.enum(
-  BUILTIN_DOMAIN_IDS as unknown as [SkillModule, ...SkillModule[]],
-);
+const SkillModuleSchema = z.string().min(1);
+
+const KnownSkillModuleSchema = z.string().min(1).superRefine((module, ctx) => {
+  if (!listSkillModules().includes(module)) {
+    ctx.addIssue({
+      code: "custom",
+      message: `Unknown skill module: ${module}`,
+    });
+  }
+});
 
 export const ReadSkillToolSchema = z.object({
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
 });
 
 export const ListSkillsToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: KnownSkillModuleSchema.describe("The skill module to list skills for"),
 });
 
 export const ConfigurationReadSkillToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: KnownSkillModuleSchema.describe("The skill module to read from"),
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),
 });
 
 export const PreviewSkillToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: KnownSkillModuleSchema.describe("The skill module to preview"),
   name: z.string().describe("The name of the skill to preview (e.g., 'sync-expenses')"),
 });
 
 export const CreateSkillToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: SkillModuleSchema.describe("The skill module to create the skill under"),
   name: z.string().min(1).describe("The skill name used in frontmatter and as the filename"),
   description: z.string().min(1).describe("Short description shown in available skills lists"),
   content: z.string().min(1).describe("Full skill body for the skill"),
 });
 
 export const EditSkillToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: KnownSkillModuleSchema.describe("The skill module that owns the skill"),
   name: z.string().min(1).describe("The existing skill name to update"),
   description: z.string().min(1).describe("Replacement description for the skill"),
   content: z.string().min(1).describe("Replacement skill body"),
 });
 
 export const DeleteSkillToolSchema = z.object({
-  module: SkillModuleSchema.describe("The skill module (e.g., 'finance', 'obsidian', 'configuration')"),
+  module: KnownSkillModuleSchema.describe("The skill module that owns the skill"),
   name: z.string().min(1).describe("The skill name to delete"),
 });
 

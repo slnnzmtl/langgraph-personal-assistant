@@ -164,8 +164,9 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
 
 export const createObsidianTools = (
   vaultRoot: string,
-  fileSender?: IFileSender,
+  fileSender: IFileSender | undefined,
+  skillModule: string,
 ): StructuredToolInterface[] => [
-  createReadSkillTool("obsidian", "xml"),
+  createReadSkillTool(skillModule, "xml"),
   ...createObsidianVaultTools(vaultRoot, fileSender),
 ];

@@ -6,6 +6,7 @@ import type { RuntimeCronService } from "../cron/types.js";
 import { createRuntimeAgentRepositoryForConfig } from "../core/agents/repository.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import { ensureBuiltinRuntimeAgents } from "../runtime-agents/bootstrap.js";
+import { applyLocalModuleAvailability } from "../runtime-agents/builtin-domains.js";
 import { setupSupabaseSession } from "../services/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
@@ -37,9 +38,10 @@ export const createWorkflowContext = async (
   const supabaseSession = await setupSupabaseSession(config);
   const runtimeAgentRepository = createRuntimeAgentRepositoryForConfig(config.runtimeAgentsFilePath);
 
-  const runtimeAgents = await ensureBuiltinRuntimeAgents(runtimeAgentRepository, {
-    financeAvailable: supabaseSession !== undefined,
-  });
+  const runtimeAgents = applyLocalModuleAvailability(
+    await ensureBuiltinRuntimeAgents(runtimeAgentRepository),
+    { supabaseAvailable: supabaseSession !== undefined },
+  );
 
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const cronJobRepository = createCronJobRepositoryForConfig(config.cronJobsFilePath, cronTargetAgentIds);

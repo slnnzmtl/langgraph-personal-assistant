@@ -76,3 +76,9 @@ export const resolveAgentModelKey = (
 
 export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boolean =>
   definition.builtin === true;
+
+export const resolveAgentSkillModule = (definition: RuntimeAgentDefinition): string =>
+  definition.promptSourceKey ?? definition.id;
+
+export const isLocalModuleAgent = (definition: RuntimeAgentDefinition): boolean =>
+  !isRuntimeAgentBuiltin(definition) && (definition.executor ?? "generic") !== "generic";

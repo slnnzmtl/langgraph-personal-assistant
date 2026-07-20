@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HumanMessage } from "@langchain/core/messages";
 
 import { setupCron } from "../../src/cron/cron-launcher.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import {
   buildCronTriggerForJob,
   isCronTargetRoute,
@@ -12,7 +12,7 @@ import {
 } from "../../src/cron-triggers.js";
 
 describe("setupCron", () => {
-  const cronTargetAgentIds = defaultCronTargetAgentIds();
+  const cronTargetAgentIds = defaultTestCronTargetAgentIds();
 
   it("accepts the main supervisor as a cron target", () => {
     expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE, cronTargetAgentIds)).toBe(true);

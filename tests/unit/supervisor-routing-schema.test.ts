@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildSupervisorRoutingSchema, normalizeSupervisorReply } from "../../src/core/supervisor/routing-schema.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 
 describe("supervisor routing schema", () => {
   it("normalizes placeholder reply strings to undefined", () => {
@@ -14,7 +14,7 @@ describe("supervisor routing schema", () => {
   });
 
   it("strips placeholder replies during schema parsing", () => {
-    const schema = buildSupervisorRoutingSchema(buildDefaultRuntimeAgents());
+    const schema = buildSupervisorRoutingSchema(buildTestRuntimeAgents());
 
     expect(schema.parse({ next: "obsidian", reply: "null" })).toEqual({
       next: "obsidian",

@@ -8,7 +8,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 
 const testCronRepository: CronJobRepository = {
@@ -32,7 +32,7 @@ const makeWorkflowGraph = (
     obsidianVaultPath,
     cronJobRepository: testCronRepository,
     runtimeAgentRepository,
-    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    runtimeAgents: runtimeAgents ?? buildTestRuntimeAgents(),
     ...(modelHandlers ? { modelHandlers } : {}),
   });
 
@@ -474,7 +474,7 @@ test.describe("workflow graph", () => {
   });
 
   test("stops the Obsidian loop after the configured maximum number of tool steps", async () => {
-    const loopTestAgents = buildDefaultRuntimeAgents().map((agent) =>
+    const loopTestAgents = buildTestRuntimeAgents().map((agent) =>
       agent.id === "obsidian" ? { ...agent, maxSteps: 3 } : agent,
     );
     const loopTestRepository = createRuntimeAgentRepositoryFake(loopTestAgents);

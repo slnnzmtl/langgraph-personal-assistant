@@ -4,6 +4,7 @@ import { formatCurrentTime, getZonedDateDetails, toUtcDayRange } from "../utils/
 import {
   SKILLS_ROOT,
   formatSkillsForPrompt,
+  listSkillModules,
   listSkills,
   readSkillContent,
 } from "./skills-loader.js";
@@ -88,15 +89,13 @@ const injectSkills = (prompt: string, module: string): string => {
 
 const promptKeyRoot = (key: string): string => key.split("/")[0] ?? key;
 
-const SKILLS_MODULE_PROMPTS = new Set(["finance", "obsidian", "configuration"]);
-
 const resolveSkillsModule = (key: string): string | undefined => {
   if (path.isAbsolute(key)) {
     return undefined;
   }
 
   const root = promptKeyRoot(key);
-  return SKILLS_MODULE_PROMPTS.has(root) ? root : undefined;
+  return listSkillModules().includes(root) ? root : undefined;
 };
 
 const resolveSkillPromptPath = (key: string): string | undefined => {
@@ -195,7 +194,7 @@ export const injectRuntimeExecutionModel = (prompt: string): string =>
 
 export const loadSystemPromptByKey = (key: string): string => {
   let prompt = loadPrompt(key, "xml");
-  if (SKILLS_MODULE_PROMPTS.has(key)) {
+  if (listSkillModules().includes(key)) {
     prompt = injectRuntimeExecutionModel(prompt);
   }
   return prompt;

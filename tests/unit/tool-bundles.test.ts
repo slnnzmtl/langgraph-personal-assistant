@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { deriveCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createRuntimeToolBundleDeps,
   listAvailableRuntimeToolBundles,
@@ -20,7 +22,7 @@ describe("runtime tool bundles", () => {
     const deps = createRuntimeToolBundleDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      cronTargetAgentIds: ["finance", "obsidian", "configuration"],
+      cronTargetAgentIds: deriveCronTargetAgentIds(buildTestRuntimeAgents()),
     });
 
     const tools = resolveRuntimeToolBundles(["system-config"], deps);

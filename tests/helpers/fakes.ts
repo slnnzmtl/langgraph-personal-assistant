@@ -7,8 +7,11 @@ import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt
 import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import {
+  buildTestRuntimeAgents,
+  defaultTestCronTargetAgentIds,
+  getRuntimeAgentFixture,
+} from "./runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
@@ -101,7 +104,7 @@ export const makeHumanState = (text: string) => ({
 });
 
 export const createRuntimeAgentRepositoryFake = (
-  initialAgents: RuntimeAgentDefinition[] = buildDefaultRuntimeAgents(),
+  initialAgents: RuntimeAgentDefinition[] = buildTestRuntimeAgents(),
 ): RuntimeAgentRepository => {
   let storedAgents = [...initialAgents];
 
@@ -164,20 +167,10 @@ export const createRuntimeAgentRepositoryFake = (
 
 export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
-  cronTargetAgentIds: defaultCronTargetAgentIds(),
+  cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
 
-export const getBuiltinRuntimeAgentDefinition = (
-  id: string,
-): RuntimeAgentDefinition => {
-  const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
-
-  if (!definition) {
-    throw new Error(`Built-in runtime agent not found: ${id}`);
-  }
-
-  return definition;
-};
+export const getBuiltinRuntimeAgentDefinition = getRuntimeAgentFixture;
 
 export const createAppSupervisorNode = (
   llmConnector: ILLMConnector,
@@ -190,7 +183,7 @@ export const createAppSupervisorNode = (
     loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
     cronTriggerResolver: {
       resolveCronTriggerRoute: (message) =>
-        resolveCronTriggerRoute(message, defaultCronTargetAgentIds()) ?? undefined,
+        resolveCronTriggerRoute(message, defaultTestCronTargetAgentIds()) ?? undefined,
       superviseCronRoute: SUPERVISE_CRON_ROUTE,
     },
     ...(options?.runtimeAgentRepository

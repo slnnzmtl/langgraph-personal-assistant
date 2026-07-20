@@ -5,10 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
@@ -22,7 +22,7 @@ const makeGraph = (
   supabaseSession?: SupabaseMcpSession,
   configHandler?: (input: unknown) => unknown,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
-  runtimeAgents?: ReturnType<typeof buildDefaultRuntimeAgents>,
+  runtimeAgents?: ReturnType<typeof buildTestRuntimeAgents>,
   modelHandlerOverrides?: Record<string, (input: unknown) => unknown>,
 ) =>
   createTestWorkflowGraph({
@@ -33,12 +33,12 @@ const makeGraph = (
       finance: financeHandler ?? modelHandlerOverrides?.finance ?? (() => new AIMessage("Finance sync completed successfully")),
       configuration: configHandler ?? modelHandlerOverrides?.configuration ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup.")),
     },
-    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    runtimeAgents: runtimeAgents ?? buildTestRuntimeAgents(),
     obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
     cronJobRepository: createCronJobRepository(
       process.cwd(),
       path.relative(process.cwd(), makeCronJobsFilePath()),
-      defaultCronTargetAgentIds(),
+      defaultTestCronTargetAgentIds(),
     ),
     runtimeAgentRepository,
     ...(supabaseSession ? { supabaseSession } : {}),
@@ -302,7 +302,7 @@ describe("createWorkflowGraph", () => {
 
   it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
     const customAgents = [
-      ...buildDefaultRuntimeAgents(),
+      ...buildTestRuntimeAgents(),
       {
         id: "daily-summary",
         name: "Daily Summary",

@@ -3,35 +3,50 @@ import { describe, expect, it } from "vitest";
 import {
   BUILTIN_DOMAIN_IDS,
   BUILTIN_DOMAIN_SPECS,
-  applyBuiltinDomainAvailability,
+  CONFIGURATOR_AGENT_ID,
+  CONFIGURATOR_SPEC,
+  applyLocalModuleAvailability,
   buildDefaultRuntimeAgents,
+  buildSkillModuleOwnerPattern,
   resolveBuiltinModelName,
 } from "../../../src/runtime-agents/builtin-domains.js";
+import { listSkillModules } from "../../../src/prompts/skills-loader.js";
+import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
 import type { AppConfig } from "../../../src/config.js";
 
-describe("builtin domain manifest", () => {
-  it("defines the built-in finance, obsidian, and configuration domains", () => {
-    expect(BUILTIN_DOMAIN_IDS).toEqual(["finance", "obsidian", "configuration"]);
-    expect(BUILTIN_DOMAIN_SPECS.map((spec) => spec.executor)).toEqual(BUILTIN_DOMAIN_IDS);
+describe("configurator manifest", () => {
+  it("defines only the core configuration agent as built-in", () => {
+    expect(BUILTIN_DOMAIN_IDS).toEqual([CONFIGURATOR_AGENT_ID]);
+    expect(BUILTIN_DOMAIN_SPECS).toEqual([CONFIGURATOR_SPEC]);
+    expect(listSkillModules()).toEqual(expect.arrayContaining(["finance", "obsidian", "configuration"]));
   });
 
-  it("builds default runtime agents from the manifest", () => {
+  it("builds the configurator runtime agent from the manifest", () => {
     const agents = buildDefaultRuntimeAgents();
 
-    expect(agents).toHaveLength(3);
-    expect(agents.map((agent) => agent.id)).toEqual(BUILTIN_DOMAIN_IDS);
+    expect(agents).toHaveLength(1);
+    expect(agents[0]?.id).toBe(CONFIGURATOR_AGENT_ID);
     expect(agents.every((agent) => agent.builtin === true)).toBe(true);
   });
 
-  it("disables finance when Supabase is unavailable", () => {
-    const financeAgent = buildDefaultRuntimeAgents().find((agent) => agent.id === "finance");
-
-    expect(financeAgent).toBeDefined();
-    expect(applyBuiltinDomainAvailability(financeAgent!, { financeAvailable: false }).enabled).toBe(false);
-    expect(applyBuiltinDomainAvailability(financeAgent!, { financeAvailable: true }).enabled).toBe(true);
+  it("builds a skill module owner pattern from discovered modules", () => {
+    const pattern = buildSkillModuleOwnerPattern();
+    for (const module of listSkillModules()) {
+      expect(pattern.test(`${module} skills`)).toBe(true);
+    }
   });
 
-  it("resolves model names from manifest config keys", () => {
+  it("disables finance-domain agents when Supabase is unavailable", () => {
+    const financeAgent = buildLocalModuleAgents().find((agent) =>
+      agent.toolBundleIds.includes("finance-domain"),
+    );
+
+    expect(financeAgent).toBeDefined();
+    expect(applyLocalModuleAvailability([financeAgent!], { supabaseAvailable: false })[0]?.enabled).toBe(false);
+    expect(applyLocalModuleAvailability([financeAgent!], { supabaseAvailable: true })[0]?.enabled).toBe(true);
+  });
+
+  it("resolves model names from executor config keys", () => {
     const config = {
       geminiModel: "gemini-default",
       obsidianModel: "obsidian-model",

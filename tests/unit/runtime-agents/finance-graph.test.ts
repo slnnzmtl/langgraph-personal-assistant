@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase.js";
 import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
+import { resolveAgentSkillModule } from "../../../src/core/types/agent.js";
 import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const financeDefinition = getBuiltinRuntimeAgentDefinition("finance");
+const financeSkillModule = resolveAgentSkillModule(financeDefinition);
 
 const createCompiledFinanceSubgraph = (
   model: ReturnType<FakeLLMConnector["getModel"]>,
@@ -53,7 +55,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(mockSession);
+    const tools = createFinanceTools(mockSession, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {
@@ -97,7 +99,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(mockSession);
+    const tools = createFinanceTools(mockSession, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector(() => {
@@ -133,7 +135,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([{ max: "2026-07-16" }]),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(mockSession);
+    const tools = createFinanceTools(mockSession, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector(() => {
@@ -175,7 +177,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(mockSession);
+    const tools = createFinanceTools(mockSession, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {

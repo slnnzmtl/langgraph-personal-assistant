@@ -8,7 +8,7 @@ import {
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "../../src/core/message-trimming.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { FakeLLMConnector } from "./fakes.js";
 
 export type TestWorkflowGraphOptions = WorkflowGraphConfig & {
@@ -22,7 +22,7 @@ export type TestWorkflowGraphOptions = WorkflowGraphConfig & {
 export const createTestWorkflowGraph = ({
   supervisorLlm,
   modelHandlers = {},
-  runtimeAgents = buildDefaultRuntimeAgents(),
+  runtimeAgents = buildTestRuntimeAgents(),
   defaultModelKey = "generic",
   messageHistoryMaxTokens = DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   ...config

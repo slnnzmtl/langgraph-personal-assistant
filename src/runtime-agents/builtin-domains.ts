@@ -1,82 +1,78 @@
 import type { AppConfig } from "../config.js";
+import { listSkillModules } from "../prompts/skills-loader.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { RuntimeToolBundleId } from "./tool-bundle-catalog.js";
 
-type AppModelConfigKey = "financeModel" | "obsidianModel" | "configurationModel";
+export const CONFIGURATOR_AGENT_ID = "configuration" as const;
 
-export type BuiltinDomainSpec = {
-  id: string;
+type AppModelConfigKey = keyof Pick<
+  AppConfig,
+  "financeModel" | "obsidianModel" | "configurationModel"
+>;
+
+export type ConfiguratorSpec = {
+  id: typeof CONFIGURATOR_AGENT_ID;
   name: string;
   description: string;
-  executor: string;
-  modelKey: string;
-  promptSourceKey: string;
+  executor: typeof CONFIGURATOR_AGENT_ID;
+  modelKey: typeof CONFIGURATOR_AGENT_ID;
+  promptSourceKey: typeof CONFIGURATOR_AGENT_ID;
   toolBundleIds: RuntimeToolBundleId[];
   maxSteps: number;
-  configModelKey?: AppModelConfigKey;
-  requiresSupabase?: boolean;
+  configModelKey: AppModelConfigKey;
 };
 
-export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
-  {
-    id: "finance",
-    name: "Finance",
-    description: "Track money, raw expenses, transaction logs, budgets, or banking queries.",
-    executor: "finance",
-    modelKey: "finance",
-    promptSourceKey: "finance",
-    toolBundleIds: ["finance-domain"],
-    maxSteps: 10,
-    configModelKey: "financeModel",
-    requiresSupabase: true,
-  },
-  {
-    id: "obsidian",
-    name: "Obsidian",
-    description: "Manage notes, plans, task checklists, markdown vault edits, summaries, or task status updates.",
-    executor: "obsidian",
-    modelKey: "obsidian",
-    promptSourceKey: "obsidian",
-    toolBundleIds: ["obsidian-vault"],
-    maxSteps: 12,
-    configModelKey: "obsidianModel",
-  },
-  {
-    id: "configuration",
-    name: "Configuration",
-    description: "Manage cron jobs, agent skills, and reusable runtime sub-agents.",
-    executor: "configuration",
-    modelKey: "configuration",
-    promptSourceKey: "configuration",
-    toolBundleIds: ["system-config"],
-    maxSteps: 10,
-    configModelKey: "configurationModel",
-  },
-];
+export const CONFIGURATOR_SPEC: ConfiguratorSpec = {
+  id: CONFIGURATOR_AGENT_ID,
+  name: "Configuration",
+  description: "Manage cron jobs, agent skills, and reusable runtime sub-agents.",
+  executor: CONFIGURATOR_AGENT_ID,
+  modelKey: CONFIGURATOR_AGENT_ID,
+  promptSourceKey: CONFIGURATOR_AGENT_ID,
+  toolBundleIds: ["system-config"],
+  maxSteps: 10,
+  configModelKey: "configurationModel",
+};
 
-export const BUILTIN_DOMAIN_IDS = BUILTIN_DOMAIN_SPECS.map((spec) => spec.id) as readonly string[];
+/** @deprecated Use CONFIGURATOR_SPEC — kept for transitional imports. */
+export const BUILTIN_DOMAIN_SPECS = [CONFIGURATOR_SPEC];
+
+/** Core agent ids bootstrapped from code (configurator only). */
+export const BUILTIN_DOMAIN_IDS = [CONFIGURATOR_AGENT_ID] as readonly string[];
 
 const buildTimestamp = (): string => new Date().toISOString();
 
 export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
   const timestamp = buildTimestamp();
+  const spec = CONFIGURATOR_SPEC;
 
-  return BUILTIN_DOMAIN_SPECS.map((spec) => ({
-    id: spec.id,
-    name: spec.name,
-    description: spec.description,
-    systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
-    promptSourceKey: spec.promptSourceKey,
-    toolBundleIds: spec.toolBundleIds,
-    executor: spec.executor,
-    modelKey: spec.modelKey,
-    builtin: true,
-    maxSteps: spec.maxSteps,
-    enabled: true,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  }));
+  return [
+    {
+      id: spec.id,
+      name: spec.name,
+      description: spec.description,
+      systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
+      promptSourceKey: spec.promptSourceKey,
+      toolBundleIds: spec.toolBundleIds,
+      executor: spec.executor,
+      modelKey: spec.modelKey,
+      builtin: true,
+      maxSteps: spec.maxSteps,
+      enabled: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+};
+
+const resolveModelConfigKey = (modelKey: string): AppModelConfigKey | undefined => {
+  const candidate = `${modelKey}Model`;
+  if (candidate === "financeModel" || candidate === "obsidianModel" || candidate === "configurationModel") {
+    return candidate;
+  }
+
+  return undefined;
 };
 
 export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): string => {
@@ -84,35 +80,47 @@ export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): st
     return config.obsidianModel;
   }
 
-  const spec = BUILTIN_DOMAIN_SPECS.find((entry) => entry.modelKey === modelKey);
-  if (spec?.configModelKey) {
-    return config[spec.configModelKey];
+  const configKey = resolveModelConfigKey(modelKey);
+  if (configKey) {
+    return config[configKey];
   }
 
   return config.geminiModel;
 };
 
-export type BuiltinDomainAvailabilityOptions = {
-  financeAvailable?: boolean;
+export type LocalModuleAvailabilityOptions = {
+  supabaseAvailable?: boolean;
 };
 
-export const applyBuiltinDomainAvailability = (
-  agent: RuntimeAgentDefinition,
-  options: BuiltinDomainAvailabilityOptions = {},
-): RuntimeAgentDefinition => {
-  const spec = BUILTIN_DOMAIN_SPECS.find((entry) => entry.id === agent.id);
-
-  if (spec?.requiresSupabase && spec.id === "finance") {
-    return {
-      ...agent,
-      enabled: options.financeAvailable ?? agent.enabled,
-    };
+export const applyLocalModuleAvailability = (
+  agents: RuntimeAgentDefinition[],
+  options: LocalModuleAvailabilityOptions = {},
+): RuntimeAgentDefinition[] => {
+  if (options.supabaseAvailable !== false) {
+    return agents;
   }
 
-  return agent;
+  return agents.map((agent) => {
+    if (agent.toolBundleIds.includes("finance-domain")) {
+      return {
+        ...agent,
+        enabled: false,
+      };
+    }
+
+    return agent;
+  });
 };
 
-export const buildBuiltinDomainOwnerPattern = (): RegExp => {
-  const owners = BUILTIN_DOMAIN_IDS.map((owner) => owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+export const buildSkillModuleOwnerPattern = (): RegExp => {
+  const owners = listSkillModules().map((owner) => owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+  if (owners.length === 0) {
+    return /(?!)/;
+  }
+
   return new RegExp(`\\b(${owners.join("|")})\\b`);
 };
+
+/** @deprecated Use buildSkillModuleOwnerPattern */
+export const buildBuiltinDomainOwnerPattern = buildSkillModuleOwnerPattern;
