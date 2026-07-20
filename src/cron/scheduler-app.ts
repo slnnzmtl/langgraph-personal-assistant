@@ -34,7 +34,7 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
     cronJobRepository: workflow.cronJobRepository,
     telegram: bot.telegram,
     cronTargetAgentIds: workflow.cronTargetAgentIds,
-    schedulerEnabled: true,
+    schedulerEnabled: config.schedulerEnabled,
   });
 
   const jobWatcher = watchCronJobDefinitions(config.cronJobsFilePath, {
@@ -54,16 +54,16 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
   };
 };
 
-export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
-  console.log("Cron scheduler running. Watching for job definition changes.");
-
-  await new Promise<void>((resolve) => {
-    const shutdown = (): void => {
-      app.jobWatcher.close();
-      resolve();
-    };
-
+export const waitForProcessShutdown = (): Promise<void> =>
+  new Promise<void>((resolve) => {
+    const shutdown = (): void => resolve();
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);
   });
+
+export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
+  console.log("Cron scheduler running. Watching for job definition changes.");
+
+  await waitForProcessShutdown();
+  app.jobWatcher.close();
 };

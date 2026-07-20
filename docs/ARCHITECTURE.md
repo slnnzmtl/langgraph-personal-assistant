@@ -122,9 +122,7 @@ cron/index.ts
 
 Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
 
-The scheduler currently has two live-registration paths: bootstrap calls `setupCron()`, while the file watcher reconciles jobs into `RuntimeCronService`. These paths do not share scheduled-task state, so the first file reconciliation can register a second task for an already bootstrapped job. Treat cron execution as at risk of duplication until it is consolidated behind `RuntimeCronService`.
-
-Docker Compose runs the scheduler as a separate service (`personal-assistant-scheduler`). Its `schedulerEnabled: true` override means `ENABLE_SCHEDULER` does not disable this process, and the Telegram entry point never starts a scheduler. The flag should therefore be removed from this deployment mode or made effective in the scheduler process.
+Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
 Each process compiles its own graph instance at startup. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
 
@@ -285,8 +283,8 @@ This is a practical balance between context-window cost and LangGraph conversati
 | State | Storage | Shared between bot and scheduler? | Consequence |
 |---|---|---|---|
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
-| Runtime-agent definitions | `data/runtime-agents.json` | Intended, but currently not in Compose | Concurrent read-modify-write updates can lose changes. |
-| Cron definitions | `data/cron-jobs.json` | Intended, but currently not in Compose | The scheduler is authoritative only while its data volume differs from the bot's. |
+| Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
+| Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
 | Skills and prompts | Local files | No database coordination | Changes take effect on the next load; deployment paths must match source expectations. |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
@@ -454,15 +452,15 @@ The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent
 
 ## Architecture Debt and Recommended Decisions
 
-### Fix now: deployment contracts are inconsistent
+### Fix now: deployment contracts
 
-| Finding | Evidence | Impact | Smallest useful change |
-|---|---|---|---|
-| **Skills are unavailable in production Compose** | Code resolves skills as `/app/skills`; the Docker image does not copy `skills/`; Compose mounts a host path to `/data/skills`. The default host path is also `./src/skills`, which is absent. | Skill discovery, attachment, and configuration CRUD operate on an empty or newly created directory in containers. | Choose one contract: copy `skills/` into `/app/skills` and mount the host `./skills` directory at `/app/skills` for both services. |
-| **Bot and scheduler do not share persisted definitions** | The scheduler mounts `./data` at `/app/data`; the bot has no data volume; the production image does not copy `data/`. | Definitions changed through the bot can be ephemeral and invisible to the scheduler. | Mount the same named/bind `data/` volume at `/app/data` for both services, then document the single-writer/concurrency constraint. |
-| **The scheduler flag is misleading in the deployed scheduler** | `ENABLE_SCHEDULER` is parsed and honored by the generic bootstrap, but `createSchedulerApp()` passes `schedulerEnabled: true`. The bot entry point never starts the scheduler. | Operators can reasonably expect the flag to disable scheduling when it does not. | Remove the flag from this deployment mode, or let the scheduler process honor it and exit clearly when disabled. |
-| **Cron uses two independent task registries** | Startup schedules jobs through `setupCron()`; file changes reconcile the same definitions through `RuntimeCronService`. The reconciliation logic cannot see bootstrap tasks. | A file change can schedule a job twice; schedule edits are not reconciled in place. | Use `RuntimeCronService` as the only scheduler: load persisted jobs into it at startup, then reconcile that same registry on file changes. |
-| **Configuration writes are not coordinated** | Runtime-agent CRUD loads a JSON document, modifies it, then writes it; cron persistence also writes JSON without a lock. | Simultaneous bot/scheduler or overlapping tool calls can overwrite another writer's update. | Serialize writes within a process now. Add a filesystem lock or replace the files with a small transactional store only if both processes must write them concurrently. |
+| Finding | Status |
+|---|---|
+| **Skills unavailable in production Compose** | **Done** — production image copies `skills/` to `/app/skills`. Compose does not bind-mount skills by default, so baked-in playbooks are used unless the operator adds an override mount. |
+| **Bot and scheduler do not share persisted definitions** | **Done** — both services mount `./data` at `/app/data`. |
+| **Scheduler flag misleading in deployed scheduler** | **Done** — scheduler honors `ENABLE_SCHEDULER`; when disabled it idles until shutdown (avoids Compose restart loops). |
+| **Cron uses two independent task registries** | **Done** — bootstrap and file reconciliation both use `RuntimeCronService`; reconcile updates changed schedules in place. |
+| **Configuration writes are not coordinated** | **Done (in-process)** — runtime-agent and cron repositories serialize read-modify-write mutations per file within each process via `createJob`/`deleteJob` and repository CRUD. Cross-process file locking remains deferred. |
 
 ### Improve when reliability requirements increase
 
@@ -523,4 +521,4 @@ Use the configuration agent in Telegram — creates a `generic` executor agent w
 
 The execution architecture is appropriately small: a supervisor delegates to a data-defined runtime agent, and every domain shares the same tool-loop factory. That is a good KISS/DRY trade-off for this assistant. The more sophisticated parts—token budgeting, tool-result compaction, and empty-handoff recovery—address concrete LangGraph and LLM constraints rather than speculative extensibility.
 
-The immediate priority is not a database or a larger framework. It is making the Docker deployment match the filesystem contracts already assumed by the application: share `data/`, make `skills/` available at the path the code reads, and make scheduler enablement unambiguous. After that, introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.
+The immediate priority is making the Docker deployment match the filesystem contracts already assumed by the application. Phase 1 deployment fixes (shared `data/`, skills at `/app/skills`, scheduler enablement, unified cron registry, in-process write serialization) are implemented. Introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.

@@ -1,4 +1,3 @@
-import cron from "node-cron";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Telegram } from "telegraf";
 
@@ -62,8 +61,7 @@ export const startCron = async (options: StartCronOptions): Promise<void> => {
       appTimezone: config.appTimezone,
       schedulerEnabled: options.schedulerEnabled ?? config.schedulerEnabled,
     },
-    runner: cronRunner,
-    schedule: cron.schedule.bind(cron),
+    runtimeCron: runtimeCronService,
     ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   });
 };

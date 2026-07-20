@@ -116,7 +116,7 @@ pnpm dev
 | `FINANCE_MODEL` | `GEMINI_MODEL` | Model for the Finance sub-graph |
 | `APP_TIMEZONE` | `UTC` | IANA timezone for date hints and cron scheduling |
 | `OBSIDIAN_VAULT_PATH` | `src/obsidian-vault` | Local path to the markdown vault |
-| `ENABLE_SCHEDULER` | unset (disabled) | Set to `1` or `true` to activate in-process cron |
+| `ENABLE_SCHEDULER` | unset (disabled) | Enables the dedicated scheduler process (`pnpm dev:scheduler` / `personal-assistant-scheduler`). When disabled, that process stays idle until shutdown instead of scheduling jobs. The Telegram bot never runs in-process cron. |
 | `CRON_JOBS_FILE_PATH` | `data/cron-jobs.json` | Persisted cron job definitions |
 | `ENABLE_PROMPT_LOGS` | `true` | Log assembled system prompts to the console (`false` in test scripts) |
 
@@ -151,7 +151,7 @@ Without Supabase credentials the Finance sub-graph returns a configuration error
 
 ### Scheduler (optional)
 
-When `ENABLE_SCHEDULER` is truthy, cron jobs from `data/cron-jobs.json` are loaded at startup and executed via synthetic `SYSTEM_CRON_TRIGGER:` messages. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
+Production Docker runs scheduling in the separate `personal-assistant-scheduler` service. When `ENABLE_SCHEDULER` is truthy, that process loads jobs from `data/cron-jobs.json` and executes them via synthetic `SYSTEM_CRON_TRIGGER:` messages. When disabled, the scheduler process stays idle (no jobs run) until it receives SIGINT/SIGTERM. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
 ## Skills
 
@@ -196,10 +196,13 @@ docker compose up --build
 | Mount | Host default | Container path |
 |---|---|---|
 | Obsidian vault | `./src/obsidian-vault` | `/data/obsidian-vault` |
+| Persisted JSON (`runtime-agents`, cron jobs) | `./data` | `/app/data` |
 
-Override the vault host path with `OBSIDIAN_VAULT_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
+Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
 
-The production image copies `prompts/` but not `skills/` or vault data. To use custom skill playbooks in the production container, mount `./skills:/app/skills` (the app reads from `skills/` relative to its working directory).
+Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. JSON writes are serialized within each process; concurrent writes from bot and scheduler can still race across processes.
+
+The production image copies `prompts/` and `skills/` into the container. To override skill playbooks from the host, add a bind mount in a Compose override file, for example `./skills:/app/skills`.
 
 ### Development container
 

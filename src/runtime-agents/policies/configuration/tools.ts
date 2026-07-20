@@ -128,11 +128,6 @@ export const createCronTools = (
           throw new Error(`Unknown target route: ${input.targetRoute}`);
         }
 
-        const jobs = await repository.loadJobs();
-        if (jobs.some((job) => job.jobName === input.jobName)) {
-          throw new Error(`Cron job already exists: ${input.jobName}`);
-        }
-
         const nextJob: CronJobDefinition = {
           jobName: input.jobName,
           schedule: input.schedule,
@@ -141,8 +136,8 @@ export const createCronTools = (
           ...(input.payload ? { payload: input.payload } : {}),
         };
 
-        await repository.saveJobs([...jobs, nextJob]);
-        return `Created cron job ${input.jobName} targeting ${input.targetRoute}.\n\n${formatCronJobForDisplay(nextJob)}`;
+        const created = await repository.createJob(nextJob);
+        return `Created cron job ${input.jobName} targeting ${input.targetRoute}.\n\n${formatCronJobForDisplay(created)}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -158,15 +153,7 @@ export const createCronTools = (
   const deleteCronJob = tool(
     async (input: z.infer<typeof DeleteCronJobToolSchema>) => {
       try {
-        const jobs = await repository.loadJobs();
-        const found = jobs.find((job) => job.jobName === input.jobName);
-
-        if (!found) {
-          throw new Error(`Cron job not found: ${input.jobName}`);
-        }
-
-        const remaining = jobs.filter((job) => job.jobName !== input.jobName);
-        await repository.saveJobs(remaining);
+        await repository.deleteJob(input.jobName);
         return `Deleted cron job ${input.jobName}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

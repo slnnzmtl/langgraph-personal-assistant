@@ -14,6 +14,10 @@ import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 const testCronRepository: CronJobRepository = {
   loadJobs: async () => [],
   saveJobs: async () => {},
+  createJob: async (job) => job,
+  deleteJob: async () => {
+    throw new Error("Cron job not found");
+  },
 };
 
 const makeWorkflowGraph = (

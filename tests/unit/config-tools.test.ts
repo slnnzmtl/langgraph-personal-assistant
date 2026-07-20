@@ -94,15 +94,13 @@ describe("createConfigurationTools", () => {
     expect(result).toContain("morning-note");
     expect(result).toContain("Job name: morning-note");
     expect(result).toContain("Payload: Create my morning planning note");
-    expect(repository.saveJobs).toHaveBeenCalledWith([
-      {
-        jobName: "morning-note",
-        schedule: "0 6 * * *",
-        targetRoute: "obsidian",
-        timezone: "America/New_York",
-        payload: "Create my morning planning note",
-      },
-    ]);
+    expect(repository.createJob).toHaveBeenCalledWith({
+      jobName: "morning-note",
+      schedule: "0 6 * * *",
+      targetRoute: "obsidian",
+      timezone: "America/New_York",
+      payload: "Create my morning planning note",
+    });
   });
 
   it("rejects duplicate cron job names", async () => {
@@ -149,13 +147,7 @@ describe("createConfigurationTools", () => {
     const result = await deleteTool!.invoke({ jobName: "finance-sync" });
 
     expect(result).toContain("Deleted cron job finance-sync");
-    expect(repository.saveJobs).toHaveBeenCalledWith([
-      {
-        jobName: "daily-note",
-        schedule: "0 6 * * *",
-        targetRoute: "obsidian",
-      },
-    ]);
+    expect(repository.deleteJob).toHaveBeenCalledWith("finance-sync");
   });
 
   it("returns not-found error when deleting a non-existent cron job", async () => {
@@ -175,7 +167,7 @@ describe("createConfigurationTools", () => {
 
     expect(result).toContain("Error:");
     expect(result).toContain("not found");
-    expect(repository.saveJobs).not.toHaveBeenCalled();
+    expect(repository.deleteJob).toHaveBeenCalledWith("non-existent");
   });
 
   it("includes runtime agent tools on the agent", () => {

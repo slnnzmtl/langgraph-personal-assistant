@@ -16,6 +16,7 @@ FROM deps AS build
 
 COPY tsconfig.json ./
 COPY prompts ./prompts
+COPY skills ./skills
 COPY src ./src
 RUN pnpm build
 
@@ -26,6 +27,7 @@ ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 COPY prompts ./prompts
+COPY skills ./skills
 COPY --from=build /app/dist ./dist
 
 CMD ["node", "dist/index.js"]

@@ -73,6 +73,30 @@ describe("createRuntimeAgentRepository", () => {
     })).rejects.toThrow(/already exists/i);
   });
 
+  it("preserves all agents when createAgent calls overlap", async () => {
+    const rootDir = await createTempRoot();
+    const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
+
+    await Promise.all([
+      repository.createAgent({
+        name: "Agent One",
+        description: "First agent.",
+        systemPrompt: "First.",
+        toolBundleIds: ["none"],
+      }),
+      repository.createAgent({
+        name: "Agent Two",
+        description: "Second agent.",
+        systemPrompt: "Second.",
+        toolBundleIds: ["none"],
+      }),
+    ]);
+
+    const agents = await repository.loadAgents();
+    expect(agents).toHaveLength(2);
+    expect(agents.map((agent) => agent.id).sort()).toEqual(["agent-one", "agent-two"]);
+  });
+
   it("rejects invalid persisted runtime agent data", async () => {
     const rootDir = await createTempRoot();
     const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");

@@ -57,4 +57,26 @@ describe("createCronJobRepository", () => {
 
     await expect(repository.loadJobs()).rejects.toThrow(/invalid cron job/i);
   });
+
+  it("preserves all jobs when createJob calls overlap", async () => {
+    const rootDir = await createTempRoot();
+    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultCronTargetAgentIds());
+
+    await Promise.all([
+      repository.createJob({
+        jobName: "finance-sync",
+        schedule: "59 23 * * *",
+        targetRoute: "finance",
+      }),
+      repository.createJob({
+        jobName: "obsidian-daily-note",
+        schedule: "0 6 * * *",
+        targetRoute: "obsidian",
+      }),
+    ]);
+
+    const jobs = await repository.loadJobs();
+    expect(jobs).toHaveLength(2);
+    expect(jobs.map((job) => job.jobName).sort()).toEqual(["finance-sync", "obsidian-daily-note"]);
+  });
 });

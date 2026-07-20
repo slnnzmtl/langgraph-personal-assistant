@@ -198,6 +198,15 @@ export const createAppSupervisorNode = (
       : {}),
   });
 
+const emptyCronRepository = (): CronJobRepository => ({
+  loadJobs: async () => [],
+  saveJobs: async () => {},
+  createJob: async (job) => job,
+  deleteJob: async () => {
+    throw new Error("Cron job not found");
+  },
+});
+
 export const createRuntimeExecutionContextFake = (options?: {
   repository?: RuntimeAgentRepository;
   cronJobRepository?: CronJobRepository;
@@ -206,21 +215,16 @@ export const createRuntimeExecutionContextFake = (options?: {
 }) => {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();
+  const cronJobRepository = options?.cronJobRepository ?? emptyCronRepository();
 
   return createAppRuntimeExecutionContext({
     defaultModel: model,
     repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
-    cronJobRepository: options?.cronJobRepository ?? {
-      loadJobs: async () => [],
-      saveJobs: async () => {},
-    },
+    cronJobRepository,
     bundleDeps: {
       obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
       cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
-      cronJobRepository: options?.cronJobRepository ?? {
-        loadJobs: async () => [],
-        saveJobs: async () => {},
-      },
+      cronJobRepository,
       runtimeAgentRepository: options?.repository ?? createRuntimeAgentRepositoryFake(),
     },
   });
