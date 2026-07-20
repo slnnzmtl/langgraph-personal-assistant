@@ -1,7 +1,10 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import type { RuntimeAgentRepository } from "../core/agents/repository.js";
+import type { CronJobRepository } from "../cron/types.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
+import { createSystemConfigDomainTools } from "./policies/configuration/tools.js";
 import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
 import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import {
@@ -23,6 +26,8 @@ export type RuntimeToolBundleDeps = {
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
   cronTargetAgentIds?: readonly string[];
+  cronJobRepository?: CronJobRepository;
+  runtimeAgentRepository?: RuntimeAgentRepository;
 };
 
 export const createRuntimeToolBundleDeps = (
@@ -31,12 +36,16 @@ export const createRuntimeToolBundleDeps = (
     fileSender?: RuntimeToolBundleDeps["fileSender"];
     supabaseSession?: RuntimeToolBundleDeps["supabaseSession"];
     cronTargetAgentIds?: readonly string[];
+    cronJobRepository?: CronJobRepository;
+    runtimeAgentRepository?: RuntimeAgentRepository;
   } = {},
 ): RuntimeToolBundleDeps => ({
   obsidianVaultPath,
   ...(options.fileSender ? { fileSender: options.fileSender } : {}),
   ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
   ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
+  ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
+  ...(options.runtimeAgentRepository ? { runtimeAgentRepository: options.runtimeAgentRepository } : {}),
 });
 
 const resolveBundleTools = (
@@ -53,6 +62,11 @@ const resolveBundleTools = (
         throw new Error("finance-domain bundle requires a configured Supabase session.");
       }
       return createFinanceDomainToolsFromSession(deps.supabaseSession);
+    case "system-config":
+      if (!deps.cronJobRepository || !deps.runtimeAgentRepository) {
+        throw new Error("system-config bundle requires cron and runtime agent repositories.");
+      }
+      return createSystemConfigDomainTools(deps);
     default:
       throw new Error(`Unknown runtime tool bundle: ${bundleId as string}`);
   }
@@ -69,6 +83,13 @@ export const listAvailableRuntimeToolBundles = (
     }
 
     if (catalogEntry.requiresVault && !deps.obsidianVaultPath) {
+      return false;
+    }
+
+    if (
+      catalogEntry.requiresConfigurationRepos
+      && (!deps.cronJobRepository || !deps.runtimeAgentRepository)
+    ) {
       return false;
     }
 

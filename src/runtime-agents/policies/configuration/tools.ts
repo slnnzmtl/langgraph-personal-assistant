@@ -319,19 +319,33 @@ export const createRuntimeAgentTools = (
   ];
 };
 
-export const createConfigurationTools = (
-  repository: CronJobRepository,
-  runtimeAgentRepository: RuntimeAgentRepository,
+export const createSystemConfigDomainTools = (
   bundleDeps: RuntimeToolBundleDeps,
 ): StructuredToolInterface[] => {
-  const cronTools = createCronTools(repository, bundleDeps.cronTargetAgentIds ?? []);
-  const runtimeAgentTools = createRuntimeAgentTools(runtimeAgentRepository, bundleDeps);
+  if (!bundleDeps.cronJobRepository || !bundleDeps.runtimeAgentRepository) {
+    throw new Error("system-config bundle requires cron and runtime agent repositories.");
+  }
+
+  const cronTools = createCronTools(
+    bundleDeps.cronJobRepository,
+    bundleDeps.cronTargetAgentIds ?? [],
+  );
+  const runtimeAgentTools = createRuntimeAgentTools(
+    bundleDeps.runtimeAgentRepository,
+    bundleDeps,
+  );
   const skillManagementTools = createSkillCrudTools();
 
   return [
-    createReadSkillTool("configuration", "xml"),
     ...cronTools,
     ...skillManagementTools,
     ...runtimeAgentTools,
   ];
 };
+
+export const createConfigurationTools = (
+  bundleDeps: RuntimeToolBundleDeps,
+): StructuredToolInterface[] => [
+  createReadSkillTool("configuration", "xml"),
+  ...createSystemConfigDomainTools(bundleDeps),
+];

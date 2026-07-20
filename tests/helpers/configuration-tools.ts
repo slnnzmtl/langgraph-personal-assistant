@@ -22,8 +22,8 @@ export const createConfigurationTools = (
   repository: CronJobRepository = createCronRepositoryFake(),
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
 ) =>
-  createConfigurationToolsImpl(
-    repository,
+  createConfigurationToolsImpl({
+    ...defaultConfigurationBundleDeps,
+    cronJobRepository: repository,
     runtimeAgentRepository,
-    defaultConfigurationBundleDeps,
-  );
+  });

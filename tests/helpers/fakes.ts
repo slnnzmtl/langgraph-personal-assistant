@@ -217,6 +217,11 @@ export const createRuntimeExecutionContextFake = (options?: {
     bundleDeps: {
       obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
       cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
+      cronJobRepository: options?.cronJobRepository ?? {
+        loadJobs: async () => [],
+        saveJobs: async () => {},
+      },
+      runtimeAgentRepository: options?.repository ?? createRuntimeAgentRepositoryFake(),
     },
   });
 };

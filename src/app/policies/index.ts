@@ -13,7 +13,8 @@ import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
 import { createFinanceTools } from "../../runtime-agents/policies/finance/tools.js";
 import { createObsidianTools } from "../../runtime-agents/policies/obsidian/tools.js";
-import { createConfigurationTools } from "../../runtime-agents/policies/configuration/tools.js";
+import { createReadSkillTool } from "../../tools/skill-management.js";
+import { resolveRuntimeToolBundles } from "../../runtime-agents/tool-bundles.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import { createFinanceNodeHooks } from "./finance-hooks.js";
@@ -93,23 +94,21 @@ export const createConfigurationPolicy = (): RuntimeAgentPolicy => ({
   executor: "configuration",
   createHandler: (context, definition) => {
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
-    const configurationTools = createConfigurationTools(
-      context.cronJobRepository,
-      context.repository,
-      bundleDeps,
-    );
 
     return createSubAgent({
       name: "Configuration",
       maxSteps: definition.maxSteps,
       deps: {
         model: resolveModel(context, "configuration"),
-        tools: configurationTools,
         definition,
+        bundleDeps,
         repository: context.cronJobRepository,
         runtimeCron: context.runtimeCron,
       },
-      createTools: (deps) => deps.tools,
+      createTools: (deps) => [
+        createReadSkillTool("configuration", "xml"),
+        ...resolveRuntimeToolBundles(deps.definition.toolBundleIds, deps.bundleDeps),
+      ],
       createLlmNode: (deps, toolSource) =>
         createDomainLlmNode(
           deps.model,

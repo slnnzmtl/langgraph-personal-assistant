@@ -53,6 +53,8 @@ export const createWorkflowGraph = ({
     ...(runtimeCron ? { runtimeCron } : {}),
     bundleDeps: createRuntimeToolBundleDeps(obsidianVaultPath, {
       cronTargetAgentIds,
+      cronJobRepository,
+      runtimeAgentRepository,
       ...(fileSender ? { fileSender } : {}),
       ...(supabaseSession ? { supabaseSession } : {}),
     }),

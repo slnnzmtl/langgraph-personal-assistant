@@ -15,6 +15,11 @@ export const RUNTIME_TOOL_BUNDLE_CATALOG = [
     description: "Execute SQL, fetch Wise transactions, and load expense categories.",
     requiresSupabase: true,
   },
+  {
+    id: "system-config",
+    description: "Manage cron jobs, runtime agents, and skill definitions.",
+    requiresConfigurationRepos: true,
+  },
 ] as const;
 
 export type RuntimeToolBundleId = (typeof RUNTIME_TOOL_BUNDLE_CATALOG)[number]["id"];
@@ -24,6 +29,7 @@ export type RuntimeToolBundleCatalogEntry = {
   description: string;
   requiresSupabase?: boolean;
   requiresVault?: boolean;
+  requiresConfigurationRepos?: boolean;
 };
 
 export const RUNTIME_TOOL_BUNDLE_IDS = RUNTIME_TOOL_BUNDLE_CATALOG.map(

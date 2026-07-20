@@ -49,7 +49,7 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     executor: "configuration",
     modelKey: "configuration",
     promptSourceKey: "configuration",
-    toolBundleIds: ["none"],
+    toolBundleIds: ["system-config"],
     maxSteps: 10,
     configModelKey: "configurationModel",
   },
