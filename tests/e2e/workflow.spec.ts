@@ -7,7 +7,6 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import { MESSAGE_HISTORY_LIMIT } from "../../src/core/state.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
@@ -232,7 +231,7 @@ test.describe("workflow graph", () => {
     );
   });
 
-  test("keeps only the last 10 messages across multi-turn same-thread execution", async () => {
+  test("retains short multi-turn history within the token budget", async () => {
     const vaultRoot = await mkdtemp(path.join(os.tmpdir(), "pa-history-vault-"));
     const connector = new FakeLLMConnector((input) => {
       if (Array.isArray(input)) {
@@ -296,9 +295,9 @@ test.describe("workflow graph", () => {
       );
 
       expect(saved).toBe("Turn 6 saved to the vault\n");
-      expect(finalState.messages).toHaveLength(MESSAGE_HISTORY_LIMIT);
-      expect(messageContents).not.toContain("turn 1");
-      expect(messageContents).not.toContain("Handled turn 1");
+      expect(finalState.messages.length).toBeGreaterThan(10);
+      expect(messageContents).toContain("turn 1");
+      expect(messageContents.some((message) => message.includes("Handled turn 1"))).toBe(true);
       expect(messageContents).toContain("turn 12");
       expect(messageContents.some((message) => message.includes("Handled turn 12"))).toBe(true);
     } finally {

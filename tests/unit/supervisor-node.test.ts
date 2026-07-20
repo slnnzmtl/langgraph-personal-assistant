@@ -7,7 +7,8 @@ import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepository
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { getEmptySubAgentHandoff } from "../../src/core/execution/empty-subagent-handoff.js";
-import { MESSAGE_HISTORY_LIMIT, reduceAgentMessages, trimMessagesToLast } from "../../src/core/state.js";
+import { trimMessagesToTokenBudgetSync } from "../../src/core/message-trimming.js";
+import { reduceAgentMessages } from "../../src/core/state.js";
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -160,21 +161,23 @@ describe("createSupervisorNode", () => {
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });
 
-  it("receives at most the system prompt plus the last 10 state messages", async () => {
+  it("receives a token-bounded subset of state messages in the supervisor prompt", async () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
       expect((input as HumanMessage[])).toHaveLength(2);
       expect((input as HumanMessage[])[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
-      expect((input as HumanMessage[])[1]?.content).toContain("turn-5");
+      expect((input as HumanMessage[])[1]?.content).toContain("turn-12");
       expect((input as HumanMessage[])[1]?.content).toContain("turn-14");
+      expect((input as HumanMessage[])[1]?.content).not.toContain("turn-01");
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
     const supervisorNode = createAppSupervisorNode(connector);
-    const history = trimMessagesToLast(
-      Array.from({ length: MESSAGE_HISTORY_LIMIT + 4 }, (_, index) =>
-        new HumanMessage(`turn-${index + 1}`),
+    const history = trimMessagesToTokenBudgetSync(
+      Array.from({ length: 14 }, (_, index) =>
+        new HumanMessage(`word `.repeat(20) + `turn-${String(index + 1).padStart(2, "0")}`),
       ),
+      { maxTokens: 120 },
     );
 
     const result = await supervisorNode({

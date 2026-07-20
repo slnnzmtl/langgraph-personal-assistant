@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { getMessageHistoryMaxTokens } from "./core/message-trimming.js";
+
 const DEFAULT_APP_TIMEZONE = "UTC";
 
 const REQUIRED_ENV_VARS = [
@@ -24,6 +26,7 @@ export interface AppConfig {
   schedulerEnabled: boolean;
   cronJobsFilePath: string;
   runtimeAgentsFilePath: string;
+  messageHistoryMaxTokens: number;
   // Optional: Official hosted Supabase MCP server
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
@@ -87,6 +90,7 @@ export const loadConfig = (): AppConfig => {
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
+    messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,

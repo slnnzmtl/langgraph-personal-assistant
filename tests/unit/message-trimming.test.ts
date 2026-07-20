@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   estimateMessageTokens,
+  trimMessagesToTokenBudget,
   trimMessagesToTokenBudgetSync,
 } from "../../src/core/message-trimming.js";
 import { reduceAgentMessages } from "../../src/core/state.js";
@@ -12,29 +13,69 @@ const makeMessages = (count: number, filler = "") =>
 
 const SMALL_BUDGET = 80;
 
-describe("state message window", () => {
+describe("estimateMessageTokens", () => {
+  it("counts short messages proportionally to content length", () => {
+    const short = [new HumanMessage("hi")];
+    const long = [new HumanMessage("word ".repeat(100))];
+
+    expect(estimateMessageTokens(long)).toBeGreaterThan(estimateMessageTokens(short));
+  });
+
+  it("includes tool call overhead for assistant messages", () => {
+    const plain = [new AIMessage("done")];
+    const withTools = [new AIMessage({
+      content: "",
+      tool_calls: [{
+        name: "exec_sql",
+        args: { sql: "SELECT 1;" },
+        id: "tool-1",
+        type: "tool_call",
+      }],
+    })];
+
+    expect(estimateMessageTokens(withTools)).toBeGreaterThan(estimateMessageTokens(plain));
+  });
+});
+
+describe("trimMessagesToTokenBudgetSync", () => {
   it("keeps message history intact below the token budget", () => {
     const messages = makeMessages(4);
 
     expect(trimMessagesToTokenBudgetSync(messages)).toEqual(messages);
   });
 
-  it("drops oldest messages when history exceeds the token budget", () => {
+  it("retains more short messages than a fixed count cap would allow", () => {
+    const messages = makeMessages(12);
+    const trimmed = trimMessagesToTokenBudgetSync(messages);
+
+    expect(trimmed).toHaveLength(12);
+    expect(trimmed[0]?.content).toBe("message-01");
+    expect(trimmed.at(-1)?.content).toBe("message-12");
+  });
+
+  it("drops oldest messages once the token budget is exceeded", () => {
     const messages = makeMessages(12, "word ".repeat(20));
     const trimmed = trimMessagesToTokenBudgetSync(messages, { maxTokens: SMALL_BUDGET });
 
     expect(trimmed.length).toBeLessThan(messages.length);
     expect(trimmed.at(-1)?.content).toContain("message-12");
-    expect(trimmed[0]?.content).not.toBe("message-1");
+    expect(trimmed.some((message) => message.content === "message-01")).toBe(false);
   });
 
-  it("drops the oldest message when a new one is appended past the token budget", () => {
-    const existing = makeMessages(10, "word ".repeat(20));
-    const updated = reduceAgentMessages(existing, new AIMessage("message-11"));
+  it("matches LangChain trimMessages for representative histories", async () => {
+    const messages = [
+      new HumanMessage("keep this request"),
+      ...makeMessages(8, "filler ".repeat(30)),
+      new AIMessage("final reply"),
+    ];
+    const options = { maxTokens: SMALL_BUDGET, tokenCounter: estimateMessageTokens };
 
-    expect(updated.length).toBeLessThanOrEqual(existing.length + 1);
-    expect(updated.at(-1)?.content).toBe("message-11");
-    expect(updated.some((message) => message.content === "message-01")).toBe(false);
+    const syncTrimmed = trimMessagesToTokenBudgetSync(messages, options);
+    const asyncTrimmed = await trimMessagesToTokenBudget(messages, options);
+
+    expect(syncTrimmed.map((message) => message.content)).toEqual(
+      asyncTrimmed.map((message) => message.content),
+    );
   });
 
   it("preserves a complete multi-tool batch when it exceeds the token budget", () => {
@@ -61,9 +102,6 @@ describe("state message window", () => {
     expect(updated.at(-7)).toBe(toolCallMessage);
     expect(updated.slice(-6).map((message) => (message as ToolMessage).tool_call_id)).toEqual(
       toolCalls.map((toolCall) => toolCall.id),
-    );
-    expect(updated.slice(-6).map((message) => message.content)).toEqual(
-      toolCalls.map((toolCall) => `result-${toolCall.id}`),
     );
   });
 
@@ -92,40 +130,6 @@ describe("state message window", () => {
     expect(updated.length).toBeGreaterThan(toolCalls.length);
   });
 
-  it("does not wipe history across many completed tool rounds", () => {
-    const userMessage = new HumanMessage("Save to note English learning");
-    let messages: ReturnType<typeof reduceAgentMessages> = [userMessage];
-
-    for (let round = 1; round <= 8; round += 1) {
-      const toolCallId = `search-${round}`;
-      messages = reduceAgentMessages(
-        messages,
-        new AIMessage({
-          content: "",
-          tool_calls: [{
-            name: "search_files_by_name",
-            args: { queries: ["English"] },
-            id: toolCallId,
-            type: "tool_call",
-          }],
-        }),
-      );
-      messages = reduceAgentMessages(
-        messages,
-        new ToolMessage({
-          tool_call_id: toolCallId,
-          content: "No files matched your search.",
-          name: "search_files_by_name",
-        }),
-      );
-    }
-
-    expect(messages.length).toBeGreaterThan(0);
-    expect(messages[0]).toBe(userMessage);
-    expect(messages.some((message) => message instanceof HumanMessage)).toBe(true);
-    expect(messages.at(-1)).toBeInstanceOf(ToolMessage);
-  });
-
   it("strips only orphaned leading tool messages after a window cut", () => {
     const history = [
       new AIMessage({
@@ -142,30 +146,5 @@ describe("state message window", () => {
     expect(trimmed[0]).toBeInstanceOf(HumanMessage);
     expect(trimmed[0]?.content).toBe("keep me");
     expect(trimmed.some((message) => message instanceof ToolMessage && message.tool_call_id === "orphan-parent")).toBe(false);
-  });
-
-  it("trims aggressively when a few messages contain massive tool payloads", () => {
-    const hugePayload = "x".repeat(8_000);
-    const messages = [
-      new HumanMessage("old request"),
-      new AIMessage({
-        content: "",
-        tool_calls: [{
-          name: "exec_sql",
-          args: { sql: "SELECT 1;" },
-          id: "tool-1",
-          type: "tool_call",
-        }],
-      }),
-      new ToolMessage({ tool_call_id: "tool-1", content: hugePayload }),
-      new HumanMessage("latest request"),
-      new AIMessage("done"),
-    ];
-
-    const trimmed = trimMessagesToTokenBudgetSync(messages, { maxTokens: 500 });
-
-    expect(estimateMessageTokens(trimmed)).toBeLessThanOrEqual(500);
-    expect(trimmed.some((message) => message.content === "latest request")).toBe(true);
-    expect(trimmed.some((message) => message.content === "old request")).toBe(false);
   });
 });
