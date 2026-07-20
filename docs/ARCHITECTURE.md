@@ -382,7 +382,9 @@ Finance gracefully degrades: if Supabase is unconfigured, the finance agent is d
 
 ### Supabase MCP self-healing
 
-When credentials are present, `setupSupabaseSession()` wraps the raw MCP client in `createSelfHealingMcpSession()`. Transport failures classified by `isMcpTransportError()` (connection resets, socket hang-ups, etc.) trigger a single reconnect attempt before surfacing the error to finance tools.
+When credentials are present, `setupSupabaseSession()` wraps the raw MCP client in `createSelfHealingMcpSession()`. Transport failures classified by `isMcpTransportError()` (connection resets, socket hang-ups, etc.) trigger reconnect attempts with optional exponential backoff before surfacing the error to finance tools.
+
+Configurable via `MCP_MAX_RECONNECT_ATTEMPTS` (default `1`), `MCP_RECONNECT_BASE_DELAY_MS` (default `0` — immediate first reconnect), and `MCP_RECONNECT_MAX_DELAY_MS` (default `5000`). When `baseDelayMs` is `0`, behavior matches the original single immediate retry. Operators can increase attempts and delay when Supabase MCP outages are observed (e.g. `MCP_RECONNECT_BASE_DELAY_MS=500`, `MCP_MAX_RECONNECT_ATTEMPTS=3`).
 
 ---
 
@@ -468,7 +470,7 @@ The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent
 |---|---|---|
 | **Conversation state is in memory** | Process restarts lose conversation state; the two processes cannot see each other's checkpoints. | Keep `MemorySaver` for a disposable personal bot. Introduce a persistent LangGraph checkpointer only when restart continuity or shared process state is a stated requirement. |
 | **Cron execution is at-least-once only operationally** | A process restart, duplicate scheduler deployment, or failed delivery can create duplicate or untracked executions. | Add job-run IDs and durable execution records before running more than one scheduler or depending on non-idempotent tasks. |
-| **MCP recovery is intentionally narrow** | The self-healing session makes one reconnect attempt; a longer outage still fails individual finance actions. | Retain the one-retry policy. Add health reporting/backoff only after observed outage patterns justify complexity. |
+| **MCP recovery uses configurable backoff** | Transport errors trigger reconnect with optional exponential delay; defaults preserve one immediate retry. | Tune `MCP_RECONNECT_*` env vars when outages are observed; add circuit-breaking only if backoff is insufficient. |
 | **Prompts and skills are read from disk during execution** | This is convenient for local iteration but means concurrent file edits can change behavior between turns. | Keep it in development. For production, deploy immutable prompt/skill artifacts or reload them explicitly at a controlled boundary. |
 
 ### Defer unless product scope changes

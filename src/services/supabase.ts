@@ -17,9 +17,14 @@ export const setupSupabaseSession = async (
 
       const session = await createSelfHealingMcpSession({
         connect: () => connectSupabaseMcp(mcpConfig),
-        onReconnect: ({ attempt, error }) => {
+        maxReconnectAttempts: config.mcpMaxReconnectAttempts,
+        reconnectBackoff: {
+          baseDelayMs: config.mcpReconnectBaseDelayMs,
+          maxDelayMs: config.mcpReconnectMaxDelayMs,
+        },
+        onReconnect: ({ attempt, delayMs, error }) => {
           console.warn(
-            `[Finance Setup] Supabase MCP transport error (reconnect attempt ${attempt}), re-establishing session:`,
+            `[Finance Setup] Supabase MCP transport error (reconnect attempt ${attempt} after ${delayMs}ms), re-establishing session:`,
             error instanceof Error ? error.message : error,
           );
         },

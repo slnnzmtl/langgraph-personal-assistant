@@ -139,6 +139,9 @@ Finance features require Supabase MCP credentials and Wise API access:
 | `SUPABASE_PROJECT_REF` | Supabase project reference |
 | `SUPABASE_ACCESS_TOKEN` | Supabase personal access token |
 | `SUPABASE_MCP_URL` | Hosted MCP endpoint (default: `https://mcp.supabase.com/mcp`) |
+| `MCP_MAX_RECONNECT_ATTEMPTS` | Reconnect retries after transport failure (default: `1`) |
+| `MCP_RECONNECT_BASE_DELAY_MS` | Initial backoff before first reconnect (default: `0` — immediate retry) |
+| `MCP_RECONNECT_MAX_DELAY_MS` | Cap on exponential backoff delay (default: `5000`) |
 | `WISE_API_TOKEN` | Wise API bearer token |
 | `WISE_PROFILE_ID` | Wise profile ID for activity fetches |
 

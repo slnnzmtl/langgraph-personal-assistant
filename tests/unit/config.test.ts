@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getDefaultCronJobsPath, getDefaultRuntimeAgentsPath, getDefaultVaultPath, loadConfig } from "../../src/config.js";
+import { getDefaultCronJobsPath, getDefaultRuntimeAgentsPath, getDefaultVaultPath, loadConfig, normalizeMcpReconnectDelays } from "../../src/config.js";
 
 const REQUIRED_ENV = {
   TELEGRAM_BOT_TOKEN: "123:abc",
@@ -174,5 +174,42 @@ describe("config", () => {
     const config = loadConfig();
 
     expect(config.runtimeAgentsFilePath).toBe(getDefaultRuntimeAgentsPath());
+  });
+
+  it("uses default MCP reconnect settings when env vars are unset", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("MCP_MAX_RECONNECT_ATTEMPTS", undefined);
+    vi.stubEnv("MCP_RECONNECT_BASE_DELAY_MS", undefined);
+    vi.stubEnv("MCP_RECONNECT_MAX_DELAY_MS", undefined);
+
+    const config = loadConfig();
+
+    expect(config.mcpMaxReconnectAttempts).toBe(1);
+    expect(config.mcpReconnectBaseDelayMs).toBe(0);
+    expect(config.mcpReconnectMaxDelayMs).toBe(5000);
+  });
+
+  it("parses MCP reconnect env vars when set", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("MCP_MAX_RECONNECT_ATTEMPTS", "3");
+    vi.stubEnv("MCP_RECONNECT_BASE_DELAY_MS", "500");
+    vi.stubEnv("MCP_RECONNECT_MAX_DELAY_MS", "8000");
+
+    const config = loadConfig();
+
+    expect(config.mcpMaxReconnectAttempts).toBe(3);
+    expect(config.mcpReconnectBaseDelayMs).toBe(500);
+    expect(config.mcpReconnectMaxDelayMs).toBe(8000);
+  });
+
+  it("raises max delay to at least base delay when max is lower", () => {
+    expect(normalizeMcpReconnectDelays(500, 250)).toEqual({
+      baseDelayMs: 500,
+      maxDelayMs: 500,
+    });
   });
 });
