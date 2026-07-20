@@ -118,6 +118,17 @@ pnpm dev
 | `OBSIDIAN_VAULT_PATH` | `src/obsidian-vault` | Local path to the markdown vault |
 | `ENABLE_SCHEDULER` | unset (disabled) | Set to `1` or `true` to activate in-process cron |
 | `CRON_JOBS_FILE_PATH` | `data/cron-jobs.json` | Persisted cron job definitions |
+| `ENABLE_PROMPT_LOGS` | `true` | Log assembled system prompts to the console (`false` in test scripts) |
+
+### LangSmith tracing (optional)
+
+LangGraph automatically sends traces to [LangSmith](https://smith.langchain.com) when these variables are set — no graph or code changes required. You get a visual debugger for the supervisor loop, `Runtime_SG` dispatcher, nested sub-agent tool loops, and every LLM prompt.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LANGCHAIN_TRACING_V2` | unset (disabled) | Set to `true` to enable tracing |
+| `LANGCHAIN_API_KEY` | — | API key from LangSmith → Settings → API Keys |
+| `LANGCHAIN_PROJECT` | `default` | Project name in the LangSmith UI (e.g. `personal-assistant`) |
 
 ### Finance sync (optional)
 
