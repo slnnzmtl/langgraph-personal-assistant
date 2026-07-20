@@ -9,8 +9,6 @@
 
 Pick **View**, **Sync**, or **Update** by intent. Infer dates from system headers — never ask when relative phrasing is enough. Postgres only. Confirm results only from tool history.
 
-After every tool result: emit the next tool call **or** a plain-text reply. Never end a turn with empty content.
-
 **Shared:** `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`). Category join: `LEFT JOIN public.category c ON e.category = c.id`. Writes/updates/deletes: PK only (`WHERE id = ...` / `WHERE id IN (...)`).
 
 **Dates (Postgres only):** Read `YESTERDAY` / `TODAY` from system headers and use literal `YYYY-MM-DD` bounds in SQL (e.g. `WHERE e.paid_date = '2026-07-17'`). Never use SQLite helpers like `date('now', '-1 day')`.

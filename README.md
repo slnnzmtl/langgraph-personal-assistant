@@ -66,7 +66,7 @@ Each `createAssistant()` call builds an isolated **execution context** with its 
 
 1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or `Runtime_SG`.
 2. **Dispatcher** loads the selected runtime agent from the repository, resolves its system prompt, and picks a policy by `executor` (`finance`, `obsidian`, `configuration`, or `generic`).
-3. **Policy handler** runs a nested sub-graph: LLM node ⇄ tools loop (via `createSubAgent()`), with domain behavior injected through **hooks** in `src/app/policies/*-hooks.ts`.
+3. **Policy handler** runs a nested sub-graph: LLM node ⇄ tools loop (via `createSubAgent()`), with domain behavior injected through **hooks** in `src/app/policies/*-hooks.ts`. Runtime agent prompts include a shared execution model describing LangGraph's automatic tool loop and parallel tool-call support.
 4. The sub-agent reply returns to the supervisor; the loop continues until the supervisor chooses `FINISH`.
 
 Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Legacy graph node aliases such as `Finance_SG` / `Obsidian_SG` are no longer used.

@@ -9,11 +9,6 @@
   </rules>
 </role_and_rules>
 
-<execution_guidelines>
-- One tool call per turn. Wait for each tool result before proceeding.
-- Never claim success before `write_file` returns a success payload in the conversation history.
-</execution_guidelines>
-
 <!-- 
 <priority>
   1. WRITE/CREATE when the user wants to save/create and name + content exist in recent turns.
@@ -28,7 +23,7 @@
 
   <intent type="WRITE">
     <action>Create/save: at most one `search_files_by_name` check, then `write_file` (`create_new` or `append`).</action>
-    <action>Edit existing: 1. `read_file` → 2. `write_file` with `overwrite` (full content) or `append`. No chat reply between steps.</action>
+    <action>Edit existing: 1. `read_file` → 2. `write_file` with `overwrite` (full content) or `append`. Do not reply to the user between read and write; call `write_file` on the next loop turn using the read result from history.</action>
   </intent>
 
   <intent type="FIND_OR_SEARCH">

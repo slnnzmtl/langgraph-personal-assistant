@@ -121,7 +121,7 @@ describe("resolveSkillAttachments", () => {
 
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note-creation");
-    expect(attachments[0]?.content).toContain("Step 1: Read yesterday's note");
+    expect(attachments[0]?.content).toContain("First: `read_file` yesterday's note");
     expect(attachments[0]?.content).not.toContain("<skill_attachments>");
   });
 
@@ -169,7 +169,7 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain("<attached_skills>");
     expect(prompt).toContain('<attached_skill name="daily-routine-note-creation">');
-    expect(prompt).toContain("Step 1: Read yesterday's note");
+    expect(prompt).toContain("First: `read_file` yesterday's note");
   });
 
   it("returns the base prompt unchanged when intent does not match", () => {

@@ -7,11 +7,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createPromptLoader,
   getSkillsRoot,
+  injectRuntimeExecutionModel,
   loadConfigurationSystemPrompt,
   loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
   loadPrompt,
   loadSupervisorSystemPrompt,
+  RUNTIME_EXECUTION_MODEL,
 } from "../../src/prompts/load-system-prompt.js";
 
 describe("named prompt loaders", () => {
@@ -24,12 +26,15 @@ describe("named prompt loaders", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
+    expect(prompt).not.toContain("<runtime_execution>");
   });
 
   it("loads the Obsidian prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
     expect(prompt).toContain("Obsidian Vault Manager");
+    expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).not.toContain("One tool call per turn");
   });
 
   it("loads the Finance prompt from prompts/finance.xml and includes skills listing", () => {
@@ -39,7 +44,9 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("<skill_usage>");
     expect(prompt).toContain('read_skill("sync-expenses")');
     expect(prompt).toContain("MUST call");
-    expect(prompt).toContain("Never return an empty message");
+    expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).toContain("Never return an empty turn");
+    expect(prompt).not.toContain("After every tool result, always continue");
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {
       expect(prompt).toContain("sync-expenses");
@@ -73,6 +80,15 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("<skill_output_template>");
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toMatch(/cron|skill-management/);
+    expect(prompt).toContain("<runtime_execution>");
+  });
+});
+
+describe("injectRuntimeExecutionModel", () => {
+  it("appends the shared runtime execution block", () => {
+    const prompt = injectRuntimeExecutionModel("Base prompt");
+
+    expect(prompt).toBe(`Base prompt\n\n${RUNTIME_EXECUTION_MODEL}`);
   });
 });
 

@@ -353,7 +353,7 @@ describe("createObsidianNode", () => {
 
       expect(promptContent).toContain("<attached_skills>");
       expect(promptContent).toContain('<attached_skill name="daily-routine-note-creation">');
-      expect(promptContent).toContain("Step 1: Read yesterday's note");
+      expect(promptContent).toContain("First: `read_file` yesterday's note");
       expect(promptContent).toContain("Follow the attached skill instructions exactly");
 
       return new AIMessage("Prepared today's routine note.");
@@ -473,7 +473,7 @@ describe("createObsidianNode", () => {
     expect(firstMessage?.content).toBe("Done.");
   });
 
-  it("injects prior tool-result context and a pending write instruction after a read step", async () => {
+  it("passes prior ToolMessage content through message history on loop continuation", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);

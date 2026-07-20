@@ -31,9 +31,10 @@
 ...
 </note_template>
 
-### Step 1: Read yesterday's note
-### Step 2: Read or create today's note
-If today's note does not exist, create it with the note template. 
+### First: `read_file` yesterday's note
+
+### Then: read or create today's note using unchecked tasks from the read result in history
+If today's note does not exist, create it with the note template.
 If today's note already exists, read it and append the carried-forward tasks instead of using create_new.
 Keep the source note unchanged and do not duplicate a task already present in today's note.
 

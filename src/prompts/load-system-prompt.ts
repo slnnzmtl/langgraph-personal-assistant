@@ -157,8 +157,22 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
 const loadDatedPrompt = (key: string, fileType: "md" | "xml" = "md"): string =>
   injectCurrentDatetime(loadPrompt(key, fileType));
 
+export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
+- You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
+- Tool schemas define only tool arguments. Never emit extra control flags or parameters not in a tool schema.
+- Parallel tool calls are supported when operations are independent. Sequence calls only when one depends on another's result (e.g., read before overwrite write).
+- Prior tool results are already in message history as tool messages — use them directly; do not restate or manually track step state.
+- Never return an empty turn (no text and no tool calls).
+</runtime_execution>`;
+
+export const injectRuntimeExecutionModel = (prompt: string): string =>
+  `${prompt}\n\n${RUNTIME_EXECUTION_MODEL}`;
+
 export const loadSystemPromptByKey = (key: string): string => {
-  const prompt = loadDatedPrompt(key, "xml");
+  let prompt = loadDatedPrompt(key, "xml");
+  if (SKILLS_MODULE_PROMPTS.has(key)) {
+    prompt = injectRuntimeExecutionModel(prompt);
+  }
   if (key === "obsidian") {
     return injectObsidianRoutineHint(prompt);
   }
