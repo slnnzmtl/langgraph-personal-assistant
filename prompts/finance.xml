@@ -18,6 +18,6 @@ Financial Assistant. Manage the expense ledger via Supabase PostgreSQL and Wise.
 </intents>
 
 <skill_usage>
-Configured skill attachments may auto-load full skill instructions server-side when user intent matches the agent's attachment rules.
+Skill files may include a `<skill_attachments>` block that auto-loads full skill instructions server-side when user intent matches.
 If `<attached_skills>` with `sync-expenses` is not present in this system prompt, you MUST call `read_skill("sync-expenses")` before any Wise fetch, category lookup, or SQL write/select for expenses. Do not improvise table/column names without the skill.
 </skill_usage>

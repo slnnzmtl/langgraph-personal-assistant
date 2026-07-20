@@ -49,7 +49,6 @@ describe("ensureBuiltinRuntimeAgents", () => {
         description: "old description",
         systemPrompt: "old",
         toolBundleIds: ["obsidian-vault"],
-        skillAttachments: [],
         executor: "obsidian",
         builtin: true,
         maxSteps: 8,

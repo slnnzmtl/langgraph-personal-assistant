@@ -5,7 +5,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createRuntimeAgentRepository } from "../../src/core/agents/repository.js";
-import { ROUTINE_SKILL_ATTACHMENTS } from "../../src/runtime-agents/skill-attachments.js";
 
 const tempPaths: string[] = [];
 
@@ -85,26 +84,5 @@ describe("createRuntimeAgentRepository", () => {
     );
 
     await expect(repository.loadAgents()).rejects.toThrow(/invalid runtime agent/i);
-  });
-
-  it("persists skill attachment rules on create and update", async () => {
-    const rootDir = await createTempRoot();
-    const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
-
-    const created = await repository.createAgent({
-      name: "Routine Helper",
-      description: "Creates routine notes.",
-      systemPrompt: "You create routine notes.",
-      toolBundleIds: ["obsidian-vault"],
-      skillAttachments: ROUTINE_SKILL_ATTACHMENTS,
-    });
-
-    expect(created.skillAttachments).toEqual(ROUTINE_SKILL_ATTACHMENTS);
-
-    const updated = await repository.updateAgent(created.id, {
-      skillAttachments: [],
-    });
-
-    expect(updated.skillAttachments).toEqual([]);
   });
 });

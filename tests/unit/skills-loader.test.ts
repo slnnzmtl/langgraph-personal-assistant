@@ -5,6 +5,10 @@ import {
   parseFrontmatter,
   parseXmlSkill,
   parseSkillFile,
+  parseSkillAttachmentsFromXmlBody,
+  loadSkillAttachmentRules,
+  stripSkillAttachmentsBlock,
+  parseCommaSeparatedPhrases,
   listSkills,
   readSkillContent,
   formatSkillsForPrompt,
@@ -92,6 +96,23 @@ Call list_cron_jobs().
       });
       expect(result.body).toContain("<cron_intent_routing>");
       expect(result.body).not.toContain("</skill>");
+    });
+
+    it("strips skill_attachments metadata from the returned body", () => {
+      const raw = `<skill name="routine" description="Routine notes">
+<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,daily</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<path_rules>Notes live under routine/</path_rules>
+</skill>`;
+      const result = parseXmlSkill(raw);
+
+      expect(result.body).toContain("<path_rules>");
+      expect(result.body).not.toContain("<skill_attachments>");
+      expect(result.body).not.toContain("routine-note-creation");
     });
 
     it("should return empty data if no skill root element", () => {
@@ -307,13 +328,79 @@ Content`
     });
   });
 
+  describe("skill attachment metadata", () => {
+    it("parses comma-separated phrases", () => {
+      expect(parseCommaSeparatedPhrases("sync expenses, for today ,expense")).toEqual([
+        "sync expenses",
+        "for today",
+        "expense",
+      ]);
+    });
+
+    it("parses attachment rules from xml body", () => {
+      const body = `<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,daily</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>task</allPhrases>
+    <anyPhrases>today,yesterday</anyPhrases>
+  </attachment>
+</skill_attachments>`;
+
+      expect(parseSkillAttachmentsFromXmlBody(body)).toEqual([
+        {
+          owner: "",
+          skillName: "",
+          cronJobName: "routine-note-creation",
+          match: { anyPhrases: ["routine", "daily"] },
+        },
+        {
+          owner: "",
+          skillName: "",
+          match: {
+            allPhrases: ["task"],
+            anyPhrases: ["today", "yesterday"],
+          },
+        },
+      ]);
+    });
+
+    it("loads attachment rules for an owner skills directory", () => {
+      const skillsDir = path.join(tempDir, "attachment-rules");
+      mkdirSync(skillsDir, { recursive: true });
+
+      writeFileSync(
+        path.join(skillsDir, "sync-expenses.xml"),
+        `<skill name="sync-expenses" description="Sync expenses">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>sync expenses,expense</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+Body
+</skill>`,
+      );
+
+      expect(loadSkillAttachmentRules(skillsDir, "finance")).toEqual([
+        {
+          owner: "finance",
+          skillName: "sync-expenses",
+          match: { anyPhrases: ["sync expenses", "expense"] },
+        },
+      ]);
+      expect(stripSkillAttachmentsBlock(readSkillContent(skillsDir, "sync-expenses"))).toBe("Body");
+    });
+  });
+
   describe("formatSkillsForDisplay", () => {
     it("formats skills using the skill_output_template", () => {
       const skills = [
         {
           name: "sync-expenses",
           description: "Sync Wise transactions",
-          fileName: "sync-expenses.md",
+          fileName: "sync-expenses.xml",
         },
       ];
 
@@ -336,7 +423,7 @@ Content`
         {
           name: "sync-expenses",
           description: "Sync Wise transactions",
-          fileName: "sync-expenses.md",
+          fileName: "sync-expenses.xml",
         },
         {
           name: "categorize",

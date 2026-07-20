@@ -2,17 +2,19 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
-  FINANCE_SKILL_ATTACHMENTS,
-  ROUTINE_SKILL_ATTACHMENTS,
   appendConfiguredSkillAttachments,
   extractTriggerUserText,
   formatAttachedSkillBlock,
   formatAttachedSkillsPrompt,
   matchesCronJobTrigger,
   matchesSkillAttachmentRule,
+  resolveSkillAttachmentRulesForOwner,
   resolveSkillAttachments,
 } from "../../../src/runtime-agents/skill-attachments.js";
 import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+
+const routineRules = () => resolveSkillAttachmentRulesForOwner("obsidian");
+const financeRules = () => resolveSkillAttachmentRulesForOwner("finance");
 
 describe("matchesSkillAttachmentRule", () => {
   it.each([
@@ -23,7 +25,7 @@ describe("matchesSkillAttachmentRule", () => {
     "give me a plan for today",
     "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today's routine note.",
   ])("matches routine attachment rules for %j", (text) => {
-    expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
+    expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
   });
 
   it.each([
@@ -31,7 +33,7 @@ describe("matchesSkillAttachmentRule", () => {
     "add a task to the project note",
     "sync expenses",
   ])("does not match routine attachment rules for %j", (text) => {
-    expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
+    expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });
 
   it.each([
@@ -43,21 +45,21 @@ describe("matchesSkillAttachmentRule", () => {
     "for yesterday",
     "for today",
   ])("matches finance attachment rules for %j", (text) => {
-    expect(FINANCE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
+    expect(financeRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
   });
 
   it.each([
     "read my fitness log",
     "create today's routine note",
   ])("does not match finance attachment rules for %j", (text) => {
-    expect(FINANCE_SKILL_ATTACHMENTS.some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
+    expect(financeRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });
 
   it("matches weak task triggers only with routine context", () => {
-    expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) =>
+    expect(routineRules().some((rule) =>
       matchesSkillAttachmentRule("move tasks from yesterday into today", rule),
     )).toBe(true);
-    expect(ROUTINE_SKILL_ATTACHMENTS.some((rule) =>
+    expect(routineRules().some((rule) =>
       matchesSkillAttachmentRule("update the project task list", rule),
     )).toBe(false);
   });
@@ -91,9 +93,9 @@ describe("extractTriggerUserText", () => {
 
 describe("formatAttachedSkillBlock", () => {
   it("wraps skill content in an attached_skill block", () => {
-    const block = formatAttachedSkillBlock("Routine", "Step 1: read yesterday");
+    const block = formatAttachedSkillBlock("daily-routine-note-creation", "Step 1: read yesterday");
 
-    expect(block).toContain('<attached_skill name="Routine">');
+    expect(block).toContain('<attached_skill name="daily-routine-note-creation">');
     expect(block).toContain("Step 1: read yesterday");
     expect(block).toContain("</attached_skill>");
   });
@@ -102,34 +104,35 @@ describe("formatAttachedSkillBlock", () => {
 describe("formatAttachedSkillsPrompt", () => {
   it("wraps multiple attachments and includes read_skill guidance", () => {
     const prompt = formatAttachedSkillsPrompt([
-      { skillName: "Routine", content: "Step 1" },
+      { skillName: "daily-routine-note-creation", content: "Step 1" },
     ]);
 
     expect(prompt).toContain("<attached_skills>");
-    expect(prompt).toContain('<attached_skill name="Routine">');
-    expect(prompt).toContain('read_skill for "Routine"');
+    expect(prompt).toContain('<attached_skill name="daily-routine-note-creation">');
+    expect(prompt).toContain('read_skill for "daily-routine-note-creation"');
   });
 });
 
 describe("resolveSkillAttachments", () => {
   it("loads the Routine skill body when intent matches", () => {
-    const attachments = resolveSkillAttachments(ROUTINE_SKILL_ATTACHMENTS, [
+    const attachments = resolveSkillAttachments(routineRules(), [
       new HumanMessage("create today's routine note"),
     ]);
 
     expect(attachments).toHaveLength(1);
-    expect(attachments[0]?.skillName).toBe("Routine");
+    expect(attachments[0]?.skillName).toBe("daily-routine-note-creation");
     expect(attachments[0]?.content).toContain("Step 1: Read yesterday's note");
+    expect(attachments[0]?.content).not.toContain("<skill_attachments>");
   });
 
   it("returns an empty list when intent does not match", () => {
-    expect(resolveSkillAttachments(ROUTINE_SKILL_ATTACHMENTS, [
+    expect(resolveSkillAttachments(routineRules(), [
       new HumanMessage("read my fitness log"),
     ])).toEqual([]);
   });
 
   it("keeps sync-expenses attached on short follow-ups after a matching request", () => {
-    const attachments = resolveSkillAttachments(FINANCE_SKILL_ATTACHMENTS, [
+    const attachments = resolveSkillAttachments(financeRules(), [
       new HumanMessage("sync expenses"),
       new AIMessage("There were no transactions found for today."),
       new HumanMessage("for yesterday"),
@@ -140,17 +143,17 @@ describe("resolveSkillAttachments", () => {
   });
 
   it("still attaches Routine after read_skill was called in the same turn history", () => {
-    const attachments = resolveSkillAttachments(ROUTINE_SKILL_ATTACHMENTS, [
+    const attachments = resolveSkillAttachments(routineRules(), [
       new HumanMessage("create today's routine note"),
       new AIMessage({
         content: "",
-        tool_calls: [{ name: "read_skill", args: { name: "Routine" }, id: "read-1", type: "tool_call" }],
+        tool_calls: [{ name: "read_skill", args: { name: "daily-routine-note-creation" }, id: "read-1", type: "tool_call" }],
       }),
       new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "Routine skill body" }),
     ]);
 
     expect(attachments).toHaveLength(1);
-    expect(attachments[0]?.skillName).toBe("Routine");
+    expect(attachments[0]?.skillName).toBe("daily-routine-note-creation");
   });
 });
 
@@ -165,7 +168,7 @@ describe("appendConfiguredSkillAttachments", () => {
 
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain("<attached_skills>");
-    expect(prompt).toContain('<attached_skill name="Routine">');
+    expect(prompt).toContain('<attached_skill name="daily-routine-note-creation">');
     expect(prompt).toContain("Step 1: Read yesterday's note");
   });
 

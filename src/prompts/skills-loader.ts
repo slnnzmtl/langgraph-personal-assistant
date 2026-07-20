@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+import type { SkillAttachmentRule } from "../core/types/agent.js";
+
 /**
  * Metadata extracted from a skill file's frontmatter.
  */
@@ -42,6 +44,63 @@ export const getSkillFileType = (fileName: string): SkillFileType | undefined =>
 const escapeXmlAttr = (value: string): string =>
   value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 
+const SKILL_ATTACHMENTS_BLOCK_REGEX = /<skill_attachments>[\s\S]*?<\/skill_attachments>\s*/i;
+const ATTACHMENT_BLOCK_REGEX = /<attachment(?:\s+cronJobName=["']([^"']+)["'])?\s*>([\s\S]*?)<\/attachment>/gi;
+const ANY_PHRASES_REGEX = /<anyPhrases>([\s\S]*?)<\/anyPhrases>/i;
+const ALL_PHRASES_REGEX = /<allPhrases>([\s\S]*?)<\/allPhrases>/i;
+
+export const parseCommaSeparatedPhrases = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((phrase) => phrase.trim())
+    .filter((phrase) => phrase.length > 0);
+
+const parseAttachmentMatchBlock = (block: string): SkillAttachmentRule["match"] | undefined => {
+  const anyMatch = block.match(ANY_PHRASES_REGEX);
+  const allMatch = block.match(ALL_PHRASES_REGEX);
+  const anyPhrases = anyMatch?.[1] ? parseCommaSeparatedPhrases(anyMatch[1]) : [];
+  const allPhrases = allMatch?.[1] ? parseCommaSeparatedPhrases(allMatch[1]) : [];
+
+  if (anyPhrases.length === 0 && allPhrases.length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...(anyPhrases.length > 0 ? { anyPhrases } : {}),
+    ...(allPhrases.length > 0 ? { allPhrases } : {}),
+  };
+};
+
+export const parseSkillAttachmentsFromXmlBody = (body: string): SkillAttachmentRule[] => {
+  const attachmentsBlock = body.match(SKILL_ATTACHMENTS_BLOCK_REGEX)?.[0];
+  if (!attachmentsBlock) {
+    return [];
+  }
+
+  const rules: SkillAttachmentRule[] = [];
+  for (const match of attachmentsBlock.matchAll(ATTACHMENT_BLOCK_REGEX)) {
+    const cronJobName = match[1]?.trim();
+    const attachmentBody = match[2] ?? "";
+    const matchRules = parseAttachmentMatchBlock(attachmentBody);
+
+    if (!cronJobName && !matchRules) {
+      continue;
+    }
+
+    rules.push({
+      owner: "",
+      skillName: "",
+      ...(cronJobName ? { cronJobName } : {}),
+      ...(matchRules ? { match: matchRules } : {}),
+    });
+  }
+
+  return rules;
+};
+
+export const stripSkillAttachmentsBlock = (body: string): string =>
+  body.replace(SKILL_ATTACHMENTS_BLOCK_REGEX, "").trim();
+
 /**
  * Parse a skill XML file with metadata on the root <skill> element.
  */
@@ -71,7 +130,44 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
     data.description = descriptionMatch[1];
   }
 
-  return { data, body: body.trim() };
+  return { data, body: stripSkillAttachmentsBlock(body.trim()) };
+};
+
+export const loadSkillAttachmentRules = (
+  skillsDir: string,
+  owner: string,
+): SkillAttachmentRule[] => {
+  if (!existsSync(skillsDir)) {
+    return [];
+  }
+
+  const rules: SkillAttachmentRule[] = [];
+  const files = readdirSync(skillsDir).filter((fileName) => fileName.endsWith(".xml"));
+
+  for (const fileName of files) {
+    try {
+      const content = readFileSync(path.join(skillsDir, fileName), "utf8");
+      const { data, body } = parseXmlSkill(content);
+      const skillName = data.name;
+      if (!skillName) {
+        continue;
+      }
+
+      const rawBody = content.match(/^<skill\s+[^>]+>([\s\S]*)<\/skill>\s*$/s)?.[1]?.trim() ?? body;
+      const attachmentRules = parseSkillAttachmentsFromXmlBody(rawBody);
+      for (const rule of attachmentRules) {
+        rules.push({
+          ...rule,
+          owner,
+          skillName,
+        });
+      }
+    } catch (error) {
+      console.warn(`Failed to parse attachment rules from skill file ${fileName}:`, error);
+    }
+  }
+
+  return rules;
 };
 
 /**

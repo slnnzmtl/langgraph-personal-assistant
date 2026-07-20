@@ -32,7 +32,6 @@ const mergeRuntimeAgents = (
         promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
         executor: defaultAgent.executor,
         toolBundleIds: defaultAgent.toolBundleIds,
-        skillAttachments: defaultAgent.skillAttachments,
       });
       continue;
     }

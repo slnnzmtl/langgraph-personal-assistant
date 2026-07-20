@@ -1,7 +1,9 @@
----
-name: sync-expenses
-description: View, summarize, and sync Wise expenses in the expense ledger.
----
+<skill name="sync-expenses" description="View, summarize, and sync Wise expenses in the expense ledger.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>sync expenses,sync expense,transactions,spending,how much spent,total spending,expense,expenses,for yesterday,for today,yesterday expenses,today expenses,yesterday transactions,today transactions</anyPhrases>
+  </attachment>
+</skill_attachments>
 
 # Expenses
 
@@ -31,3 +33,5 @@ After every tool result: emit the next tool call **or** a plain-text reply. Neve
 
 ## Update
 `get_categories()` if needed → narrow `SELECT` for IDs → scoped UPDATE by PK.
+
+</skill>

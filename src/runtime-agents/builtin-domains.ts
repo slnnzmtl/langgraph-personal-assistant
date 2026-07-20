@@ -1,8 +1,7 @@
 import type { AppConfig } from "../config.js";
 import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
-import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
+import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { RuntimeToolBundleId } from "./tool-bundle-catalog.js";
-import { FINANCE_SKILL_ATTACHMENTS, ROUTINE_SKILL_ATTACHMENTS } from "./skill-attachments.js";
 
 type AppModelConfigKey = "financeModel" | "obsidianModel" | "configurationModel";
 
@@ -14,7 +13,6 @@ export type BuiltinDomainSpec = {
   modelKey: string;
   promptSourceKey: string;
   toolBundleIds: RuntimeToolBundleId[];
-  skillAttachments: SkillAttachmentRule[];
   maxSteps: number;
   configModelKey?: AppModelConfigKey;
   requiresSupabase?: boolean;
@@ -29,7 +27,6 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     modelKey: "finance",
     promptSourceKey: "finance",
     toolBundleIds: ["finance-domain"],
-    skillAttachments: FINANCE_SKILL_ATTACHMENTS,
     maxSteps: 10,
     configModelKey: "financeModel",
     requiresSupabase: true,
@@ -42,7 +39,6 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     modelKey: "obsidian",
     promptSourceKey: "obsidian",
     toolBundleIds: ["obsidian-vault"],
-    skillAttachments: ROUTINE_SKILL_ATTACHMENTS,
     maxSteps: 12,
     configModelKey: "obsidianModel",
   },
@@ -54,7 +50,6 @@ export const BUILTIN_DOMAIN_SPECS: BuiltinDomainSpec[] = [
     modelKey: "configuration",
     promptSourceKey: "configuration",
     toolBundleIds: ["none"],
-    skillAttachments: [],
     maxSteps: 10,
     configModelKey: "configurationModel",
   },
@@ -74,7 +69,6 @@ export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
     systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
     promptSourceKey: spec.promptSourceKey,
     toolBundleIds: spec.toolBundleIds,
-    skillAttachments: spec.skillAttachments,
     executor: spec.executor,
     modelKey: spec.modelKey,
     builtin: true,

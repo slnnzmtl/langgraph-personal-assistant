@@ -2,7 +2,7 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
 import { getSkillsDir } from "../prompts/load-system-prompt.js";
-import { readSkillContent } from "../prompts/skills-loader.js";
+import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
 
@@ -135,6 +135,11 @@ export type ResolvedSkillAttachment = {
 const attachmentKey = (owner: string, skillName: string): string =>
   `${owner.toLowerCase()}:${skillName.toLowerCase()}`;
 
+export const resolveSkillAttachmentRulesForOwner = (owner: string): SkillAttachmentRule[] => {
+  const skillsDir = getSkillsDir(owner, "xml");
+  return loadSkillAttachmentRules(skillsDir, owner);
+};
+
 export const resolveSkillAttachments = (
   rules: SkillAttachmentRule[],
   messages: BaseMessage[],
@@ -176,7 +181,7 @@ export const appendConfiguredSkillAttachments = (
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
 ): string => {
-  const rules = definition.skillAttachments ?? [];
+  const rules = resolveSkillAttachmentRulesForOwner(definition.id);
   if (rules.length === 0) {
     return basePrompt;
   }
@@ -193,81 +198,11 @@ export const appendConfiguredSkillAttachments = (
   return `${basePrompt}\n\n${attachmentPrompt}`;
 };
 
-export const FINANCE_SKILL_ATTACHMENTS: SkillAttachmentRule[] = [
-  {
-    owner: "finance",
-    skillName: "sync-expenses",
-    match: {
-      anyPhrases: [
-        "sync expenses",
-        "sync expense",
-        "transactions",
-        "spending",
-        "how much spent",
-        "total spending",
-        "expense",
-        "expenses",
-        "for yesterday",
-        "for today",
-        "yesterday expenses",
-        "today expenses",
-        "yesterday transactions",
-        "today transactions",
-      ],
-    },
-  },
-];
-
-export const ROUTINE_SKILL_ATTACHMENTS: SkillAttachmentRule[] = [
-  {
-    owner: "obsidian",
-    skillName: "Routine",
-    cronJobName: "routine-note-creation",
-    match: {
-      anyPhrases: [
-        "routine",
-        "todos",
-        "todo",
-        // "daily note",
-        "daily",
-        "plan",
-        "plans",
-        "daily routine",
-        "unchecked",
-        "carry forward",
-        "carry-over",
-      ],
-    },
-  },
-  {
-    owner: "obsidian",
-    skillName: "Routine",
-    match: {
-      allPhrases: ["task"],
-      anyPhrases: [
-        "today",
-        "yesterday",
-        "daily",
-        "routine",
-        "move",
-        "carry",
-        "forward",
-        "unchecked",
-      ],
-    },
-  },
-  {
-    owner: "obsidian",
-    skillName: "Routine",
-    match: {
-      allPhrases: ["plan"],
-      anyPhrases: ["today", "tomorrow", "yesterday"],
-    },
-  },
-];
-
 export const getAttachedSkillNames = (
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
 ): Set<string> =>
-  new Set(resolveSkillAttachments(definition.skillAttachments ?? [], messages).map((attachment) => attachment.skillName));
+  new Set(
+    resolveSkillAttachments(resolveSkillAttachmentRulesForOwner(definition.id), messages)
+      .map((attachment) => attachment.skillName),
+  );

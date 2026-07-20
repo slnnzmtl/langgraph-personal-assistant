@@ -1,4 +1,18 @@
 <skill name="daily-routine-note-creation" description="Create daily routine notes with unchecked tasks from yesterday.">
+<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,todos,todo,daily,plan,plans,daily routine,unchecked,carry forward,carry-over</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>task</allPhrases>
+    <anyPhrases>today,yesterday,daily,routine,move,carry,forward,unchecked</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>plan</allPhrases>
+    <anyPhrases>today,tomorrow,yesterday</anyPhrases>
+  </attachment>
+</skill_attachments>
+
 <path_rules>
 - Routine notes live at `routine/[Month]/[Month] [Day] - [Weekday].md`.
 </path_rules>

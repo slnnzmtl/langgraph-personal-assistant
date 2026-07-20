@@ -276,7 +276,7 @@ describe("createObsidianNode", () => {
 
     expect(prompt).toContain("<skill_usage>");
     expect(prompt).toContain("read_skill(skill_name)");
-    expect(prompt).toContain("Configured skill attachments");
+    expect(prompt).toContain("<skill_attachments>");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {

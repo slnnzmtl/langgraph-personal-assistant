@@ -725,7 +725,6 @@ test.describe("workflow graph", () => {
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
         toolBundleIds: ["none"],
-        skillAttachments: [],
         executor: "generic",
         builtin: false,
         maxSteps: 4,
