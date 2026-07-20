@@ -1,6 +1,6 @@
 # Personal Assistant — Structure & Architecture Review
 
-*Fresh review as of July 2026, based on the current codebase (~71 source files, 40 unit test files).*
+*Fresh review as of July 2026, based on the current codebase (~79 source files, 44 unit test files).*
 
 ---
 
@@ -24,11 +24,13 @@ The design goal is clear: **extract a reusable LangGraph framework** while keepi
 flowchart TB
     subgraph Entry["Entry & I/O"]
         TG[Telegram Adapter]
-        CRON[node-cron Scheduler]
+        CRON[Cron Scheduler Process]
         IDX[index.ts → app.ts]
+        CRIDX[cron/index.ts]
     end
 
     subgraph AppLayer["App Layer (src/app/, agent.ts)"]
+        WFC[createWorkflowContext]
         WFG[createWorkflowGraph]
         KIT[createAppExecutionKit]
         POL[Domain Policies + Hooks]
@@ -57,8 +59,11 @@ flowchart TB
         WISE[Wise API]
     end
 
-    TG --> IDX --> WFG --> CA
-    CRON -->|SYSTEM_CRON_TRIGGER| TG
+    TG --> IDX --> WFC --> WFG --> CA
+    CRIDX --> CRON
+    CRON --> WFC
+    CRON -->|graph.invoke| CA
+    CRON -->|summary report| TG
     WFG --> KIT --> CA
     KIT --> POL
     CA --> SUP
@@ -76,20 +81,41 @@ flowchart TB
 
 ## Boot Sequence
 
+The assistant runs as **two processes** that share the same workflow graph wiring via `createWorkflowContext()`:
+
+### Telegram bot (`src/index.ts`)
+
 ```
 index.ts
   └─ loadConfig()
   └─ createApp()
-       ├─ Telegraf bot + GeminiConnector (supervisor)
-       ├─ Supabase MCP session (optional)
-       ├─ Runtime agent repository (data/runtime-agents.json)
-       ├─ ensureBuiltinRuntimeAgents() — merge persisted + built-ins
-       ├─ createWorkflowGraph() → createAssistant()
-       ├─ startCron() — optional in-process scheduler
-       └─ TelegramAdapter.launch()
+       └─ createWorkflowContext()
+            ├─ GeminiConnector (supervisor model)
+            ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
+            ├─ Runtime agent repository (data/runtime-agents.json)
+            ├─ ensureBuiltinRuntimeAgents() — merge persisted + built-ins
+            ├─ createWorkflowGraph() → createAssistant()
+       ├─ TelegramAdapter (Telegraf long-polling)
+       └─ launchApp()
 ```
 
-The graph is compiled once at startup and invoked per Telegram message (or cron trigger) with a thread-scoped checkpointer (`MemorySaver`).
+### Cron scheduler (`src/cron/index.ts`)
+
+```
+cron/index.ts
+  └─ loadConfig()
+  └─ createSchedulerApp()
+       └─ createWorkflowContext({ runtimeCron: lazyCron })
+       └─ startCron() — node-cron + cron job bootstrap
+       └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json
+       └─ launchScheduler() — blocks until SIGINT/SIGTERM
+```
+
+Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. Docker Compose runs the scheduler as a separate service (`personal-assistant-scheduler`).
+
+Each process compiles its own graph instance at startup. Invocations use a thread-scoped checkpointer (`MemorySaver`).
+
+Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
 
 ---
 
@@ -219,6 +245,8 @@ export const AgentStateAnnotation = Annotation.Root({
 
 ### Message reducer pipeline
 
+Implemented across `state.ts`, `message-compaction.ts`, and `message-trimming.ts`:
+
 ```
 messagesStateReducer → compactIntermediateToolHistory → trimMessagesToTokenBudgetSync(maxTokens≈6000)
 ```
@@ -257,9 +285,9 @@ RuntimeAgentDefinitionSchema = z.object({
 |---|---|---|---|---|
 | `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
-| `configuration` | `configuration` | 10 | `none` | — |
+| `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
 
-Custom agents use `executor: "generic"` and select from the tool bundle catalog (`none`, `obsidian-vault`, `finance-domain`).
+Custom agents use `executor: "generic"` and select from the tool bundle catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config`).
 
 ---
 
@@ -309,7 +337,7 @@ Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime
 | Supervisor | `prompts/supervisor.xml` | XML |
 | Finance | `prompts/finance.xml` | XML |
 | Obsidian | `prompts/obsidian.xml` | XML |
-| Configuration | `prompts/configuration.md` | Markdown |
+| Configuration | `prompts/configuration.xml` | XML |
 
 Prompts are **read from disk on each invocation** (hot-reload in dev). Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
 
@@ -322,11 +350,15 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). Static do
 | **Google Gemini** | `GeminiConnector` + per-agent model registry | `connectors/`, `app/model-registry.ts` |
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
-| **Supabase** | Hosted MCP session | `mcp/supabase.ts`, `services/supabase.ts` |
+| **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
 | **Wise** | REST API for transaction sync | `mcp/wise.ts`, `services/wise/` |
-| **Cron** | In-process `node-cron`, JSON persistence | `cron/`, `data/cron-jobs.json` |
+| **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron-triggers.ts`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
+
+### Supabase MCP self-healing
+
+When credentials are present, `setupSupabaseSession()` wraps the raw MCP client in `createSelfHealingMcpSession()`. Transport failures classified by `isMcpTransportError()` (connection resets, socket hang-ups, etc.) trigger a single reconnect attempt before surfacing the error to finance tools.
 
 ---
 
@@ -335,17 +367,17 @@ Finance gracefully degrades: if Supabase is unconfigured, the finance agent is d
 ```
 personal-assistant/
 ├── src/
-│   ├── index.ts, app.ts, agent.ts, config.ts    # Bootstrap & wiring
+│   ├── index.ts, app.ts, agent.ts, config.ts, cron-triggers.ts  # Bootstrap & wiring
 │   ├── core/                                       # Framework (reusable)
 │   │   ├── create-assistant.ts                     # Main graph API
-│   │   ├── state.ts, message-compaction.ts         # State + trimming
+│   │   ├── state.ts, message-compaction.ts, message-trimming.ts  # State + trimming
 │   │   ├── supervisor/                             # Routing, history sanitization
 │   │   ├── agents/                                 # Dispatch, repository, prompts
 │   │   ├── execution/                              # Sub-agent factory, runtime node
 │   │   ├── policies/                               # Registry, generic policy
 │   │   └── types/                                  # Agent & policy schemas
 │   ├── app/                                        # This assistant's config
-│   │   ├── register-defaults.ts
+│   │   ├── register-defaults.ts, workflow-context.ts
 │   │   ├── policies/                               # Domain policies + hooks
 │   │   ├── model-registry.ts
 │   │   └── runtime-agent-catalog.ts
@@ -354,19 +386,19 @@ personal-assistant/
 │   │   ├── tool-bundles.ts, tool-bundle-catalog.ts
 │   │   ├── policies/{finance,obsidian,configuration}/
 │   │   └── bootstrap.ts
-│   ├── cron/                                       # Scheduler subsystem
-│   ├── telegram/                                   # I/O adapter
+│   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts entry)
+│   ├── telegram/                                   # I/O adapter + cron reporter
 │   ├── tools/                                      # Shared tools (skills, routing)
 │   ├── prompts/                                    # Prompt & skill loading
 │   ├── services/                                   # Obsidian, Supabase, Wise
-│   ├── mcp/                                        # MCP client wrappers
+│   ├── mcp/                                        # MCP client wrappers + self-healing
 │   ├── connectors/                                 # LLM connector abstraction
 │   └── utils/                                      # Message content, FS, SQL, datetime
 ├── prompts/          # System prompt files
 ├── skills/           # Agent playbooks
 ├── data/             # Persisted cron jobs + runtime agents
 ├── specs/            # Design documents (may lag code)
-├── tests/unit/       # 40 Vitest suites
+├── tests/unit/       # 44 Vitest suites
 ├── tests/e2e/        # Playwright workflow tests
 └── sql/              # Supabase setup scripts
 ```
@@ -375,12 +407,12 @@ personal-assistant/
 
 ## Testing Posture
 
-- **40 unit test files** covering graph topology, state reducers, compaction, supervisor routing, sub-agent behavior, cron, skills, and domain tools
+- **44 unit test files** covering graph topology, state reducers, compaction, token-budget trimming, supervisor routing, sub-agent behavior, cron, skills, MCP self-healing, and domain tools
 - **E2E** via Playwright (`tests/e2e/workflow.spec.ts`)
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
 
-The core framework (`state`, `supervisor`, `create-sub-agent`, `empty-subagent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
+The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent`, `empty-subagent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
 
 ---
 
@@ -390,7 +422,7 @@ The core framework (`state`, `supervisor`, `create-sub-agent`, `empty-subagent-h
 2. **Single sub-agent factory** — all domains share one graph pattern; customization happens through hooks and deps, not copy-paste graphs.
 3. **Runtime agents as data** — built-ins and custom agents share one schema; the supervisor routing schema is generated dynamically from enabled agents.
 4. **Graceful degradation** — finance disabled without Supabase; routing failures produce user-facing fallback replies; empty sub-agent replies get supervisor summaries.
-5. **Context budget management** — 10-message window + consumed-tool compaction + handoff marker cleanup shows deliberate token economics.
+5. **Context budget management** — ~6k token budget trimming + consumed-tool compaction + handoff marker cleanup shows deliberate token economics.
 6. **Hot-reload prompts/skills** — disk reads on each invocation aid local iteration without restarts.
 7. **Extensibility path is clear** — new built-in domain = spec + tools + policy + factory registration; new custom agent = configuration CRUD + generic policy.
 
@@ -401,13 +433,14 @@ The core framework (`state`, `supervisor`, `create-sub-agent`, `empty-subagent-h
 | Area | Observation |
 |---|---|
 | **In-memory checkpointer** | `MemorySaver` means conversation state is lost on restart. Fine for a single-user Telegram bot; would need persistence for multi-instance or production durability. |
+| **Dual-process deployment** | Telegram bot and cron scheduler compile separate graph instances. Cron state and chat threads do not share a checkpointer across processes. |
 | **Single Telegram user** | `ALLOWED_TELEGRAM_USER_ID` enforces one user. Thread IDs exist but the security model is personal-assistant-scoped. |
 | **Specs drift** | `specs/` still references legacy node names (`Finance_SG`, `Obsidian_SG`). Code has moved to unified `Runtime_SG` + agent ids. |
-| **Graph name** | Still `"personal-assistant-phase-1"` in `agent.ts` — likely a leftover from MVP naming. |
-| **Configuration tools bundle** | Uses `toolBundleIds: ["none"]` but gets tools from `createConfigurationTools()` directly in the policy — slightly inconsistent with the bundle abstraction. |
+| **Graph name** | Still `"personal-assistant-phase-1"` in `agent.ts` — likely a leftover from MVP naming (`createAssistant` defaults to `"personal-assistant"`). |
 | **No persistent message store** | History trimming + compaction is in-graph only; no external conversation log beyond Telegram. |
-| **MCP session lifecycle** | Supabase MCP is set up once at boot; no reconnection logic visible for long-running processes. |
-| **Docker production image** | Skills directory not copied by default; requires explicit volume mount. |
+| **MCP reconnect scope** | `createSelfHealingMcpSession` retries once on transport errors; persistent MCP outages still disable finance until restart. |
+| **Docker skills mount** | Production `Dockerfile` copies `prompts/` but not `skills/`. Compose mounts skills for the scheduler service only — the main bot container needs an explicit skills volume mount too. |
+| **`ENABLE_SCHEDULER` config** | Env flag exists but the Telegram entrypoint does not start cron; scheduling requires the separate `cron/index.ts` process (or Docker scheduler service). |
 
 ---
 
@@ -438,4 +471,4 @@ Use the configuration agent in Telegram — creates a `generic` executor agent w
 
 The architecture is a **well-factored LangGraph supervisor pattern** with a thin root graph, rich nested sub-agent loops, and a policy registry that cleanly separates framework from domain. State management is sophisticated for a personal bot — bounded history, tool-result compaction, and empty-reply handoff handling show mature attention to token cost and conversation validity.
 
-The main evolutionary pressure points are **persistence** (checkpointer, conversation history), **multi-user scaling**, and keeping **design docs (`specs/`) aligned** with the unified `Runtime_SG` dispatch model. The codebase itself is in good shape for continued domain expansion without restructuring the core graph.
+The main evolutionary pressure points are **persistence** (checkpointer, conversation history), **multi-process coordination** (bot vs scheduler), **multi-user scaling**, and keeping **design docs (`specs/`) aligned** with the unified `Runtime_SG` dispatch model. The codebase itself is in good shape for continued domain expansion without restructuring the core graph.
