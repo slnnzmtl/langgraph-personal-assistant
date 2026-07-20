@@ -1,12 +1,12 @@
-# Personal Assistant — Structure & Architecture Review
+# Personal Assistant — Architecture Review
 
-*Fresh review as of July 2026, based on the current codebase (~79 source files, 44 unit test files).*
+*Implementation review as of July 2026, based on the current codebase (~79 source files and 44 unit test files). This document describes verified behavior and separates current defects from conditional future work.*
 
 ---
 
 ## Executive Summary
 
-This is a **Telegram-hosted personal assistant** built on **LangGraph** with a **Supervisor → Runtime Agent dispatcher → nested sub-agent tool loops** topology. The codebase is deliberately split into three layers:
+This is a single-user, Telegram-hosted personal assistant built on **LangGraph**. Its execution path is **Supervisor → runtime-agent dispatcher → nested sub-agent tool loop**. The codebase is deliberately split into three layers:
 
 | Layer | Role |
 |---|---|
@@ -14,7 +14,16 @@ This is a **Telegram-hosted personal assistant** built on **LangGraph** with a *
 | **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
 | **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
 
-The design goal is clear: **extract a reusable LangGraph framework** while keeping domain-specific behavior (finance, Obsidian, configuration) in app/runtime layers. Multiple assistant instances can coexist with isolated `PolicyRegistry` and `PromptResolver` per `createAssistant()` call.
+The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `src/core/` as an internal framework, not a separately reusable product, until a second deployment has concrete requirements that justify a package boundary.
+
+### Design constraints
+
+- One trusted Telegram identity is enforced at the adapter boundary.
+- The bot and scheduler are independently started processes; they do not share in-memory state.
+- Runtime-agent and cron definitions are file-backed JSON, not a transactional shared database.
+- The primary design goal is dependable personal automation, not multi-user tenancy or horizontal scaling.
+
+These constraints are important when evaluating changes: persistence, tenancy, and distributed coordination are not free improvements for this application.
 
 ---
 
@@ -111,9 +120,13 @@ cron/index.ts
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
 ```
 
-Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. Docker Compose runs the scheduler as a separate service (`personal-assistant-scheduler`).
+Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
 
-Each process compiles its own graph instance at startup. Invocations use a thread-scoped checkpointer (`MemorySaver`).
+The scheduler currently has two live-registration paths: bootstrap calls `setupCron()`, while the file watcher reconciles jobs into `RuntimeCronService`. These paths do not share scheduled-task state, so the first file reconciliation can register a second task for an already bootstrapped job. Treat cron execution as at risk of duplication until it is consolidated behind `RuntimeCronService`.
+
+Docker Compose runs the scheduler as a separate service (`personal-assistant-scheduler`). Its `schedulerEnabled: true` override means `ENABLE_SCHEDULER` does not disable this process, and the Telegram entry point never starts a scheduler. The flag should therefore be removed from this deployment mode or made effective in the scheduler process.
+
+Each process compiles its own graph instance at startup. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
 
 Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
 
@@ -159,8 +172,10 @@ sequenceDiagram
 
     U->>T: Message
     T->>S: invoke(state)
-    alt Cron trigger
+    alt Agent-targeted cron trigger
         S->>D: route directly (skip LLM)
+    else Supervisor cron trigger
+        S->>S: structured JSON routing
     else Empty sub-agent reply
         S->>S: build fallback summary
         S->>T: FINISH
@@ -182,7 +197,7 @@ sequenceDiagram
 
 ### Supervisor responsibilities
 
-1. **Cron bypass** — `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` routes straight to the target agent.
+1. **Cron bypass** — agent-targeted `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` routes straight to that agent. `Supervise_SG` triggers intentionally use normal supervisor routing.
 2. **Empty sub-agent handoff** — when a runtime agent finishes with no user-facing text, the supervisor synthesizes a reply from bounded tool context (up to 2k chars, last 3 tool results).
 3. **Completion detection** — a non-tool AI reply from a sub-agent short-circuits routing and goes to `FINISH`.
 4. **Structured routing** — dynamic Zod schema built from enabled runtime agents; `FINISH` requires a `reply`, delegation omits it.
@@ -222,7 +237,7 @@ Key abstractions:
 
 ---
 
-## State Management
+## State, Persistence, and Process Boundaries
 
 ### Root state shape (`AgentState`)
 
@@ -248,7 +263,7 @@ export const AgentStateAnnotation = Annotation.Root({
 Implemented across `state.ts`, `message-compaction.ts`, and `message-trimming.ts`:
 
 ```
-messagesStateReducer → compactIntermediateToolHistory → trimMessagesToTokenBudgetSync(maxTokens≈6000)
+messagesStateReducer → compactIntermediateToolHistory → trimMessagesToTokenBudgetSync(maxEstimatedTokens≈6000)
 ```
 
 Two compaction strategies:
@@ -258,12 +273,23 @@ Two compaction strategies:
 
 ### Trimming rules
 
-- Hard cap of **~6,000 tokens** (configurable via `MESSAGE_HISTORY_MAX_TOKENS`)
+- Hard cap of **~6,000 estimated tokens** (configurable via `MESSAGE_HISTORY_MAX_TOKENS`; estimated as character length ÷ 4)
 - Active in-flight tool sequences are kept as atomic units (may exceed the limit)
 - Latest human message is never dropped
 - Orphaned leading `ToolMessage`s are stripped
 
-This is a thoughtful balance between **context window cost** and **LangGraph conversation validity**.
+This is a practical balance between context-window cost and LangGraph conversation validity. It deliberately optimizes the live conversation only; it is not an audit log or durable memory system.
+
+### Persistence boundaries
+
+| State | Storage | Shared between bot and scheduler? | Consequence |
+|---|---|---|---|
+| Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
+| Runtime-agent definitions | `data/runtime-agents.json` | Intended, but currently not in Compose | Concurrent read-modify-write updates can lose changes. |
+| Cron definitions | `data/cron-jobs.json` | Intended, but currently not in Compose | The scheduler is authoritative only while its data volume differs from the bot's. |
+| Skills and prompts | Local files | No database coordination | Changes take effect on the next load; deployment paths must match source expectations. |
+
+The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
 ---
 
@@ -287,7 +313,7 @@ RuntimeAgentDefinitionSchema = z.object({
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
 | `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
 
-Custom agents use `executor: "generic"` and select from the tool bundle catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config`).
+Custom agents use `executor: "generic"` and select from the tool bundle catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config`). Built-in domain policies have direct tool factories; their `toolBundleIds` describe the corresponding capability but are not their runtime tool-resolution path. Keep those two definitions aligned when adding a domain.
 
 ---
 
@@ -312,7 +338,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the graph topology is shared.
+Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the graph topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy handlers and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and `src/core/policies/generic.ts` resolves allowlisted bundles for configurable agents.
 
 ---
 
@@ -339,7 +365,7 @@ Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime
 | Obsidian | `prompts/obsidian.xml` | XML |
 | Configuration | `prompts/configuration.xml` | XML |
 
-Prompts are **read from disk on each invocation** (hot-reload in dev). Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
+Prompts are **read from disk on each invocation** (hot-reload in dev). For built-ins with `promptSourceKey`, the persisted `systemPrompt` is a bootstrap snapshot and the prompt file is the runtime source of truth. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
 
 ---
 
@@ -416,31 +442,57 @@ The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent
 
 ---
 
-## Architectural Strengths
+## What Is Working Well
 
-1. **Clean separation of concerns** — framework vs. app vs. domain runtime is consistently enforced and documented in the README.
-2. **Single sub-agent factory** — all domains share one graph pattern; customization happens through hooks and deps, not copy-paste graphs.
-3. **Runtime agents as data** — built-ins and custom agents share one schema; the supervisor routing schema is generated dynamically from enabled agents.
-4. **Graceful degradation** — finance disabled without Supabase; routing failures produce user-facing fallback replies; empty sub-agent replies get supervisor summaries.
-5. **Context budget management** — ~6k token budget trimming + consumed-tool compaction + handoff marker cleanup shows deliberate token economics.
-6. **Hot-reload prompts/skills** — disk reads on each invocation aid local iteration without restarts.
-7. **Extensibility path is clear** — new built-in domain = spec + tools + policy + factory registration; new custom agent = configuration CRUD + generic policy.
+1. **Shared execution topology (DRY)** — all domains use one sub-agent factory; policies customize tools and prompt hooks instead of copying graphs.
+2. **Data-driven routing** — built-in and custom agents share one schema, and the supervisor schema is derived from enabled agents.
+3. **Useful failure boundaries** — unavailable finance integration disables that capability; routing and empty-handoff failures return a user-facing response.
+4. **Deliberate context control** — trimming and tool-result compaction address a genuine LLM-cost and message-validity problem.
+5. **Small, explicit root graph (KISS)** — the root graph has only the supervisor and dispatcher. Domain work remains in the runtime policy layer.
 
 ---
 
-## Areas to Watch
+## Architecture Debt and Recommended Decisions
 
-| Area | Observation |
+### Fix now: deployment contracts are inconsistent
+
+| Finding | Evidence | Impact | Smallest useful change |
+|---|---|---|---|
+| **Skills are unavailable in production Compose** | Code resolves skills as `/app/skills`; the Docker image does not copy `skills/`; Compose mounts a host path to `/data/skills`. The default host path is also `./src/skills`, which is absent. | Skill discovery, attachment, and configuration CRUD operate on an empty or newly created directory in containers. | Choose one contract: copy `skills/` into `/app/skills` and mount the host `./skills` directory at `/app/skills` for both services. |
+| **Bot and scheduler do not share persisted definitions** | The scheduler mounts `./data` at `/app/data`; the bot has no data volume; the production image does not copy `data/`. | Definitions changed through the bot can be ephemeral and invisible to the scheduler. | Mount the same named/bind `data/` volume at `/app/data` for both services, then document the single-writer/concurrency constraint. |
+| **The scheduler flag is misleading in the deployed scheduler** | `ENABLE_SCHEDULER` is parsed and honored by the generic bootstrap, but `createSchedulerApp()` passes `schedulerEnabled: true`. The bot entry point never starts the scheduler. | Operators can reasonably expect the flag to disable scheduling when it does not. | Remove the flag from this deployment mode, or let the scheduler process honor it and exit clearly when disabled. |
+| **Cron uses two independent task registries** | Startup schedules jobs through `setupCron()`; file changes reconcile the same definitions through `RuntimeCronService`. The reconciliation logic cannot see bootstrap tasks. | A file change can schedule a job twice; schedule edits are not reconciled in place. | Use `RuntimeCronService` as the only scheduler: load persisted jobs into it at startup, then reconcile that same registry on file changes. |
+| **Configuration writes are not coordinated** | Runtime-agent CRUD loads a JSON document, modifies it, then writes it; cron persistence also writes JSON without a lock. | Simultaneous bot/scheduler or overlapping tool calls can overwrite another writer's update. | Serialize writes within a process now. Add a filesystem lock or replace the files with a small transactional store only if both processes must write them concurrently. |
+
+### Improve when reliability requirements increase
+
+| Finding | Why it matters | Recommendation |
+|---|---|---|
+| **Conversation state is in memory** | Process restarts lose conversation state; the two processes cannot see each other's checkpoints. | Keep `MemorySaver` for a disposable personal bot. Introduce a persistent LangGraph checkpointer only when restart continuity or shared process state is a stated requirement. |
+| **Cron execution is at-least-once only operationally** | A process restart, duplicate scheduler deployment, or failed delivery can create duplicate or untracked executions. | Add job-run IDs and durable execution records before running more than one scheduler or depending on non-idempotent tasks. |
+| **MCP recovery is intentionally narrow** | The self-healing session makes one reconnect attempt; a longer outage still fails individual finance actions. | Retain the one-retry policy. Add health reporting/backoff only after observed outage patterns justify complexity. |
+| **Prompts and skills are read from disk during execution** | This is convenient for local iteration but means concurrent file edits can change behavior between turns. | Keep it in development. For production, deploy immutable prompt/skill artifacts or reload them explicitly at a controlled boundary. |
+
+### Defer unless product scope changes
+
+| Proposal | Why it is premature today |
 |---|---|
-| **In-memory checkpointer** | `MemorySaver` means conversation state is lost on restart. Fine for a single-user Telegram bot; would need persistence for multi-instance or production durability. |
-| **Dual-process deployment** | Telegram bot and cron scheduler compile separate graph instances. Cron state and chat threads do not share a checkpointer across processes. |
-| **Single Telegram user** | `ALLOWED_TELEGRAM_USER_ID` enforces one user. Thread IDs exist but the security model is personal-assistant-scoped. |
-| **Specs drift** | `specs/` still references legacy node names (`Finance_SG`, `Obsidian_SG`). Code has moved to unified `Runtime_SG` + agent ids. |
-| **Graph name** | Still `"personal-assistant-phase-1"` in `agent.ts` — likely a leftover from MVP naming (`createAssistant` defaults to `"personal-assistant"`). |
-| **No persistent message store** | History trimming + compaction is in-graph only; no external conversation log beyond Telegram. |
-| **MCP reconnect scope** | `createSelfHealingMcpSession` retries once on transport errors; persistent MCP outages still disable finance until restart. |
-| **Docker skills mount** | Production `Dockerfile` copies `prompts/` but not `skills/`. Compose mounts skills for the scheduler service only — the main bot container needs an explicit skills volume mount too. |
-| **`ENABLE_SCHEDULER` config** | Env flag exists but the Telegram entrypoint does not start cron; scheduling requires the separate `cron/index.ts` process (or Docker scheduler service). |
+| **Database-backed event log and long-term memory** | The application has one trusted user and Telegram remains the source of visible message history. Add it only for recall, audit, or restart-continuity requirements that cannot be met otherwise. |
+| **Multi-user tenancy and role-based authorization** | The current adapter is intentionally single-user. A generic-agent capability model is needed before opening access to additional users, not before. |
+| **Extracting `src/core/` into a package** | The existing split is adequate as internal organization. A published/shared package would add versioning, compatibility, and release overhead without a second concrete consumer. |
+| **More graph nodes or a workflow engine** | The two-node root graph is already simple. Add graph structure only for a durable business workflow that cannot fit a runtime-agent tool loop. |
+
+### Capability boundary for custom agents
+
+Custom agents are restricted to allowlisted bundles, which is a good starting point. However, the available bundles include `system-config` and `finance-domain`; a custom agent with either bundle is intentionally powerful. This is acceptable for the one trusted Telegram user, but it is not a safe multi-user authorization model. Before any user expansion, separate read-only and mutating bundles, attach a capability policy to each agent, and require confirmation for externally visible or destructive actions.
+
+### Simplification opportunities
+
+- Keep the policy registry and generic policy: they eliminate duplicated sub-agent graphs and are justified by the three built-in domains plus configurable agents.
+- Avoid adding a general dependency-injection container. `createWorkflowContext()` is already the composition root and makes dependencies visible.
+- Remove `AppConfig.messageHistoryMaxTokens` or pass it into graph creation; trimming currently reads `MESSAGE_HISTORY_MAX_TOKENS` directly, so the configuration field duplicates state without controlling behavior.
+- Rename the graph from `personal-assistant-phase-1` when convenient. It is a low-risk clarity fix, not an architectural migration.
+- Update or retire legacy documents under `specs/` that refer to `Finance_SG` and `Obsidian_SG`; the executable architecture uses the unified `Runtime_SG` dispatcher.
 
 ---
 
@@ -469,6 +521,6 @@ Use the configuration agent in Telegram — creates a `generic` executor agent w
 
 ## Summary
 
-The architecture is a **well-factored LangGraph supervisor pattern** with a thin root graph, rich nested sub-agent loops, and a policy registry that cleanly separates framework from domain. State management is sophisticated for a personal bot — bounded history, tool-result compaction, and empty-reply handoff handling show mature attention to token cost and conversation validity.
+The execution architecture is appropriately small: a supervisor delegates to a data-defined runtime agent, and every domain shares the same tool-loop factory. That is a good KISS/DRY trade-off for this assistant. The more sophisticated parts—token budgeting, tool-result compaction, and empty-handoff recovery—address concrete LangGraph and LLM constraints rather than speculative extensibility.
 
-The main evolutionary pressure points are **persistence** (checkpointer, conversation history), **multi-process coordination** (bot vs scheduler), **multi-user scaling**, and keeping **design docs (`specs/`) aligned** with the unified `Runtime_SG` dispatch model. The codebase itself is in good shape for continued domain expansion without restructuring the core graph.
+The immediate priority is not a database or a larger framework. It is making the Docker deployment match the filesystem contracts already assumed by the application: share `data/`, make `skills/` available at the path the code reads, and make scheduler enablement unambiguous. After that, introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.
