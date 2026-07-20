@@ -264,7 +264,7 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("<role_and_rules>");
     expect(prompt).toContain("<priority>");
     expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
-    expect(prompt).toContain("CURRENT DATETIME:");
+    expect(prompt).not.toContain("CURRENT DATETIME:");
     expect(prompt).toContain('<intent type="READ">');
     expect(prompt).toContain('<intent type="WRITE">');
     expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
@@ -330,6 +330,12 @@ describe("createObsidianNode", () => {
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
       expect(promptContent).toContain("<attached_skills>");
+      expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
+        promptContent.indexOf("CURRENT DATETIME:"),
+      );
+      expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
+        promptContent.indexOf("Vault directory tree"),
+      );
 
       return new AIMessage("Done.");
     });

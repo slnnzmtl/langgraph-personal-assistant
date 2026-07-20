@@ -30,6 +30,9 @@ describe("createSupervisorNode", () => {
 
       expect(promptMessages[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
       expect(promptMessages[0]?.content).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
+      expect(promptMessages[0]?.content.indexOf("You are the Root Supervisor")).toBeLessThan(
+        promptMessages[0]?.content.indexOf("<system_metadata>") ?? -1,
+      );
       expect(promptMessages[1]?.content).toBe("hello");
 
       return {

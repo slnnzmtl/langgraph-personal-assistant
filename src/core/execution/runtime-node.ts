@@ -4,7 +4,10 @@ import type { Runnable } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
-import { formatCurrentTime } from "../../utils/datetime.js";
+import {
+  appendDynamicSections,
+  formatSystemMetadata,
+} from "../../prompts/load-system-prompt.js";
 import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
@@ -109,17 +112,11 @@ export const sanitizeResponseToolCalls = (
 const defaultBuildSystemPrompt = (
   definition: RuntimeAgentDefinition,
   basePrompt: string,
-): string => {
-  const currentDatetime = formatCurrentTime(new Date());
-  const header = [
-    "<system_metadata>",
-    `CURRENT DATETIME: ${currentDatetime}`,
-    `RUNTIME_AGENT: ${definition.name}`,
-    "</system_metadata>",
-  ].join("\n");
-
-  return `${header}\n\n${basePrompt.trim()}`;
-};
+): string =>
+  appendDynamicSections(
+    basePrompt.trim(),
+    formatSystemMetadata(new Date(), { runtimeAgent: definition.name }),
+  );
 
 export const createRuntimeAgentNode = (
   model: BaseChatModel,

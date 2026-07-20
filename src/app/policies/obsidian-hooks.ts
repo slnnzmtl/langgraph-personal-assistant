@@ -2,6 +2,11 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import { mkdir } from "node:fs/promises";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
+import {
+  appendDynamicSections,
+  formatObsidianRoutineHint,
+  formatSystemMetadata,
+} from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { buildDirectoryTree } from "../../utils/file-system.js";
 import {
@@ -100,8 +105,18 @@ export const createObsidianNodeHooks = (vaultRoot: string): RuntimeAgentNodeHook
   },
   buildSystemPrompt: async (ctx) => {
     const vaultDirectoryTree = await buildDirectoryTree(vaultRoot);
-    const basePrompt = `${ctx.basePrompt}\n\nVault directory tree (folders only):\n${vaultDirectoryTree}`;
-    return appendConfiguredSkillAttachments(basePrompt, ctx.definition, ctx.state.messages);
+    const withAttachments = appendConfiguredSkillAttachments(
+      ctx.basePrompt.trim(),
+      ctx.definition,
+      ctx.state.messages,
+    );
+
+    return appendDynamicSections(
+      withAttachments,
+      `Vault directory tree (folders only):\n${vaultDirectoryTree}`,
+      formatObsidianRoutineHint(),
+      formatSystemMetadata(new Date(), { runtimeAgent: ctx.definition.name }),
+    );
   },
   resolveToolsForTurn: resolveObsidianToolsForTurn,
   processResponse: (ctx, response) => {

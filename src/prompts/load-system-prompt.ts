@@ -12,21 +12,6 @@ export { SKILLS_ROOT };
 
 export const PROMPTS_ROOT = path.resolve(process.cwd(), "prompts");
 
-const injectCurrentDatetime = (content: string): string => {
-  const now = new Date();
-  const currentDatetime = formatCurrentTime(now);
-  const today = toUtcDayRange(now);
-  const yesterday = toUtcDayRange(new Date(now.getTime() - 24 * 60 * 60 * 1000));
-  const header = [
-    `<system_metadata>`,
-    `⏰ CURRENT DATETIME: ${currentDatetime}`,
-    `📅 TODAY    → since: ${today.since}, until: ${today.until}`,
-    `📅 YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
-    "</system_metadata>",
-  ].join("\n");
-  return `${header}\n\n${content}`;
-};
-
 const formatRoutineFilePath = (date: Date): string => {
   const { monthName, dayNumber, weekday } = getZonedDateDetails(date);
   return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
@@ -34,17 +19,60 @@ const formatRoutineFilePath = (date: Date): string => {
 
 const shiftDateByDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
-const injectObsidianRoutineHint = (prompt: string, date: Date = new Date()): string => {
+export const formatSystemMetadata = (
+  date: Date = new Date(),
+  options?: { runtimeAgent?: string },
+): string => {
+  const currentDatetime = formatCurrentTime(date);
+  const today = toUtcDayRange(date);
+  const yesterday = toUtcDayRange(shiftDateByDays(date, -1));
+  const lines = [
+    "<system_metadata>",
+    `CURRENT DATETIME: ${currentDatetime}`,
+    `TODAY    → since: ${today.since}, until: ${today.until}`,
+    `YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
+  ];
+
+  if (options?.runtimeAgent) {
+    lines.push(`RUNTIME_AGENT: ${options.runtimeAgent}`);
+  }
+
+  lines.push("</system_metadata>");
+  return lines.join("\n");
+};
+
+export const formatObsidianRoutineHint = (date: Date = new Date()): string => {
   const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
   const todayPath = formatRoutineFilePath(date);
-  const routineHint = [
+
+  return [
     "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
     `Yesterday: ${yesterdayPath}`,
     `Today: ${todayPath}`,
   ].join("\n");
-
-  return `${prompt}\n\n${routineHint}`;
 };
+
+export const appendDynamicSections = (
+  staticPrompt: string,
+  ...sections: string[]
+): string => {
+  const dynamic = sections
+    .map((section) => section.trim())
+    .filter((section) => section.length > 0)
+    .join("\n\n");
+
+  if (dynamic.length === 0) {
+    return staticPrompt.trim();
+  }
+
+  return `${staticPrompt.trim()}\n\n${dynamic}`;
+};
+
+export const appendSystemMetadata = (
+  content: string,
+  date: Date = new Date(),
+  options?: { runtimeAgent?: string },
+): string => appendDynamicSections(content, formatSystemMetadata(date, options));
 
 const injectSkills = (prompt: string, module: string): string => {
   const skills = listSkills({ module });
@@ -154,9 +182,6 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
   return content;
 };
 
-const loadDatedPrompt = (key: string, fileType: "md" | "xml" = "md"): string =>
-  injectCurrentDatetime(loadPrompt(key, fileType));
-
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
 - Tool schemas define only tool arguments. Never emit extra control flags or parameters not in a tool schema.
@@ -169,17 +194,15 @@ export const injectRuntimeExecutionModel = (prompt: string): string =>
   `${prompt}\n\n${RUNTIME_EXECUTION_MODEL}`;
 
 export const loadSystemPromptByKey = (key: string): string => {
-  let prompt = loadDatedPrompt(key, "xml");
+  let prompt = loadPrompt(key, "xml");
   if (SKILLS_MODULE_PROMPTS.has(key)) {
     prompt = injectRuntimeExecutionModel(prompt);
-  }
-  if (key === "obsidian") {
-    return injectObsidianRoutineHint(prompt);
   }
   return prompt;
 };
 
-export const loadSupervisorSystemPrompt = (): string => loadDatedPrompt("supervisor", "xml");
+export const loadSupervisorSystemPrompt = (): string =>
+  appendSystemMetadata(loadPrompt("supervisor", "xml"));
 
 export const loadObsidianSystemPrompt = (): string => loadSystemPromptByKey("obsidian");
 
