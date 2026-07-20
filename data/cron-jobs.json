@@ -2,7 +2,7 @@
   {
     "jobName": "sync-finance",
     "schedule": "1 0 * * *",
-    "targetRoute": "Finance_SG",
+    "targetRoute": "finance",
     "payload": {
       "action": "sync_expenses",
       "instructions": ["Read the skill instructions for syncing expenses for yesterday."],
@@ -13,7 +13,7 @@
   {
     "jobName": "routine-note-creation",
     "schedule": "0 8 * * *",
-    "targetRoute": "Obsidian_SG",
+    "targetRoute": "obsidian",
     "payload": {
       "action": "create_daily_routine_note",
       "instructions": [

@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgentState } from "../../src/state.js";
-import { createSubgraphNodeWrapper } from "../../src/runtime-agents/execution/subgraph-wrapper.js";
+import type { AgentState } from "../../src/core/state.js";
+import { createSubgraphNodeWrapper } from "../../src/core/execution/subgraph-wrapper.js";
 
 describe("createSubgraphNodeWrapper", () => {
   it("returns the last AI message from the subgraph result", async () => {

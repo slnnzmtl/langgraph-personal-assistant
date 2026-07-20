@@ -1,8 +1,7 @@
-import { tool } from "@langchain/core/tools";
+import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../../telegram/file-sender.js";
 import { createReadSkillTool } from "../../../tools/skill-management.js";
-import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
 import {
   RelativePathSchema,
   resolveVaultPath,
@@ -41,17 +40,17 @@ const RelativeDirSchema = z
 
 export const ListFilesToolSchema = z.object({
   relativeDir: RelativeDirSchema,
-}).describe("List files and subdirectories in a vault directory.");
+}).describe("List files and subdirectories in a vault directory (non-recursive). Omit relativeDir to list the vault root.");
 
 export const SearchFilesToolSchema = z.object({
-  queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if content contains any term). Terms will be lowercased before matching."),
+  queries: z.array(z.string().min(1)).min(1).describe("Search terms. Each string is split on whitespace and /._- separators; a file matches if its content or vault-relative path contains any resulting term (OR semantics). Terms are lowercased before matching."),
   relativeDir: RelativeDirSchema,
 }).describe("Recursively search files by content or vault-relative path. Searches entire vault by default (relativeDir defaults to '.').");
 
 export const SearchFilesByNameToolSchema = z.object({
-  queries: z.array(z.string().min(1)).min(1).describe("Array of search terms (OR semantics: file matches if filename contains any term). Terms will be lowercased before matching."),
+  queries: z.array(z.string().min(1)).min(1).describe("Search terms. Each string is split on whitespace and /._- separators; a file matches only if its filename contains all resulting terms (AND semantics). Terms are lowercased before matching."),
   relativeDir: RelativeDirSchema,
-}).describe("Recursively search for files by filename in entire vault or subdirectory. Uses AND semantics: a file matches only if its filename contains ALL supplied terms. Split multi-word queries into individual terms (e.g. 'July 1' → ['July', '1']).");
+}).describe("Recursively search files by filename. Searches entire vault by default (relativeDir defaults to '.').");
 
 export const SendFileToolSchema = z.object({
   relativePath: RelativePathSchema,
@@ -99,7 +98,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
       },
       {
         name: "list_files",
-        description: "List files and subdirectories in a vault directory. Omit relativeDir to list the vault root.",
+        description: "List immediate files and subdirectories in a vault directory (non-recursive). Omit relativeDir to list the vault root.",
         schema: ListFilesToolSchema,
       },
     ),
@@ -114,7 +113,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
       },
       {
         name: "search_files",
-        description: "Search files by content or vault-relative path across the vault or within a directory using OR semantics. Each query term is lowercased before matching; a file matches if its content or relative path contains any of the supplied terms.",
+        description: "Recursively search files by content or vault-relative path. OR semantics: a file matches if any term appears in content or path. Terms are auto-split on whitespace and /._- separators, then lowercased.",
         schema: SearchFilesToolSchema,
       },
     ),
@@ -129,7 +128,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
       },
       {
         name: "search_files_by_name",
-        description: "Search for files by filename using case-insensitive matching. Query terms are lowercased before matching; a file matches if its filename contains any of the supplied search terms (OR semantics).",
+        description: "Recursively search files by filename using case-insensitive word-boundary matching. AND semantics: a file matches only if its filename contains all supplied terms. Terms are auto-split on whitespace and /._- separators, then lowercased.",
         schema: SearchFilesByNameToolSchema,
       },
     ),
@@ -163,9 +162,10 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
   return baseTools as any;
 };
 
-export const createObsidianSkillScopedTools = (vaultRoot: string, fileSender?: IFileSender) =>
-  createSkillScopedToolContextFromBundles({
-    readSkillTool: createReadSkillTool("obsidian", "xml"),
-    bundles: {},
-    defaultTools: createObsidianVaultTools(vaultRoot, fileSender),
-  });
+export const createObsidianTools = (
+  vaultRoot: string,
+  fileSender?: IFileSender,
+): StructuredToolInterface[] => [
+  createReadSkillTool("obsidian", "xml"),
+  ...createObsidianVaultTools(vaultRoot, fileSender),
+];

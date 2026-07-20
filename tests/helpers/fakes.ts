@@ -3,14 +3,45 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { z } from "zod";
 
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
-import type { RuntimeAgentRepository } from "../../src/runtime-agents/repository.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
-import { createRuntimeAgentExecutionContext } from "../../src/runtime-agents/execution-context.js";
-import type {
-  BuiltinRuntimeAgentId,
-  RuntimeAgentDefinition,
-} from "../../src/runtime-agents/types.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
+import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
+import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
+import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
+import type { AgentStateUpdate } from "../../src/core/state.js";
+import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
+
+export const getStateUpdateMessages = (
+  update: Pick<AgentStateUpdate, "messages">,
+): BaseMessage[] | undefined =>
+  Array.isArray(update.messages) ? update.messages : undefined;
+
+export const firstStateUpdateMessage = (
+  update: Pick<AgentStateUpdate, "messages">,
+): BaseMessage | undefined =>
+  getStateUpdateMessages(update)?.[0];
+
+export const getStateUpdateContext = (
+  update: Pick<AgentStateUpdate, "context">,
+): Record<string, unknown> | undefined => {
+  const { context } = update;
+  if (context === undefined || typeof context !== "object" || Array.isArray(context)) {
+    return undefined;
+  }
+
+  return context as Record<string, unknown>;
+};
+
+export const getStateUpdateRuntimeAgentId = (
+  update: Pick<AgentStateUpdate, "context">,
+): string | undefined => {
+  const value = getStateUpdateContext(update)?.[RUNTIME_AGENT_CONTEXT_KEY];
+  return typeof value === "string" ? value : undefined;
+};
 
 export class FakeRunnable<TInput, TOutput> {
   constructor(private readonly handler: (input: TInput) => Promise<TOutput> | TOutput) {}
@@ -19,6 +50,22 @@ export class FakeRunnable<TInput, TOutput> {
     return this.handler(input);
   }
 }
+
+export const normalizeFakeRuntimeResponse = (result: unknown): AIMessage => {
+  if (result instanceof AIMessage) {
+    return result;
+  }
+
+  if (result && typeof result === "object" && "next" in result) {
+    return new AIMessage("");
+  }
+
+  if (typeof result === "string") {
+    return new AIMessage(result);
+  }
+
+  return new AIMessage("Completed.");
+};
 
 export class FakeLLMConnector implements ILLMConnector {
   constructor(private readonly handler: (input: any) => any) {}
@@ -32,32 +79,26 @@ export class FakeLLMConnector implements ILLMConnector {
     } as unknown as BaseChatModel;
   }
 
+  getSharedRuntimeModel(): BaseChatModel {
+    const handler = this.handler;
+    return {
+      invoke: async (input: unknown) => normalizeFakeRuntimeResponse(await handler(input)),
+      bindTools: () => ({
+        invoke: async (input: unknown) => normalizeFakeRuntimeResponse(await handler(input)),
+      }),
+    } as unknown as BaseChatModel;
+  }
+
   bindRoutingTools<TRoute extends Record<string, unknown>>(_schema: z.ZodType<TRoute>): RoutingChain<TRoute> {
     return new FakeRunnable(async (input: any) => this.handler(input)) as unknown as RoutingChain<TRoute>;
   }
 }
-
-export const latestMessageText = (messages: BaseMessage[]): string => {
-  const lastMessage = messages[messages.length - 1];
-
-  if (!lastMessage) {
-    throw new Error("No messages found.");
-  }
-
-  if (typeof lastMessage.content === "string") {
-    return lastMessage.content;
-  }
-
-  return JSON.stringify(lastMessage.content);
-};
 
 export const makeHumanState = (text: string) => ({
   messages: [new HumanMessage(text)],
   context: {},
   next: undefined,
 });
-
-export const makeAiMessage = (text: string) => new AIMessage(text);
 
 export const createRuntimeAgentRepositoryFake = (
   initialAgents: RuntimeAgentDefinition[] = buildDefaultRuntimeAgents(),
@@ -80,6 +121,7 @@ export const createRuntimeAgentRepositoryFake = (
         systemPrompt: input.systemPrompt.trim(),
         toolBundleIds: input.toolBundleIds,
         executor: input.executor ?? "generic",
+        builtin: false,
         maxSteps: input.maxSteps ?? 8,
         enabled: input.enabled ?? true,
         createdAt: timestamp,
@@ -120,12 +162,13 @@ export const createRuntimeAgentRepositoryFake = (
   };
 };
 
-export const defaultConfigurationBundleDeps = {
+export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
+  cronTargetAgentIds: defaultCronTargetAgentIds(),
 };
 
 export const getBuiltinRuntimeAgentDefinition = (
-  id: BuiltinRuntimeAgentId,
+  id: string,
 ): RuntimeAgentDefinition => {
   const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
 
@@ -136,6 +179,34 @@ export const getBuiltinRuntimeAgentDefinition = (
   return definition;
 };
 
+export const createAppSupervisorNode = (
+  llmConnector: ILLMConnector,
+  options?: {
+    runtimeAgentRepository?: RuntimeAgentRepository;
+    loadSupervisorPrompt?: () => string;
+  },
+) =>
+  createSupervisorNode(llmConnector, {
+    loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
+    cronTriggerResolver: {
+      resolveCronTriggerRoute: (message) =>
+        resolveCronTriggerRoute(message, defaultCronTargetAgentIds()) ?? undefined,
+      superviseCronRoute: SUPERVISE_CRON_ROUTE,
+    },
+    ...(options?.runtimeAgentRepository
+      ? { runtimeAgentRepository: options.runtimeAgentRepository }
+      : {}),
+  });
+
+const emptyCronRepository = (): CronJobRepository => ({
+  loadJobs: async () => [],
+  saveJobs: async () => {},
+  createJob: async (job) => job,
+  deleteJob: async () => {
+    throw new Error("Cron job not found");
+  },
+});
+
 export const createRuntimeExecutionContextFake = (options?: {
   repository?: RuntimeAgentRepository;
   cronJobRepository?: CronJobRepository;
@@ -144,17 +215,17 @@ export const createRuntimeExecutionContextFake = (options?: {
 }) => {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();
+  const cronJobRepository = options?.cronJobRepository ?? emptyCronRepository();
 
-  return createRuntimeAgentExecutionContext({
-    genericModel: model,
-    financeModel: model,
-    obsidianLlmConnector: llmConnector,
-    configurationModel: model,
+  return createAppRuntimeExecutionContext({
+    defaultModel: model,
     repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
-    cronJobRepository: options?.cronJobRepository ?? {
-      loadJobs: async () => [],
-      saveJobs: async () => {},
+    cronJobRepository,
+    bundleDeps: {
+      obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
+      cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
+      cronJobRepository,
+      runtimeAgentRepository: options?.repository ?? createRuntimeAgentRepositoryFake(),
     },
-    obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
   });
 };

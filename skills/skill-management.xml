@@ -1,0 +1,29 @@
+<skill name="skill-management" module="configuration" description="Manage agent skills — list, preview, create, edit, and delete skill files.">
+
+<skill_management_intent_routing>
+1. LIST (list, view, inspect, show):
+   - Call `list_skills(module)` only.
+   - Valid modules: `finance`, `obsidian`, `configuration`.
+   - Never chain create, edit, or delete tools after a list intent.
+   - Return the listed skill names and descriptions to the user.
+
+2. PREVIEW (preview, read, open, inspect content, show skill):
+   - Call `preview_skill(module, name)` only.
+   - Return the full skill file content to the user.
+   - Never execute the skill steps or call downstream agent tools after a preview.
+
+3. CREATE (create, add, new):
+   - Call `create_skill(module, name, description, content)`.
+   - Use a concise kebab-case name and a clear one-line description.
+   - The tool sets the root `<skill module="...">` attribute from the module argument.
+
+4. EDIT (edit, update, change, rewrite):
+   - Call `read_skill_for_edit(module, name)` first.
+   - Then call `edit_skill(module, name, description, content)` with the full replacement description and body.
+
+5. DELETE (remove, delete):
+   - Require explicit user intent before deleting.
+   - Call `delete_skill(module, name)`.
+</skill_management_intent_routing>
+
+</skill>

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDefaultCronJobs, mergeCronJobs, startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import type { RuntimeCronService } from "../../src/cron/types.js";
 
 describe("buildDefaultCronJobs", () => {
 	it("returns no default jobs", () => {
@@ -15,14 +17,14 @@ describe("mergeCronJobs", () => {
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			],
 			[
 				{
 					jobName: "daily-report",
 					schedule: "0 1 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 					timezone: "America/New_York",
 				},
 			],
@@ -32,7 +34,7 @@ describe("mergeCronJobs", () => {
 			{
 				jobName: "daily-report",
 				schedule: "0 1 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 				timezone: "America/New_York",
 			},
 		]);
@@ -40,13 +42,25 @@ describe("mergeCronJobs", () => {
 });
 
 describe("startCronBootstrap", () => {
+	const cronTargetAgentIds = defaultCronTargetAgentIds();
+
+	const createRuntimeCronMock = (): RuntimeCronService & {
+		addJob: ReturnType<typeof vi.fn>;
+		removeJob: ReturnType<typeof vi.fn>;
+		listActiveJobs: ReturnType<typeof vi.fn>;
+	} => ({
+		addJob: vi.fn().mockResolvedValue(undefined),
+		removeJob: vi.fn().mockResolvedValue(undefined),
+		listActiveJobs: vi.fn().mockReturnValue([]),
+	});
+
 	it("rejects invalid cron jobs even when scheduling is disabled", async () => {
 		const repository = {
 			loadJobs: vi.fn().mockResolvedValue([
 				{
 					jobName: "",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
@@ -59,8 +73,8 @@ describe("startCronBootstrap", () => {
 					appTimezone: "UTC",
 					schedulerEnabled: false,
 				},
-				runner: { run: vi.fn() },
-				schedule: vi.fn(),
+				runtimeCron: createRuntimeCronMock(),
+				cronTargetAgentIds,
 			}),
 		).rejects.toThrow(/cron job name is required/i);
 
@@ -73,13 +87,12 @@ describe("startCronBootstrap", () => {
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
 		};
-		const schedule = vi.fn();
-		const run = vi.fn();
+		const runtimeCron = createRuntimeCronMock();
 
 		const jobs = await startCronBootstrap({
 			repository,
@@ -87,35 +100,33 @@ describe("startCronBootstrap", () => {
 				appTimezone: "UTC",
 				schedulerEnabled: false,
 			},
-			runner: { run },
-			schedule,
+			runtimeCron,
+			cronTargetAgentIds,
 		});
 
 		expect(jobs).toEqual([
 			{
 				jobName: "daily-report",
 				schedule: "59 23 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 			},
 		]);
-		expect(schedule).not.toHaveBeenCalled();
-		expect(run).not.toHaveBeenCalled();
+		expect(runtimeCron.addJob).not.toHaveBeenCalled();
 		expect(repository.loadJobs).toHaveBeenCalledTimes(1);
 	});
 
-	it("schedules validated jobs when enabled", async () => {
+	it("registers validated jobs through RuntimeCronService when enabled", async () => {
 		const repository = {
 			loadJobs: vi.fn().mockResolvedValue([
 				{
 					jobName: "daily-report",
 					schedule: "59 23 * * *",
-					targetRoute: "Finance_SG",
+					targetRoute: "finance",
 				},
 			]),
 			saveJobs: vi.fn(),
 		};
-		const schedule = vi.fn();
-		const run = vi.fn().mockResolvedValue(undefined);
+		const runtimeCron = createRuntimeCronMock();
 
 		const jobs = await startCronBootstrap({
 			repository,
@@ -123,22 +134,49 @@ describe("startCronBootstrap", () => {
 				appTimezone: "UTC",
 				schedulerEnabled: true,
 			},
-			runner: { run },
-			schedule,
+			runtimeCron,
+			cronTargetAgentIds,
 		});
 
 		expect(jobs).toEqual([
 			{
 				jobName: "daily-report",
 				schedule: "59 23 * * *",
-				targetRoute: "Finance_SG",
+				targetRoute: "finance",
 			},
 		]);
-		expect(schedule).toHaveBeenCalledTimes(1);
-		expect(schedule).toHaveBeenCalledWith(
-			"59 23 * * *",
-			expect.any(Function),
-			expect.objectContaining({ timezone: "UTC" }),
-		);
+		expect(runtimeCron.addJob).toHaveBeenCalledTimes(1);
+		expect(runtimeCron.addJob).toHaveBeenCalledWith({
+			jobName: "daily-report",
+			schedule: "59 23 * * *",
+			targetRoute: "finance",
+		});
+	});
+
+	it("skips disabled jobs during bootstrap registration", async () => {
+		const repository = {
+			loadJobs: vi.fn().mockResolvedValue([
+				{
+					jobName: "daily-report",
+					schedule: "59 23 * * *",
+					targetRoute: "finance",
+					enabled: false,
+				},
+			]),
+			saveJobs: vi.fn(),
+		};
+		const runtimeCron = createRuntimeCronMock();
+
+		await startCronBootstrap({
+			repository,
+			config: {
+				appTimezone: "UTC",
+				schedulerEnabled: true,
+			},
+			runtimeCron,
+			cronTargetAgentIds,
+		});
+
+		expect(runtimeCron.addJob).not.toHaveBeenCalled();
 	});
 });

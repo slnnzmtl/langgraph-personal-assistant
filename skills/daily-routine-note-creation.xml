@@ -1,0 +1,41 @@
+<skill name="daily-routine-note-creation" module="obsidian" description="Create daily routine notes with unchecked tasks from yesterday.">
+<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,todos,todo,daily,plan,plans,daily routine,unchecked,carry forward,carry-over</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>task</allPhrases>
+    <anyPhrases>today,yesterday,daily,routine,move,carry,forward,unchecked</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>plan</allPhrases>
+    <anyPhrases>today,tomorrow,yesterday</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<path_rules>
+- Routine notes live at `routine/[Month]/[Month] [Day] - [Weekday].md`.
+</path_rules>
+
+<task_extraction_rules>
+- From yesterday's note, extract only unchecked task lines matching `- [ ] ...`.
+- Ignore checked tasks (`- [x]`), headings, events, notes, and placeholder text.
+- If yesterday's note is missing or has no unchecked tasks, proceed with an empty carry-forward list.
+</task_extraction_rules>
+
+<note_template>
+## Summary
+
+- [ ] [Task 1]
+- [ ] [Task 2]
+...
+</note_template>
+
+### First: `read_file` yesterday's note
+
+### Then: read or create today's note using unchecked tasks from the read result in history
+If today's note does not exist, create it with the note template.
+If today's note already exists, read it and append the carried-forward tasks instead of using create_new.
+Keep the source note unchanged and do not duplicate a task already present in today's note.
+
+</skill>

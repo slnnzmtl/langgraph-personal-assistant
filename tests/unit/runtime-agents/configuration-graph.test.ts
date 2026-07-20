@@ -1,33 +1,22 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { configurationPolicy } from "../../../src/runtime-agents/policies/configuration/policy.js";
-import { createConfigurationNode } from "../../../src/runtime-agents/policies/configuration/node.js";
-import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
-import { createCompiledSubAgentGraph } from "../../../src/runtime-agents/execution/create-sub-agent.js";
+import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
+import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
+import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
 import {
   FakeLLMConnector,
-  createRuntimeAgentRepositoryFake,
   createRuntimeExecutionContextFake,
-  defaultConfigurationBundleDeps,
   getBuiltinRuntimeAgentDefinition,
 } from "../../helpers/fakes.js";
 
 const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
 
-const createRepository = () => ({
-  loadJobs: vi.fn(async () => []),
-  saveJobs: vi.fn(),
-});
-
 describe("configuration subgraph", () => {
   it("executes tool calls before returning to the parent wrapper", async () => {
-    const repository = createRepository();
-    const tools = createConfigurationSkillScopedTools(
-      repository as never,
-      createRuntimeAgentRepositoryFake(),
-      defaultConfigurationBundleDeps,
-    );
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
     let configCalls = 0;
 
     const llmConnector = new FakeLLMConnector(() => {
@@ -49,7 +38,7 @@ describe("configuration subgraph", () => {
               args: {
                 jobName: "daily-note",
                 schedule: "0 6 * * *",
-                targetRoute: "Obsidian_SG",
+                targetRoute: "obsidian",
                 payload: "Create my daily note",
               },
               id: "config-tool-1",
@@ -66,7 +55,7 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const wrapper = configurationPolicy.createHandler(context, configurationDefinition);
+    const wrapper = createConfigurationPolicy().createHandler(context, configurationDefinition);
 
     const result = await wrapper({
       messages: [new HumanMessage("set up a cron job for daily notes")],
@@ -85,7 +74,7 @@ describe("configuration subgraph", () => {
       return new AIMessage("should not run");
     }).getModel();
     const configNode = createConfigurationNode(model, [], {
-      repository: createRepository() as never,
+      repository: createCronRepositoryFake(),
       definition: configurationDefinition,
     });
 
@@ -110,12 +99,8 @@ describe("configuration subgraph", () => {
   });
 
   it("prompts the model once after all parallel tool calls finish", async () => {
-    const repository = createRepository();
-    const tools = createConfigurationSkillScopedTools(
-      repository as never,
-      createRuntimeAgentRepositoryFake(),
-      defaultConfigurationBundleDeps,
-    );
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
     let configCalls = 0;
 
     const model = new FakeLLMConnector((input) => {
@@ -145,7 +130,7 @@ describe("configuration subgraph", () => {
     }).getModel();
 
     const configNode = createConfigurationNode(model, tools, {
-      repository: repository as never,
+      repository,
       definition: configurationDefinition,
     });
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);

@@ -1,33 +1,15 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { createConfigurationSkillScopedTools } from "../../src/runtime-agents/policies/configuration/tools.js";
-import type { CronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "../helpers/fakes.js";
+import {
+  createConfigurationTools,
+  createCronRepositoryFake,
+} from "../helpers/configuration-tools.js";
 
-const createRepository = (jobs: Array<Record<string, unknown>> = []): CronJobRepository => {
-  let storedJobs = [...jobs] as any[];
-
-  return {
-    loadJobs: vi.fn(async () => storedJobs),
-    saveJobs: vi.fn(async (nextJobs) => {
-      storedJobs = [...nextJobs];
-    }),
-  };
-};
-
-const createConfigurationTools = (repository: CronJobRepository) =>
-  createConfigurationSkillScopedTools(
-    repository,
-    createRuntimeAgentRepositoryFake(),
-    defaultConfigurationBundleDeps,
-  );
-
-describe("createConfigurationSkillScopedTools", () => {
-  it("includes skill CRUD tools in the full registry", () => {
-    const repository = createRepository();
-    const context = createConfigurationTools(repository);
-    const toolNames = context.allTools.map((tool) => tool.name);
+describe("createConfigurationTools", () => {
+  it("includes skill CRUD tools and cron tools on the agent", () => {
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
+    const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toEqual(
       expect.arrayContaining([
@@ -45,57 +27,44 @@ describe("createConfigurationSkillScopedTools", () => {
     );
   });
 
-  it("exposes only read_skill before a configuration skill is loaded", () => {
-    const repository = createRepository();
-    const context = createConfigurationTools(repository);
+  it("exposes all configuration tools without requiring read_skill first", () => {
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
 
-    const initialTools = context.resolveToolsForTurn([]);
-    expect(initialTools.map((tool) => tool.name)).toEqual(["read_skill"]);
+    expect(tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining([
+        "read_skill",
+        "list_cron_jobs",
+        "create_cron_job",
+        "delete_cron_job",
+        "list_skills",
+        "preview_skill",
+      ]),
+    );
   });
 
-  it("exposes cron tools after read_skill(cron)", () => {
-    const repository = createRepository();
-    const context = createConfigurationTools(repository);
+  it("loads cron skill instructions without appending a tools preview", async () => {
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
+    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
+    expect(readSkillTool).toBeDefined();
 
-    const tools = context.resolveToolsForTurn([
-      new HumanMessage("schedule cron"),
-      new AIMessage({
-        content: "",
-        tool_calls: [{ name: "read_skill", args: { name: "cron" }, id: "read-1", type: "tool_call" }],
-      }),
-      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "cron body" }),
-    ]);
-
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "read_skill",
-      "list_cron_jobs",
-      "create_cron_job",
-      "delete_cron_job",
-    ]);
-  });
-
-  it("previews cron tools when reading the cron skill", async () => {
-    const repository = createRepository();
-    const context = createConfigurationTools(repository);
-    const result = String(await context.config.readSkillTool.invoke({ name: "cron" }));
+    const result = String(await readSkillTool!.invoke({ name: "cron" }));
 
     expect(result).toContain("<cron_intent_routing>");
     expect(result).toContain("list_cron_jobs");
-    expect(result).toContain("<available_tools>");
-    expect(result).toContain("- list_cron_jobs:");
-    expect(result).toContain("- create_cron_job:");
-    expect(result).toContain("- delete_cron_job:");
+    expect(result).not.toContain("<available_tools>");
   });
 
   it("lists saved cron jobs from the repository", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
-    const tools = createConfigurationTools(repository).allTools;
+    const tools = createConfigurationTools(repository);
 
     const listTool = tools.find((tool) => tool.name === "list_cron_jobs");
     expect(listTool).toBeDefined();
@@ -104,12 +73,12 @@ describe("createConfigurationSkillScopedTools", () => {
 
     expect(result).toContain("Job name: finance-sync");
     expect(result).toContain("Schedule: 59 23 * * *");
-    expect(result).toContain("Target route: Finance_SG");
+    expect(result).toContain("Target route: finance");
   });
 
   it("creates and persists a new cron job", async () => {
-    const repository = createRepository();
-    const tools = createConfigurationTools(repository).allTools;
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
 
     const createTool = tools.find((tool) => tool.name === "create_cron_job");
     expect(createTool).toBeDefined();
@@ -117,7 +86,7 @@ describe("createConfigurationSkillScopedTools", () => {
     const result = await createTool!.invoke({
       jobName: "morning-note",
       schedule: "0 6 * * *",
-      targetRoute: "Obsidian_SG",
+      targetRoute: "obsidian",
       timezone: "America/New_York",
       payload: "Create my morning planning note",
     });
@@ -125,26 +94,24 @@ describe("createConfigurationSkillScopedTools", () => {
     expect(result).toContain("morning-note");
     expect(result).toContain("Job name: morning-note");
     expect(result).toContain("Payload: Create my morning planning note");
-    expect(repository.saveJobs).toHaveBeenCalledWith([
-      {
-        jobName: "morning-note",
-        schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
-        timezone: "America/New_York",
-        payload: "Create my morning planning note",
-      },
-    ]);
+    expect(repository.createJob).toHaveBeenCalledWith({
+      jobName: "morning-note",
+      schedule: "0 6 * * *",
+      targetRoute: "obsidian",
+      timezone: "America/New_York",
+      payload: "Create my morning planning note",
+    });
   });
 
   it("rejects duplicate cron job names", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
-    const tools = createConfigurationTools(repository).allTools;
+    const tools = createConfigurationTools(repository);
 
     const createTool = tools.find((tool) => tool.name === "create_cron_job");
     expect(createTool).toBeDefined();
@@ -152,7 +119,7 @@ describe("createConfigurationSkillScopedTools", () => {
     const result = await createTool!.invoke({
       jobName: "finance-sync",
       schedule: "0 6 * * *",
-      targetRoute: "Obsidian_SG",
+      targetRoute: "obsidian",
     });
 
     expect(result).toContain("Error:");
@@ -160,19 +127,19 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("deletes a cron job and removes it from persistence", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
       {
         jobName: "daily-note",
         schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
+        targetRoute: "obsidian",
       },
     ]);
-    const tools = createConfigurationTools(repository).allTools;
+    const tools = createConfigurationTools(repository);
 
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
@@ -180,24 +147,18 @@ describe("createConfigurationSkillScopedTools", () => {
     const result = await deleteTool!.invoke({ jobName: "finance-sync" });
 
     expect(result).toContain("Deleted cron job finance-sync");
-    expect(repository.saveJobs).toHaveBeenCalledWith([
-      {
-        jobName: "daily-note",
-        schedule: "0 6 * * *",
-        targetRoute: "Obsidian_SG",
-      },
-    ]);
+    expect(repository.deleteJob).toHaveBeenCalledWith("finance-sync");
   });
 
   it("returns not-found error when deleting a non-existent cron job", async () => {
-    const repository = createRepository([
+    const repository = createCronRepositoryFake([
       {
         jobName: "finance-sync",
         schedule: "59 23 * * *",
-        targetRoute: "Finance_SG",
+        targetRoute: "finance",
       },
     ]);
-    const tools = createConfigurationTools(repository).allTools;
+    const tools = createConfigurationTools(repository);
 
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
@@ -206,13 +167,13 @@ describe("createConfigurationSkillScopedTools", () => {
 
     expect(result).toContain("Error:");
     expect(result).toContain("not found");
-    expect(repository.saveJobs).not.toHaveBeenCalled();
+    expect(repository.deleteJob).toHaveBeenCalledWith("non-existent");
   });
 
-  it("includes runtime agent tools in the full registry", () => {
-    const repository = createRepository();
-    const context = createConfigurationTools(repository);
-    const toolNames = context.allTools.map((tool) => tool.name);
+  it("includes runtime agent tools on the agent", () => {
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
+    const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toEqual(
       expect.arrayContaining([
@@ -227,8 +188,8 @@ describe("createConfigurationSkillScopedTools", () => {
   });
 
   it("creates and lists a runtime agent without exposing the full prompt in list output", async () => {
-    const repository = createRepository();
-    const tools = createConfigurationTools(repository).allTools;
+    const repository = createCronRepositoryFake();
+    const tools = createConfigurationTools(repository);
     const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
     const listTool = tools.find((tool) => tool.name === "list_runtime_agents");
 

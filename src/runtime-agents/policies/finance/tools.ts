@@ -1,17 +1,19 @@
-import { StructuredToolInterface, tool } from "@langchain/core/tools";
+import { tool, type StructuredToolInterface } from "@langchain/core/tools";
+import { z } from "zod";
+
 import type { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
-import { minimizeJsonString, serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
+import { serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
 import { createReadSkillTool } from "../../../tools/skill-management.js";
-import { createSkillActionRegistry, registerSkillActions } from "../../../tools/skill-actions.js";
-import { createSkillScopedToolContextFromBundles } from "../../../tools/skill-scoped-registry.js";
-import { z } from "zod";
 import { fetchWiseTransactions } from "../../../services/wise/index.js";
-import { createFinanceDomainToolsFromSession } from "./domain-tools.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
-const createFinanceDomainTools = (mcpSession: SupabaseMcpSession): StructuredToolInterface[] => {
+const GetCategoriesSchema = z.object({});
+
+export const createFinanceDomainToolsFromSession = (
+  mcpSession: SupabaseMcpSession,
+): StructuredToolInterface[] => {
   const execSql = tool(
     async (input: { sql: string }) => {
       try {
@@ -54,7 +56,7 @@ const createFinanceDomainTools = (mcpSession: SupabaseMcpSession): StructuredToo
   );
 
   const getCategories = tool(
-    async () => {
+    async (_input: z.infer<typeof GetCategoriesSchema>) => {
       try {
         const result = await mcpSession.executeSql(CATEGORY_QUERY);
         const normalizedResult = normalizeToolOutput(result);
@@ -67,44 +69,14 @@ const createFinanceDomainTools = (mcpSession: SupabaseMcpSession): StructuredToo
     {
       name: "get_categories",
       description: "Fetch all expense categories",
-      schema: z.object({}),
+      schema: GetCategoriesSchema,
     },
   );
 
   return [execSql, fetchWise, getCategories];
 };
 
-export const createFinanceSkillScopedTools = (mcpSession: SupabaseMcpSession) => {
-  const skillActionRegistry = createSkillActionRegistry();
-  registerSkillActions(skillActionRegistry, "finance", "sync-expenses", [
-    {
-      label: "expense_categories",
-      run: async () => {
-        const result = await mcpSession.executeSql(CATEGORY_QUERY);
-        const normalizedResult = normalizeToolOutput(result);
-        return minimizeJsonString(normalizedResult);
-      },
-    },
-  ]);
-
-  const financeDomainTools = createFinanceDomainTools(mcpSession);
-  const readSkillTool = createReadSkillTool("finance", "xml", {
-    actionRegistry: skillActionRegistry,
-    toolBundles: {
-      "sync-expenses": financeDomainTools,
-    },
-  });
-
-  return createSkillScopedToolContextFromBundles({
-    readSkillTool,
-    bundles: {
-      "sync-expenses": financeDomainTools,
-    },
-  });
-};
-
-export const getFinanceDomainTool = (
-  mcpSession: SupabaseMcpSession,
-  toolName: "exec_sql" | "fetch_wise_transactions" | "get_categories",
-): StructuredToolInterface | undefined =>
-  createFinanceDomainTools(mcpSession).find((tool) => tool.name === toolName);
+export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredToolInterface[] => [
+  createReadSkillTool("finance", "xml"),
+  ...createFinanceDomainToolsFromSession(mcpSession),
+];

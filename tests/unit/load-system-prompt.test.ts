@@ -5,13 +5,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  appendDynamicSections,
   createPromptLoader,
-  getSkillsDir,
+  formatObsidianRoutineHint,
+  formatSystemMetadata,
+  getSkillsRoot,
+  injectRuntimeExecutionModel,
   loadConfigurationSystemPrompt,
   loadFinanceSystemPrompt,
   loadObsidianSystemPrompt,
   loadPrompt,
   loadSupervisorSystemPrompt,
+  RUNTIME_EXECUTION_MODEL,
 } from "../../src/prompts/load-system-prompt.js";
 
 describe("named prompt loaders", () => {
@@ -24,37 +29,39 @@ describe("named prompt loaders", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
+    expect(prompt).not.toContain("<runtime_execution>");
+    expect(prompt).toContain("CURRENT DATETIME:");
+    expect(prompt.indexOf("You are the Root Supervisor")).toBeLessThan(
+      prompt.indexOf("<system_metadata>"),
+    );
   });
 
   it("loads the Obsidian prompt from prompts/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
     expect(prompt).toContain("Obsidian Vault Manager");
+    expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).not.toContain("One tool call per turn");
+    expect(prompt).not.toContain("CURRENT DATETIME:");
+    expect(prompt).not.toContain("Yesterday: routine/");
   });
 
   it("loads the Finance prompt from prompts/finance.xml and includes skills listing", () => {
     const prompt = loadFinanceSystemPrompt();
 
-    expect(prompt).toContain("Financial Assistant & Sync Agent");
+    expect(prompt).toContain("Financial Assistant");
+    expect(prompt).toContain("<skill_usage>");
+    expect(prompt).toContain('read_skill("sync-expenses")');
+    expect(prompt).toContain("MUST call");
+    expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).toContain("Never return an empty turn");
+    expect(prompt).not.toContain("After every tool result, always continue");
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {
       expect(prompt).toContain("sync-expenses");
+      expect(prompt).toContain("View, summarize, and sync");
     }
-  });
-
-  it("includes yesterday and today routine note paths in the Obsidian prompt", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
-
-    try {
-      const prompt = loadObsidianSystemPrompt();
-
-      expect(prompt).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
-      expect(prompt).toContain("Yesterday: routine/July/July 9 - Thu.md");
-      expect(prompt).toContain("Today: routine/July/July 10 - Fri.md");
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(prompt).not.toContain("CURRENT DATETIME:");
   });
 
   it("loads the configuration prompt from prompts/configuration.xml", () => {
@@ -62,12 +69,58 @@ describe("named prompt loaders", () => {
 
     expect(prompt).toContain("Configuration Manager");
     expect(prompt).toContain("<tool_access>");
-    expect(prompt).toContain("read_skill(\"skill-management\")");
+    expect(prompt).toContain("All configuration tools are available from the start");
     expect(prompt).toContain("read_skill(skill_name)");
     expect(prompt).toContain("<output_template>");
     expect(prompt).toContain("<skill_output_template>");
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toMatch(/cron|skill-management/);
+    expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).not.toContain("CURRENT DATETIME:");
+  });
+});
+
+describe("dynamic prompt formatters", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("formatSystemMetadata includes datetime ranges and optional runtime agent", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    const metadata = formatSystemMetadata(new Date(), { runtimeAgent: "Obsidian" });
+
+    expect(metadata).toContain("CURRENT DATETIME:");
+    expect(metadata).toContain("TODAY");
+    expect(metadata).toContain("YESTERDAY");
+    expect(metadata).toContain("RUNTIME_AGENT: Obsidian");
+  });
+
+  it("formatObsidianRoutineHint includes yesterday and today paths", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    const hint = formatObsidianRoutineHint(new Date());
+
+    expect(hint).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
+    expect(hint).toContain("Yesterday: routine/July/July 9 - Thu.md");
+    expect(hint).toContain("Today: routine/July/July 10 - Fri.md");
+  });
+
+  it("appendDynamicSections appends non-empty sections after the static prefix", () => {
+    const prompt = appendDynamicSections("Static rules", "Dynamic block");
+
+    expect(prompt).toBe("Static rules\n\nDynamic block");
+    expect(prompt.indexOf("Static rules")).toBeLessThan(prompt.indexOf("Dynamic block"));
+  });
+});
+
+describe("injectRuntimeExecutionModel", () => {
+  it("appends the shared runtime execution block", () => {
+    const prompt = injectRuntimeExecutionModel("Base prompt");
+
+    expect(prompt).toBe(`Base prompt\n\n${RUNTIME_EXECUTION_MODEL}`);
   });
 });
 
@@ -120,12 +173,12 @@ describe("loadPrompt", () => {
     expect(prompt).toContain("Obsidian Vault Manager");
   });
 
-  it("resolves skill files via legacy key shape finance/skills/sync-expenses", () => {
-    const prompt = loadPrompt("finance/skills/sync-expenses");
+  it("resolves skill files via skills/{skillName} key shape", () => {
+    const prompt = loadPrompt("skills/sync-expenses");
 
     expect(typeof prompt).toBe("string");
     expect(prompt.length).toBeGreaterThan(0);
-    expect(prompt).toContain("sync-expenses");
+    expect(prompt).toContain("# Expenses");
   });
 
   it("throws when prompt key does not exist", () => {
@@ -146,10 +199,10 @@ describe("loadPrompt", () => {
   });
 });
 
-describe("getSkillsDir", () => {
-  it("resolves skills from skills/{agent} instead of prompts/{agent}/skills", () => {
-    const skillsDir = getSkillsDir("finance", "xml");
+describe("getSkillsRoot", () => {
+  it("resolves the flat skills directory", () => {
+    const skillsRoot = getSkillsRoot();
 
-    expect(skillsDir).toMatch(/skills[/\\]finance$/);
+    expect(skillsRoot).toMatch(/skills[/\\]?$/);
   });
 });

@@ -5,6 +5,10 @@ import {
   parseFrontmatter,
   parseXmlSkill,
   parseSkillFile,
+  parseSkillAttachmentsFromXmlBody,
+  loadSkillAttachmentRules,
+  stripSkillAttachmentsBlock,
+  parseCommaSeparatedPhrases,
   listSkills,
   readSkillContent,
   formatSkillsForPrompt,
@@ -94,6 +98,23 @@ Call list_cron_jobs().
       expect(result.body).not.toContain("</skill>");
     });
 
+    it("strips skill_attachments metadata from the returned body", () => {
+      const raw = `<skill name="routine" description="Routine notes">
+<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,daily</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<path_rules>Notes live under routine/</path_rules>
+</skill>`;
+      const result = parseXmlSkill(raw);
+
+      expect(result.body).toContain("<path_rules>");
+      expect(result.body).not.toContain("<skill_attachments>");
+      expect(result.body).not.toContain("routine-note-creation");
+    });
+
     it("should return empty data if no skill root element", () => {
       const raw = "<other>content</other>";
       const result = parseXmlSkill(raw);
@@ -117,7 +138,7 @@ Body
 
   describe("listSkills", () => {
     it("should return empty array for non-existent directory", () => {
-      const result = listSkills(path.join(tempDir, "nonexistent"));
+      const result = listSkills({ skillsDir: path.join(tempDir, "nonexistent") });
       expect(result).toEqual([]);
     });
 
@@ -145,7 +166,7 @@ description: Second skill
 More content`
       );
 
-      const result = listSkills(skillsDir);
+      const result = listSkills({ skillsDir });
       expect(result).toHaveLength(2);
       expect(result[0]?.name).toBe("skill-one");
       expect(result[1]?.name).toBe("skill-two");
@@ -174,7 +195,7 @@ description: Good skill
 Content`
       );
 
-      const result = listSkills(skillsDir);
+      const result = listSkills({ skillsDir });
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("good-skill");
     });
@@ -185,14 +206,14 @@ Content`
 
       writeFileSync(
         path.join(skillsDir, "cron.xml"),
-        `<skill name="cron" description="Manage cron jobs">
+        `<skill name="cron" module="configuration" description="Manage cron jobs">
 
 Body
 
 </skill>`,
       );
 
-      const result = listSkills(skillsDir);
+      const result = listSkills({ skillsDir });
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe("cron");
       expect(result[0]?.fileName).toBe("cron.xml");
@@ -222,7 +243,7 @@ description: A skill
 A`
       );
 
-      const result = listSkills(skillsDir);
+      const result = listSkills({ skillsDir });
       expect(result[0]?.name).toBe("aardvark");
       expect(result[1]?.name).toBe("zebra");
     });
@@ -244,7 +265,7 @@ description: Test skill
 ${skillBody}`
       );
 
-      const content = readSkillContent(skillsDir, "my-skill");
+      const content = readSkillContent("my-skill", { skillsDir });
       expect(content).toBe(skillBody);
     });
 
@@ -263,7 +284,7 @@ description: Test
 ${skillBody}`
       );
 
-      const content = readSkillContent(skillsDir, "testskill");
+      const content = readSkillContent("testskill", { skillsDir });
       expect(content).toBe(skillBody);
     });
 
@@ -281,7 +302,7 @@ description: Exists
 Content`
       );
 
-      expect(() => readSkillContent(skillsDir, "notfound")).toThrow(
+      expect(() => readSkillContent("notfound", { skillsDir })).toThrow(
         /Skill not found/
       );
     });
@@ -301,9 +322,75 @@ description: Safe skill
 Content`
       );
 
-      expect(() => readSkillContent(skillsDir, "../secret")).toThrow(
+      expect(() => readSkillContent("../secret", { skillsDir })).toThrow(
         /not found|Path traversal/i
       );
+    });
+  });
+
+  describe("skill attachment metadata", () => {
+    it("parses comma-separated phrases", () => {
+      expect(parseCommaSeparatedPhrases("sync expenses, for today ,expense")).toEqual([
+        "sync expenses",
+        "for today",
+        "expense",
+      ]);
+    });
+
+    it("parses attachment rules from xml body", () => {
+      const body = `<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+    <anyPhrases>routine,daily</anyPhrases>
+  </attachment>
+  <attachment>
+    <allPhrases>task</allPhrases>
+    <anyPhrases>today,yesterday</anyPhrases>
+  </attachment>
+</skill_attachments>`;
+
+      expect(parseSkillAttachmentsFromXmlBody(body)).toEqual([
+        {
+          module: "",
+          skillName: "",
+          cronJobName: "routine-note-creation",
+          match: { anyPhrases: ["routine", "daily"] },
+        },
+        {
+          module: "",
+          skillName: "",
+          match: {
+            allPhrases: ["task"],
+            anyPhrases: ["today", "yesterday"],
+          },
+        },
+      ]);
+    });
+
+    it("loads attachment rules filtered by module", () => {
+      const skillsDir = path.join(tempDir, "attachment-rules");
+      mkdirSync(skillsDir, { recursive: true });
+
+      writeFileSync(
+        path.join(skillsDir, "sync-expenses.xml"),
+        `<skill name="sync-expenses" module="finance" description="Sync expenses">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>sync expenses,expense</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+Body
+</skill>`,
+      );
+
+      expect(loadSkillAttachmentRules("finance", skillsDir)).toEqual([
+        {
+          module: "finance",
+          skillName: "sync-expenses",
+          match: { anyPhrases: ["sync expenses", "expense"] },
+        },
+      ]);
+      expect(stripSkillAttachmentsBlock(readSkillContent("sync-expenses", { skillsDir }))).toBe("Body");
     });
   });
 
@@ -313,19 +400,20 @@ Content`
         {
           name: "sync-expenses",
           description: "Sync Wise transactions",
-          fileName: "sync-expenses.md",
+          module: "finance",
+          fileName: "sync-expenses.xml",
         },
       ];
 
       const result = formatSkillsForDisplay("finance", skills, "Listed");
 
-      expect(result).toContain("Owner: finance");
+      expect(result).toContain("Module: finance");
       expect(result).toContain("Skill Name: sync-expenses");
       expect(result).toContain("Description: Sync Wise transactions");
       expect(result).toContain("Status: Listed");
     });
 
-    it("returns an empty-owner message when no skills exist", () => {
+    it("returns an empty-module message when no skills exist", () => {
       expect(formatSkillsForDisplay("configuration", [])).toBe("No skills configured for configuration.");
     });
   });
@@ -336,7 +424,7 @@ Content`
         {
           name: "sync-expenses",
           description: "Sync Wise transactions",
-          fileName: "sync-expenses.md",
+          fileName: "sync-expenses.xml",
         },
         {
           name: "categorize",
@@ -383,70 +471,73 @@ Content`
   });
 
   describe("skill file writes", () => {
-    it("creates a skill file with valid frontmatter", () => {
+    it("creates a skill file with valid xml metadata", () => {
       const skillsDir = path.join(tempDir, "write-create");
       const filePath = createSkillFile(
-        skillsDir,
         "new-skill",
         "A new skill",
         "# Body\nDo the thing",
+        "finance",
+        skillsDir,
       );
 
       expect(existsSync(filePath)).toBe(true);
       const raw = readFileSync(filePath, "utf8");
-      expect(raw).toBe(formatSkillFile({ name: "new-skill", description: "A new skill" }, "# Body\nDo the thing"));
-      expect(readSkillContent(skillsDir, "new-skill")).toBe("# Body\nDo the thing");
+      expect(raw).toContain('name="new-skill"');
+      expect(raw).toContain('module="finance"');
+      expect(readSkillContent("new-skill", { skillsDir })).toBe("# Body\nDo the thing");
     });
 
     it("rejects duplicate skill names on create", () => {
       const skillsDir = path.join(tempDir, "write-duplicate");
-      createSkillFile(skillsDir, "dup-skill", "First", "Body one");
+      createSkillFile("dup-skill", "First", "Body one", "finance", skillsDir);
 
-      expect(() => createSkillFile(skillsDir, "dup-skill", "Second", "Body two")).toThrow(
+      expect(() => createSkillFile("dup-skill", "Second", "Body two", "finance", skillsDir)).toThrow(
         /already exists/i,
       );
     });
 
     it("updates an existing skill with full replacement", () => {
       const skillsDir = path.join(tempDir, "write-update");
-      createSkillFile(skillsDir, "update-me", "Old description", "Old body");
+      createSkillFile("update-me", "Old description", "Old body", "obsidian", skillsDir);
 
       const filePath = updateSkillFile(
-        skillsDir,
         "update-me",
         "New description",
         "New body",
+        "obsidian",
+        skillsDir,
       );
 
-      const skill = readFullSkill(skillsDir, "update-me");
+      const skill = readFullSkill("update-me", { skillsDir });
       expect(skill.description).toBe("New description");
       expect(skill.body).toBe("New body");
-      expect(readFileSync(filePath, "utf8")).toContain("description: New description");
+      expect(readFileSync(filePath, "utf8")).toContain('description="New description"');
     });
 
     it("deletes an existing skill file", () => {
       const skillsDir = path.join(tempDir, "write-delete");
-      createSkillFile(skillsDir, "delete-me", "Delete me", "Body");
+      createSkillFile("delete-me", "Delete me", "Body", "configuration", skillsDir);
 
-      const fileName = deleteSkillFile(skillsDir, "delete-me");
+      const fileName = deleteSkillFile("delete-me", skillsDir);
 
-      expect(fileName).toBe("delete-me.md");
-      expect(existsSync(path.join(skillsDir, "delete-me.md"))).toBe(false);
-      expect(() => readSkillContent(skillsDir, "delete-me")).toThrow(/Skill not found/);
+      expect(fileName).toBe("delete-me.xml");
+      expect(existsSync(path.join(skillsDir, "delete-me.xml"))).toBe(false);
+      expect(() => readSkillContent("delete-me", { skillsDir })).toThrow(/Skill not found/);
     });
 
     it("throws when deleting a missing skill", () => {
       const skillsDir = path.join(tempDir, "write-delete-missing");
       mkdirSync(skillsDir, { recursive: true });
 
-      expect(() => deleteSkillFile(skillsDir, "missing")).toThrow(/Skill not found/);
+      expect(() => deleteSkillFile("missing", skillsDir)).toThrow(/Skill not found/);
     });
 
     it("rejects path traversal attempts on write", () => {
       const skillsDir = path.join(tempDir, "write-traverse");
       mkdirSync(skillsDir, { recursive: true });
 
-      expect(() => createSkillFile(skillsDir, "../secret", "Bad", "Body")).toThrow(
+      expect(() => createSkillFile("../secret", "Bad", "Body", "finance", skillsDir)).toThrow(
         /Path traversal/i,
       );
     });

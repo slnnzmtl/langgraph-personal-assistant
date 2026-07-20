@@ -1,47 +1,52 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import type { RuntimeAgentRepository } from "../core/agents/repository.js";
+import type { CronJobRepository } from "../cron/types.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import { createFinanceDomainToolsFromSession } from "./policies/finance/domain-tools.js";
-import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import type { IFileSender } from "../telegram/file-sender.js";
+import { createSystemConfigDomainTools } from "./policies/configuration/tools.js";
+import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
+import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
 import {
+  RUNTIME_TOOL_BUNDLE_CATALOG,
   RUNTIME_TOOL_BUNDLE_IDS,
+  type RuntimeToolBundleCatalogEntry,
   type RuntimeToolBundleId,
-} from "./types.js";
+} from "./tool-bundle-catalog.js";
 
-export type RuntimeToolBundleCatalogEntry = {
-  id: RuntimeToolBundleId;
-  description: string;
-  requiresSupabase?: boolean;
-  requiresVault?: boolean;
-};
-
-export const RUNTIME_TOOL_BUNDLE_CATALOG: RuntimeToolBundleCatalogEntry[] = [
-  {
-    id: "none",
-    description: "Prompt-only agent with no tools.",
-  },
-  {
-    id: "obsidian-vault",
-    description: "Read, write, search, and send files from the Obsidian vault.",
-    requiresVault: true,
-  },
-  {
-    id: "finance-domain",
-    description: "Execute SQL, fetch Wise transactions, and load expense categories.",
-    requiresSupabase: true,
-  },
-  {
-    id: "configuration",
-    description: "Manage cron jobs, skills, and runtime sub-agents through skill-scoped configuration tools.",
-  },
-];
+export type { RuntimeToolBundleCatalogEntry, RuntimeToolBundleId } from "./tool-bundle-catalog.js";
+export {
+  RUNTIME_TOOL_BUNDLE_CATALOG,
+  RUNTIME_TOOL_BUNDLE_IDS,
+  RuntimeToolBundleIdSchema,
+} from "./tool-bundle-catalog.js";
 
 export type RuntimeToolBundleDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
+  cronTargetAgentIds?: readonly string[];
+  cronJobRepository?: CronJobRepository;
+  runtimeAgentRepository?: RuntimeAgentRepository;
 };
+
+export const createRuntimeToolBundleDeps = (
+  obsidianVaultPath: string,
+  options: {
+    fileSender?: RuntimeToolBundleDeps["fileSender"];
+    supabaseSession?: RuntimeToolBundleDeps["supabaseSession"];
+    cronTargetAgentIds?: readonly string[];
+    cronJobRepository?: CronJobRepository;
+    runtimeAgentRepository?: RuntimeAgentRepository;
+  } = {},
+): RuntimeToolBundleDeps => ({
+  obsidianVaultPath,
+  ...(options.fileSender ? { fileSender: options.fileSender } : {}),
+  ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
+  ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
+  ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
+  ...(options.runtimeAgentRepository ? { runtimeAgentRepository: options.runtimeAgentRepository } : {}),
+});
 
 const resolveBundleTools = (
   bundleId: RuntimeToolBundleId,
@@ -57,8 +62,11 @@ const resolveBundleTools = (
         throw new Error("finance-domain bundle requires a configured Supabase session.");
       }
       return createFinanceDomainToolsFromSession(deps.supabaseSession);
-    case "configuration":
-      return [];
+    case "system-config":
+      if (!deps.cronJobRepository || !deps.runtimeAgentRepository) {
+        throw new Error("system-config bundle requires cron and runtime agent repositories.");
+      }
+      return createSystemConfigDomainTools(deps);
     default:
       throw new Error(`Unknown runtime tool bundle: ${bundleId as string}`);
   }
@@ -68,11 +76,20 @@ export const listAvailableRuntimeToolBundles = (
   deps: RuntimeToolBundleDeps,
 ): RuntimeToolBundleCatalogEntry[] =>
   RUNTIME_TOOL_BUNDLE_CATALOG.filter((entry) => {
-    if (entry.requiresSupabase && !deps.supabaseSession) {
+    const catalogEntry = entry as RuntimeToolBundleCatalogEntry;
+
+    if (catalogEntry.requiresSupabase && !deps.supabaseSession) {
       return false;
     }
 
-    if (entry.requiresVault && !deps.obsidianVaultPath) {
+    if (catalogEntry.requiresVault && !deps.obsidianVaultPath) {
+      return false;
+    }
+
+    if (
+      catalogEntry.requiresConfigurationRepos
+      && (!deps.cronJobRepository || !deps.runtimeAgentRepository)
+    ) {
       return false;
     }
 
@@ -80,7 +97,7 @@ export const listAvailableRuntimeToolBundles = (
   });
 
 export const validateRuntimeToolBundleIds = (
-  bundleIds: RuntimeToolBundleId[],
+  bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
 ): void => {
   const availableIds = new Set(listAvailableRuntimeToolBundles(deps).map((entry) => entry.id));
@@ -90,14 +107,14 @@ export const validateRuntimeToolBundleIds = (
       throw new Error(`Unknown tool bundle: ${bundleId}`);
     }
 
-    if (!availableIds.has(bundleId)) {
+    if (!availableIds.has(bundleId as RuntimeToolBundleId)) {
       throw new Error(`Tool bundle is unavailable in this deployment: ${bundleId}`);
     }
   }
 };
 
 export const resolveRuntimeToolBundles = (
-  bundleIds: RuntimeToolBundleId[],
+  bundleIds: readonly string[],
   deps: RuntimeToolBundleDeps,
 ): StructuredToolInterface[] => {
   validateRuntimeToolBundleIds(bundleIds, deps);
@@ -106,7 +123,7 @@ export const resolveRuntimeToolBundles = (
   const tools: StructuredToolInterface[] = [];
 
   for (const bundleId of bundleIds) {
-    for (const tool of resolveBundleTools(bundleId, deps)) {
+    for (const tool of resolveBundleTools(bundleId as RuntimeToolBundleId, deps)) {
       if (seen.has(tool.name)) {
         continue;
       }

@@ -2,8 +2,9 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
-import { createFinanceNode } from "../../../src/runtime-agents/policies/finance/node.js";
-import { createFinanceSkillScopedTools, getFinanceDomainTool } from "../../../src/runtime-agents/policies/finance/tools.js";
+import { createFinanceNode } from "../../helpers/policy-nodes.js";
+import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";
+import { getFinanceDomainTool } from "../../helpers/finance-tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const financeDefinition = getBuiltinRuntimeAgentDefinition("finance");
@@ -105,74 +106,32 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const context = createFinanceSkillScopedTools(session);
-    const readSkillTool = context.config.readSkillTool;
+    const tools = createFinanceTools(session);
+    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
 
     expect(readSkillTool).toBeDefined();
 
     const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-    expect(result).toContain("Sync Wise Expenses");
-    expect(result).toContain("<skill_context>");
-    expect(result).toContain("expense_categories:");
-    expect(result).toContain('"name":"Food"');
-    expect(result).toContain("<available_tools>");
-    expect(result).toContain("- exec_sql:");
-    expect(result).toContain("- fetch_wise_transactions:");
-    expect(result).toContain("- get_categories:");
-    expect(session.executeSql).toHaveBeenCalledWith("SELECT id, name, note FROM public.category;");
+    expect(result).toContain("# Expenses");
+    expect(result).not.toContain("<skill_context>");
+    expect(result).not.toContain("<available_tools>");
+    expect(session.executeSql).not.toHaveBeenCalled();
   });
 
-  it("exposes only read_skill before sync-expenses is loaded", () => {
+  it("attaches all finance tools to the agent", () => {
     const session: SupabaseMcpSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const context = createFinanceSkillScopedTools(session);
+    const tools = createFinanceTools(session);
 
-    expect(context.resolveToolsForTurn([new HumanMessage("sync finances")]).map((tool) => tool.name)).toEqual([
-      "read_skill",
-    ]);
-  });
-
-  it("exposes finance domain tools after read_skill(sync-expenses)", () => {
-    const session: SupabaseMcpSession = {
-      executeSql: vi.fn(),
-      close: vi.fn(),
-    };
-    const context = createFinanceSkillScopedTools(session);
-
-    const tools = context.resolveToolsForTurn([
-      new HumanMessage("sync finances"),
-      new AIMessage({
-        content: "",
-        tool_calls: [{ name: "read_skill", args: { name: "sync-expenses" }, id: "read-1", type: "tool_call" }],
-      }),
-      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "skill body" }),
-    ]);
-
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "read_skill",
+    expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",
       "fetch_wise_transactions",
       "get_categories",
+      "read_skill",
     ]);
   });
-
-  it("returns sync-expenses skill content when category enrichment fails", async () => {
-    const session: SupabaseMcpSession = {
-      executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
-      close: vi.fn(),
-    };
-    const context = createFinanceSkillScopedTools(session);
-    const readSkillTool = context.config.readSkillTool;
-
-    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-
-    expect(result).toContain("Sync Wise Expenses");
-    expect(result).toContain("action_error expense_categories:");
-    expect(result).toContain("database unavailable");
-  });
-
 
 
   describe("step counter", () => {

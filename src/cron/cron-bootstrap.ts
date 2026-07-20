@@ -1,9 +1,7 @@
 import type { AppConfig } from "../config.js";
 import type { CronJobRepository } from "./cron-job-repository.js";
-import { setupCron, validateCronJobs, type CronJobDefinition } from "./cron-launcher.js";
-import type { CronRunner } from "./cron-runner.js";
-
-type CronScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
+import { validateCronJobs, type CronJobDefinition } from "./cron-launcher.js";
+import type { RuntimeCronService } from "./types.js";
 
 export const buildDefaultCronJobs = (): CronJobDefinition[] => [];
 
@@ -33,27 +31,25 @@ export const loadCronJobsForStartup = async (options: {
 export const startCronBootstrap = async (options: {
 	repository: CronJobRepository;
 	config: Pick<AppConfig, "appTimezone" | "schedulerEnabled">;
-	runner: CronRunner;
-	schedule: CronScheduleFn;
+	runtimeCron?: RuntimeCronService;
+	cronTargetAgentIds?: readonly string[];
 }): Promise<CronJobDefinition[]> => {
 	const jobs = await loadCronJobsForStartup({
 		repository: options.repository,
 	});
 
-	validateCronJobs(jobs);
+	validateCronJobs(jobs, options.cronTargetAgentIds ?? []);
 
-	if (!jobs.length) {
+	if (!jobs.length || !options.config.schedulerEnabled || !options.runtimeCron) {
 		return jobs;
 	}
 
-	if (options.config.schedulerEnabled) {
-		setupCron({
-			enabled: true,
-			defaultTimezone: options.config.appTimezone,
-			schedule: options.schedule,
-			runner: options.runner,
-			jobs,
-		});
+	for (const job of jobs) {
+		if (job.enabled === false) {
+			continue;
+		}
+
+		await options.runtimeCron.addJob(job);
 	}
 
 	return jobs;

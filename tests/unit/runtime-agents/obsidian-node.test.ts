@@ -14,10 +14,9 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import {
-  createObsidianNode,
-} from "../../../src/runtime-agents/policies/obsidian/node.js";
-import { extractMessageTextContent } from "../../../src/nodes/message-history.js";
+import { mapObsidianSubAgentResult } from "../../../src/app/policies/obsidian-hooks.js";
+import { createObsidianNode } from "../../helpers/policy-nodes.js";
+import { extractMessageTextContent } from "../../../src/utils/message-content.js";
 import {
   createPromptLoader,
   loadObsidianSystemPrompt,
@@ -45,6 +44,103 @@ const createTempVault = async (): Promise<string> => {
   tempPaths.push(tempVault);
   return tempVault;
 };
+
+describe("mapObsidianSubAgentResult", () => {
+  it("returns the final reply even when stepCount equals maxSteps", () => {
+    const finalReply = new AIMessage("OK. I've created English learning.md.");
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("Save to note English learning"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "write_file",
+              args: { relativePath: "English learning.md" },
+              id: "write-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "write-1",
+            content: "Success: Create English learning note and add link. saved to English learning.md.",
+          }),
+          finalReply,
+        ],
+        stepCount: 8,
+      },
+      8,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toBe("OK. I've created English learning.md.");
+  });
+
+  it("summarizes a successful write when maxSteps is hit without a final reply", () => {
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("Save to note English learning"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "write_file",
+              args: { relativePath: "English learning.md" },
+              id: "write-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "write-1",
+            content: "Success: Create English learning note and add link. saved to English learning.md.",
+          }),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "list_files",
+              args: { relativeDir: "." },
+              id: "list-1",
+              type: "tool_call",
+            }],
+          }),
+        ],
+        stepCount: 8,
+      },
+      8,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toContain("Create English learning note and add link");
+  });
+
+  it("reports max steps only when the edit did not complete", () => {
+    const result = mapObsidianSubAgentResult(
+      {
+        messages: [
+          new HumanMessage("keep searching forever"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "search_files",
+              args: { queries: ["loop"] },
+              id: "search-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "search-1",
+            content: "No files matched your search.",
+          }),
+        ],
+        stepCount: 3,
+      },
+      3,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toBe("exceeded max steps");
+  });
+});
 
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
@@ -166,11 +262,21 @@ describe("createObsidianNode", () => {
 
     expect(prompt).toContain("Obsidian Vault Manager");
     expect(prompt).toContain("<role_and_rules>");
+    expect(prompt).toContain("<priority>");
     expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
-    expect(prompt).toContain("CURRENT DATETIME:");
+    expect(prompt).not.toContain("CURRENT DATETIME:");
     expect(prompt).toContain('<intent type="READ">');
     expect(prompt).toContain('<intent type="WRITE">');
     expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
+    expect(prompt).toContain("file deletion is not available");
+  });
+
+  it("loads skill_usage guidance from prompts/obsidian.xml", () => {
+    const prompt = loadObsidianSystemPrompt();
+
+    expect(prompt).toContain("<skill_usage>");
+    expect(prompt).toContain("read_skill(skill_name)");
+    expect(prompt).toContain("<skill_attachments>");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {
@@ -180,7 +286,7 @@ describe("createObsidianNode", () => {
     };
 
     expect(() => createObsidianNode(connector, vaultRoot, obsidianDefinition)).toThrow(
-      "Obsidian tool-bound model must support tool calling.",
+      "Runtime agent LLM model must support tool calling.",
     );
   });
 
@@ -223,6 +329,13 @@ describe("createObsidianNode", () => {
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
+      expect(promptContent).toContain("<attached_skills>");
+      expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
+        promptContent.indexOf("CURRENT DATETIME:"),
+      );
+      expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
+        promptContent.indexOf("Vault directory tree"),
+      );
 
       return new AIMessage("Done.");
     });
@@ -234,6 +347,104 @@ describe("createObsidianNode", () => {
 
     const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
+  });
+
+  it("auto-attaches the Routine skill when the user message matches routine intent", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).toContain("<attached_skills>");
+      expect(promptContent).toContain('<attached_skill name="daily-routine-note-creation">');
+      expect(promptContent).toContain("First: `read_file` yesterday's note");
+      expect(promptContent).toContain("Follow the attached skill instructions exactly");
+
+      return new AIMessage("Prepared today's routine note.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("create today's routine note")],
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Prepared today's routine note.");
+  });
+
+  it("does not attach the Routine skill for unrelated vault requests", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      expect(Array.isArray(input)).toBe(true);
+      const promptContent = (input as Array<{ content: unknown }>)
+        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
+        .join("\n");
+
+      expect(promptContent).not.toContain("<attached_skills>");
+      expect(promptContent).not.toContain('<attached_skill name="daily-routine-note-creation">');
+
+      return new AIMessage("Read the fitness log.");
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [new HumanMessage("read my fitness log")],
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toBe("Read the fitness log.");
+  });
+
+  it("summarizes read_file results when the model returns a blank final response", async () => {
+    const vaultRoot = await createTempVault();
+    const connector = new FakeLLMConnector((input) => {
+      if (!Array.isArray(input)) {
+        return new AIMessage("");
+      }
+
+      const latestMessage = input.at(-1);
+      if (latestMessage instanceof ToolMessage) {
+        return new AIMessage("");
+      }
+
+      return new AIMessage({
+        content: "",
+        tool_calls: [{
+          name: "read_file",
+          args: { relativePath: "routine/July/July 16 - Thu.md" },
+          id: "read-today",
+          type: "tool_call",
+        }],
+      });
+    });
+    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+
+    const result = await obsidianNode({
+      messages: [
+        new HumanMessage("today's plan"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "read_file",
+            args: { relativePath: "routine/July/July 16 - Thu.md" },
+            id: "read-today",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({
+          name: "read_file",
+          tool_call_id: "read-today",
+          content: "Contents of routine/July/July 16 - Thu.md:\n\n## Summary\n- [ ] Gym",
+        }),
+      ],
+      stepCount: 2,
+    });
+
+    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    expect(firstMessage?.content).toContain("## Summary");
+    expect(firstMessage?.content).toContain("- [ ] Gym");
   });
 
   it("injects the vault directory tree without file names", async () => {
@@ -268,7 +479,7 @@ describe("createObsidianNode", () => {
     expect(firstMessage?.content).toBe("Done.");
   });
 
-  it("injects prior tool-result context and a pending write instruction after a read step", async () => {
+  it("passes prior ToolMessage content through message history on loop continuation", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
@@ -629,6 +840,42 @@ describe("obsidian tool: search_files", () => {
     expect(
       lower.includes("no files") || lower.includes("no results") || lower.includes("no matches") || result.trim() === "",
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// search_files_by_name tool
+// ---------------------------------------------------------------------------
+
+describe("obsidian tool: search_files_by_name", () => {
+  it("finds files whose filename matches all query terms (AND semantics)", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "July 1 - Tue.md"), "# Day 1");
+    await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
+    await wf(path.join(vaultRoot, "August 1 - Fri.md"), "# Wrong month");
+
+    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
+    const result = await searchTool!.invoke({ queries: ["July", "1"] }) as string;
+
+    expect(result).toContain("July 1 - Tue.md");
+    expect(result).not.toContain("July 2 - Wed.md");
+    expect(result).not.toContain("August 1 - Fri.md");
+  });
+
+  it("auto-splits multi-word query strings before matching", async () => {
+    const vaultRoot = await createTempVault();
+    const { writeFile: wf } = await import("node:fs/promises");
+    await wf(path.join(vaultRoot, "July 1 - Tue.md"), "# Day 1");
+    await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
+
+    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
+    const result = await searchTool!.invoke({ queries: ["July 1"] }) as string;
+
+    expect(result).toContain("July 1 - Tue.md");
+    expect(result).not.toContain("July 2 - Wed.md");
   });
 });
 

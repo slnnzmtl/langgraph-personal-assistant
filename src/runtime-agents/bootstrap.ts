@@ -1,16 +1,13 @@
-import type { RuntimeAgentRepository } from "./repository.js";
-import { buildDefaultRuntimeAgents } from "./defaults.js";
-import { resolveBuiltinPromptSource } from "./prompt-resolver.js";
-import {
-  isBuiltinRuntimeAgentId,
-  type RuntimeAgentDefinition,
-} from "./types.js";
+import type { RuntimeAgentRepository } from "../core/agents/repository.js";
+import { applyBuiltinDomainAvailability, buildDefaultRuntimeAgents } from "./builtin-domains.js";
+import { isRuntimeAgentBuiltin } from "../core/types/agent.js";
+import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
 export type RuntimeAgentBootstrapOptions = {
   financeAvailable?: boolean;
 };
 
-export const mergeRuntimeAgents = (
+const mergeRuntimeAgents = (
   defaultAgents: RuntimeAgentDefinition[],
   persistedAgents: RuntimeAgentDefinition[],
 ): RuntimeAgentDefinition[] => {
@@ -23,15 +20,16 @@ export const mergeRuntimeAgents = (
   for (const agent of persistedAgents) {
     const defaultAgent = merged.get(agent.id);
 
-    if (defaultAgent && isBuiltinRuntimeAgentId(agent.id)) {
+    if (defaultAgent && isRuntimeAgentBuiltin(defaultAgent)) {
       merged.set(agent.id, {
         ...defaultAgent,
         description: agent.description,
-        maxSteps: agent.maxSteps,
+        // Keep user raises; allow builtin default bumps to lift older lower values.
+        maxSteps: Math.max(defaultAgent.maxSteps, agent.maxSteps),
         enabled: agent.enabled,
         updatedAt: agent.updatedAt,
-        systemPrompt: resolveBuiltinPromptSource(agent.id),
-        promptSourceKey: agent.id,
+        modelKey: defaultAgent.modelKey,
+        promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
         executor: defaultAgent.executor,
         toolBundleIds: defaultAgent.toolBundleIds,
       });
@@ -48,16 +46,9 @@ export const ensureBuiltinRuntimeAgents = async (
   repository: RuntimeAgentRepository,
   options?: RuntimeAgentBootstrapOptions,
 ): Promise<RuntimeAgentDefinition[]> => {
-  const defaultAgents = buildDefaultRuntimeAgents().map((agent) => {
-    if (agent.id === "finance") {
-      return {
-        ...agent,
-        enabled: options?.financeAvailable ?? agent.enabled,
-      };
-    }
-
-    return agent;
-  });
+  const defaultAgents = buildDefaultRuntimeAgents().map((agent) =>
+    applyBuiltinDomainAvailability(agent, options),
+  );
 
   const persistedAgents = await repository.loadAgents();
   const mergedAgents = mergeRuntimeAgents(defaultAgents, persistedAgents);

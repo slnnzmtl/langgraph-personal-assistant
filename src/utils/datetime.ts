@@ -22,3 +22,33 @@ export const formatCurrentTime = (date: Date, timeZone: string = process.env.APP
   const { year, monthNumber, dayNumber, hour, minute, second } = getZonedDateDetails(date, timeZone);
   return `${year}-${monthNumber}-${dayNumber}T${hour}:${minute}:${second} ${timeZone}`;
 };
+
+export const toUtcDayRange = (
+  date: Date,
+  timeZone: string = process.env.APP_TIMEZONE ?? "UTC",
+): { since: string; until: string } => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date, timeZone);
+
+  return {
+    since: `${year}-${monthNumber}-${dayNumber}T00:00:00Z`,
+    until: `${year}-${monthNumber}-${dayNumber}T23:59:59Z`,
+  };
+};
+
+export const resolveRelativeDayRange = (
+  triggerText: string,
+  now = new Date(),
+  timeZone: string = process.env.APP_TIMEZONE ?? "UTC",
+): { since: string; until: string } => {
+  const normalized = triggerText.toLowerCase();
+
+  if (/\btoday\b/.test(normalized)) {
+    return toUtcDayRange(now, timeZone);
+  }
+
+  if (/\btomorrow\b/.test(normalized)) {
+    return toUtcDayRange(new Date(now.getTime() + 24 * 60 * 60 * 1000), timeZone);
+  }
+
+  return toUtcDayRange(new Date(now.getTime() - 24 * 60 * 60 * 1000), timeZone);
+};

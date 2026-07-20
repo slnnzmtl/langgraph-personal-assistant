@@ -2,6 +2,9 @@ import { AIMessage } from "@langchain/core/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTelegramCronReporter } from "../../src/telegram/telegram-cron-reporter.js";
+import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
+
+const financeSyncTrigger = buildCronTriggerForJob("finance", "finance-sync");
 
 describe("createTelegramCronReporter", () => {
   const sendMessageMock = vi.fn();
@@ -16,15 +19,15 @@ describe("createTelegramCronReporter", () => {
       chatId: "42",
     });
 
-    await reporter.onStart?.({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
-    await reporter.onProgress?.({ jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" }, "Dispatching scheduled workflow.");
+    await reporter.onStart?.({ jobName: "finance-sync", trigger: financeSyncTrigger });
+    await reporter.onProgress?.({ jobName: "finance-sync", trigger: financeSyncTrigger }, "Dispatching scheduled workflow.");
     await reporter.onSuccess?.({
       jobName: "finance-sync",
-      trigger: "SYSTEM_CRON_TRIGGER:finance-sync",
+      trigger: financeSyncTrigger,
       messages: [new AIMessage("All done")],
       summary: "The finance sync completed successfully.",
     });
-    await reporter.onError?.(new Error("boom"), { jobName: "finance-sync", trigger: "SYSTEM_CRON_TRIGGER:finance-sync" });
+    await reporter.onError?.(new Error("boom"), { jobName: "finance-sync", trigger: financeSyncTrigger });
 
     expect(sendMessageMock).toHaveBeenCalledTimes(4);
     expect(sendMessageMock).toHaveBeenNthCalledWith(

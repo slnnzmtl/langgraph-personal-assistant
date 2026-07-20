@@ -3,37 +3,46 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCronTrigger } from "../../src/cron-triggers.js";
-import { createWorkflowGraph } from "../../src/agent.js";
+import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
+import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/defaults.js";
+import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
 const makeCronJobsFilePath = () => path.join(process.cwd(), ".tmp", `workflow-graph-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
 
 const makeGraph = (
-  supervisorHandler: (input: any) => any,
-  obsidianHandler?: (input: any) => any,
-  financeHandler?: (input: any) => any,
+  supervisorHandler: (input: unknown) => unknown,
+  obsidianHandler?: (input: unknown) => unknown,
+  financeHandler?: (input: unknown) => unknown,
   supabaseSession?: SupabaseMcpSession,
-  configHandler?: (input: any) => any,
-  runtimeAgents?: ReturnType<typeof createRuntimeAgentRepositoryFake>,
+  configHandler?: (input: unknown) => unknown,
+  runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
+  runtimeAgents?: ReturnType<typeof buildDefaultRuntimeAgents>,
+  modelHandlerOverrides?: Record<string, (input: unknown) => unknown>,
 ) =>
-  createWorkflowGraph(
-    new FakeLLMConnector(supervisorHandler),
-    new FakeLLMConnector(obsidianHandler ?? (() => new AIMessage("obsidian done"))),
-    new FakeLLMConnector(financeHandler ?? (() => new AIMessage("Finance sync completed successfully"))),
-    {
-      obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
-      cronJobRepository: createCronJobRepository(process.cwd(), path.relative(process.cwd(), makeCronJobsFilePath())),
-      runtimeAgentRepository: runtimeAgents ?? createRuntimeAgentRepositoryFake(),
-      supabaseSession,
-      configLlmConnector: new FakeLLMConnector(configHandler ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup."))),
+  createTestWorkflowGraph({
+    supervisorLlm: new FakeLLMConnector(supervisorHandler),
+    modelHandlers: {
+      generic: modelHandlerOverrides?.generic ?? (() => new AIMessage("ok")),
+      obsidian: obsidianHandler ?? modelHandlerOverrides?.obsidian ?? (() => new AIMessage("obsidian done")),
+      finance: financeHandler ?? modelHandlerOverrides?.finance ?? (() => new AIMessage("Finance sync completed successfully")),
+      configuration: configHandler ?? modelHandlerOverrides?.configuration ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup.")),
     },
-  );
+    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
+    cronJobRepository: createCronJobRepository(
+      process.cwd(),
+      path.relative(process.cwd(), makeCronJobsFilePath()),
+      defaultCronTargetAgentIds(),
+    ),
+    runtimeAgentRepository,
+    ...(supabaseSession ? { supabaseSession } : {}),
+  });
 
 describe("createWorkflowGraph", () => {
   it("compiles without throwing", () => {
@@ -83,7 +92,7 @@ describe("createWorkflowGraph", () => {
     vi.useRealTimers();
   });
 
-  it("visits the finance node on Finance_SG route (fallback when no repository)", async () => {
+  it("visits the finance node on finance route (fallback when no repository)", async () => {
     let calls = 0;
     const app = makeGraph(() => {
       calls += 1;
@@ -97,7 +106,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
   });
 
-  it("visits the finance node on Finance_SG route (real integration with mock session)", async () => {
+  it("visits the finance node on finance route (real integration with mock session)", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
@@ -123,7 +132,7 @@ describe("createWorkflowGraph", () => {
     // The LLM has access to the session but chooses when to invoke tools
   });
 
-  it("preserves every finance tool result when the model emits a six-call batch", async () => {
+  it("preserves every finance tool result when the model emits parallel tool calls", async () => {
     const mockSession: SupabaseMcpSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
@@ -138,6 +147,18 @@ describe("createWorkflowGraph", () => {
         if (financeCalls === 1) {
           return new AIMessage({
             content: "",
+            tool_calls: [{
+              name: "read_skill",
+              args: { name: "sync-expenses" },
+              id: "read-sync-expenses",
+              type: "tool_call" as const,
+            }],
+          });
+        }
+
+        if (financeCalls === 2) {
+          return new AIMessage({
+            content: "",
             tool_calls: Array.from({ length: 6 }, (_, index) => ({
               name: "exec_sql",
               args: { sql: `SELECT ${index + 1};` },
@@ -148,8 +169,11 @@ describe("createWorkflowGraph", () => {
         }
 
         const toolResults = input.filter((message: { _getType?: () => string }) => message._getType?.() === "tool");
-        expect(toolResults).toHaveLength(6);
-        expect(toolResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
+        const execSqlResults = toolResults.filter(
+          (message: { tool_call_id?: string }) => message.tool_call_id?.startsWith("finance-tool-"),
+        );
+        expect(execSqlResults).toHaveLength(6);
+        expect(execSqlResults.map((message: { tool_call_id: string }) => message.tool_call_id)).toEqual(
           Array.from({ length: 6 }, (_, index) => `finance-tool-${index + 1}`),
         );
 
@@ -160,11 +184,11 @@ describe("createWorkflowGraph", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("sync yesterday's transactions")] }, threadConfig);
 
-    expect(financeCalls).toBe(2);
+    expect(financeCalls).toBe(3);
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
   });
 
-  it("visits the obsidian node on Obsidian_SG route", async () => {
+  it("visits the obsidian node on obsidian route", async () => {
     let supervisorCalls = 0;
     const app = makeGraph(
       () => {
@@ -181,7 +205,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toBe("obsidian result");
   });
 
-  it("visits the configuration node on Config_SG route", async () => {
+  it("visits the configuration node on configuration route", async () => {
     let supervisorCalls = 0;
     const app = makeGraph(() => {
       supervisorCalls += 1;
@@ -268,7 +292,7 @@ describe("createWorkflowGraph", () => {
     );
 
     const state = await app.invoke(
-      { messages: [new HumanMessage(buildCronTrigger("finance-sync"))] },
+      { messages: [new HumanMessage(buildCronTriggerForJob("finance", "finance-sync"))] },
       threadConfig,
     );
 
@@ -277,21 +301,22 @@ describe("createWorkflowGraph", () => {
   });
 
   it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
-    const runtimeAgents = createRuntimeAgentRepositoryFake([
+    const customAgents = [
       ...buildDefaultRuntimeAgents(),
       {
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"],
+        toolBundleIds: ["none"] as const,
         executor: "generic",
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
       },
-    ]);
+    ];
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 
     let supervisorCalls = 0;
     const app = makeGraph(
@@ -299,11 +324,15 @@ describe("createWorkflowGraph", () => {
         supervisorCalls += 1;
         return { next: "daily-summary" };
       },
-      () => new AIMessage("Here is your daily summary."),
       undefined,
       undefined,
       undefined,
-      runtimeAgents,
+      undefined,
+      runtimeAgentRepository,
+      customAgents,
+      {
+        generic: () => new AIMessage("Here is your daily summary."),
+      },
     );
 
     const state = await app.invoke({ messages: [new HumanMessage("summarize my day")] }, threadConfig);

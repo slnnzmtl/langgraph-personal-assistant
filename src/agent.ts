@@ -1,14 +1,15 @@
-import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";
 import type { IFileSender } from "./telegram/file-sender.js";
-import { createRuntimeAgentDispatcher } from "./runtime-agents/dispatch.js";
-import { createRuntimeAgentExecutionContext } from "./runtime-agents/execution-context.js";
-import { createSupervisorNode } from "./nodes/supervisor-node.js";
-import type { RuntimeAgentRepository } from "./runtime-agents/repository.js";
-import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
 import type { SupabaseMcpSession } from "./mcp/supabase.js";
+import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "./cron-triggers.js";
+import { createAssistant } from "./core/create-assistant.js";
+import type { RuntimeAgentRepository } from "./core/agents/repository.js";
+import { createAppExecutionKit } from "./app/register-defaults.js";
+import { createRuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
+import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 
 export type WorkflowGraphConfig = {
   obsidianVaultPath: string;
@@ -17,52 +18,55 @@ export type WorkflowGraphConfig = {
   supabaseSession?: SupabaseMcpSession;
   runtimeCron?: RuntimeCronService;
   fileSender?: IFileSender;
-  configLlmConnector?: ILLMConnector;
 };
 
-export const createWorkflowGraph = (
-  supervisorLlmConnector: ILLMConnector,
-  obsidianLlmConnector: ILLMConnector,
-  financeLlmConnector: ILLMConnector,
-  config: WorkflowGraphConfig,
-) => {
-  const configLlmConnector = config.configLlmConnector ?? obsidianLlmConnector;
-  const memory = new MemorySaver();
-  const supervisorNode = createSupervisorNode(supervisorLlmConnector, {
-    runtimeAgentRepository: config.runtimeAgentRepository,
+export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
+  supervisorLlm: ILLMConnector;
+  models: Record<string, BaseChatModel>;
+  executors: Iterable<string>;
+  cronTargetAgentIds: readonly string[];
+  defaultModelKey?: string;
+  messageHistoryMaxTokens: number;
+};
+
+export const createWorkflowGraph = ({
+  supervisorLlm,
+  models,
+  executors,
+  cronTargetAgentIds,
+  defaultModelKey = "generic",
+  obsidianVaultPath,
+  cronJobRepository,
+  runtimeAgentRepository,
+  runtimeCron,
+  fileSender,
+  supabaseSession,
+  messageHistoryMaxTokens,
+}: CreateWorkflowGraphInput) => {
+  const { promptResolver, policyRegistry } = createAppExecutionKit(executors);
+  const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
+
+  return createAssistant({
+    supervisorLlm,
+    models,
+    defaultModelKey,
+    runtimeAgentRepository,
+    cronJobRepository,
+    ...(runtimeCron ? { runtimeCron } : {}),
+    bundleDeps: createRuntimeToolBundleDeps(obsidianVaultPath, {
+      cronTargetAgentIds,
+      cronJobRepository,
+      runtimeAgentRepository,
+      ...(fileSender ? { fileSender } : {}),
+      ...(supabaseSession ? { supabaseSession } : {}),
+    }),
+    promptResolver,
+    policyRegistry,
+    loadSupervisorPrompt: loadSupervisorSystemPrompt,
+    cronTriggerResolver: {
+      resolveCronTriggerRoute: (message) => cronTriggerResolver.resolveCronTriggerRoute(message) ?? undefined,
+      superviseCronRoute: SUPERVISE_CRON_ROUTE,
+    },
+    messageHistoryMaxTokens,
   });
-
-  const runtimeExecutionContext = createRuntimeAgentExecutionContext({
-    genericModel: obsidianLlmConnector.getModel(),
-    financeModel: financeLlmConnector.getModel(),
-    obsidianLlmConnector,
-    configurationModel: configLlmConnector.getModel(),
-    repository: config.runtimeAgentRepository,
-    cronJobRepository: config.cronJobRepository,
-    ...(config.runtimeCron ? { runtimeCron: config.runtimeCron } : {}),
-    obsidianVaultPath: config.obsidianVaultPath,
-    ...(config.fileSender ? { fileSender: config.fileSender } : {}),
-    ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
-  });
-
-  const runtimeAgentDispatcher = createRuntimeAgentDispatcher(runtimeExecutionContext);
-
-  const graph = new StateGraph(AgentStateAnnotation)
-    .addNode("supervisor", supervisorNode)
-    .addNode("Runtime_SG", runtimeAgentDispatcher);
-
-  graph
-    .addEdge(START, "supervisor")
-    .addConditionalEdges(
-      "supervisor",
-      (state: AgentState) => state.next ?? "FINISH",
-      {
-        Runtime_SG: "Runtime_SG",
-        FINISH: END,
-      } satisfies Record<RouteName, "Runtime_SG" | typeof END>,
-    );
-
-  graph.addEdge("Runtime_SG", "supervisor");
-
-  return graph.compile({ checkpointer: memory, name: "personal-assistant-phase-1" });
 };

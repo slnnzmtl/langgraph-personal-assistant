@@ -1,38 +1,27 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createConfigurationNode } from "../../../src/runtime-agents/policies/configuration/node.js";
-import { createConfigurationSkillScopedTools } from "../../../src/runtime-agents/policies/configuration/tools.js";
-import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import {
+  createConfigurationTools,
+  createCronRepositoryFake,
+} from "../../helpers/configuration-tools.js";
+import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
 
-const createRepository = () => {
-  const jobs = [
-    {
-      jobName: "sync-wise-transactions",
-      schedule: "0 7 * * *",
-      targetRoute: "Finance_SG",
-      payload: "sync wise transactions for yesterday with supabase",
-    },
-  ];
-
-  return {
-    loadJobs: vi.fn(async () => jobs),
-    saveJobs: vi.fn(),
-  };
-};
-
-const createConfigurationTools = (repository: ReturnType<typeof createRepository>) =>
-  createConfigurationSkillScopedTools(
-    repository,
-    createRuntimeAgentRepositoryFake(),
-    defaultConfigurationBundleDeps,
-  );
+const defaultCronJobs = [
+  {
+    jobName: "sync-wise-transactions",
+    schedule: "0 7 * * *",
+    targetRoute: "finance",
+    payload: "sync wise transactions for yesterday with supabase",
+  },
+];
 
 describe("createConfigurationNode", () => {
   it("lists cron jobs directly without invoking the llm or runtime scheduler", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for list requests");
     });
@@ -68,7 +57,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("lists configuration skills directly without invoking the llm", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run for configuration skill catalog requests");
     });
@@ -91,7 +80,7 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toContain("Owner: configuration");
+    expect(result.messages?.[0]?.content).toContain("Module: configuration");
     expect(result.messages?.[0]?.content).toContain("Skill Name: cron");
     expect(result.messages?.[0]?.content).toContain("Skill Name: skill-management");
     expect(result.messages?.[0]?.content).toContain("Status: Listed");
@@ -99,7 +88,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("delegates cross-owner skill list requests to the model", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () =>
       new AIMessage({
         content: "",
@@ -137,15 +126,15 @@ describe("createConfigurationNode", () => {
   });
 
   it("strips hallucinated tool calls that are not currently bound", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () =>
       new AIMessage({
         content: "",
         tool_calls: [
           {
-            name: "list_skills",
+            name: "not_a_real_tool",
             args: {},
-            id: "list-1",
+            id: "fake-1",
             type: "tool_call",
           },
         ],
@@ -171,12 +160,14 @@ describe("createConfigurationNode", () => {
 
     expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
     expect(result.messages?.[0]?.tool_calls ?? []).toHaveLength(0);
-    expect(String(result.messages?.[0]?.content)).toContain("read_skill");
+    expect(String(result.messages?.[0]?.content)).toContain(
+      "That tool is not available for this runtime agent.",
+    );
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("returns preview_skill tool output directly without invoking the llm again", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run after read-only skill tool results");
     });
@@ -202,7 +193,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "preview_skill",
-              args: { owner: "finance", name: "sync-expenses" },
+              args: { module: "finance", name: "sync-expenses" },
               id: "preview-1",
               type: "tool_call",
             },
@@ -223,7 +214,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("returns list_skills tool output directly without invoking the llm again", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(() => {
       throw new Error("LLM must not run after read-only skill tool results");
     });
@@ -249,7 +240,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "list_skills",
-              args: { owner: "finance" },
+              args: { module: "finance" },
               id: "list-1",
               type: "tool_call",
             },
@@ -270,7 +261,7 @@ describe("createConfigurationNode", () => {
   });
 
   it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
-    const repository = createRepository();
+    const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
@@ -294,7 +285,7 @@ describe("createConfigurationNode", () => {
           tool_calls: [
             {
               name: "read_skill_for_edit",
-              args: { owner: "finance", name: "sync-expenses" },
+              args: { module: "finance", name: "sync-expenses" },
               id: "read-1",
               type: "tool_call",
             },

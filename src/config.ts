@@ -1,6 +1,11 @@
 import path from "node:path";
 
+import { getMessageHistoryMaxTokens } from "./core/message-trimming.js";
+
 const DEFAULT_APP_TIMEZONE = "UTC";
+const DEFAULT_MCP_MAX_RECONNECT_ATTEMPTS = 1;
+const DEFAULT_MCP_RECONNECT_BASE_DELAY_MS = 0;
+const DEFAULT_MCP_RECONNECT_MAX_DELAY_MS = 5_000;
 
 const REQUIRED_ENV_VARS = [
   "TELEGRAM_BOT_TOKEN",
@@ -18,11 +23,16 @@ export interface AppConfig {
   supervisorModel: string;
   obsidianModel: string;
   financeModel: string;
+  configurationModel: string;
   obsidianVaultPath: string;
   appTimezone: string;
   schedulerEnabled: boolean;
   cronJobsFilePath: string;
   runtimeAgentsFilePath: string;
+  messageHistoryMaxTokens: number;
+  mcpMaxReconnectAttempts: number;
+  mcpReconnectBaseDelayMs: number;
+  mcpReconnectMaxDelayMs: number;
   // Optional: Official hosted Supabase MCP server
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
@@ -51,7 +61,24 @@ const getRequiredEnv = (name: RequiredEnvVar): string => {
   return value;
 };
 
-const normalizeAppTimezone = (value: string | undefined): string => {
+const parseNonNegativeInt = (raw: string | undefined, defaultValue: number): number => {
+  if (!raw) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
+};
+
+export const normalizeMcpReconnectDelays = (
+  baseDelayMs: number,
+  maxDelayMs: number,
+): { baseDelayMs: number; maxDelayMs: number } => ({
+  baseDelayMs,
+  maxDelayMs: Math.max(baseDelayMs, maxDelayMs),
+});
+
+export const normalizeAppTimezone = (value: string | undefined): string => {
   const candidate = value?.trim();
 
   if (!candidate) {
@@ -68,10 +95,22 @@ const normalizeAppTimezone = (value: string | undefined): string => {
 
 export const loadConfig = (): AppConfig => {
   const defaultGeminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash-lite";
-  
+  const mcpReconnectBaseDelayMs = parseNonNegativeInt(
+    process.env.MCP_RECONNECT_BASE_DELAY_MS,
+    DEFAULT_MCP_RECONNECT_BASE_DELAY_MS,
+  );
+  const mcpReconnectMaxDelayMs = parseNonNegativeInt(
+    process.env.MCP_RECONNECT_MAX_DELAY_MS,
+    DEFAULT_MCP_RECONNECT_MAX_DELAY_MS,
+  );
+  const normalizedMcpReconnectDelays = normalizeMcpReconnectDelays(
+    mcpReconnectBaseDelayMs,
+    mcpReconnectMaxDelayMs,
+  );
+
   console.log("[Config Debug] SUPABASE_PROJECT_REF set:", !!process.env.SUPABASE_PROJECT_REF);
   console.log("[Config Debug] SUPABASE_ACCESS_TOKEN set:", !!process.env.SUPABASE_ACCESS_TOKEN);
-  
+
   return {
     telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
     allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
@@ -80,11 +119,19 @@ export const loadConfig = (): AppConfig => {
     supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,
     obsidianModel: process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
     financeModel: process.env.FINANCE_MODEL ?? defaultGeminiModel,
+    configurationModel: process.env.CONFIGURATION_MODEL ?? process.env.OBSIDIAN_MODEL ?? defaultGeminiModel,
     obsidianVaultPath: process.env.OBSIDIAN_VAULT_PATH ?? getDefaultVaultPath(),
     appTimezone: normalizeAppTimezone(process.env.APP_TIMEZONE),
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
+    messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
+    mcpMaxReconnectAttempts: parseNonNegativeInt(
+      process.env.MCP_MAX_RECONNECT_ATTEMPTS,
+      DEFAULT_MCP_MAX_RECONNECT_ATTEMPTS,
+    ),
+    mcpReconnectBaseDelayMs: normalizedMcpReconnectDelays.baseDelayMs,
+    mcpReconnectMaxDelayMs: normalizedMcpReconnectDelays.maxDelayMs,
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,

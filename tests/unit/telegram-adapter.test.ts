@@ -25,12 +25,14 @@ const config: AppConfig = {
   cronJobsFilePath: "/tmp/cron-jobs.json",
 };
 
+const defaultInvokeResult = {
+  messages: [new AIMessage("handled")],
+  context: {},
+  next: "FINISH" as const,
+};
+
 const app = {
-  invoke: vi.fn(async () => ({
-    messages: [new AIMessage("handled")],
-    context: {},
-    next: "FINISH" as const,
-  })),
+  invoke: vi.fn(async () => defaultInvokeResult),
 };
 
 const bot = {
@@ -43,6 +45,8 @@ const createAdapter = () => new TelegramAdapter(app as never, config, bot);
 
 afterEach(() => {
   vi.restoreAllMocks();
+  app.invoke.mockReset();
+  app.invoke.mockImplementation(async () => defaultInvokeResult);
 });
 
 describe("extractTelegramMessageText", () => {
@@ -290,6 +294,81 @@ describe("TelegramAdapter", () => {
     expect(logSpy).not.toHaveBeenCalled();
   });
 
+  it("skips duplicate Telegram update ids", async () => {
+    const adapter = createAdapter();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const sendChatAction = vi.fn(async () => undefined);
+
+    const ctx = {
+      update: { update_id: 1001 },
+      from: { id: 42 },
+      chat: { id: 555 },
+      message: { text: "hello" },
+      sendChatAction,
+      telegram: { sendMessage: vi.fn(async () => undefined) },
+    };
+
+    await adapter.handleMessage(ctx as never);
+    await adapter.handleMessage(ctx as never);
+
+    expect(app.invoke).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith("Skipping duplicate Telegram update: 1001");
+  });
+
+  it("serializes concurrent workflow invokes for the same chat", async () => {
+    const adapter = createAdapter();
+    const order: string[] = [];
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstStarted!: () => void;
+    const firstStartedGate = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+
+    app.invoke.mockImplementationOnce(async () => {
+      order.push("first-start");
+      firstStarted();
+      await firstGate;
+      order.push("first-end");
+      return { messages: [new AIMessage("first")], context: {}, next: "FINISH" as const };
+    });
+    app.invoke.mockImplementationOnce(async () => {
+      order.push("second-start");
+      order.push("second-end");
+      return { messages: [new AIMessage("second")], context: {}, next: "FINISH" as const };
+    });
+
+    const sendMessage = vi.fn(async () => undefined);
+    const baseCtx = {
+      from: { id: 42 },
+      chat: { id: 555 },
+      sendChatAction: vi.fn(async () => undefined),
+      telegram: { sendMessage },
+    };
+
+    const first = adapter.handleMessage({
+      ...baseCtx,
+      update: { update_id: 2001 },
+      message: { text: "one" },
+    } as never);
+    const second = adapter.handleMessage({
+      ...baseCtx,
+      update: { update_id: 2002 },
+      message: { text: "two" },
+    } as never);
+
+    await firstStartedGate;
+    expect(order).toEqual(["first-start"]);
+
+    releaseFirst();
+    await Promise.all([first, second]);
+
+    expect(order).toEqual(["first-start", "first-end", "second-start", "second-end"]);
+    expect(app.invoke).toHaveBeenCalledTimes(2);
+  });
+
   it("calls setCurrentChatId on the fileSender before triggering the workflow", async () => {
     const mockFileSender = {
       setCurrentChatId: vi.fn(),
@@ -299,29 +378,17 @@ describe("TelegramAdapter", () => {
     const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
-    // Simulate a message handler context
-    const ctx = {
+    await adapter.handleMessage({
+      update: { update_id: 3001 },
       from: { id: 42 },
       chat: { id: 555 },
       message: { text: "send me a file" },
       sendChatAction: vi.fn(async () => undefined),
       telegram: { sendMessage },
-    };
-
-    // Manually invoke the message handler logic that's in launch()
-    const inboundMessage = await adapter.parseInbound(ctx as never);
-    expect(inboundMessage).toEqual(new HumanMessage("send me a file"));
-
-    const chatId = ctx.chat.id;
-    const threadId = chatId.toString();
-    
-    // This is what launch() does: call setCurrentChatId with the numeric chatId
-    mockFileSender.setCurrentChatId(chatId);
-    
-    const finalState = await adapter.triggerWorkflow(inboundMessage, threadId);
-    await adapter.sendOutbound(ctx as never, finalState.messages);
+    } as never);
 
     expect(mockFileSender.setCurrentChatId).toHaveBeenCalledWith(555);
+    expect(app.invoke).toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalled();
   });
 });

@@ -4,7 +4,7 @@ import { Telegraf, type Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
 import type { createWorkflowGraph } from "../agent.js";
-import type { AgentState } from "../state.js";
+import type { AgentState } from "../core/state.js";
 import type { IFileSender } from "./file-sender.js";
 import { GraphRecursionError } from "@langchain/langgraph";
 
@@ -149,9 +149,13 @@ const sendChunk = async (telegram: Context["telegram"], chatId: number, chunk: s
   }
 };
 
+const MAX_TRACKED_UPDATE_IDS = 1_000;
+
 export class TelegramAdapter implements ITelegramAdapter {
   private readonly bot: Telegraf<Context>;
   private readonly allowedTelegramUserId: string;
+  private readonly processedUpdateIds = new Set<number>();
+  private readonly threadQueues = new Map<string, Promise<void>>();
 
   constructor(
     private readonly app: ReturnType<typeof createWorkflowGraph>,
@@ -161,6 +165,42 @@ export class TelegramAdapter implements ITelegramAdapter {
   ) {
     this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
+  }
+
+  /** Drop duplicate Telegram deliveries of the same update. */
+  markUpdateProcessed(updateId: number): boolean {
+    if (this.processedUpdateIds.has(updateId)) {
+      return false;
+    }
+
+    this.processedUpdateIds.add(updateId);
+
+    if (this.processedUpdateIds.size > MAX_TRACKED_UPDATE_IDS) {
+      const oldest = this.processedUpdateIds.values().next().value;
+      if (oldest !== undefined) {
+        this.processedUpdateIds.delete(oldest);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Serialize workflow invokes per chat. Concurrent invokes on the same
+   * MemorySaver thread_id interleave supervisor/finance turns and look like
+   * the conversation was triggered twice.
+   */
+  runExclusiveForThread(threadId: string, task: () => Promise<void>): Promise<void> {
+    const previous = this.threadQueues.get(threadId) ?? Promise.resolve();
+    const next = previous.then(task, task);
+    this.threadQueues.set(
+      threadId,
+      next.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    return next;
   }
 
   async parseInbound(ctx: Context): Promise<HumanMessage | null> {
@@ -246,26 +286,32 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
   }
 
-  async launch(): Promise<void> {
-    this.bot.on("message", async (ctx) => {
-      const inboundMessage = await this.parseInbound(ctx);
+  async handleMessage(ctx: Context): Promise<void> {
+    const updateId = ctx.update.update_id;
+    if (!this.markUpdateProcessed(updateId)) {
+      console.warn(`Skipping duplicate Telegram update: ${updateId}`);
+      return;
+    }
 
-      if (!inboundMessage) {
-        return;
-      }
+    const inboundMessage = await this.parseInbound(ctx);
 
-      const threadId = ctx.chat?.id?.toString();
+    if (!inboundMessage) {
+      return;
+    }
 
-      if (!threadId) {
-        console.error("Unable to determine Telegram chat ID for incoming message.");
-        return;
-      }
+    const threadId = ctx.chat?.id?.toString();
 
-      const chatId = ctx.chat?.id;
-      if (chatId) {
-        this.fileSender?.setCurrentChatId(chatId);
-      }
+    if (!threadId) {
+      console.error("Unable to determine Telegram chat ID for incoming message.");
+      return;
+    }
 
+    const chatId = ctx.chat?.id;
+    if (chatId) {
+      this.fileSender?.setCurrentChatId(chatId);
+    }
+
+    await this.runExclusiveForThread(threadId, async () => {
       try {
         await ctx.sendChatAction("typing");
         const finalState = await this.triggerWorkflow(inboundMessage, threadId);
@@ -279,6 +325,12 @@ export class TelegramAdapter implements ITelegramAdapter {
           await sendSystemError(ctx, "System Error: Unable to process request.");
         }
       }
+    });
+  }
+
+  async launch(): Promise<void> {
+    this.bot.on("message", async (ctx) => {
+      await this.handleMessage(ctx);
     });
 
     await this.bot.launch();
