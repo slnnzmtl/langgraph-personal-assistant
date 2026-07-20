@@ -1,16 +1,20 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   estimateMessageTokens,
   trimMessagesToTokenBudgetSync,
 } from "../../src/core/message-trimming.js";
-import { reduceAgentMessages } from "../../src/core/state.js";
+import { createReduceAgentMessages, reduceAgentMessages } from "../../src/core/state.js";
 
 const makeMessages = (count: number, filler = "") =>
   Array.from({ length: count }, (_, index) => new HumanMessage(`${filler}message-${String(index + 1).padStart(2, "0")}`));
 
 const SMALL_BUDGET = 80;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("state message window", () => {
   it("keeps message history intact below the token budget", () => {
@@ -33,6 +37,18 @@ describe("state message window", () => {
     const updated = reduceAgentMessages(existing, new AIMessage("message-11"));
 
     expect(updated.length).toBeLessThanOrEqual(existing.length + 1);
+    expect(updated.at(-1)?.content).toBe("message-11");
+    expect(updated.some((message) => message.content === "message-01")).toBe(false);
+  });
+
+  it("uses the configured token budget from createReduceAgentMessages instead of env fallback", () => {
+    vi.stubEnv("MESSAGE_HISTORY_MAX_TOKENS", "999999");
+
+    const strictReducer = createReduceAgentMessages(SMALL_BUDGET);
+    const existing = makeMessages(10, "word ".repeat(20));
+    const updated = strictReducer(existing, new AIMessage("message-11"));
+
+    expect(updated.length).toBeLessThan(existing.length + 1);
     expect(updated.at(-1)?.content).toBe("message-11");
     expect(updated.some((message) => message.content === "message-01")).toBe(false);
   });

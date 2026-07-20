@@ -273,7 +273,7 @@ Two compaction strategies:
 
 ### Trimming rules
 
-- Hard cap of **~6,000 estimated tokens** (configurable via `MESSAGE_HISTORY_MAX_TOKENS`; estimated as character length ÷ 4)
+- Hard cap of **~6,000 estimated tokens** (configured via `MESSAGE_HISTORY_MAX_TOKENS` in `loadConfig()`, passed through `createWorkflowContext()` into the message reducer; estimated as character length ÷ 4)
 - Active in-flight tool sequences are kept as atomic units (may exceed the limit)
 - Latest human message is never dropped
 - Orphaned leading `ToolMessage`s are stripped
@@ -423,7 +423,7 @@ personal-assistant/
 ├── prompts/          # System prompt files
 ├── skills/           # Agent playbooks
 ├── data/             # Persisted cron jobs + runtime agents
-├── specs/            # Design documents (may lag code)
+├── specs/            # Pointer to docs/ARCHITECTURE.md (legacy specs retired)
 ├── tests/unit/       # 44 Vitest suites
 ├── tests/e2e/        # Playwright workflow tests
 └── sql/              # Supabase setup scripts
@@ -488,11 +488,11 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 ### Simplification opportunities
 
-- Keep the policy registry and generic policy: they eliminate duplicated sub-agent graphs and are justified by the three built-in domains plus configurable agents.
-- Avoid adding a general dependency-injection container. `createWorkflowContext()` is already the composition root and makes dependencies visible.
-- Remove `AppConfig.messageHistoryMaxTokens` or pass it into graph creation; trimming currently reads `MESSAGE_HISTORY_MAX_TOKENS` directly, so the configuration field duplicates state without controlling behavior.
-- Rename the graph from `personal-assistant-phase-1` when convenient. It is a low-risk clarity fix, not an architectural migration.
-- Update or retire legacy documents under `specs/` that refer to `Finance_SG` and `Obsidian_SG`; the executable architecture uses the unified `Runtime_SG` dispatcher.
+- **Done:** Keep the policy registry and generic policy — they eliminate duplicated sub-agent graphs and are justified by the three built-in domains plus configurable agents.
+- **Done:** Avoid adding a general dependency-injection container. `createWorkflowContext()` is the composition root and makes dependencies visible.
+- **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
+- **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
+- **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified `Runtime_SG` dispatcher model.
 
 ---
 

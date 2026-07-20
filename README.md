@@ -256,7 +256,8 @@ src/
 prompts/                    # System prompt files (.xml / .md)
 skills/                     # Agent skill playbooks
 data/                       # Persisted cron jobs and runtime agents
-specs/                      # Design documents
+docs/                       # Architecture and design documentation (see docs/ARCHITECTURE.md)
+specs/                      # Pointer to docs/ARCHITECTURE.md
 tests/                      # Unit and e2e tests
 ```
 

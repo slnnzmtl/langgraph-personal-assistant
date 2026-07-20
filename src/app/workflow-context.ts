@@ -59,6 +59,7 @@ export const createWorkflowContext = async (
     ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
     ...(options.fileSender ? { fileSender: options.fileSender } : {}),
     ...(supabaseSession ? { supabaseSession } : {}),
+    messageHistoryMaxTokens: config.messageHistoryMaxTokens,
   });
 
   return {

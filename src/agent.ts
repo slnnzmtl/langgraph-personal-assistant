@@ -26,6 +26,7 @@ export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
   executors: Iterable<string>;
   cronTargetAgentIds: readonly string[];
   defaultModelKey?: string;
+  messageHistoryMaxTokens: number;
 };
 
 export const createWorkflowGraph = ({
@@ -40,6 +41,7 @@ export const createWorkflowGraph = ({
   runtimeCron,
   fileSender,
   supabaseSession,
+  messageHistoryMaxTokens,
 }: CreateWorkflowGraphInput) => {
   const { promptResolver, policyRegistry } = createAppExecutionKit(executors);
   const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
@@ -65,6 +67,6 @@ export const createWorkflowGraph = ({
       resolveCronTriggerRoute: (message) => cronTriggerResolver.resolveCronTriggerRoute(message) ?? undefined,
       superviseCronRoute: SUPERVISE_CRON_ROUTE,
     },
-    graphName: "personal-assistant-phase-1",
+    messageHistoryMaxTokens,
   });
 };

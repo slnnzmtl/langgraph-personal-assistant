@@ -7,6 +7,7 @@ import {
 } from "../../src/app/runtime-agent-catalog.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
+import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "../../src/core/message-trimming.js";
 import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
 import { FakeLLMConnector } from "./fakes.js";
 
@@ -15,6 +16,7 @@ export type TestWorkflowGraphOptions = WorkflowGraphConfig & {
   modelHandlers?: Partial<Record<string, (input: unknown) => unknown>>;
   runtimeAgents?: RuntimeAgentDefinition[];
   defaultModelKey?: string;
+  messageHistoryMaxTokens?: number;
 };
 
 export const createTestWorkflowGraph = ({
@@ -22,6 +24,7 @@ export const createTestWorkflowGraph = ({
   modelHandlers = {},
   runtimeAgents = buildDefaultRuntimeAgents(),
   defaultModelKey = "generic",
+  messageHistoryMaxTokens = DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   ...config
 }: TestWorkflowGraphOptions) => {
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey);
@@ -43,6 +46,7 @@ export const createTestWorkflowGraph = ({
     defaultModelKey,
     executors: deriveExecutors(runtimeAgents),
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
+    messageHistoryMaxTokens,
     ...config,
   });
 };

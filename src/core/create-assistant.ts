@@ -11,7 +11,8 @@ import { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.
 import { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 import type { RuntimeAgentPolicy } from "./types/policy.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
-import { AgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
+import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
+import { createAgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
 
 export type AssistantConfig = {
   supervisorLlm: ILLMConnector;
@@ -29,6 +30,7 @@ export type AssistantConfig = {
   resolveAgentId?: (routeOrId: string) => string;
   checkpointer?: MemorySaver;
   graphName?: string;
+  messageHistoryMaxTokens?: number;
   promptResolver?: PromptResolver;
   policyRegistry?: PolicyRegistry;
 };
@@ -67,8 +69,11 @@ export const createAssistant = (config: AssistantConfig) => {
   });
 
   const runtimeAgentDispatcher = createRuntimeAgentDispatcher(executionContext);
+  const agentStateAnnotation = createAgentStateAnnotation({
+    messageHistoryMaxTokens: config.messageHistoryMaxTokens ?? DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
+  });
 
-  const graph = new StateGraph(AgentStateAnnotation)
+  const graph = new StateGraph(agentStateAnnotation)
     .addNode("supervisor", supervisorNode)
     .addNode("Runtime_SG", runtimeAgentDispatcher);
 
