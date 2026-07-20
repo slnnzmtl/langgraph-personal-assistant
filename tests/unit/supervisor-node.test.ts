@@ -6,7 +6,8 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
-import { MESSAGE_HISTORY_LIMIT, trimMessagesToLast } from "../../src/core/state.js";
+import { getEmptySubAgentHandoff } from "../../src/core/execution/empty-subagent-handoff.js";
+import { MESSAGE_HISTORY_LIMIT, reduceAgentMessages, trimMessagesToLast } from "../../src/core/state.js";
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -348,6 +349,24 @@ describe("createSupervisorNode", () => {
       "The query failed because the expenses table name was wrong.",
     );
     expect(modelInvoke).toHaveBeenCalledOnce();
+
+    const mergedMessages = reduceAgentMessages(
+      [
+        new HumanMessage("for yesterday only"),
+        new AIMessage({
+          content: "",
+          additional_kwargs: {
+            emptySubAgentHandoff: true,
+            agentName: "Finance",
+            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
+          },
+        }),
+      ],
+      firstStateUpdateMessage(result)!,
+    );
+    const compactedHandoff = getEmptySubAgentHandoff(mergedMessages[1]);
+    expect(compactedHandoff?.toolContext).toBe("[consumed: Finance tool results]");
+    expect(compactedHandoff?.toolContext).not.toContain("expenses");
   });
 
   it("routes scheduler finance triggers without invoking the LLM", async () => {

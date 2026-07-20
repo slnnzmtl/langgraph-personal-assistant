@@ -1,6 +1,8 @@
 import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
+import { compactIntermediateToolHistory } from "./message-compaction.js";
+
 export const ROUTE_NAMES = ["Runtime_SG", "FINISH"] as const;
 export const MESSAGE_HISTORY_LIMIT = 10;
 
@@ -70,7 +72,8 @@ export const trimMessagesToLast = (
 export const reduceAgentMessages = (
   left: BaseMessage[],
   right: BaseMessage | BaseMessage[],
-): BaseMessage[] => trimMessagesToLast(messagesStateReducer(left, right));
+): BaseMessage[] =>
+  trimMessagesToLast(compactIntermediateToolHistory(messagesStateReducer(left, right)));
 
 export const AgentStateAnnotation = Annotation.Root({
   messages: Annotation<BaseMessage[]>({
