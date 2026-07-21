@@ -117,7 +117,7 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("create today routine note"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.messages).toBeUndefined();
   });
@@ -157,7 +157,7 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });
 
@@ -215,7 +215,7 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
   });
 
@@ -231,7 +231,7 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("set up a cron message every weekday at 9am"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("configuration");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("configuration");
   });
 
@@ -433,7 +433,7 @@ describe("createSupervisorNode", () => {
       makeHumanState(buildCronTriggerForJob("finance", "finance-sync")),
     );
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
@@ -469,7 +469,7 @@ describe("createSupervisorNode", () => {
       makeHumanState(buildCronTriggerForJob("obsidian", "obsidian-daily-note")),
     );
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
@@ -507,7 +507,7 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();

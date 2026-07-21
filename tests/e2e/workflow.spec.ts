@@ -720,7 +720,7 @@ test.describe("workflow graph", () => {
     }
   });
 
-  test("routes a persisted runtime agent through Runtime_SG", async () => {
+  test("routes a persisted runtime agent natively when the supervisor selects a custom agent id", async () => {
     const customAgents: RuntimeAgentDefinition[] = [
       {
         id: "daily-summary",

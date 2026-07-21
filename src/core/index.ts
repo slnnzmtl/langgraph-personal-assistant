@@ -1,7 +1,16 @@
 export { createAssistant, type AssistantConfig } from "./create-assistant.js";
 export { createRuntimeAgentRepository, createRuntimeAgentRepositoryForConfig, type RuntimeAgentRepository } from "./agents/repository.js";
 export { createPromptResolver, type PromptResolver } from "./agents/prompt-resolver.js";
-export { createRuntimeAgentDispatcher } from "./agents/dispatch.js";
+export {
+  buildRuntimeAgentGraphNodeSets,
+  createRuntimeAgentFinalizeNode,
+  createRuntimeAgentPrepareNode,
+  runtimeAgentFinalizeNodeName,
+  runtimeAgentLlmNodeName,
+  runtimeAgentPrepareNodeName,
+  runtimeAgentToolsNodeName,
+  type RuntimeAgentGraphNodeSet,
+} from "./agents/build-runtime-agent-nodes.js";
 export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 export { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
 export {
@@ -18,10 +27,11 @@ export {
   type SystemContextFormatter,
   type SystemMetadataOptions,
 } from "./system-context.js";
-export type { RuntimeAgentPolicy, RuntimeAgentPolicyHandler } from "./types/policy.js";
-export type { RuntimeAgentGraphBundle, CompiledRuntimeAgentGraph } from "./agents/runtime-agent-graph-bundle.js";
-export { createRuntimeAgentPolicy, resolveRuntimeAgentPolicyHandler } from "./types/policy.js";
+export type { RuntimeAgentPolicy } from "./types/policy.js";
+export { createRuntimeAgentPolicy } from "./types/policy.js";
 export type { PolicyContext } from "./types/policy-context.js";
+export type { RuntimeAgentGraphBundle } from "./agents/runtime-agent-graph-bundle.js";
+export { createDefaultPrepare } from "./agents/runtime-agent-graph-bundle.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,

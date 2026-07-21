@@ -300,7 +300,7 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed successfully");
   });
 
-  it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
+  it("routes to a runtime agent when the supervisor selects a custom agent id", async () => {
     const customAgents = [
       ...buildTestRuntimeAgents(),
       {

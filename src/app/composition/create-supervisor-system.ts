@@ -81,6 +81,7 @@ export const createSupervisorSystem = async (
   const graph = createWorkflowGraph({
     supervisorLlm: supervisorConnector,
     models,
+    runtimeAgents,
     defaultModelKey,
     executors: deriveExecutors(runtimeAgents),
     cronTargetAgentIds,

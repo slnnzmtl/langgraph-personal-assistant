@@ -60,13 +60,23 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const wrapper = createConfigurationPolicy({ shellFormatters: configurationShellFormatters }).createHandler(context, configurationDefinition);
-
-    const result = await wrapper({
+    const bundle = createConfigurationPolicy({ shellFormatters: configurationShellFormatters })
+      .createGraphBundle(context, configurationDefinition);
+    const prepared = bundle.prepare({
       messages: [new HumanMessage("set up a cron job for daily notes")],
       context: {},
       next: undefined,
+      agentMessages: [],
+      stepCount: 0,
     });
+    const compiled = createCompiledSubAgentGraph(
+      "Configuration",
+      configurationDefinition.maxSteps,
+      bundle.llmNode,
+      createConfigurationTools(repository),
+    );
+    const subgraphResult = await compiled.invoke(prepared);
+    const result = bundle.finalize(subgraphResult);
 
     expect(configCalls).toBeGreaterThanOrEqual(2);
     expect(result.messages?.[0]?.content).toContain("Created cron job");

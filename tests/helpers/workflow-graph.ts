@@ -66,6 +66,7 @@ export const createTestWorkflowGraph = ({
   return createWorkflowGraph({
     supervisorLlm,
     models,
+    runtimeAgents,
     defaultModelKey,
     executors: deriveExecutors(runtimeAgents),
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),

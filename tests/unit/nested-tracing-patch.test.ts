@@ -1,13 +1,19 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { END, START, StateGraph } from "@langchain/langgraph";
+import { createServer } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { createCompiledSubAgentGraph } from "../../src/core/execution/create-sub-agent.js";
-import { createSubgraphNodeWrapper } from "../../src/core/execution/subgraph-wrapper.js";
+import {
+  buildRuntimeAgentGraphNodeSets,
+  createRuntimeAgentFinalizeNode,
+  createRuntimeAgentPrepareNode,
+  routeAfterRuntimeAgentLlm,
+  routeAfterRuntimeAgentTools,
+} from "../../src/core/agents/build-runtime-agent-nodes.js";
+import { createSubAgentToolsNode } from "../../src/core/execution/create-sub-agent.js";
 import { createAgentStateAnnotation } from "../../src/core/state.js";
-import { patchCallbackManagerForNestedTracing } from "../../src/core/tracing/patch-callback-manager.js";
 
 const echoTool = tool(async ({ text }: { text: string }) => text, {
   name: "echo",
@@ -15,7 +21,7 @@ const echoTool = tool(async ({ text }: { text: string }) => text, {
   schema: z.object({ text: z.string() }),
 });
 
-const createNestedTracingGraph = () => {
+const createFlattenedRuntimeAgentGraph = () => {
   let llmCalls = 0;
   const llmNode = async () => {
     llmCalls += 1;
@@ -38,46 +44,97 @@ const createNestedTracingGraph = () => {
     };
   };
 
-  const compiledSubgraph = createCompiledSubAgentGraph("Finance", 10, llmNode, [echoTool]);
-  const runtimeNode = createSubgraphNodeWrapper({
-    subgraphName: "Finance",
-    buildInitialState: (parentState) => ({
+  const bundle = {
+    name: "Finance",
+    maxSteps: 10,
+    prepare: (parentState: { messages: HumanMessage[] }) => ({
       agentMessages: parentState.messages,
       stepCount: 0,
     }),
-    compiledSubgraph,
-  });
+    llmNode,
+    toolsNode: createSubAgentToolsNode([echoTool]),
+    finalize: (result: { agentMessages: AIMessage[]; stepCount: number }) => ({
+      messages: [result.agentMessages[result.agentMessages.length - 1]!],
+    }),
+  };
 
   const agentStateAnnotation = createAgentStateAnnotation({ messageHistoryMaxTokens: 8_000 });
 
   return new StateGraph(agentStateAnnotation)
-    .addNode("Runtime_SG", runtimeNode)
-    .addEdge(START, "Runtime_SG")
-    .addEdge("Runtime_SG", END)
-    .compile({ name: "parent-graph" });
+    .addNode("finance__prepare", createRuntimeAgentPrepareNode(bundle))
+    .addNode("finance__llm", bundle.llmNode)
+    .addNode("finance__tools", bundle.toolsNode)
+    .addNode("finance__finalize", createRuntimeAgentFinalizeNode(bundle))
+    .addEdge(START, "finance__prepare")
+    .addEdge("finance__prepare", "finance__llm")
+    .addConditionalEdges(
+      "finance__llm",
+      (state) => routeAfterRuntimeAgentLlm(state, bundle.maxSteps, "finance__tools", "finance__finalize"),
+      {
+        finance__tools: "finance__tools",
+        finance__finalize: "finance__finalize",
+      },
+    )
+    .addConditionalEdges(
+      "finance__tools",
+      (state) => routeAfterRuntimeAgentTools(state, "finance__llm", "finance__tools"),
+      {
+        finance__llm: "finance__llm",
+        finance__tools: "finance__tools",
+      },
+    )
+    .addEdge("finance__finalize", END)
+    .compile({ name: "flattened-runtime-agent-graph" });
 };
 
-describe("patchCallbackManagerForNestedTracing", () => {
+describe("flattened runtime agent graph tracing", () => {
   const originalTracing = process.env.LANGCHAIN_TRACING_V2;
+  const originalApiKey = process.env.LANGCHAIN_API_KEY;
+  const originalEndpoint = process.env.LANGCHAIN_ENDPOINT;
   let errorSpy: ReturnType<typeof vi.spyOn>;
+  let stub: ReturnType<typeof createServer> | undefined;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    stub = createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end("{}");
+    });
+    await new Promise<void>((resolve) => {
+      stub!.listen(0, "127.0.0.1", () => resolve());
+    });
+    const address = stub.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+
     process.env.LANGCHAIN_TRACING_V2 = "true";
+    process.env.LANGCHAIN_API_KEY = "lsv2_pt_fake";
+    process.env.LANGCHAIN_ENDPOINT = `http://127.0.0.1:${port}`;
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    patchCallbackManagerForNestedTracing();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     errorSpy.mockRestore();
     if (originalTracing === undefined) {
       delete process.env.LANGCHAIN_TRACING_V2;
     } else {
       process.env.LANGCHAIN_TRACING_V2 = originalTracing;
     }
+    if (originalApiKey === undefined) {
+      delete process.env.LANGCHAIN_API_KEY;
+    } else {
+      process.env.LANGCHAIN_API_KEY = originalApiKey;
+    }
+    if (originalEndpoint === undefined) {
+      delete process.env.LANGCHAIN_ENDPOINT;
+    } else {
+      process.env.LANGCHAIN_ENDPOINT = originalEndpoint;
+    }
+    await new Promise<void>((resolve, reject) => {
+      stub?.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 
-  it("avoids duplicate LangChainTracer end errors for nested compiled subgraph invokes", async () => {
-    const graph = createNestedTracingGraph();
+  it("avoids duplicate LangChainTracer end errors for flattened runtime agent loops", async () => {
+    const graph = createFlattenedRuntimeAgentGraph();
 
     await graph.invoke({
       messages: [new HumanMessage("show latest expenses")],
@@ -85,10 +142,61 @@ describe("patchCallbackManagerForNestedTracing", () => {
       next: undefined,
     });
 
+    const { awaitAllCallbacks } = await import("@langchain/core/callbacks/promises");
+    await awaitAllCallbacks();
+
     const tracerErrors = errorSpy.mock.calls
       .flat()
       .filter((line) => typeof line === "string" && line.includes("Error in handler LangChainTracer"));
 
     expect(tracerErrors).toHaveLength(0);
+  });
+});
+
+describe("buildRuntimeAgentGraphNodeSets", () => {
+  it("creates prepare, llm, tools, and finalize node names per enabled agent", () => {
+    const nodeSets = buildRuntimeAgentGraphNodeSets(
+      [
+        {
+          id: "finance",
+          name: "Finance",
+          description: "Finance agent",
+          systemPrompt: "finance",
+          toolBundleIds: ["none"],
+          executor: "generic",
+          maxSteps: 4,
+          enabled: true,
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      {
+        promptResolver: {
+          withResolvedSystemPrompt: (definition) => definition,
+        },
+        policyRegistry: {
+          get: () => ({
+            executor: "generic",
+            createGraphBundle: () => ({
+              name: "Finance",
+              maxSteps: 4,
+              prepare: () => ({ agentMessages: [], stepCount: 0 }),
+              llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
+              toolsNode: async () => ({}),
+              finalize: () => ({ messages: [new AIMessage("done")] }),
+            }),
+          }),
+        },
+      } as never,
+    );
+
+    expect(nodeSets).toHaveLength(1);
+    expect(nodeSets[0]).toMatchObject({
+      agentId: "finance",
+      prepareNodeName: "finance__prepare",
+      llmNodeName: "finance__llm",
+      toolsNodeName: "finance__tools",
+      finalizeNodeName: "finance__finalize",
+    });
   });
 });

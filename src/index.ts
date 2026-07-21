@@ -1,10 +1,7 @@
 import "dotenv/config";
 
-import { patchCallbackManagerForNestedTracing } from "./core/tracing/patch-callback-manager.js";
 import { createApp, launchApp } from "./app.js";
 import { loadConfig } from "./config.js";
-
-patchCallbackManagerForNestedTracing();
 
 const main = async (): Promise<void> => {
   const app = await createApp(loadConfig());

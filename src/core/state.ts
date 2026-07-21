@@ -7,9 +7,7 @@ import {
   trimMessagesToTokenBudgetSync,
 } from "./message-trimming.js";
 
-export const ROUTE_NAMES = ["Runtime_SG", "FINISH"] as const;
-
-export type RouteName = (typeof ROUTE_NAMES)[number];
+export const FINISH_ROUTE = "FINISH" as const;
 
 export type AgentStateAnnotationOptions = {
   messageHistoryMaxTokens: number;
@@ -32,7 +30,15 @@ export const createAgentStateAnnotation = ({
       reducer: createReduceAgentMessages(messageHistoryMaxTokens),
       default: () => [],
     }),
-    next: Annotation<RouteName | undefined>({
+    agentMessages: Annotation<BaseMessage[]>({
+      reducer: createReduceAgentMessages(messageHistoryMaxTokens),
+      default: () => [],
+    }),
+    stepCount: Annotation<number>({
+      reducer: (_left, right) => right,
+      default: () => 0,
+    }),
+    next: Annotation<string | undefined>({
       reducer: (_left, right) => right,
       default: () => undefined,
     }),

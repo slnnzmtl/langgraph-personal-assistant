@@ -14,7 +14,7 @@ export const createResolveAgentId = (resolveAgentId?: ResolveAgentId): ResolveAg
   resolveAgentId ?? defaultResolveAgentId;
 
 export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
-  next: "Runtime_SG",
+  next: agentId,
   context: {
     [RUNTIME_AGENT_CONTEXT_KEY]: agentId,
   },

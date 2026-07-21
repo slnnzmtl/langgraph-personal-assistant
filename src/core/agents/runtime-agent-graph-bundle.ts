@@ -1,19 +1,27 @@
 import { AIMessage, type BaseMessage } from "@langchain/core/messages";
+import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import { createSubgraphNodeWrapper } from "../execution/subgraph-wrapper.js";
 import { scopeSubAgentMessages } from "../execution/sub-agent-messages.js";
-import type { SubAgentState } from "../execution/sub-agent-state.js";
-import type { RuntimeAgentPolicyHandler } from "../types/policy.js";
+import type { SubAgentState, SubAgentStateUpdate } from "../execution/sub-agent-state.js";
 
-export type CompiledRuntimeAgentGraph = {
-  invoke(input: SubAgentState, config?: unknown): Promise<SubAgentState>;
-};
+export type RuntimeAgentLoopNode = (
+  state: SubAgentState,
+  config?: RunnableConfig,
+) => Promise<SubAgentStateUpdate>;
 
+/**
+ * Flat runtime-agent wiring for the parent StateGraph.
+ * Intentionally does NOT include a compiled subgraph — nesting a compiled graph
+ * under another StateGraph triggers LangChainTracer duplicate-handler noise
+ * (langchainjs#11189).
+ */
 export type RuntimeAgentGraphBundle = {
   name: string;
+  maxSteps: number;
   prepare: (parentState: AgentState) => SubAgentState;
-  subgraph: CompiledRuntimeAgentGraph;
+  llmNode: RuntimeAgentLoopNode;
+  toolsNode: RuntimeAgentLoopNode;
   finalize: (result: SubAgentState) => AgentStateUpdate;
 };
 
@@ -22,23 +30,15 @@ export const createDefaultPrepare = (parentState: AgentState): SubAgentState => 
   stepCount: 0,
 });
 
-export const graphBundleToHandler = (bundle: RuntimeAgentGraphBundle): RuntimeAgentPolicyHandler =>
-  createSubgraphNodeWrapper({
-    subgraphName: bundle.name,
-    buildInitialState: bundle.prepare,
-    compiledSubgraph: bundle.subgraph,
-    mapResult: bundle.finalize,
-  });
-
 export const createUnavailableGraphBundle = (
   name: string,
   message: string,
 ): RuntimeAgentGraphBundle => ({
   name,
+  maxSteps: 0,
   prepare: () => ({ agentMessages: [], stepCount: 0 }),
-  subgraph: {
-    invoke: async () => ({ agentMessages: [], stepCount: 0 }),
-  },
+  llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
+  toolsNode: async () => ({}),
   finalize: () => ({ messages: [new AIMessage(message)] }),
 });
 

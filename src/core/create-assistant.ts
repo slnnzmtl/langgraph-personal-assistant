@@ -3,21 +3,29 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { ILLMConnector } from "../connectors/llm-connector.js";
 import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
-import { createRuntimeAgentDispatcher } from "./agents/dispatch.js";
+import {
+  buildRuntimeAgentGraphNodeSets,
+  createRuntimeAgentFinalizeNode,
+  createRuntimeAgentPrepareNode,
+  routeAfterRuntimeAgentLlm,
+  routeAfterRuntimeAgentTools,
+} from "./agents/build-runtime-agent-nodes.js";
 import { createPromptResolver, type PromptResolver } from "./agents/prompt-resolver.js";
 import type { RuntimeAgentRepository } from "./agents/repository.js";
 import { createRuntimeAgentExecutionContext } from "./execution/context.js";
 import { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
 import { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 import type { RuntimeAgentPolicy } from "./types/policy.js";
+import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
-import { createAgentStateAnnotation, type AgentState, type RouteName } from "./state.js";
+import { createAgentStateAnnotation, FINISH_ROUTE, type AgentState } from "./state.js";
 
 export type AssistantConfig = {
   supervisorLlm: ILLMConnector;
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
+  runtimeAgents: RuntimeAgentDefinition[];
   runtimeAgentRepository: RuntimeAgentRepository;
   cronJobRepository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
@@ -68,27 +76,63 @@ export const createAssistant = (config: AssistantConfig) => {
     ...(config.resolveAgentId ? { resolveAgentId: config.resolveAgentId } : {}),
   });
 
-  const runtimeAgentDispatcher = createRuntimeAgentDispatcher(executionContext);
   const agentStateAnnotation = createAgentStateAnnotation({
     messageHistoryMaxTokens: config.messageHistoryMaxTokens ?? DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   });
+  const runtimeAgentNodeSets = buildRuntimeAgentGraphNodeSets(config.runtimeAgents, executionContext);
 
-  const graph = new StateGraph(agentStateAnnotation)
-    .addNode("supervisor", supervisorNode)
-    .addNode("Runtime_SG", runtimeAgentDispatcher);
+  const graph = new StateGraph(agentStateAnnotation).addNode("supervisor", supervisorNode);
+
+  for (const nodeSet of runtimeAgentNodeSets) {
+    const { bundle } = nodeSet;
+
+    graph
+      .addNode(nodeSet.prepareNodeName, createRuntimeAgentPrepareNode(bundle))
+      .addNode(nodeSet.llmNodeName, bundle.llmNode)
+      .addNode(nodeSet.toolsNodeName, bundle.toolsNode)
+      .addNode(nodeSet.finalizeNodeName, createRuntimeAgentFinalizeNode(bundle))
+      .addEdge(nodeSet.prepareNodeName, nodeSet.llmNodeName)
+      .addConditionalEdges(
+        nodeSet.llmNodeName,
+        (state: AgentState) =>
+          routeAfterRuntimeAgentLlm(
+            state,
+            bundle.maxSteps,
+            nodeSet.toolsNodeName,
+            nodeSet.finalizeNodeName,
+          ),
+        {
+          [nodeSet.toolsNodeName]: nodeSet.toolsNodeName,
+          [nodeSet.finalizeNodeName]: nodeSet.finalizeNodeName,
+        },
+      )
+      .addConditionalEdges(
+        nodeSet.toolsNodeName,
+        (state: AgentState) =>
+          routeAfterRuntimeAgentTools(state, nodeSet.llmNodeName, nodeSet.toolsNodeName),
+        {
+          [nodeSet.llmNodeName]: nodeSet.llmNodeName,
+          [nodeSet.toolsNodeName]: nodeSet.toolsNodeName,
+        },
+      )
+      .addEdge(nodeSet.finalizeNodeName, "supervisor");
+  }
+
+  const supervisorRoutes: Record<string, string | typeof END> = {
+    [FINISH_ROUTE]: END,
+  };
+
+  for (const nodeSet of runtimeAgentNodeSets) {
+    supervisorRoutes[nodeSet.agentId] = nodeSet.prepareNodeName;
+  }
 
   graph
     .addEdge(START, "supervisor")
     .addConditionalEdges(
       "supervisor",
-      (state: AgentState) => state.next ?? "FINISH",
-      {
-        Runtime_SG: "Runtime_SG",
-        FINISH: END,
-      } satisfies Record<RouteName, "Runtime_SG" | typeof END>,
+      (state: AgentState) => state.next ?? FINISH_ROUTE,
+      supervisorRoutes as Record<string, typeof END>,
     );
-
-  graph.addEdge("Runtime_SG", "supervisor");
 
   return graph.compile({
     checkpointer: memory,

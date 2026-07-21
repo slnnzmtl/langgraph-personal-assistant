@@ -6,8 +6,8 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
 import {
-  graphBundleToHandler,
   type RuntimeAgentGraphBundle,
+  type RuntimeAgentLoopNode,
 } from "../agents/runtime-agent-graph-bundle.js";
 import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import type { SubAgentToolSource } from "./runtime-node.js";
@@ -18,10 +18,7 @@ import {
   type SubAgentStateUpdate,
 } from "./sub-agent-state.js";
 
-export type SubAgentLlmNode = (
-  state: SubAgentState,
-  config?: RunnableConfig,
-) => Promise<SubAgentStateUpdate>;
+export type SubAgentLlmNode = RuntimeAgentLoopNode;
 
 export type SubAgentConfig<TDeps> = {
   name: string;
@@ -37,15 +34,26 @@ export type SubAgentConfig<TDeps> = {
   messageHistoryMaxTokens?: number;
 };
 
-const createToolsNode = (tools: SubAgentToolSource) => {
+export const createSubAgentToolsNode = (tools: SubAgentToolSource): RuntimeAgentLoopNode => {
   const toolNode = new ToolNode(tools);
 
   return async (state: SubAgentState, config?: RunnableConfig): Promise<SubAgentStateUpdate> => {
-    const result = await toolNode.invoke({ messages: state.agentMessages }, config);
+    // Call ToolNode.run directly — toolNode.invoke() nests another Runnable and
+    // re-triggers the LangChainTracer duplicate-handler bug (langchainjs#11189).
+    const result = await (
+      toolNode as unknown as {
+        run(
+          input: { messages: SubAgentState["agentMessages"] },
+          config?: RunnableConfig,
+        ): Promise<{ messages: SubAgentState["agentMessages"] }>;
+      }
+    ).run({ messages: state.agentMessages }, config);
+
     return { agentMessages: result.messages };
   };
 };
 
+/** Isolated compiled loop for unit tests only — do not mount under a parent graph. */
 export const createCompiledSubAgentGraph = (
   name: string,
   maxSteps: number,
@@ -56,7 +64,7 @@ export const createCompiledSubAgentGraph = (
   const stateAnnotation = options?.messageHistoryMaxTokens
     ? createSubAgentStateAnnotation({ messageHistoryMaxTokens: options.messageHistoryMaxTokens })
     : SubAgentStateAnnotation;
-  const toolsNode = createToolsNode(tools);
+  const toolsNode = createSubAgentToolsNode(tools);
 
   const graph = new StateGraph(stateAnnotation)
     .addNode("llm", llmNode)
@@ -87,46 +95,23 @@ export const createCompiledSubAgentGraph = (
 export const createSubAgentGraphBundle = <TDeps>(config: SubAgentConfig<TDeps>): RuntimeAgentGraphBundle => {
   const tools = config.createTools(config.deps);
   const llmNode = config.createLlmNode(config.deps, tools);
-  const compiledSubgraph = createCompiledSubAgentGraph(
-    config.name,
-    config.maxSteps,
-    llmNode,
-    tools,
-    config.messageHistoryMaxTokens
-      ? { messageHistoryMaxTokens: config.messageHistoryMaxTokens }
-      : undefined,
-  );
+  const toolsNode = createSubAgentToolsNode(tools);
 
   return {
     name: config.name,
+    maxSteps: config.maxSteps,
     prepare:
       config.buildInitialState
       ?? ((parentState) => ({
         agentMessages: scopeSubAgentMessages(parentState.messages),
         stepCount: 0,
       })),
-    subgraph: compiledSubgraph,
+    llmNode,
+    toolsNode,
     finalize: config.mapResult
       ? (result) => config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name })
       : (result) => mapDefaultSubAgentResult(result, { maxSteps: config.maxSteps, name: config.name }),
   };
-};
-
-export const createSubAgent = <TDeps>(config: SubAgentConfig<TDeps>) =>
-  graphBundleToHandler(createSubAgentGraphBundle(config));
-
-export const createSubAgentOrStub = <TDeps>(
-  isAvailable: (deps: TDeps) => boolean,
-  unavailableMessage: string,
-  config: SubAgentConfig<TDeps>,
-) => {
-  if (!isAvailable(config.deps)) {
-    return async (_state: AgentState, _config?: RunnableConfig): Promise<AgentStateUpdate> => ({
-      messages: [new AIMessage(unavailableMessage)],
-    });
-  }
-
-  return createSubAgent(config);
 };
 
 export const createMaxStepsExceededUpdate = (

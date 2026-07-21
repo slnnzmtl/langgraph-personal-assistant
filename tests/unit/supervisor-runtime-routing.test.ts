@@ -6,7 +6,7 @@ import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
 
 describe("supervisor runtime routing", () => {
-  it("maps a runtime agent id to Runtime_SG and stores the selection in context", async () => {
+  it("maps a runtime agent id to the agent route and stores the selection in context", async () => {
     const repository = createRuntimeAgentRepositoryFake([
       ...buildTestRuntimeAgents(),
       {
@@ -30,7 +30,7 @@ describe("supervisor runtime routing", () => {
 
     const result = await supervisorNode(makeHumanState("summarize my day"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("daily-summary");
     expect(result.context?.[RUNTIME_AGENT_CONTEXT_KEY]).toBe("daily-summary");
   });
 

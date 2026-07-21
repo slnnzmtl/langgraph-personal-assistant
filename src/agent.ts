@@ -5,6 +5,7 @@ import type { IFileSender } from "./telegram/file-sender.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
 import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "./cron-triggers.js";
+import type { RuntimeAgentDefinition } from "./core/types/agent.js";
 import { createAssistant } from "./core/create-assistant.js";
 import type { RuntimeAgentRepository } from "./core/agents/repository.js";
 import type { PolicyRegistry } from "./core/policies/registry.js";
@@ -24,6 +25,7 @@ export type WorkflowGraphConfig = {
 export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
   supervisorLlm: ILLMConnector;
   models: Record<string, BaseChatModel>;
+  runtimeAgents: RuntimeAgentDefinition[];
   executors: Iterable<string>;
   cronTargetAgentIds: readonly string[];
   defaultModelKey?: string;
@@ -36,6 +38,7 @@ export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
 export const createWorkflowGraph = ({
   supervisorLlm,
   models,
+  runtimeAgents,
   executors,
   cronTargetAgentIds,
   defaultModelKey = "generic",
@@ -59,6 +62,7 @@ export const createWorkflowGraph = ({
   return createAssistant({
     supervisorLlm,
     models,
+    runtimeAgents,
     defaultModelKey,
     runtimeAgentRepository,
     cronJobRepository,

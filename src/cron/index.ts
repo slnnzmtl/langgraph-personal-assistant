@@ -1,10 +1,7 @@
 import "dotenv/config";
 
-import { patchCallbackManagerForNestedTracing } from "../core/tracing/patch-callback-manager.js";
 import { loadConfig } from "../config.js";
 import { createSchedulerApp, launchScheduler, waitForProcessShutdown } from "./scheduler-app.js";
-
-patchCallbackManagerForNestedTracing();
 
 const main = async (): Promise<void> => {
   const config = loadConfig();
