@@ -121,13 +121,9 @@ describe("finance subgraph tool batching", () => {
     });
 
     expect(financeCalls).toBe(2);
-    const handoff = update.agentMessages?.[0] as AIMessage;
-    expect(handoff.content).toBe("");
-    expect(handoff.additional_kwargs).toMatchObject({
-      emptySubAgentHandoff: true,
-      agentName: "Finance",
-    });
-    expect(String(handoff.additional_kwargs?.toolContext ?? "")).toContain("skill body");
+    const emptyReply = update.agentMessages?.[0] as AIMessage;
+    expect(emptyReply.content).toBe("");
+    expect(emptyReply.additional_kwargs).toEqual({});
   });
 
   it("retries the model when it returns empty after exec_sql so the agent answers", async () => {

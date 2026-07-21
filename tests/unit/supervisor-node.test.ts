@@ -6,9 +6,20 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
-import { createEmptySubAgentHandoffMessage, getEmptySubAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
+import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import { trimMessagesToTokenBudgetSync } from "../../src/core/message-trimming.js";
-import { reduceAgentMessages } from "../../src/core/state.js";
+
+const emptyHandoff = (
+  agentName: string,
+  agentId: string,
+  toolContext = "",
+): RuntimeAgentHandoff => ({
+  kind: "runtime-agent-handoff",
+  agentId,
+  agentName,
+  status: "empty",
+  toolContext,
+});
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -294,10 +305,8 @@ describe("createSupervisorNode", () => {
     });
 
     const result = await supervisorNode({
-      messages: [
-        new HumanMessage("today's plan"),
-        createEmptySubAgentHandoffMessage([], "Obsidian", "obsidian"),
-      ],
+      messages: [new HumanMessage("today's plan")],
+      lastHandoff: emptyHandoff("Obsidian", "obsidian"),
       context: {},
       next: undefined,
     });
@@ -333,17 +342,12 @@ describe("createSupervisorNode", () => {
     });
 
     const result = await supervisorNode({
-      messages: [
-        new HumanMessage("for yesterday only"),
-        new AIMessage({
-          content: "",
-          additional_kwargs: {
-            emptySubAgentHandoff: true,
-            agentName: "Finance",
-            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
-          },
-        }),
-      ],
+      messages: [new HumanMessage("for yesterday only")],
+      lastHandoff: emptyHandoff(
+        "Finance",
+        "finance",
+        'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
+      ),
       context: {},
       next: undefined,
     });
@@ -353,24 +357,7 @@ describe("createSupervisorNode", () => {
       "The query failed because the expenses table name was wrong.",
     );
     expect(modelInvoke).toHaveBeenCalledOnce();
-
-    const mergedMessages = reduceAgentMessages(
-      [
-        new HumanMessage("for yesterday only"),
-        new AIMessage({
-          content: "",
-          additional_kwargs: {
-            emptySubAgentHandoff: true,
-            agentName: "Finance",
-            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
-          },
-        }),
-      ],
-      firstStateUpdateMessage(result)!,
-    );
-    const compactedHandoff = getEmptySubAgentHandoff(mergedMessages[1]);
-    expect(compactedHandoff?.toolContext).toBe("[consumed: Finance tool results]");
-    expect(compactedHandoff?.toolContext).not.toContain("expenses");
+    expect(result.lastHandoff).toBeNull();
   });
 
   it("does not send routing instructions or accept routing JSON for an empty handoff", async () => {
@@ -402,15 +389,8 @@ describe("createSupervisorNode", () => {
         new HumanMessage("Moonmilk is not debt"),
         new AIMessage("What category should Moonmilk use?"),
         new HumanMessage("it is shop"),
-        new AIMessage({
-          content: "",
-          additional_kwargs: {
-            emptySubAgentHandoff: true,
-            agentName: "Finance",
-            toolContext,
-          },
-        }),
       ],
+      lastHandoff: emptyHandoff("Finance", "finance", toolContext),
       context: {},
       next: undefined,
     });

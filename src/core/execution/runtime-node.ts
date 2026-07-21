@@ -12,7 +12,6 @@ import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
-import { createEmptySubAgentHandoffMessage } from "./runtime-agent-handoff.js";
 import {
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
@@ -247,9 +246,9 @@ export const createRuntimeAgentNode = (
           return { agentMessages: [new AIMessage(hooks.emptyResponseMessage(definition))], stepCount };
         }
 
-        // Hand an empty reply + last tool context to the supervisor for a user-facing summary.
+        // Empty reply — finalize sets lastHandoff for the supervisor to summarize.
         return {
-          agentMessages: [createEmptySubAgentHandoffMessage(state.agentMessages, definition.name, definition.id)],
+          agentMessages: [new AIMessage({ content: "" })],
           stepCount,
         };
       }
@@ -257,11 +256,17 @@ export const createRuntimeAgentNode = (
       return { agentMessages: [processed], stepCount };
     } catch (error) {
       if (hooks.buildErrorMessage) {
-        return { agentMessages: [new AIMessage(hooks.buildErrorMessage(error, definition))] };
+        return {
+          agentMessages: [new AIMessage(hooks.buildErrorMessage(error, definition))],
+          handoffStatus: "error",
+        } as SubAgentStateUpdate;
       }
 
       const message = error instanceof Error ? error.message : "Unknown error during runtime agent execution";
-      return { agentMessages: [new AIMessage(`Unable to run runtime agent ${definition.name}: ${message}`)] };
+      return {
+        agentMessages: [new AIMessage(`Unable to run runtime agent ${definition.name}: ${message}`)],
+        handoffStatus: "error",
+      } as SubAgentStateUpdate;
     }
   };
 };

@@ -1,18 +1,11 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import {
-  EMPTY_SUBAGENT_HANDOFF_KEY,
-  getEmptySubAgentHandoff,
-} from "./execution/runtime-agent-handoff.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 
 export const CONSUMED_TOOL_MARKER_PREFIX = "[consumed:";
 
 export const formatConsumedToolMarker = (toolName: string): string =>
   `[consumed: ${toolName}]`;
-
-export const formatConsumedHandoffMarker = (agentName: string): string =>
-  `[consumed: ${agentName} tool results]`;
 
 export const isConsumedToolMarker = (content: string): boolean =>
   content.trim().startsWith(CONSUMED_TOOL_MARKER_PREFIX);
@@ -89,46 +82,5 @@ export const compactConsumedToolResults = (messages: BaseMessage[]): BaseMessage
   });
 };
 
-const isResolvedSupervisorReply = (message: BaseMessage | undefined): boolean => {
-  if (!(message instanceof AIMessage)) {
-    return false;
-  }
-
-  if (getEmptySubAgentHandoff(message)) {
-    return false;
-  }
-
-  const responseText = extractMessageTextContent(message.content).trim();
-  const toolCalls = message.tool_calls ?? [];
-
-  return responseText.length > 0 && toolCalls.length === 0;
-};
-
-export const compactEmptySubAgentHandoffs = (messages: BaseMessage[]): BaseMessage[] => {
-  if (!isResolvedSupervisorReply(messages[messages.length - 1])) {
-    return messages;
-  }
-
-  return messages.map((message) => {
-    const handoff = getEmptySubAgentHandoff(message);
-    if (!handoff || handoff.toolContext.trim().length === 0) {
-      return message;
-    }
-
-    if (isConsumedToolMarker(handoff.toolContext)) {
-      return message;
-    }
-
-    return new AIMessage({
-      content: "",
-      additional_kwargs: {
-        [EMPTY_SUBAGENT_HANDOFF_KEY]: true,
-        agentName: handoff.agentName,
-        toolContext: formatConsumedHandoffMarker(handoff.agentName),
-      },
-    });
-  });
-};
-
 export const compactIntermediateToolHistory = (messages: BaseMessage[]): BaseMessage[] =>
-  compactEmptySubAgentHandoffs(compactConsumedToolResults(messages));
+  compactConsumedToolResults(messages);

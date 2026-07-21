@@ -1,6 +1,7 @@
 import type { BaseMessage } from "@langchain/core/messages";
 import { Annotation, messagesStateReducer } from "@langchain/langgraph";
 
+import type { RuntimeAgentHandoff, RuntimeAgentHandoffStatus } from "./execution/runtime-agent-handoff.js";
 import { compactIntermediateToolHistory } from "./message-compaction.js";
 import {
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
@@ -45,6 +46,14 @@ export const createAgentStateAnnotation = ({
     context: Annotation<Record<string, unknown>>({
       reducer: (left, right) => ({ ...left, ...right }),
       default: () => ({}),
+    }),
+    lastHandoff: Annotation<RuntimeAgentHandoff | null>({
+      reducer: (_left, right) => right ?? null,
+      default: () => null,
+    }),
+    handoffStatus: Annotation<RuntimeAgentHandoffStatus | undefined>({
+      reducer: (_left, right) => right,
+      default: () => undefined,
     }),
   });
 

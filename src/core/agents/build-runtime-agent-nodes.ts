@@ -1,7 +1,6 @@
-import {
-  applyRuntimeAgentHandoffToUpdate,
-} from "../execution/runtime-agent-handoff.js";
+import { buildRuntimeAgentHandoff } from "../execution/runtime-agent-handoff.js";
 
+import { AIMessage } from "@langchain/core/messages";
 import { Overwrite } from "@langchain/langgraph";
 
 import type { RuntimeAgentExecutionContext } from "../execution/context.js";
@@ -53,6 +52,7 @@ export const createRuntimeAgentPrepareNode = (bundle: RuntimeAgentGraphBundle) =
     return {
       agentMessages: new Overwrite(prepared.agentMessages),
       stepCount: prepared.stepCount,
+      handoffStatus: undefined,
     };
   };
 
@@ -65,24 +65,55 @@ export const createRuntimeAgentFinalizeNode = (
     const stepCount = state.stepCount ?? 0;
     const finalized = bundle.finalize({ agentMessages, stepCount });
     const handoffMessages = Array.isArray(finalized.messages) ? finalized.messages : undefined;
-    const withHandoff = handoffMessages
-      ? applyRuntimeAgentHandoffToUpdate(
-        { messages: handoffMessages },
-        {
-          agentId,
-          agentName: bundle.name,
-          agentMessages,
-          stepCount,
-          maxSteps: bundle.maxSteps,
-        },
-      )
-      : undefined;
+
+    if (!handoffMessages || handoffMessages.length === 0) {
+      return {
+        ...finalized,
+        agentMessages: new Overwrite([]),
+        stepCount: 0,
+        handoffStatus: undefined,
+      };
+    }
+
+    const lastMessage = handoffMessages[handoffMessages.length - 1];
+
+    if (!(lastMessage instanceof AIMessage)) {
+      return {
+        ...finalized,
+        agentMessages: new Overwrite([]),
+        stepCount: 0,
+        handoffStatus: undefined,
+      };
+    }
+
+    const lastHandoff = buildRuntimeAgentHandoff({
+      agentId,
+      agentName: bundle.name,
+      message: lastMessage,
+      agentMessages,
+      stepCount,
+      maxSteps: bundle.maxSteps,
+      ...(state.handoffStatus ? { explicitStatus: state.handoffStatus } : {}),
+    });
+
+    const clearedWorkspace: AgentStateUpdate = {
+      agentMessages: new Overwrite([]),
+      stepCount: 0,
+      handoffStatus: undefined,
+    };
+
+    if (lastHandoff.status === "empty") {
+      return {
+        ...clearedWorkspace,
+        lastHandoff,
+      };
+    }
 
     return {
       ...finalized,
-      ...(withHandoff ? { messages: withHandoff.messages } : {}),
-      agentMessages: new Overwrite([]),
-      stepCount: 0,
+      ...clearedWorkspace,
+      lastHandoff,
+      messages: handoffMessages,
     };
   };
 

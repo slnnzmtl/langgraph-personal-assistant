@@ -7,7 +7,6 @@ import {
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { getEmptySubAgentHandoff } from "../execution/runtime-agent-handoff.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { stripToolsForSupervisor } from "./message-history.js";
@@ -101,7 +100,7 @@ const buildEmptySubAgentSummary = async (
   state: AgentState,
   config?: RunnableConfig,
 ): Promise<string> => {
-  const handoff = getEmptySubAgentHandoff(state.messages[state.messages.length - 1]);
+  const handoff = state.lastHandoff;
   const agentName = handoff?.agentName ?? "runtime agent";
   const toolContext = handoff?.toolContext?.trim() ?? "";
   const safeFallback = toolContext.length > 0
@@ -160,6 +159,7 @@ export const createSupervisorNode = (
     if (needsEmptySubAgentSummary(state)) {
       return {
         next: "FINISH",
+        lastHandoff: null,
         messages: [
           new AIMessage(
             await buildEmptySubAgentSummary(
@@ -172,7 +172,7 @@ export const createSupervisorNode = (
       };
     }
 
-    const completionUpdate = detectCompletionState(state, promptMessages);
+    const completionUpdate = detectCompletionState(state);
 
     if (completionUpdate) {
       return completionUpdate;
@@ -190,6 +190,7 @@ export const createSupervisorNode = (
 
     const buildFailureUpdate = async (failureContext: string): Promise<AgentStateUpdate> => ({
       next: "FINISH",
+      lastHandoff: null,
       messages: [
         new AIMessage(
           await buildFailureReply(
