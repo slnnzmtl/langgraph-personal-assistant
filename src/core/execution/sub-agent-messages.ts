@@ -1,5 +1,14 @@
 import { AIMessage, HumanMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 
+export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
+  "Your previous response was empty after a tool result.",
+  "Inspect the latest tool message in history:",
+  "- If it contains a recoverable error (e.g. SQL syntax, ambiguous column), fix the smallest faulty tool call and retry.",
+  "- If the workflow requires verification after a write, complete verification before confirming to the user.",
+  "- If you cannot recover, reply in plain text with a brief status. Do not stop silently.",
+  "- A tool error is not a user-facing completion. Never claim a write succeeded unless a successful tool payload proves it.",
+].join("\n");
+
 import { extractMessageTextContent } from "../../utils/message-content.js";
 
 /** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
@@ -50,3 +59,10 @@ export const isEmptyModelResponse = (response: AIMessage): boolean => {
 
   return responseText.length === 0 && toolCalls.length === 0;
 };
+
+export const buildRecoveryPromptMessages = (
+  promptMessages: BaseMessage[],
+): BaseMessage[] => [
+  ...promptMessages,
+  new HumanMessage(TOOL_RESULT_RECOVERY_DIRECTIVE),
+];

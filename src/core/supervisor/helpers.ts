@@ -1,20 +1,14 @@
-import { AIMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage } from "@langchain/core/messages";
 
-import { getEmptySubAgentHandoff, isEmptyAiReply } from "../execution/empty-subagent-handoff.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
+import { isRuntimeAgentHandoffComplete } from "../execution/runtime-agent-handoff.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 import { normalizeSupervisorReply, type RoutingDecision } from "./routing-schema.js";
 
-export type ResolveAgentId = (routeOrId: string) => string;
-
-export const defaultResolveAgentId: ResolveAgentId = (routeOrId) => routeOrId;
-
-export const createResolveAgentId = (resolveAgentId?: ResolveAgentId): ResolveAgentId =>
-  resolveAgentId ?? defaultResolveAgentId;
-
 export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
-  next: "Runtime_SG",
+  next: agentId,
+  lastHandoff: null,
+  routingFailureContext: null,
   context: {
     [RUNTIME_AGENT_CONTEXT_KEY]: agentId,
   },
@@ -23,44 +17,29 @@ export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
 export const tryCronRouteUpdate = (
   cronRoute: string | undefined,
   superviseCronRoute: string | undefined,
-  resolveAgentId: ResolveAgentId,
+  wiredAgentIds?: ReadonlySet<string>,
 ): AgentStateUpdate | null => {
   if (!cronRoute || cronRoute === superviseCronRoute) {
     return null;
   }
 
-  return routeToRuntimeAgent(resolveAgentId(cronRoute));
-};
-
-const getAiMessageText = (message: BaseMessage | undefined): string =>
-  message instanceof AIMessage ? extractMessageTextContent(message.content).trim() : "";
-
-export const needsEmptySubAgentSummary = (state: AgentState): boolean => {
-  const lastMessage = state.messages[state.messages.length - 1];
-  // Empty AI from a runtime agent (with or without handoff metadata) must be
-  // summarized by the supervisor — never re-routed.
-  return Boolean(getEmptySubAgentHandoff(lastMessage)) || isEmptyAiReply(lastMessage);
-};
-
-export const detectCompletionState = (
-  state: AgentState,
-  promptMessages: BaseMessage[],
-): AgentStateUpdate | null => {
-  if (needsEmptySubAgentSummary(state)) {
-    // Supervisor node will generate a user-facing summary before FINISH.
+  if (wiredAgentIds && !wiredAgentIds.has(cronRoute)) {
     return null;
   }
 
-  const lastStripped = promptMessages[promptMessages.length - 1];
-  const lastStrippedText = getAiMessageText(lastStripped);
+  return routeToRuntimeAgent(cronRoute);
+};
 
-  const isSubAgentComplete =
-    lastStripped instanceof AIMessage
-    && (!lastStripped.tool_calls || lastStripped.tool_calls.length === 0)
-    && lastStrippedText.length > 0;
+export const needsEmptySubAgentSummary = (state: AgentState): boolean =>
+  state.lastHandoff?.status === "empty";
 
-  if (isSubAgentComplete) {
-    return { next: "FINISH" };
+export const detectCompletionState = (state: AgentState): AgentStateUpdate | null => {
+  if (needsEmptySubAgentSummary(state)) {
+    return null;
+  }
+
+  if (isRuntimeAgentHandoffComplete(state.lastHandoff)) {
+    return { next: "FINISH", lastHandoff: null, routingFailureContext: null };
   }
 
   return null;
@@ -69,7 +48,6 @@ export const detectCompletionState = (
 export const resolveRoutingDecision = async (
   response: RoutingDecision,
   enabledAgentIds: Set<string>,
-  resolveAgentId: ResolveAgentId,
   onFailure: (failureContext: string) => Promise<AgentStateUpdate>,
 ): Promise<AgentStateUpdate> => {
   if (response.next === "FINISH") {
@@ -81,13 +59,13 @@ export const resolveRoutingDecision = async (
 
     return {
       next: response.next,
+      lastHandoff: null,
+      routingFailureContext: null,
       messages: [new AIMessage(reply)],
     };
   }
 
-  const agentId = resolveAgentId(response.next);
-
-  if (!enabledAgentIds.has(agentId)) {
+  if (!enabledAgentIds.has(response.next)) {
     return onFailure(`Unknown or disabled runtime agent route: ${response.next}`);
   }
 
@@ -97,5 +75,5 @@ export const resolveRoutingDecision = async (
     );
   }
 
-  return routeToRuntimeAgent(agentId);
+  return routeToRuntimeAgent(response.next);
 };

@@ -1,44 +1,34 @@
-import { resolveModel } from "../execution/context.js";
-import {
-  createSubAgent,
-  mapDefaultSubAgentResult,
-} from "../execution/create-sub-agent.js";
-import { createRuntimeAgentNode } from "../execution/runtime-node.js";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
+import { createAgentPolicy } from "./create-agent-policy.js";
+import type { RuntimeAgentNodeHooks } from "../execution/runtime-node.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
-import type { RuntimeAgentPolicy } from "../types/policy.js";
+import type { SkillCatalog } from "../skills/catalog.js";
 
 export type GenericPolicyDeps<
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 > = {
-  resolveToolBundles: (
-    bundleIds: RuntimeAgentDefinition["toolBundleIds"],
+  resolveAgentTools: (
+    definition: RuntimeAgentDefinition,
     bundleDeps: TBundleDeps,
-  ) => import("@langchain/core/tools").StructuredToolInterface[];
+    options?: { skillCatalog?: SkillCatalog },
+  ) => StructuredToolInterface[];
+  runtimeShellHooks?: RuntimeAgentNodeHooks;
+  skillCatalog?: SkillCatalog;
 };
 
 export const createGenericPolicy = <
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 >(
   deps: GenericPolicyDeps<TBundleDeps>,
-): RuntimeAgentPolicy => ({
-  executor: "generic",
-  createHandler: (context, definition) => {
-    const bundleDeps = context.bundleDeps as TBundleDeps;
-
-    return createSubAgent({
-      name: definition.name,
-      maxSteps: definition.maxSteps,
-      deps: {
-        model: resolveModel(context),
+) =>
+  createAgentPolicy({
+    executor: "generic",
+    resolveTools: (definition, bundleDeps, options) =>
+      deps.resolveAgentTools(
         definition,
-        bundleDeps,
-        resolveToolBundles: deps.resolveToolBundles,
-      },
-      createTools: (agentDeps) =>
-        agentDeps.resolveToolBundles(agentDeps.definition.toolBundleIds, agentDeps.bundleDeps),
-      createLlmNode: (agentDeps, tools) =>
-        createRuntimeAgentNode(agentDeps.model, agentDeps.definition, tools),
-      mapResult: (result, config) => mapDefaultSubAgentResult(result, config),
-    });
-  },
-});
+        bundleDeps as TBundleDeps,
+        options,
+      ),
+    ...(deps.runtimeShellHooks ? { hooks: deps.runtimeShellHooks } : {}),
+  });

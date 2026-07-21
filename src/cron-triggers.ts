@@ -3,7 +3,7 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 const CRON_TRIGGER_PREFIX = "SYSTEM_CRON_TRIGGER:";
 const ROUTE_TRIGGER_SEPARATOR = ":";
 
-export const SUPERVISE_CRON_ROUTE = "Supervise_SG" as const;
+export const SUPERVISE_CRON_ROUTE = "supervisor" as const;
 export type CronTargetRoute = string;
 
 export type CronTriggerResolver = {

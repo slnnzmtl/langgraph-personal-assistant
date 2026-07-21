@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDefaultCronJobs, mergeCronJobs, startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import type { RuntimeCronService } from "../../src/cron/types.js";
 
 describe("buildDefaultCronJobs", () => {
@@ -42,7 +42,7 @@ describe("mergeCronJobs", () => {
 });
 
 describe("startCronBootstrap", () => {
-	const cronTargetAgentIds = defaultCronTargetAgentIds();
+	const cronTargetAgentIds = defaultTestCronTargetAgentIds();
 
 	const createRuntimeCronMock = (): RuntimeCronService & {
 		addJob: ReturnType<typeof vi.fn>;

@@ -1,66 +1,57 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";
-import type { IFileSender } from "./telegram/file-sender.js";
 import type { CronJobRepository, RuntimeCronService } from "./cron/types.js";
-import type { SupabaseMcpSession } from "./mcp/supabase.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "./cron-triggers.js";
+import type { RuntimeAgentDefinition } from "./core/types/agent.js";
 import { createAssistant } from "./core/create-assistant.js";
 import type { RuntimeAgentRepository } from "./core/agents/repository.js";
-import { createAppExecutionKit } from "./app/register-defaults.js";
-import { createRuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
+import type { PolicyRegistry } from "./core/policies/registry.js";
+import type { LoadPromptByKey } from "./core/agents/resolve-system-prompt.js";
+import type { RuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 
-export type WorkflowGraphConfig = {
-  obsidianVaultPath: string;
-  cronJobRepository: CronJobRepository;
-  runtimeAgentRepository: RuntimeAgentRepository;
-  supabaseSession?: SupabaseMcpSession;
-  runtimeCron?: RuntimeCronService;
-  fileSender?: IFileSender;
-};
-
-export type CreateWorkflowGraphInput = WorkflowGraphConfig & {
+export type CreateWorkflowGraphInput = {
   supervisorLlm: ILLMConnector;
   models: Record<string, BaseChatModel>;
-  executors: Iterable<string>;
+  runtimeAgents: RuntimeAgentDefinition[];
   cronTargetAgentIds: readonly string[];
+  cronJobRepository: CronJobRepository;
+  runtimeAgentRepository: RuntimeAgentRepository;
+  runtimeCron?: RuntimeCronService;
   defaultModelKey?: string;
   messageHistoryMaxTokens: number;
+  loadPromptByKey: LoadPromptByKey;
+  policyRegistry: PolicyRegistry;
+  bundleDeps: RuntimeToolBundleDeps;
 };
 
 export const createWorkflowGraph = ({
   supervisorLlm,
   models,
-  executors,
+  runtimeAgents,
   cronTargetAgentIds,
-  defaultModelKey = "generic",
-  obsidianVaultPath,
   cronJobRepository,
   runtimeAgentRepository,
   runtimeCron,
-  fileSender,
-  supabaseSession,
+  defaultModelKey = "generic",
   messageHistoryMaxTokens,
+  loadPromptByKey,
+  policyRegistry,
+  bundleDeps,
 }: CreateWorkflowGraphInput) => {
-  const { promptResolver, policyRegistry } = createAppExecutionKit(executors);
   const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
 
   return createAssistant({
     supervisorLlm,
     models,
+    runtimeAgents,
     defaultModelKey,
     runtimeAgentRepository,
     cronJobRepository,
     ...(runtimeCron ? { runtimeCron } : {}),
-    bundleDeps: createRuntimeToolBundleDeps(obsidianVaultPath, {
-      cronTargetAgentIds,
-      cronJobRepository,
-      runtimeAgentRepository,
-      ...(fileSender ? { fileSender } : {}),
-      ...(supabaseSession ? { supabaseSession } : {}),
-    }),
-    promptResolver,
+    bundleDeps,
+    loadPromptByKey,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
     cronTriggerResolver: {

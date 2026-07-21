@@ -6,9 +6,21 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
-import { getEmptySubAgentHandoff } from "../../src/core/execution/empty-subagent-handoff.js";
+import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
+import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE } from "../../src/core/state.js";
 import { trimMessagesToTokenBudgetSync } from "../../src/core/message-trimming.js";
-import { reduceAgentMessages } from "../../src/core/state.js";
+
+const emptyHandoff = (
+  agentName: string,
+  agentId: string,
+  toolContext = "",
+): RuntimeAgentHandoff => ({
+  kind: "runtime-agent-handoff",
+  agentId,
+  agentName,
+  status: "empty",
+  toolContext,
+});
 
 describe("createSupervisorNode", () => {
   afterEach(() => {
@@ -64,7 +76,7 @@ describe("createSupervisorNode", () => {
     expect(firstStateUpdateMessage(result)?.content).toBe("Direct answer");
   });
 
-  it("generates a model-written final reply when structured routing fails", async () => {
+  it("routes to failure_reply when structured routing fails", async () => {
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
         invoke: async () => {
@@ -79,11 +91,12 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("hello"));
 
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Final explanatory answer");
+    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
+    expect(result.routingFailureContext).toContain("schema parse failed");
+    expect(result.messages).toBeUndefined();
   });
 
-  it("generates a model-written final reply when FINISH omits a reply", async () => {
+  it("routes to failure_reply when FINISH omits a reply", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "FINISH",
     } as any));
@@ -101,9 +114,10 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("hello"));
 
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Final explanation for missing reply");
-    expect(modelInvoke).toHaveBeenCalledTimes(1);
+    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
+    expect(result.routingFailureContext).toContain("FINISH without a reply");
+    expect(result.messages).toBeUndefined();
+    expect(modelInvoke).not.toHaveBeenCalled();
   });
 
   it("routes specialized branches even when the model returns a placeholder reply string", async () => {
@@ -117,12 +131,12 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("create today routine note"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.messages).toBeUndefined();
   });
 
-  it("does not treat the literal string null as a FINISH reply", async () => {
+  it("routes to failure_reply when FINISH reply is the literal string null", async () => {
     const modelInvoke = vi.fn(async () => new AIMessage("Please rephrase your request."));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
@@ -139,9 +153,10 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("hello"));
 
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Please rephrase your request.");
-    expect(modelInvoke).toHaveBeenCalledTimes(1);
+    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
+    expect(result.routingFailureContext).toContain("FINISH without a reply");
+    expect(result.messages).toBeUndefined();
+    expect(modelInvoke).not.toHaveBeenCalled();
   });
 
   it("returns a route without appending a message for specialized branches", async () => {
@@ -157,7 +172,7 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });
 
@@ -215,7 +230,7 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
   });
 
@@ -231,7 +246,7 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(makeHumanState("set up a cron message every weekday at 9am"));
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("configuration");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("configuration");
   });
 
@@ -274,19 +289,16 @@ describe("createSupervisorNode", () => {
     expect(firstStateUpdateMessage(result)?.content).toBe("Sanitized");
   });
 
-  it("summarizes instead of re-delegating when a runtime agent returns an empty reply", async () => {
+  it("routes to empty_reply instead of re-delegating when a runtime agent returns an empty reply", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "obsidian",
     }));
-    const modelInvoke = vi.fn(async () =>
-      new AIMessage("I couldn't finish that step cleanly. Please try again."),
-    );
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
         invoke: routingInvoke,
       }),
       getModel: () => ({
-        invoke: modelInvoke,
+        invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
     const supervisorNode = createAppSupervisorNode(connector, {
@@ -294,82 +306,15 @@ describe("createSupervisorNode", () => {
     });
 
     const result = await supervisorNode({
-      messages: [
-        new HumanMessage("today's plan"),
-        new AIMessage(""),
-      ],
+      messages: [new HumanMessage("today's plan")],
+      lastHandoff: emptyHandoff("Obsidian", "obsidian"),
       context: {},
       next: undefined,
     });
 
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe(
-      "I couldn't finish that step cleanly. Please try again.",
-    );
-    expect(modelInvoke).toHaveBeenCalledOnce();
+    expect(result.next).toBe(EMPTY_REPLY_ROUTE);
+    expect(result.messages).toBeUndefined();
     expect(routingInvoke).not.toHaveBeenCalled();
-  });
-
-  it("includes tool context when summarizing an empty sub-agent handoff", async () => {
-    const modelInvoke = vi.fn(async (input: unknown) => {
-      const messages = input as Array<{ content?: unknown }>;
-      const systemText = String(messages[0]?.content ?? "");
-      expect(systemText).toContain("exec_sql:");
-      expect(systemText).toContain("expenses");
-      expect(systemText).toContain("does not exist");
-      return new AIMessage("The query failed because the expenses table name was wrong.");
-    });
-    const connector: ILLMConnector = {
-      bindRoutingTools: () => ({
-        invoke: async () => ({ next: "finance" }),
-      }),
-      getModel: () => ({
-        invoke: modelInvoke,
-      } as unknown as BaseChatModel),
-    };
-    const supervisorNode = createAppSupervisorNode(connector, {
-      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-    });
-
-    const result = await supervisorNode({
-      messages: [
-        new HumanMessage("for yesterday only"),
-        new AIMessage({
-          content: "",
-          additional_kwargs: {
-            emptySubAgentHandoff: true,
-            agentName: "Finance",
-            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
-          },
-        }),
-      ],
-      context: {},
-      next: undefined,
-    });
-
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe(
-      "The query failed because the expenses table name was wrong.",
-    );
-    expect(modelInvoke).toHaveBeenCalledOnce();
-
-    const mergedMessages = reduceAgentMessages(
-      [
-        new HumanMessage("for yesterday only"),
-        new AIMessage({
-          content: "",
-          additional_kwargs: {
-            emptySubAgentHandoff: true,
-            agentName: "Finance",
-            toolContext: 'exec_sql: {"error":{"message":"relation \\"expenses\\" does not exist"}}',
-          },
-        }),
-      ],
-      firstStateUpdateMessage(result)!,
-    );
-    const compactedHandoff = getEmptySubAgentHandoff(mergedMessages[1]);
-    expect(compactedHandoff?.toolContext).toBe("[consumed: Finance tool results]");
-    expect(compactedHandoff?.toolContext).not.toContain("expenses");
   });
 
   it("routes scheduler finance triggers without invoking the LLM", async () => {
@@ -383,7 +328,7 @@ describe("createSupervisorNode", () => {
       makeHumanState(buildCronTriggerForJob("finance", "finance-sync")),
     );
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
@@ -419,13 +364,13 @@ describe("createSupervisorNode", () => {
       makeHumanState(buildCronTriggerForJob("obsidian", "obsidian-daily-note")),
     );
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
-  it("lets Supervise_SG scheduler triggers continue through normal LLM routing", async () => {
+  it("lets supervisor scheduler triggers continue through normal LLM routing", async () => {
     const invokeSpy = vi.fn(() => ({
       next: "FINISH",
       reply: "Handled by the main supervisor",
@@ -434,7 +379,7 @@ describe("createSupervisorNode", () => {
     const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(
-      makeHumanState("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review\n\nPayload:\nReview today's priorities."),
+      makeHumanState("SYSTEM_CRON_TRIGGER:supervisor:morning-review\n\nPayload:\nReview today's priorities."),
     );
 
     expect(result.next).toBe("FINISH");
@@ -457,7 +402,7 @@ describe("createSupervisorNode", () => {
       next: undefined,
     });
 
-    expect(result.next).toBe("Runtime_SG");
+    expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
     expect(result.messages).toBeUndefined();
     expect(invokeSpy).not.toHaveBeenCalled();

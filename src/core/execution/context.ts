@@ -1,13 +1,13 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { PromptResolver } from "../agents/prompt-resolver.js";
+import type { LoadPromptByKey } from "../agents/resolve-system-prompt.js";
 import type { PolicyRegistry } from "../policies/registry.js";
 import type { PolicyContext } from "../types/policy-context.js";
 
 export type RuntimeAgentExecutionContext<
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 > = PolicyContext<TBundleDeps> & {
-  promptResolver: PromptResolver;
+  loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
 };
 
@@ -20,7 +20,7 @@ export type CreateRuntimeAgentExecutionContextInput<
   cronJobRepository: PolicyContext<TBundleDeps>["cronJobRepository"];
   runtimeCron?: PolicyContext<TBundleDeps>["runtimeCron"];
   bundleDeps?: TBundleDeps;
-  promptResolver: PromptResolver;
+  loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
 };
 
@@ -49,6 +49,6 @@ export const createRuntimeAgentExecutionContext = <
   cronJobRepository: input.cronJobRepository,
   ...(input.runtimeCron ? { runtimeCron: input.runtimeCron } : {}),
   bundleDeps: (input.bundleDeps ?? {}) as TBundleDeps,
-  promptResolver: input.promptResolver,
+  loadPromptByKey: input.loadPromptByKey,
   policyRegistry: input.policyRegistry,
 });

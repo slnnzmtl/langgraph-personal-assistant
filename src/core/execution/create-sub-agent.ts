@@ -1,21 +1,20 @@
 import { AIMessage } from "@langchain/core/messages";
-import { END, START, StateGraph } from "@langchain/langgraph";
+import type { RunnableConfig } from "@langchain/core/runnables";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
-import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
+import {
+  type RuntimeAgentGraphBundle,
+  type RuntimeAgentLoopNode,
+} from "../agents/runtime-agent-graph-bundle.js";
 import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import type { SubAgentToolSource } from "./runtime-node.js";
 import {
-  SubAgentStateAnnotation,
   type SubAgentState,
   type SubAgentStateUpdate,
 } from "./sub-agent-state.js";
 
-export type SubAgentLlmNode = (
-  state: SubAgentState,
-) => Promise<SubAgentStateUpdate>;
+export type SubAgentLlmNode = RuntimeAgentLoopNode;
 
 export type SubAgentConfig<TDeps> = {
   name: string;
@@ -28,78 +27,48 @@ export type SubAgentConfig<TDeps> = {
     config: { maxSteps: number; name: string },
   ) => AgentStateUpdate;
   buildInitialState?: (parentState: AgentState) => SubAgentState;
+  messageHistoryMaxTokens?: number;
 };
 
-export const createCompiledSubAgentGraph = (
-  name: string,
-  maxSteps: number,
-  llmNode: SubAgentLlmNode,
-  tools: SubAgentToolSource,
-) => {
+export const createSubAgentToolsNode = (tools: SubAgentToolSource): RuntimeAgentLoopNode => {
   const toolNode = new ToolNode(tools);
-  const toolsNode = toolNode.invoke.bind(toolNode);
 
-  const graph = new StateGraph(SubAgentStateAnnotation)
-    .addNode("llm", llmNode)
-    .addNode("tools", toolsNode)
-    .addEdge(START, "llm")
-    .addConditionalEdges("llm", (state: SubAgentState) => {
-      if (state.stepCount >= maxSteps) {
-        return END;
+  return async (state: SubAgentState, config?: RunnableConfig): Promise<SubAgentStateUpdate> => {
+    // Call ToolNode.run directly — toolNode.invoke() nests another Runnable and
+    // re-triggers the LangChainTracer duplicate-handler bug (langchainjs#11189).
+    const result = await (
+      toolNode as unknown as {
+        run(
+          input: { messages: SubAgentState["agentMessages"] },
+          config?: RunnableConfig,
+        ): Promise<{ messages: SubAgentState["agentMessages"] }>;
       }
+    ).run({ messages: state.agentMessages }, config);
 
-      if (hasPendingToolCalls(state.messages) || lastMessageRequestsTools(state.messages)) {
-        return "tools";
-      }
-
-      return END;
-    })
-    .addConditionalEdges("tools", (state: SubAgentState) => {
-      if (hasPendingToolCalls(state.messages)) {
-        return "tools";
-      }
-
-      return "llm";
-    });
-
-  return graph.compile({ name: `${name.toLowerCase()}-subgraph` });
+    return { agentMessages: result.messages };
+  };
 };
 
-export const createSubAgent = <TDeps>(config: SubAgentConfig<TDeps>) => {
+export const createSubAgentGraphBundle = <TDeps>(config: SubAgentConfig<TDeps>): RuntimeAgentGraphBundle => {
   const tools = config.createTools(config.deps);
   const llmNode = config.createLlmNode(config.deps, tools);
-  const compiledSubgraph = createCompiledSubAgentGraph(config.name, config.maxSteps, llmNode, tools);
+  const toolsNode = createSubAgentToolsNode(tools);
 
-  return createSubgraphNodeWrapper<SubAgentState>({
-    subgraphName: config.name,
-    buildInitialState:
+  return {
+    name: config.name,
+    maxSteps: config.maxSteps,
+    prepare:
       config.buildInitialState
       ?? ((parentState) => ({
-        messages: scopeSubAgentMessages(parentState.messages),
+        agentMessages: scopeSubAgentMessages(parentState.messages),
         stepCount: 0,
       })),
-    compiledSubgraph,
-    ...(config.mapResult
-      ? {
-          mapResult: (result: SubAgentState) =>
-            config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name }),
-        }
-      : {}),
-  });
-};
-
-export const createSubAgentOrStub = <TDeps>(
-  isAvailable: (deps: TDeps) => boolean,
-  unavailableMessage: string,
-  config: SubAgentConfig<TDeps>,
-) => {
-  if (!isAvailable(config.deps)) {
-    return async (_state: AgentState): Promise<AgentStateUpdate> => ({
-      messages: [new AIMessage(unavailableMessage)],
-    });
-  }
-
-  return createSubAgent(config);
+    llmNode,
+    toolsNode,
+    finalize: config.mapResult
+      ? (result) => config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name })
+      : (result) => mapDefaultSubAgentResult(result, { maxSteps: config.maxSteps, name: config.name }),
+  };
 };
 
 export const createMaxStepsExceededUpdate = (
@@ -123,8 +92,10 @@ export const mapDefaultSubAgentResult = (
     return createMaxStepsExceededUpdate(name, maxSteps, options?.maxStepsMessage);
   }
 
-  const lastMessage = result.messages[result.messages.length - 1];
+  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
   return {
     messages: [lastMessage as AIMessage],
   };
 };
+
+export { createDefaultPrepare } from "../agents/runtime-agent-graph-bundle.js";

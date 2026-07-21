@@ -5,9 +5,10 @@ import { fileExists, readTextFile, resolveSafePath } from "../../utils/file-syst
 import { withSerializedFileWrite } from "../../utils/json-store.js";
 import {
   RUNTIME_AGENT_SCHEMA_VERSION,
-  CreateRuntimeAgentInputSchema,
+  parseCreateRuntimeAgentInput,
+  parseRuntimeAgentDefinition,
+  parseUpdateRuntimeAgentInput,
   RuntimeAgentsDocumentSchema,
-  UpdateRuntimeAgentInputSchema,
   isRuntimeAgentBuiltin,
   toRuntimeAgentId,
   type CreateRuntimeAgentInput,
@@ -30,14 +31,22 @@ const emptyDocument = (): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents
 });
 
 const parseDocument = (rawContent: string): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => {
-  const parsed = JSON.parse(rawContent) as unknown;
-  const result = RuntimeAgentsDocumentSchema.safeParse(parsed);
+  try {
+    const parsed = JSON.parse(rawContent) as unknown;
+    const result = RuntimeAgentsDocumentSchema.safeParse(parsed);
 
-  if (!result.success) {
+    if (!result.success) {
+      throw new Error("Invalid runtime agent data in persistence file");
+    }
+
+    return result.data;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Invalid runtime agent data")) {
+      throw error;
+    }
+
     throw new Error("Invalid runtime agent data in persistence file");
   }
-
-  return result.data;
 };
 
 const serializeDocument = (agents: RuntimeAgentDefinition[]): string =>
@@ -101,7 +110,7 @@ export const createRuntimeAgentRepository = (
 
     async createAgent(input: CreateRuntimeAgentInput): Promise<RuntimeAgentDefinition> {
       return withSerializedFileWrite(fileKey, async () => {
-        const parsed = CreateRuntimeAgentInputSchema.parse(input);
+        const parsed = parseCreateRuntimeAgentInput(input);
         const agents = await this.loadAgents();
         const id = toRuntimeAgentId(parsed.name);
 
@@ -116,19 +125,19 @@ export const createRuntimeAgentRepository = (
         }
 
         const timestamp = new Date().toISOString();
-        const nextAgent: RuntimeAgentDefinition = {
+        const nextAgent = parseRuntimeAgentDefinition({
           id,
           name: parsed.name.trim(),
           description: parsed.description.trim(),
           systemPrompt: parsed.systemPrompt.trim(),
-          toolBundleIds: parsed.toolBundleIds,
+          capabilityIds: parsed.capabilityIds,
           executor: "generic",
           builtin: false,
           maxSteps: parsed.maxSteps ?? 8,
           enabled: parsed.enabled ?? true,
           createdAt: timestamp,
           updatedAt: timestamp,
-        };
+        });
 
         await writeDocumentAtomically(rootDir, relativePath, [...agents, nextAgent]);
         return nextAgent;
@@ -137,7 +146,7 @@ export const createRuntimeAgentRepository = (
 
     async updateAgent(id: string, input: UpdateRuntimeAgentInput): Promise<RuntimeAgentDefinition> {
       return withSerializedFileWrite(fileKey, async () => {
-        const parsed = UpdateRuntimeAgentInputSchema.parse(input);
+        const parsed = parseUpdateRuntimeAgentInput(input);
         const agents = await this.loadAgents();
         const index = agents.findIndex((agent) => agent.id === id);
 
@@ -160,18 +169,20 @@ export const createRuntimeAgentRepository = (
           throw new Error(`Cannot change system prompt for built-in runtime agent: ${id}`);
         }
 
-        const updated: RuntimeAgentDefinition = {
+        const updated = parseRuntimeAgentDefinition({
           ...current,
           ...(parsed.name !== undefined ? { name: parsed.name.trim() } : {}),
           ...(parsed.description !== undefined ? { description: parsed.description.trim() } : {}),
           ...(parsed.systemPrompt !== undefined && !builtin ? { systemPrompt: parsed.systemPrompt.trim() } : {}),
-          ...(parsed.toolBundleIds !== undefined && !builtin ? { toolBundleIds: parsed.toolBundleIds } : {}),
+          ...(parsed.capabilityIds !== undefined && !builtin
+            ? { capabilityIds: parsed.capabilityIds }
+            : {}),
           ...(parsed.executor !== undefined && !builtin ? { executor: parsed.executor } : {}),
           ...(parsed.modelKey !== undefined && !builtin ? { modelKey: parsed.modelKey } : {}),
           ...(parsed.maxSteps !== undefined ? { maxSteps: parsed.maxSteps } : {}),
           ...(parsed.enabled !== undefined ? { enabled: parsed.enabled } : {}),
           updatedAt: new Date().toISOString(),
-        };
+        });
 
         const nextAgents = [...agents];
         nextAgents[index] = updated;

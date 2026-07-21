@@ -2,19 +2,23 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
-import { formatSkillsForDisplay, listSkills } from "../../prompts/skills-loader.js";
+import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
-import { buildBuiltinDomainOwnerPattern } from "../../runtime-agents/builtin-domains.js";
+import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
-import { createSkillAttachmentNodeHooks } from "./skill-scoped-hooks.js";
+import type { SkillCatalog } from "../../core/skills/catalog.js";
+import type { RuntimeShellFormatters } from "../../core/system-context.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
+const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);
 
 type ConfigurationHooksOptions = {
   repository: CronJobRepository;
-  runtimeCron?: RuntimeCronService | undefined;
+  runtimeCron?: RuntimeCronService;
+  skillCatalog?: SkillCatalog | undefined;
+  shellFormatters: RuntimeShellFormatters;
 };
 
 const isCronJobListRequest = (text: string): boolean => {
@@ -22,15 +26,16 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
-const BUILTIN_DOMAIN_OWNER_PATTERN = buildBuiltinDomainOwnerPattern();
+const mentionsSkillOwner = (text: string, modules: readonly string[]): boolean =>
+  buildSkillModuleOwnerPattern(modules).test(text);
 
-const mentionsSkillOwner = (text: string): boolean =>
-  BUILTIN_DOMAIN_OWNER_PATTERN.test(text);
-
-export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
+export const isConfigurationSkillCatalogRequest = (
+  text: string,
+  modules: readonly string[],
+): boolean => {
   const normalized = text.toLowerCase().replaceAll(/\s+/g, " ").trim();
 
-  if (mentionsSkillOwner(normalized)) {
+  if (mentionsSkillOwner(normalized, modules)) {
     return false;
   }
 
@@ -44,9 +49,9 @@ export const isConfigurationSkillCatalogRequest = (text: string): boolean => {
   );
 };
 
-export const formatConfigurationSkillCatalog = (): string => {
-  const skills = listSkills({ module: "configuration" });
-  return formatSkillsForDisplay("configuration", skills, "Listed");
+export const formatConfigurationSkillCatalog = (skillCatalog: SkillCatalog): string => {
+  const skills = skillCatalog.listSkills({ module: CONFIGURATOR_AGENT_ID });
+  return skillCatalog.formatForDisplay(CONFIGURATOR_AGENT_ID, skills, "Listed");
 };
 
 const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): string | undefined => {
@@ -58,15 +63,19 @@ const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): str
   return toolContent.length > 0 ? toolContent : undefined;
 };
 
+const shouldReconcileCron = (messages: readonly { name?: string }[]): boolean =>
+  messages.some((message) => message.name && MUTATING_CRON_TOOLS.has(message.name));
+
 export const createConfigurationNodeHooks = (
   options: ConfigurationHooksOptions,
-): RuntimeAgentNodeHooks =>
-  createSkillAttachmentNodeHooks({
-    logLabel: "configuration-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+): RuntimeAgentNodeHooks => {
+  const skillModules = options.skillCatalog?.listModules() ?? [CONFIGURATOR_AGENT_ID];
+  const baseHooks = createRuntimeShellHooks(options.shellFormatters);
+
+  return {
+    ...baseHooks,
     beforeTurn: async (ctx) => {
-      const latestMessage = ctx.state.messages[ctx.state.messages.length - 1];
+      const latestMessage = ctx.state.agentMessages[ctx.state.agentMessages.length - 1];
       const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
 
       if (
@@ -79,29 +88,41 @@ export const createConfigurationNodeHooks = (
           ? jobs.map(formatCronJobForDisplay).join("\n\n")
           : "No cron jobs configured.";
 
-        return { messages: [new AIMessage(content)] };
+        return { agentMessages: [new AIMessage(content)] };
       }
 
       if (
         latestMessage instanceof HumanMessage
         && latestMessageText
-        && isConfigurationSkillCatalogRequest(latestMessageText)
+        && options.skillCatalog
+        && isConfigurationSkillCatalogRequest(latestMessageText, skillModules)
       ) {
-        return { messages: [new AIMessage(formatConfigurationSkillCatalog())] };
+        return { agentMessages: [new AIMessage(formatConfigurationSkillCatalog(options.skillCatalog))] };
       }
 
-      await reconcileRuntimeCron(options.repository, options.runtimeCron);
+      if (shouldReconcileCron(ctx.state.agentMessages)) {
+        await reconcileRuntimeCron(options.repository, options.runtimeCron);
+      }
 
       const readOnlySkillToolResult = getReadOnlySkillToolResult(
         latestMessage instanceof ToolMessage ? latestMessage : undefined,
       );
       if (readOnlySkillToolResult) {
-        return { messages: [new AIMessage(readOnlySkillToolResult)] };
+        return { agentMessages: [new AIMessage(readOnlySkillToolResult)] };
       }
 
       return null;
     },
-  processResponse: (ctx, response) =>
-    sanitizeResponseToolCalls(response, ctx.allowedToolNames),
-  emptyResponseMessage: () => "Completed the configuration task.",
-  });
+    processResponse: (ctx, response) => {
+      const sanitized = sanitizeResponseToolCalls(response, ctx.allowedToolNames);
+      const responseText = extractMessageTextContent(sanitized.content).trim();
+      const toolCalls = sanitized.tool_calls ?? [];
+
+      if (toolCalls.length > 0 || responseText.length > 0) {
+        return sanitized;
+      }
+
+      return new AIMessage("Completed the configuration task.");
+    },
+  };
+};

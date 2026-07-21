@@ -1,0 +1,39 @@
+<skill name="expense-ledger-schema" module="finance" description="Shared expense ledger schema, date rules, and category mapping.">
+<shared_schema>
+- Table: `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`).
+- Category join: `LEFT JOIN public.category c ON e.category = c.id`.
+- Writes/updates/deletes: PK only (`WHERE id = ...` / `WHERE id IN (...)`).
+- `category` stores `public.category.id`, never a category name string.
+</shared_schema>
+
+<date_rules>
+- Read `YESTERDAY` / `TODAY` from system headers and use literal `YYYY-MM-DD` bounds in SQL (e.g. `WHERE e.paid_date = '2026-07-17'`).
+- Never use SQLite helpers like `date('now', '-1 day')`.
+</date_rules>
+
+<category_matching>
+- Call `get_categories()` first; use returned IDs:
+
+  <category id="35" name="Transport">
+    <keywords>Uber, Lyft, Taxi, Bolt</keywords>
+  </category>
+  <category id="33" name="Shop">
+    <keywords>mark, market, shop, store, supermarket, mart</keywords>
+  </category>
+  <category id="4" name="Food">
+    <keywords>Grab, cafe, food, bistro, restaurant, bakery, ca phe, Divinecrepes, Moonmilk</keywords>
+  </category>
+  <category id="17" name="Software">
+    <keywords>github, aws, google, openai, netflix</keywords>
+  </category>
+  <category id="36" name="Coffee">
+    <keywords>coffee, ommo, Roastery, caffein</keywords>
+  </category>
+
+- Grab override: If name contains `Grab`, amount ≤ 1.50 → Taxi (35); amount > 1.50 → Food (4).
+- Always assign a category. Set `category = NULL` only when no match is possible.
+- Use semantic context as a fallback when no keyword hits.
+- Otherwise ask the user to confirm the category.
+</category_matching>
+
+</skill>

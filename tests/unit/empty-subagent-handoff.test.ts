@@ -2,10 +2,9 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
-  createEmptySubAgentHandoffMessage,
+  buildRuntimeAgentHandoff,
   formatRecentToolResultsForHandoff,
-  getEmptySubAgentHandoff,
-} from "../../src/core/execution/empty-subagent-handoff.js";
+} from "../../src/core/execution/runtime-agent-handoff.js";
 
 describe("empty sub-agent handoff", () => {
   it("formats the latest contiguous tool results", () => {
@@ -26,20 +25,29 @@ describe("empty sub-agent handoff", () => {
     expect(context).toContain("bad sql");
   });
 
-  it("round-trips handoff metadata on an empty AI message", () => {
-    const handoffMessage = createEmptySubAgentHandoffMessage(
-      [
-        new ToolMessage({
-          tool_call_id: "sql-1",
-          name: "exec_sql",
-          content: "[]",
-        }),
-      ],
-      "Finance",
-    );
+  it("builds empty handoff state from agent workspace messages", () => {
+    const agentMessages = [
+      new ToolMessage({
+        tool_call_id: "sql-1",
+        name: "exec_sql",
+        content: "[]",
+      }),
+    ];
 
-    expect(getEmptySubAgentHandoff(handoffMessage)).toEqual({
+    const handoff = buildRuntimeAgentHandoff({
+      agentId: "finance",
       agentName: "Finance",
+      message: new AIMessage({ content: "" }),
+      agentMessages,
+      stepCount: 2,
+      maxSteps: 10,
+    });
+
+    expect(handoff).toEqual({
+      kind: "runtime-agent-handoff",
+      agentId: "finance",
+      agentName: "Finance",
+      status: "empty",
       toolContext: "exec_sql: []",
     });
   });

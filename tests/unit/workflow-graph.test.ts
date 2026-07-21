@@ -5,10 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
@@ -22,7 +22,7 @@ const makeGraph = (
   supabaseSession?: SupabaseMcpSession,
   configHandler?: (input: unknown) => unknown,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
-  runtimeAgents?: ReturnType<typeof buildDefaultRuntimeAgents>,
+  runtimeAgents?: ReturnType<typeof buildTestRuntimeAgents>,
   modelHandlerOverrides?: Record<string, (input: unknown) => unknown>,
 ) =>
   createTestWorkflowGraph({
@@ -33,12 +33,12 @@ const makeGraph = (
       finance: financeHandler ?? modelHandlerOverrides?.finance ?? (() => new AIMessage("Finance sync completed successfully")),
       configuration: configHandler ?? modelHandlerOverrides?.configuration ?? (() => new AIMessage("Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup.")),
     },
-    runtimeAgents: runtimeAgents ?? buildDefaultRuntimeAgents(),
+    runtimeAgents: runtimeAgents ?? buildTestRuntimeAgents(),
     obsidianVaultPath: path.join(os.tmpdir(), "pa-unit-vault"),
     cronJobRepository: createCronJobRepository(
       process.cwd(),
       path.relative(process.cwd(), makeCronJobsFilePath()),
-      defaultCronTargetAgentIds(),
+      defaultTestCronTargetAgentIds(),
     ),
     runtimeAgentRepository,
     ...(supabaseSession ? { supabaseSession } : {}),
@@ -92,18 +92,22 @@ describe("createWorkflowGraph", () => {
     vi.useRealTimers();
   });
 
-  it("visits the finance node on finance route (fallback when no repository)", async () => {
+  it("rejects finance routing when Supabase is unavailable", async () => {
     let calls = 0;
-    const app = makeGraph(() => {
+    const app = makeGraph((input) => {
       calls += 1;
+
+      if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
+        return new AIMessage("Finance is unavailable in this deployment.");
+      }
+
       return { next: "finance" };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
 
-    // Supervisor routes once; finance fallback runs; supervisor then auto-FINISHes via isSubAgentComplete
-    expect(calls).toBe(1);
-    expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
+    expect(calls).toBe(2);
+    expect(state.messages.at(-1)?.content).toContain("Finance is unavailable");
   });
 
   it("visits the finance node on finance route (real integration with mock session)", async () => {
@@ -300,15 +304,15 @@ describe("createWorkflowGraph", () => {
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed successfully");
   });
 
-  it("routes to a runtime agent through Runtime_SG when the supervisor selects a custom agent id", async () => {
+  it("routes to a runtime agent when the supervisor selects a custom agent id", async () => {
     const customAgents = [
-      ...buildDefaultRuntimeAgents(),
+      ...buildTestRuntimeAgents(),
       {
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"] as const,
+        capabilityIds: ["none"] as const,
         executor: "generic",
         maxSteps: 4,
         enabled: true,

@@ -1,6 +1,6 @@
 import { Telegraf } from "telegraf";
 
-import { createWorkflowContext } from "./app/workflow-context.js";
+import { createSupervisorSystem } from "./app/composition/create-supervisor-system.js";
 import type { AppConfig } from "./config.js";
 import { createWorkflowGraph } from "./agent.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
@@ -16,7 +16,7 @@ export type PersonalAssistantApp = {
 export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp> => {
   const bot = new Telegraf(config.telegramBotToken);
   const fileSender = new TelegramFileSender(bot.telegram);
-  const { graph } = await createWorkflowContext(config, { fileSender });
+  const { graph } = await createSupervisorSystem(config, { fileSender });
   const telegramAdapter = new TelegramAdapter(graph, config, bot, fileSender);
 
   return {

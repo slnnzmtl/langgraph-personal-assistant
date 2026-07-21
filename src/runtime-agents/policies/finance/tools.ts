@@ -76,7 +76,10 @@ export const createFinanceDomainToolsFromSession = (
   return [execSql, fetchWise, getCategories];
 };
 
-export const createFinanceTools = (mcpSession: SupabaseMcpSession): StructuredToolInterface[] => [
-  createReadSkillTool("finance", "xml"),
+export const createFinanceTools = (
+  mcpSession: SupabaseMcpSession,
+  skillModule: string,
+): StructuredToolInterface[] => [
+  createReadSkillTool(skillModule, "xml"),
   ...createFinanceDomainToolsFromSession(mcpSession),
 ];

@@ -3,12 +3,15 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { z } from "zod";
 
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import {
+  buildTestRuntimeAgents,
+  defaultTestCronTargetAgentIds,
+  getRuntimeAgentFixture,
+} from "./runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
@@ -101,7 +104,7 @@ export const makeHumanState = (text: string) => ({
 });
 
 export const createRuntimeAgentRepositoryFake = (
-  initialAgents: RuntimeAgentDefinition[] = buildDefaultRuntimeAgents(),
+  initialAgents: RuntimeAgentDefinition[] = buildTestRuntimeAgents(),
 ): RuntimeAgentRepository => {
   let storedAgents = [...initialAgents];
 
@@ -112,6 +115,10 @@ export const createRuntimeAgentRepositoryFake = (
       storedAgents = [...agents];
     },
     createAgent: async (input) => {
+      if (!input.capabilityIds) {
+        throw new Error("capabilityIds are required");
+      }
+
       const timestamp = new Date().toISOString();
       const id = input.name.trim().toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-+|-+$/g, "");
       const nextAgent: RuntimeAgentDefinition = {
@@ -119,7 +126,7 @@ export const createRuntimeAgentRepositoryFake = (
         name: input.name.trim(),
         description: input.description.trim(),
         systemPrompt: input.systemPrompt.trim(),
-        toolBundleIds: input.toolBundleIds,
+        capabilityIds: input.capabilityIds,
         executor: input.executor ?? "generic",
         builtin: false,
         maxSteps: input.maxSteps ?? 8,
@@ -142,7 +149,7 @@ export const createRuntimeAgentRepositoryFake = (
         ...(input.name !== undefined ? { name: input.name.trim() } : {}),
         ...(input.description !== undefined ? { description: input.description.trim() } : {}),
         ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() } : {}),
-        ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds } : {}),
+        ...(input.capabilityIds !== undefined ? { capabilityIds: input.capabilityIds } : {}),
         ...(input.executor !== undefined ? { executor: input.executor } : {}),
         ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
@@ -164,39 +171,36 @@ export const createRuntimeAgentRepositoryFake = (
 
 export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
-  cronTargetAgentIds: defaultCronTargetAgentIds(),
+  cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
 
-export const getBuiltinRuntimeAgentDefinition = (
-  id: string,
-): RuntimeAgentDefinition => {
-  const definition = buildDefaultRuntimeAgents().find((agent) => agent.id === id);
-
-  if (!definition) {
-    throw new Error(`Built-in runtime agent not found: ${id}`);
-  }
-
-  return definition;
-};
+export const getBuiltinRuntimeAgentDefinition = getRuntimeAgentFixture;
 
 export const createAppSupervisorNode = (
   llmConnector: ILLMConnector,
   options?: {
     runtimeAgentRepository?: RuntimeAgentRepository;
     loadSupervisorPrompt?: () => string;
+    wiredAgentIds?: ReadonlySet<string>;
   },
-) =>
-  createSupervisorNode(llmConnector, {
+) => {
+  const defaultWiredAgentIds = new Set(
+    buildTestRuntimeAgents().filter((agent) => agent.enabled).map((agent) => agent.id),
+  );
+
+  return createSupervisorNode(llmConnector, {
+    wiredAgentIds: options?.wiredAgentIds ?? defaultWiredAgentIds,
     loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
     cronTriggerResolver: {
       resolveCronTriggerRoute: (message) =>
-        resolveCronTriggerRoute(message, defaultCronTargetAgentIds()) ?? undefined,
+        resolveCronTriggerRoute(message, defaultTestCronTargetAgentIds()) ?? undefined,
       superviseCronRoute: SUPERVISE_CRON_ROUTE,
     },
     ...(options?.runtimeAgentRepository
       ? { runtimeAgentRepository: options.runtimeAgentRepository }
       : {}),
   });
+};
 
 const emptyCronRepository = (): CronJobRepository => ({
   loadJobs: async () => [],

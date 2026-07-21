@@ -9,7 +9,7 @@ The codebase is split into a **reusable framework** (`src/core/`), an **app laye
 ```mermaid
 graph TD
     User((User)) <-->|Telegram| Adapter[Telegram Adapter]
-    Cron[node-cron Scheduler] -->|SYSTEM_CRON_TRIGGER:agentId:jobName| Adapter
+    Cron[node-cron Scheduler] -->|SYSTEM_CRON_TRIGGER:agentId:jobName| Graph
 
     subgraph AppLayer [App layer]
         AppTS[app.ts bootstrap]
@@ -21,29 +21,33 @@ graph TD
     subgraph CoreFramework [Core framework]
         CreateAssistant[createAssistant]
         Supervisor{Supervisor}
-        Dispatcher[Runtime_SG dispatcher]
-        PolicyRegistry[PolicyRegistry per instance]
-        PromptResolver[PromptResolver per instance]
+        Prepare["agent__prepare"]
+        Llm["agent__llm"]
+        Tools["agent__tools"]
+        Finalize["agent__finalize"]
     end
 
     subgraph RootGraph [Root LangGraph]
         Adapter --> AppTS --> AgentTS --> CreateAssistant
         CreateAssistant --> Supervisor
-        Supervisor --> Dispatcher
-        Dispatcher --> Supervisor
-        Supervisor --> Adapter
+        Supervisor -->|agent id| Prepare
+        Prepare --> Llm
+        Llm --> Tools
+        Tools --> Llm
+        Llm --> Finalize
+        Finalize --> Supervisor
+        Supervisor -->|FINISH| Adapter
+        Cron --> Graph
     end
 
     AppKit --> CreateAssistant
     AppPolicies --> AppKit
-    PolicyRegistry --> Dispatcher
-    PromptResolver --> Dispatcher
 
     subgraph RuntimePolicies [Policy executors]
-        Dispatcher --> FinancePolicy[finance]
-        Dispatcher --> ObsidianPolicy[obsidian]
-        Dispatcher --> ConfigurationPolicy[configuration]
-        Dispatcher --> GenericPolicy[generic agents]
+        Llm --> FinancePolicy[finance]
+        Llm --> ObsidianPolicy[obsidian]
+        Llm --> ConfigurationPolicy[configuration]
+        Llm --> GenericPolicy[generic agents]
     end
 
     FinancePolicy <-->|MCP| Supabase[(Supabase)]
@@ -55,34 +59,34 @@ graph TD
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| **Core framework** | `src/core/` | LangGraph topology, supervisor routing, runtime dispatch, sub-agent loops, policy registry API, agent repository, shared state |
+| **Core framework** | `src/core/` | LangGraph topology, supervisor routing, flat runtime-agent loops, policy registry API, agent repository, shared state |
 | **App layer** | `src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
-| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), built-in agent defaults, bootstrap |
+| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), bootstrap |
 | **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
 
-Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `PromptResolver`, so multiple assistant instances do not share global policy or prompt state.
+Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
 
 ### Runtime flow
 
-1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or `Runtime_SG`.
-2. **Dispatcher** loads the selected runtime agent from the repository, resolves its system prompt, and picks a policy by `executor` (`finance`, `obsidian`, `configuration`, or `generic`).
-3. **Policy handler** runs a nested sub-graph: LLM node ⇄ tools loop (via `createSubAgent()`), with domain behavior injected through **hooks** in `src/app/policies/*-hooks.ts`. Runtime agent prompts include a shared execution model describing LangGraph's automatic tool loop and parallel tool-call support. System prompts are assembled with static domain rules first and dynamic context (timestamps, vault trees, attached skills) appended at the bottom for cache efficiency.
-4. The sub-agent reply returns to the supervisor; the loop continues until the supervisor chooses `FINISH`.
+1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or a runtime agent id.
+2. **Prepare** scopes recent parent messages into `agentMessages`; **llm ⇄ tools** runs the specialist loop; **finalize** merges the final reply back into parent `messages`.
+3. Domain behavior is injected through **hooks** in `src/app/policies/*-hooks.ts`. System prompts use static domain rules first; dynamic context (timestamps, vault trees, attached skills) is appended at the bottom for cache efficiency.
+4. Control returns to the supervisor until it chooses `FINISH`.
 
-Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Legacy graph node aliases such as `Finance_SG` / `Obsidian_SG` are no longer used.
+Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent requires a **process restart** before routing works.
 
 | Component | Role |
 |---|---|
-| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a runtime agent id) |
-| **Runtime dispatcher** | Selects a policy by the agent's `executor` and runs the matching sub-graph loop |
+| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a wired runtime agent id) |
+| **Runtime agent loop** | Flat prepare / llm ⇄ tools / finalize nodes per enabled agent |
 | **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
-| **Obsidian policy** | Markdown vault read/write with multi-step tool loops (up to 8 steps per request) |
+| **Obsidian policy** | Markdown vault read/write with multi-step tool loops |
 | **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
 | **Generic policy** | User-created runtime agents with allowlisted tool bundles |
 | **Skills** | Reusable step-by-step playbooks in flat `skills/` with a `module` attribute, injected into agent prompts |
 | **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
 
-The assistant keeps only the last **10 messages** per thread. Older turns are trimmed once the window is exceeded, while preserving in-flight tool-call sequences as atomic units.
+Message history is trimmed to a configurable token budget (default ~6,000 estimated tokens via `MESSAGE_HISTORY_MAX_TOKENS`), while preserving in-flight tool-call sequences as atomic units.
 
 ## Prerequisites
 
@@ -122,7 +126,7 @@ pnpm dev
 
 ### LangSmith tracing (optional)
 
-LangGraph automatically sends traces to [LangSmith](https://smith.langchain.com) when these variables are set — no graph or code changes required. You get a visual debugger for the supervisor loop, `Runtime_SG` dispatcher, nested sub-agent tool loops, and every LLM prompt.
+LangGraph automatically sends traces to [LangSmith](https://smith.langchain.com) when these variables are set — no graph or code changes required. You get a visual debugger for the supervisor, flat runtime-agent nodes (prepare / llm / tools / finalize), and every LLM prompt.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -150,7 +154,7 @@ Database setup:
 1. Install the `exec_sql` RPC — see [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) and [sql/INSTRUCTIONS.md](sql/INSTRUCTIONS.md)
 2. Ensure the `expense` table and dedup constraint exist (see `sql/add_expense_unique_constraint.sql`)
 
-Without Supabase credentials the Finance sub-graph returns a configuration error instead of crashing the app.
+Without Supabase credentials the finance agent returns a configuration error instead of crashing the app.
 
 ### Scheduler (optional)
 
@@ -247,8 +251,9 @@ src/
   agent.ts                  # createWorkflowGraph() → createAssistant()
   app.ts                    # Telegram + cron bootstrap
 
-  runtime-agents/           # Domain tools and built-in agent specs
-    builtin-domains.ts      # BUILTIN_DOMAIN_SPECS — finance / obsidian / configuration
+  app/composition/          # Bootstrap agents, supervisor system wiring
+    bootstrap-agents.ts     # CONFIGURATOR_SPEC — code-seeded configurator only
+  runtime-agents/           # Domain tools and bootstrap helpers
     bootstrap.ts            # Merge persisted agents with defaults
     tool-bundles.ts         # Tool bundle catalog
     policies/               # finance / obsidian / configuration tool implementations
@@ -269,6 +274,6 @@ tests/                      # Unit and e2e tests
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add a spec to `BUILTIN_DOMAIN_SPECS` in `src/runtime-agents/builtin-domains.ts`, tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`.
-- **New custom runtime agent:** create via the configuration agent; the generic policy compiles a sub-graph from `toolBundleIds` in the repository.
-- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `promptLoaders`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry` + `promptResolver`).
+- **New built-in domain agent:** add persisted agent spec + tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`. Restart required.
+- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works.
+- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `loadPromptByKey`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry`).

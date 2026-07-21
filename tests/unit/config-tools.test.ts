@@ -200,10 +200,11 @@ describe("createConfigurationTools", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You are a daily summary specialist.",
-      toolBundleIds: ["none"],
+        capabilityIds: ["none"],
     });
 
     expect(created).toContain("daily-summary");
+    expect(created).toContain("Restart the bot and scheduler processes");
 
     const listed = await listTool!.invoke({});
     expect(listed).toContain("Agent ID: daily-summary");

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { HumanMessage } from "@langchain/core/messages";
 
 import { setupCron } from "../../src/cron/cron-launcher.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import {
   buildCronTriggerForJob,
   isCronTargetRoute,
@@ -12,14 +12,14 @@ import {
 } from "../../src/cron-triggers.js";
 
 describe("setupCron", () => {
-  const cronTargetAgentIds = defaultCronTargetAgentIds();
+  const cronTargetAgentIds = defaultTestCronTargetAgentIds();
 
   it("accepts the main supervisor as a cron target", () => {
     expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE, cronTargetAgentIds)).toBe(true);
     expect(buildCronTriggerForJob(SUPERVISE_CRON_ROUTE, "morning-review")).toBe(
-      "SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review",
+      "SYSTEM_CRON_TRIGGER:supervisor:morning-review",
     );
-    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"), cronTargetAgentIds)).toBe(
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:supervisor:morning-review"), cronTargetAgentIds)).toBe(
       SUPERVISE_CRON_ROUTE,
     );
   });

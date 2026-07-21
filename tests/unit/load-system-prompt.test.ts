@@ -51,15 +51,22 @@ describe("named prompt loaders", () => {
 
     expect(prompt).toContain("Financial Assistant");
     expect(prompt).toContain("<skill_usage>");
-    expect(prompt).toContain('read_skill("sync-expenses")');
-    expect(prompt).toContain("MUST call");
+    expect(prompt).toContain("call `read_skill` for the matching skill");
+    expect(prompt).toContain("expense-view");
+    expect(prompt).toContain("expense-sync");
+    expect(prompt).toContain("expense-update");
+    expect(prompt).toContain("call `read_skill`");
+    expect(prompt).toContain("<tool_error_recovery>");
+    expect(prompt).toContain("ambiguous SQL columns");
     expect(prompt).toContain("<runtime_execution>");
     expect(prompt).toContain("Never return an empty turn");
     expect(prompt).not.toContain("After every tool result, always continue");
     const skillsSection = prompt.match(/<available_skills>.*<\/available_skills>/s);
     if (skillsSection) {
-      expect(prompt).toContain("sync-expenses");
-      expect(prompt).toContain("View, summarize, and sync");
+      expect(prompt).toContain("expense-view");
+      expect(prompt).toContain("expense-sync");
+      expect(prompt).toContain("expense-update");
+      expect(prompt).toContain("expense-ledger-schema");
     }
     expect(prompt).not.toContain("CURRENT DATETIME:");
   });
@@ -174,11 +181,11 @@ describe("loadPrompt", () => {
   });
 
   it("resolves skill files via skills/{skillName} key shape", () => {
-    const prompt = loadPrompt("skills/sync-expenses");
+    const prompt = loadPrompt("skills/expense-view");
 
     expect(typeof prompt).toBe("string");
     expect(prompt.length).toBeGreaterThan(0);
-    expect(prompt).toContain("# Expenses");
+    expect(prompt).toContain("<view_intent>");
   });
 
   it("throws when prompt key does not exist", () => {

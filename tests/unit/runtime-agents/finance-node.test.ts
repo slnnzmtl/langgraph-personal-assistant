@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
+import { resolveAgentSkillModule } from "../../../src/core/types/agent.js";
 import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";
 import { getFinanceDomainTool } from "../../helpers/finance-tools.js";
 import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
 
 const financeDefinition = getBuiltinRuntimeAgentDefinition("finance");
+const financeSkillModule = resolveAgentSkillModule(financeDefinition);
 
 const wiseTransactions = [
   {
@@ -106,13 +108,13 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(session);
+    const tools = createFinanceTools(session, financeSkillModule);
     const readSkillTool = tools.find((tool) => tool.name === "read_skill");
 
     expect(readSkillTool).toBeDefined();
 
-    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-    expect(result).toContain("# Expenses");
+    const result = String(await readSkillTool?.invoke({ name: "expense-view" }));
+    expect(result).toContain("<view_intent>");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
     expect(session.executeSql).not.toHaveBeenCalled();
@@ -123,7 +125,7 @@ describe("finance tools", () => {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(session);
+    const tools = createFinanceTools(session, financeSkillModule);
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",
@@ -139,8 +141,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [new HumanMessage("sync finances")],
+    const update = await financeNode({
+      agentMessages: [new HumanMessage("sync finances")],
         stepCount: 7,
       });
 
@@ -151,8 +153,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [
+    const update = await financeNode({
+      agentMessages: [
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
@@ -166,8 +168,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [
+    const update = await financeNode({
+      agentMessages: [
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],

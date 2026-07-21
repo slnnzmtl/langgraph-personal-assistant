@@ -2,7 +2,6 @@ import {
   AIMessage,
   HumanMessage,
   ToolMessage,
-  trimMessages,
   type BaseMessage,
 } from "@langchain/core/messages";
 
@@ -208,25 +207,4 @@ export const trimMessagesToTokenBudgetSync = (
     startIndex >= 0 ? startIndex : 0,
     activeToolCallIndex,
   );
-};
-
-export const trimMessagesToTokenBudget = async (
-  messages: BaseMessage[],
-  options: TrimMessagesToTokenBudgetOptions = {},
-): Promise<BaseMessage[]> => {
-  const maxTokens = options.maxTokens ?? getMessageHistoryMaxTokens();
-  const tokenCounter = options.tokenCounter ?? estimateMessageTokens;
-
-  const trimmed = await trimMessages(messages, {
-    maxTokens,
-    strategy: "last",
-    tokenCounter,
-    startOn: "human",
-    allowPartial: false,
-  });
-
-  return trimMessagesToTokenBudgetSync(trimmed.length > 0 ? trimmed : messages, {
-    maxTokens,
-    tokenCounter,
-  });
 };

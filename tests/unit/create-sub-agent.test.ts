@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { createSubAgent, createCompiledSubAgentGraph } from "../../src/core/execution/create-sub-agent.js";
+import { createSubAgentGraphBundle } from "../../src/core/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../helpers/compiled-sub-agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
 import { hasPendingToolCalls } from "../../src/tools/routing.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
@@ -18,18 +19,15 @@ const createTestLlmNode = (handler: (input: unknown) => AIMessage) => {
   const model = new FakeLLMConnector(handler).getModel();
 
   return async (state: SubAgentState): Promise<SubAgentStateUpdate> => {
-    if (hasPendingToolCalls(state.messages)) {
+    if (hasPendingToolCalls(state.agentMessages)) {
       return { stepCount: state.stepCount };
     }
 
-    const lastMessage = state.messages[state.messages.length - 1];
-    const isLoopContinuation = lastMessage instanceof ToolMessage;
-    const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
-    const response = await model.invoke(state.messages);
+    const response = await model.invoke(state.agentMessages);
 
     return {
-      messages: [response as AIMessage],
-      stepCount,
+      agentMessages: [response as AIMessage],
+      stepCount: 1,
     };
   };
 };
@@ -57,64 +55,24 @@ describe("createCompiledSubAgentGraph", () => {
 
     const subgraph = createCompiledSubAgentGraph("Test", 10, llmNode, [echoTool]);
     const result = await subgraph.invoke({
-      messages: [new HumanMessage("hello")],
+      agentMessages: [new HumanMessage("hello")],
       stepCount: 0,
     });
 
     expect(llmCalls).toBe(2);
-    expect(result.messages.at(-1)?.content).toBe("subgraph done");
-  });
-
-  it("terminates when maxSteps is reached", async () => {
-    const llmNode = createTestLlmNode(() =>
-      new AIMessage({
-        content: "",
-        tool_calls: [{ name: "echo", args: { text: "loop" }, id: "echo-1", type: "tool_call" }],
-      }),
-    );
-
-    const subgraph = createCompiledSubAgentGraph("Test", 1, llmNode, [echoTool]);
-    const result = await subgraph.invoke({
-      messages: [new HumanMessage("loop forever")],
-      stepCount: 0,
-    });
-
-    expect(result.stepCount).toBe(1);
-    expect(result.messages.at(-1)).toBeInstanceOf(AIMessage);
-    expect((result.messages.at(-1) as AIMessage).tool_calls?.length).toBeGreaterThan(0);
+    expect(result.agentMessages.at(-1)?.content).toBe("subgraph done");
   });
 });
 
-describe("createSubAgent", () => {
-  it("returns the last AI message from the subgraph result", async () => {
-    const wrapper = createSubAgent({
-      name: "Test",
-      maxSteps: 10,
-      deps: {},
-      createTools: () => [],
-      createLlmNode: () => async () => ({
-        messages: [new AIMessage("subgraph done")],
-        stepCount: 1,
-      }),
-    });
-
-    const result = await wrapper({
-      messages: [new HumanMessage("hello")],
-      context: {},
-      next: undefined,
-    });
-
-    expect(result.messages?.[0]?.content).toBe("subgraph done");
-  });
-
-  it("uses mapResult when provided", async () => {
-    const wrapper = createSubAgent({
+describe("createSubAgentGraphBundle", () => {
+  it("maps subgraph results through finalize", () => {
+    const bundle = createSubAgentGraphBundle({
       name: "Test",
       maxSteps: 3,
       deps: {},
       createTools: () => [],
       createLlmNode: () => async () => ({
-        messages: [new AIMessage("ignored")],
+        agentMessages: [new AIMessage("ignored")],
         stepCount: 3,
       }),
       mapResult: (result, { maxSteps }) => ({
@@ -122,32 +80,11 @@ describe("createSubAgent", () => {
       }),
     });
 
-    const result = await wrapper({
-      messages: [new HumanMessage("hello")],
-      context: {},
-      next: undefined,
+    const finalized = bundle.finalize({
+      agentMessages: [new AIMessage("ignored")],
+      stepCount: 3,
     });
 
-    expect(result.messages?.[0]?.content).toBe("steps: 3/3");
-  });
-
-  it("returns a failure message when the subgraph throws", async () => {
-    const wrapper = createSubAgent({
-      name: "Finance",
-      maxSteps: 10,
-      deps: {},
-      createTools: () => [],
-      createLlmNode: () => async () => {
-        throw new Error("boom");
-      },
-    });
-
-    const result = await wrapper({
-      messages: [new HumanMessage("hello")],
-      context: {},
-      next: undefined,
-    });
-
-    expect(result.messages?.[0]?.content).toBe("Finance sub-graph failed: boom");
+    expect(finalized.messages?.[0]?.content).toBe("steps: 3/3");
   });
 });

@@ -1,0 +1,39 @@
+<skill name="expense-view" module="finance" description="View and summarize expenses in the ledger.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>expense,expenses,spending,how much spent,total spending,transactions,for yesterday,for today,yesterday expenses,today expenses,yesterday transactions,today transactions,last expense,show expenses,recent transactions,recent expenses,categories of transactions,expense categories,show transactions</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<view_intent>
+For every view, list, search, or summary request, call `exec_sql` now. Use SELECT statements only; do not call `fetch_wise_transactions` and do not write data.
+
+<latest_expenses_with_categories>
+When the user asks for latest, recent, or last expenses with categories, call `exec_sql` with exactly this query:
+
+```sql
+SELECT
+  e.id,
+  e.name,
+  e.amount,
+  e.paid_date,
+  e.paid,
+  c.name AS category_name
+FROM public.expense AS e
+LEFT JOIN public.category AS c ON e.category = c.id
+ORDER BY e.paid_date DESC, e.id DESC
+LIMIT 10;
+```
+</latest_expenses_with_categories>
+
+<query_rules>
+- Include `LEFT JOIN public.category AS c ON e.category = c.id` whenever the user asks to show category names.
+- Use `ORDER BY e.paid_date DESC, e.id DESC` for latest/recent/last results.
+- Use literal `YYYY-MM-DD` date bounds supplied by system metadata for today or yesterday requests.
+- Select only the columns needed to answer the request; do not use `SELECT *`.
+</query_rules>
+
+After the SQL result, immediately answer in plain text. If it is empty, say no matching expenses were found and offer to sync.
+</view_intent>
+
+</skill>

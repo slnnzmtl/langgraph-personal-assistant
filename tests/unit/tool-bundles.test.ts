@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import { deriveCronTargetAgentIds } from "../../src/app/composition/create-supervisor-system.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createRuntimeToolBundleDeps,
   listAvailableRuntimeToolBundles,
@@ -13,14 +15,14 @@ describe("runtime tool bundles", () => {
   it("seeds the configuration agent with the system-config bundle", () => {
     const configuration = buildDefaultRuntimeAgents().find((agent) => agent.id === "configuration");
 
-    expect(configuration?.toolBundleIds).toEqual(["system-config"]);
+    expect(configuration?.capabilityIds).toEqual(["system-config"]);
   });
 
   it("resolves system-config tools when repositories are available", () => {
     const deps = createRuntimeToolBundleDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      cronTargetAgentIds: ["finance", "obsidian", "configuration"],
+      cronTargetAgentIds: deriveCronTargetAgentIds(buildTestRuntimeAgents()),
     });
 
     const tools = resolveRuntimeToolBundles(["system-config"], deps);

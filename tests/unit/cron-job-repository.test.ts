@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { defaultCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
+import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];
 
@@ -22,14 +22,14 @@ const createTempRoot = async (): Promise<string> => {
 describe("createCronJobRepository", () => {
   it("loads an empty list when the cron jobs file does not exist", async () => {
     const rootDir = await createTempRoot();
-    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultCronTargetAgentIds());
+    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultTestCronTargetAgentIds());
 
     await expect(repository.loadJobs()).resolves.toEqual([]);
   });
 
   it("saves and reloads cron jobs from the configured JSON file", async () => {
     const rootDir = await createTempRoot();
-    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultCronTargetAgentIds());
+    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultTestCronTargetAgentIds());
     const jobs = [
       {
         jobName: "finance-sync",
@@ -51,7 +51,7 @@ describe("createCronJobRepository", () => {
 
   it("rejects invalid persisted cron job data", async () => {
     const rootDir = await createTempRoot();
-    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultCronTargetAgentIds());
+    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultTestCronTargetAgentIds());
     await mkdir(path.join(rootDir, "data"), { recursive: true });
     await writeFile(path.join(rootDir, "data", "cron-jobs.json"), JSON.stringify([{ jobName: "bad-job" }]), "utf8");
 
@@ -60,7 +60,7 @@ describe("createCronJobRepository", () => {
 
   it("preserves all jobs when createJob calls overlap", async () => {
     const rootDir = await createTempRoot();
-    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultCronTargetAgentIds());
+    const repository = createCronJobRepository(rootDir, "data/cron-jobs.json", defaultTestCronTargetAgentIds());
 
     await Promise.all([
       repository.createJob({

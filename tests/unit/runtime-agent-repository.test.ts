@@ -34,7 +34,7 @@ describe("createRuntimeAgentRepository", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You summarize days.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
       maxSteps: 5,
     });
 
@@ -62,14 +62,14 @@ describe("createRuntimeAgentRepository", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You summarize days.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
     });
 
     await expect(repository.createAgent({
       name: "daily-summary",
       description: "Duplicate attempt.",
       systemPrompt: "Duplicate.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
     })).rejects.toThrow(/already exists/i);
   });
 
@@ -82,19 +82,47 @@ describe("createRuntimeAgentRepository", () => {
         name: "Agent One",
         description: "First agent.",
         systemPrompt: "First.",
-        toolBundleIds: ["none"],
+        capabilityIds: ["none"],
       }),
       repository.createAgent({
         name: "Agent Two",
         description: "Second agent.",
         systemPrompt: "Second.",
-        toolBundleIds: ["none"],
+        capabilityIds: ["none"],
       }),
     ]);
 
     const agents = await repository.loadAgents();
     expect(agents).toHaveLength(2);
     expect(agents.map((agent) => agent.id).sort()).toEqual(["agent-one", "agent-two"]);
+  });
+
+  it("loads legacy toolBundleIds-only persisted agents as capabilityIds", async () => {
+    const rootDir = await createTempRoot();
+    const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
+    await mkdir(path.join(rootDir, "data"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "data", "runtime-agents.json"),
+      JSON.stringify({
+        version: 1,
+        agents: [{
+          id: "legacy-agent",
+          name: "Legacy",
+          description: "Legacy agent",
+          systemPrompt: "Legacy",
+          toolBundleIds: ["none"],
+          executor: "generic",
+          maxSteps: 4,
+          enabled: true,
+          createdAt: "2026-07-16T00:00:00.000Z",
+          updatedAt: "2026-07-16T00:00:00.000Z",
+        }],
+      }),
+      "utf8",
+    );
+
+    const agents = await repository.loadAgents();
+    expect(agents[0]?.capabilityIds).toEqual(["none"]);
   });
 
   it("rejects invalid persisted runtime agent data", async () => {

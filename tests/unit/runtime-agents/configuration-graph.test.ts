@@ -1,15 +1,20 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
+import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
 import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
-import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
   FakeLLMConnector,
   createRuntimeExecutionContextFake,
   getBuiltinRuntimeAgentDefinition,
 } from "../../helpers/fakes.js";
+
+import { createFilesystemSkillCatalog } from "../../../src/integrations/skills/filesystem-skill-catalog.js";
+
+const configurationShellFormatters = createDefaultRuntimeShellFormatters(createFilesystemSkillCatalog());
 
 const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
 
@@ -55,13 +60,23 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const wrapper = createConfigurationPolicy().createHandler(context, configurationDefinition);
-
-    const result = await wrapper({
+    const bundle = createConfigurationPolicy({ shellFormatters: configurationShellFormatters })
+      .createGraphBundle(context, configurationDefinition);
+    const prepared = bundle.prepare({
       messages: [new HumanMessage("set up a cron job for daily notes")],
       context: {},
       next: undefined,
+      agentMessages: [],
+      stepCount: 0,
     });
+    const compiled = createCompiledSubAgentGraph(
+      "Configuration",
+      configurationDefinition.maxSteps,
+      bundle.llmNode,
+      createConfigurationTools(repository),
+    );
+    const subgraphResult = await compiled.invoke(prepared);
+    const result = bundle.finalize(subgraphResult);
 
     expect(configCalls).toBeGreaterThanOrEqual(2);
     expect(result.messages?.[0]?.content).toContain("Created cron job");
@@ -79,7 +94,7 @@ describe("configuration subgraph", () => {
     });
 
     const update = await configNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("create a cron job"),
         new AIMessage({
           content: "",
@@ -94,7 +109,7 @@ describe("configuration subgraph", () => {
     });
 
     expect(configCalls).toBe(0);
-    expect(update.messages).toBeUndefined();
+    expect(update.agentMessages).toBeUndefined();
     expect(update.stepCount).toBe(1);
   });
 
@@ -135,11 +150,11 @@ describe("configuration subgraph", () => {
     });
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);
     const result = await subgraph.invoke({
-      messages: [new HumanMessage("update cron jobs")],
+      agentMessages: [new HumanMessage("update cron jobs")],
       stepCount: 0,
     });
 
     expect(configCalls).toBeGreaterThanOrEqual(2);
-    expect(result.messages.at(-1)?.content).toBe("Configuration updated.");
+    expect(result.agentMessages.at(-1)?.content).toBe("Configuration updated.");
   });
 });
