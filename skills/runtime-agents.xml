@@ -12,9 +12,10 @@
 
 3. CREATE (create, add, new):
    - Call `list_runtime_tool_bundles` first when bundle selection is unclear.
-   - Call `create_runtime_agent(name, description, systemPrompt, toolBundleIds, maxSteps?, enabled?)`.
+   - Call `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`.
    - Use a concise kebab-case-friendly name and a routing description the supervisor can match later.
-   - Only choose bundle ids from the allowlisted catalog.
+   - Only choose capability ids from the allowlisted catalog (`list_runtime_tool_bundles`).
+   - After create or enable, tell the user that the bot and scheduler processes must be restarted before the new agent can receive routed requests.
    - Configure skill auto-attachment triggers in each skill file's `<skill_attachments>` block with `module` on the root `<skill>` tag.
 
 4. UPDATE (edit, update, change, rewrite, enable, disable):

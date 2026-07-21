@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 
 import { createConfigurationTools as createConfigurationToolsImpl } from "../../src/runtime-agents/policies/configuration/tools.js";
-import { CONFIGURATOR_AGENT_ID } from "../../src/runtime-agents/builtin-domains.js";
+import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agents.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "./fakes.js";

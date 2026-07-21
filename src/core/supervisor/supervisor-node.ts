@@ -7,13 +7,14 @@ import {
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { getEmptySubAgentHandoff } from "../execution/empty-subagent-handoff.js";
+import { getEmptySubAgentHandoff } from "../execution/runtime-agent-handoff.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { stripToolsForSupervisor } from "./message-history.js";
 import type { RuntimeAgentRepository } from "../agents/repository.js";
 import {
   buildSupervisorRoutingSchema,
+  filterRoutableRuntimeAgents,
   type RoutingDecision,
 } from "./routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
@@ -32,6 +33,7 @@ export type CronTriggerResolver = {
 
 export type SupervisorNodeOptions = {
   runtimeAgentRepository?: RuntimeAgentRepository;
+  wiredAgentIds: ReadonlySet<string>;
   loadSupervisorPrompt: () => string;
   cronTriggerResolver?: CronTriggerResolver;
   resolveAgentId?: (routeOrId: string) => string;
@@ -146,6 +148,7 @@ export const createSupervisorNode = (
       cronRoute,
       options.cronTriggerResolver?.superviseCronRoute,
       resolveAgentId,
+      options.wiredAgentIds,
     );
 
     if (cronRouteUpdate) {
@@ -184,10 +187,9 @@ export const createSupervisorNode = (
     const runtimeAgents = options.runtimeAgentRepository
       ? await options.runtimeAgentRepository.loadAgents()
       : [];
-    const enabledAgentIds = new Set(
-      runtimeAgents.filter((agent) => agent.enabled).map((agent) => agent.id),
-    );
-    const routingSchema = buildSupervisorRoutingSchema(runtimeAgents);
+    const routableAgents = filterRoutableRuntimeAgents(runtimeAgents, options.wiredAgentIds);
+    const enabledAgentIds = new Set(routableAgents.map((agent) => agent.id));
+    const routingSchema = buildSupervisorRoutingSchema(runtimeAgents, options.wiredAgentIds);
     const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(routingSchema);
 
     const buildFailureUpdate = async (failureContext: string): Promise<AgentStateUpdate> => ({

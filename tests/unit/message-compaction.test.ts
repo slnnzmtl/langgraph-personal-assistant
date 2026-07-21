@@ -10,7 +10,7 @@ import {
 import {
   createEmptySubAgentHandoffMessage,
   getEmptySubAgentHandoff,
-} from "../../src/core/execution/empty-subagent-handoff.js";
+} from "../../src/core/execution/runtime-agent-handoff.js";
 import { reduceAgentMessages } from "../../src/core/state.js";
 
 describe("compactConsumedToolResults", () => {

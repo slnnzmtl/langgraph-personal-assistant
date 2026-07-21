@@ -12,7 +12,7 @@ import { hasPendingToolCalls } from "../../tools/routing.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
-import { createEmptySubAgentHandoffMessage } from "./empty-subagent-handoff.js";
+import { createEmptySubAgentHandoffMessage } from "./runtime-agent-handoff.js";
 import {
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
@@ -249,7 +249,7 @@ export const createRuntimeAgentNode = (
 
         // Hand an empty reply + last tool context to the supervisor for a user-facing summary.
         return {
-          agentMessages: [createEmptySubAgentHandoffMessage(state.agentMessages, definition.name)],
+          agentMessages: [createEmptySubAgentHandoffMessage(state.agentMessages, definition.name, definition.id)],
           stepCount,
         };
       }

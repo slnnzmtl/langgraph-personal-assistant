@@ -5,7 +5,7 @@ import {
   createEmptySubAgentHandoffMessage,
   formatRecentToolResultsForHandoff,
   getEmptySubAgentHandoff,
-} from "../../src/core/execution/empty-subagent-handoff.js";
+} from "../../src/core/execution/runtime-agent-handoff.js";
 
 describe("empty sub-agent handoff", () => {
   it("formats the latest contiguous tool results", () => {

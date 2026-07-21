@@ -69,17 +69,19 @@ export const createAssistant = (config: AssistantConfig) => {
     policyRegistry,
   });
 
-  const supervisorNode = createSupervisorNode(config.supervisorLlm, {
-    runtimeAgentRepository: config.runtimeAgentRepository,
-    loadSupervisorPrompt: config.loadSupervisorPrompt,
-    ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
-    ...(config.resolveAgentId ? { resolveAgentId: config.resolveAgentId } : {}),
-  });
-
   const agentStateAnnotation = createAgentStateAnnotation({
     messageHistoryMaxTokens: config.messageHistoryMaxTokens ?? DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   });
   const runtimeAgentNodeSets = buildRuntimeAgentGraphNodeSets(config.runtimeAgents, executionContext);
+  const wiredAgentIds = new Set(runtimeAgentNodeSets.map((nodeSet) => nodeSet.agentId));
+
+  const supervisorNode = createSupervisorNode(config.supervisorLlm, {
+    runtimeAgentRepository: config.runtimeAgentRepository,
+    wiredAgentIds,
+    loadSupervisorPrompt: config.loadSupervisorPrompt,
+    ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
+    ...(config.resolveAgentId ? { resolveAgentId: config.resolveAgentId } : {}),
+  });
 
   const graph = new StateGraph(agentStateAnnotation).addNode("supervisor", supervisorNode);
 
@@ -90,7 +92,7 @@ export const createAssistant = (config: AssistantConfig) => {
       .addNode(nodeSet.prepareNodeName, createRuntimeAgentPrepareNode(bundle))
       .addNode(nodeSet.llmNodeName, bundle.llmNode)
       .addNode(nodeSet.toolsNodeName, bundle.toolsNode)
-      .addNode(nodeSet.finalizeNodeName, createRuntimeAgentFinalizeNode(bundle))
+      .addNode(nodeSet.finalizeNodeName, createRuntimeAgentFinalizeNode(bundle, nodeSet.agentId))
       .addEdge(nodeSet.prepareNodeName, nodeSet.llmNodeName)
       .addConditionalEdges(
         nodeSet.llmNodeName,

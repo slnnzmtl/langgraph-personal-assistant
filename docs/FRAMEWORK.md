@@ -1,6 +1,6 @@
 # Supervisor Agent Framework
 
-This repository exposes a small framework for building supervisor → sub-agent systems. Product-specific domains (Obsidian, finance, configuration) compose the framework; they do not live inside it.
+This repository exposes a small framework for building supervisor → specialist agent systems. Product-specific domains (Obsidian, finance, configuration) compose the framework; they do not live inside it.
 
 ## Layers
 

@@ -5,7 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ensureBuiltinRuntimeAgents } from "../../src/runtime-agents/bootstrap.js";
-import { applyLocalModuleAvailability } from "../../src/runtime-agents/builtin-domains.js";
+import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
 import { createRuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 

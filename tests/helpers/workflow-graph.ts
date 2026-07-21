@@ -1,5 +1,9 @@
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
-import { createWorkflowGraph, type WorkflowGraphConfig } from "../../src/agent.js";
+import { createWorkflowGraph } from "../../src/agent.js";
+import type { CronJobRepository } from "../../src/cron/types.js";
+import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
+import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
+import type { IFileSender } from "../../src/telegram/file-sender.js";
 import {
   deriveCronTargetAgentIds,
   deriveExecutors,
@@ -16,13 +20,17 @@ import { createFilesystemSkillCatalog } from "../../src/integrations/skills/file
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { FakeLLMConnector } from "./fakes.js";
 
-export type TestWorkflowGraphOptions = WorkflowGraphConfig & {
+export type TestWorkflowGraphOptions = {
   supervisorLlm: ILLMConnector;
   modelHandlers?: Partial<Record<string, (input: unknown) => unknown>>;
   runtimeAgents?: RuntimeAgentDefinition[];
   defaultModelKey?: string;
   messageHistoryMaxTokens?: number;
   obsidianVaultPath?: string;
+  cronJobRepository?: CronJobRepository;
+  runtimeAgentRepository?: RuntimeAgentRepository;
+  supabaseSession?: SupabaseMcpSession;
+  fileSender?: IFileSender;
 };
 
 export const createTestWorkflowGraph = ({
@@ -32,7 +40,10 @@ export const createTestWorkflowGraph = ({
   defaultModelKey = "generic",
   messageHistoryMaxTokens = DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   obsidianVaultPath = "/tmp/vault",
-  ...config
+  cronJobRepository,
+  runtimeAgentRepository,
+  supabaseSession,
+  fileSender,
 }: TestWorkflowGraphOptions) => {
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey);
   const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
@@ -57,24 +68,27 @@ export const createTestWorkflowGraph = ({
     capabilityCatalog: createDefaultCapabilityCatalog(),
     skillCatalog,
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
-    ...(config.cronJobRepository ? { cronJobRepository: config.cronJobRepository } : {}),
-    ...(config.runtimeAgentRepository ? { runtimeAgentRepository: config.runtimeAgentRepository } : {}),
-    ...(config.supabaseSession ? { supabaseSession: config.supabaseSession } : {}),
-    ...(config.fileSender ? { fileSender: config.fileSender } : {}),
+    ...(cronJobRepository ? { cronJobRepository } : {}),
+    ...(runtimeAgentRepository ? { runtimeAgentRepository } : {}),
+    ...(supabaseSession ? { supabaseSession } : {}),
+    ...(fileSender ? { fileSender } : {}),
   });
+
+  if (!cronJobRepository || !runtimeAgentRepository) {
+    throw new Error("createTestWorkflowGraph requires cronJobRepository and runtimeAgentRepository.");
+  }
 
   return createWorkflowGraph({
     supervisorLlm,
     models,
     runtimeAgents,
     defaultModelKey,
-    executors: deriveExecutors(runtimeAgents),
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
     messageHistoryMaxTokens,
-    obsidianVaultPath,
+    cronJobRepository,
+    runtimeAgentRepository,
     promptResolver,
     policyRegistry,
     bundleDeps,
-    ...config,
   });
 };

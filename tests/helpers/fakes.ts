@@ -3,8 +3,8 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { z } from "zod";
 
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { createSupervisorNode } from "../../src/core/supervisor/supervisor-node.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
 import {
@@ -117,12 +117,14 @@ export const createRuntimeAgentRepositoryFake = (
     createAgent: async (input) => {
       const timestamp = new Date().toISOString();
       const id = input.name.trim().toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-+|-+$/g, "");
+      const capabilityIds = input.capabilityIds ?? input.toolBundleIds ?? [];
       const nextAgent: RuntimeAgentDefinition = {
         id,
         name: input.name.trim(),
         description: input.description.trim(),
         systemPrompt: input.systemPrompt.trim(),
-        toolBundleIds: input.toolBundleIds,
+        capabilityIds,
+        toolBundleIds: capabilityIds,
         executor: input.executor ?? "generic",
         builtin: false,
         maxSteps: input.maxSteps ?? 8,
@@ -145,7 +147,12 @@ export const createRuntimeAgentRepositoryFake = (
         ...(input.name !== undefined ? { name: input.name.trim() } : {}),
         ...(input.description !== undefined ? { description: input.description.trim() } : {}),
         ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() } : {}),
-        ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds } : {}),
+        ...(input.capabilityIds !== undefined || input.toolBundleIds !== undefined
+          ? {
+            capabilityIds: input.capabilityIds ?? input.toolBundleIds ?? current.capabilityIds,
+            toolBundleIds: input.capabilityIds ?? input.toolBundleIds ?? current.toolBundleIds,
+          }
+          : {}),
         ...(input.executor !== undefined ? { executor: input.executor } : {}),
         ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
@@ -177,9 +184,15 @@ export const createAppSupervisorNode = (
   options?: {
     runtimeAgentRepository?: RuntimeAgentRepository;
     loadSupervisorPrompt?: () => string;
+    wiredAgentIds?: ReadonlySet<string>;
   },
-) =>
-  createSupervisorNode(llmConnector, {
+) => {
+  const defaultWiredAgentIds = new Set(
+    buildTestRuntimeAgents().filter((agent) => agent.enabled).map((agent) => agent.id),
+  );
+
+  return createSupervisorNode(llmConnector, {
+    wiredAgentIds: options?.wiredAgentIds ?? defaultWiredAgentIds,
     loadSupervisorPrompt: options?.loadSupervisorPrompt ?? loadSupervisorSystemPrompt,
     cronTriggerResolver: {
       resolveCronTriggerRoute: (message) =>
@@ -190,6 +203,7 @@ export const createAppSupervisorNode = (
       ? { runtimeAgentRepository: options.runtimeAgentRepository }
       : {}),
   });
+};
 
 const emptyCronRepository = (): CronJobRepository => ({
   loadJobs: async () => [],

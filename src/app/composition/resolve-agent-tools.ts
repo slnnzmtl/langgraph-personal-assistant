@@ -1,7 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
-import { resolveAgentSkillModule } from "../../core/types/agent.js";
+import { resolveAgentCapabilityIds, resolveAgentSkillModule } from "../../core/types/agent.js";
 import { createReadSkillTool } from "../../tools/skill-management.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { resolveRuntimeToolBundles } from "../../runtime-agents/tool-bundles.js";
@@ -30,10 +30,11 @@ export const resolveAgentCapabilityTools = (
     skillCatalog?: Parameters<typeof createReadSkillTool>[2] extends infer T ? T extends { skillCatalog?: infer S } ? S : never : never;
   } = {},
 ): StructuredToolInterface[] => {
-  const bundleTools = resolveRuntimeToolBundles(definition.toolBundleIds, bundleDeps);
+  const capabilityIds = resolveAgentCapabilityIds(definition);
+  const bundleTools = resolveRuntimeToolBundles(capabilityIds, bundleDeps);
   const includeReadSkill = options.includeReadSkill ?? true;
 
-  if (!includeReadSkill || definition.toolBundleIds.includes("none")) {
+  if (!includeReadSkill || capabilityIds.includes("none")) {
     return bundleTools;
   }
 

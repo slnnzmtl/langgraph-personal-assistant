@@ -3,7 +3,7 @@ import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messag
 import {
   EMPTY_SUBAGENT_HANDOFF_KEY,
   getEmptySubAgentHandoff,
-} from "./execution/empty-subagent-handoff.js";
+} from "./execution/runtime-agent-handoff.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 
 export const CONSUMED_TOOL_MARKER_PREFIX = "[consumed:";

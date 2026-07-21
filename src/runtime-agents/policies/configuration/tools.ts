@@ -9,9 +9,7 @@ import {
   type RuntimeToolBundleDeps,
   validateRuntimeToolBundleIds,
 } from "../../tool-bundles.js";
-import {
-  type RuntimeAgentDefinition,
-} from "../../../core/types/agent.js";
+import { resolveAgentCapabilityIds, type RuntimeAgentDefinition } from "../../../core/types/agent.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
 import {
   createDefaultCapabilityCatalog,
@@ -37,7 +35,8 @@ const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  toolBundleIds: z.array(z.string().min(1)).min(1),
+  capabilityIds: z.array(z.string().min(1)).min(1).optional(),
+  toolBundleIds: z.array(z.string().min(1)).min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -47,6 +46,7 @@ const UpdateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
+  capabilityIds: z.array(z.string().min(1)).min(1).optional(),
   toolBundleIds: z.array(z.string().min(1)).min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
@@ -63,6 +63,9 @@ export type SystemConfigToolsOptions = {
   skillCatalog?: SkillCatalog;
   capabilityCatalog?: CapabilityCatalog;
 };
+
+export const RUNTIME_AGENT_RESTART_REQUIRED_NOTE =
+  "Restart the bot and scheduler processes before this agent can receive routed requests.";
 
 export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   const lines = [
@@ -89,7 +92,7 @@ export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string
     `Name: ${agent.name}`,
     `Description: ${agent.description}`,
     `Executor: ${agent.executor}`,
-    `Tool Bundles: ${agent.toolBundleIds.join(", ")}`,
+    `Capabilities: ${resolveAgentCapabilityIds(agent).join(", ")}`,
     `Max Steps: ${agent.maxSteps}`,
     `Enabled: ${agent.enabled ? "true" : "false"}`,
     `Updated At: ${agent.updatedAt}`,
@@ -252,18 +255,22 @@ export const createRuntimeAgentTools = (
   const createRuntimeAgent = tool(
     async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
       try {
-        validateRuntimeToolBundleIds(input.toolBundleIds, bundleDeps);
+        const capabilityIds = input.capabilityIds ?? input.toolBundleIds;
+        if (!capabilityIds) {
+          throw new Error("capabilityIds are required");
+        }
+
+        validateRuntimeToolBundleIds(capabilityIds, bundleDeps);
         const agent = await repository.createAgent({
           name: input.name,
           description: input.description,
           systemPrompt: input.systemPrompt,
-          toolBundleIds: input.toolBundleIds,
-          executor: "generic",
+          capabilityIds,
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
 
-        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}`;
+        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}\n\n${RUNTIME_AGENT_RESTART_REQUIRED_NOTE}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -271,9 +278,18 @@ export const createRuntimeAgentTools = (
     },
     {
       name: "create_runtime_agent",
-      description: "Create and persist a reusable runtime sub-agent from a name, routing description, system prompt, and allowlisted tool bundles.",
+      description: "Create and persist a reusable runtime sub-agent from a name, routing description, system prompt, and allowlisted capabilities.",
       schema: CreateRuntimeAgentToolSchema.extend({
-        toolBundleIds: z.array(capabilityIdSchema).min(1),
+        capabilityIds: z.array(capabilityIdSchema).min(1).optional(),
+        toolBundleIds: z.array(capabilityIdSchema).min(1).optional(),
+      }).superRefine((input, ctx) => {
+        if (!input.capabilityIds && !input.toolBundleIds) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "capabilityIds are required",
+            path: ["capabilityIds"],
+          });
+        }
       }),
     },
   );
@@ -281,20 +297,23 @@ export const createRuntimeAgentTools = (
   const updateRuntimeAgent = tool(
     async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
       try {
-        if (input.toolBundleIds) {
-          validateRuntimeToolBundleIds(input.toolBundleIds, bundleDeps);
+        const capabilityIds = input.capabilityIds ?? input.toolBundleIds;
+        if (capabilityIds) {
+          validateRuntimeToolBundleIds(capabilityIds, bundleDeps);
         }
 
         const agent = await repository.updateAgent(input.id, {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
-          ...(input.toolBundleIds !== undefined ? { toolBundleIds: input.toolBundleIds } : {}),
+          ...(capabilityIds !== undefined ? { capabilityIds } : {}),
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
 
-        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}`;
+        const restartNote = agent.enabled ? `\n\n${RUNTIME_AGENT_RESTART_REQUIRED_NOTE}` : "";
+
+        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${restartNote}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -304,6 +323,7 @@ export const createRuntimeAgentTools = (
       name: "update_runtime_agent",
       description: "Update a persisted runtime agent definition, including enable/disable status.",
       schema: UpdateRuntimeAgentToolSchema.extend({
+        capabilityIds: z.array(capabilityIdSchema).min(1).optional(),
         toolBundleIds: z.array(capabilityIdSchema).min(1).optional(),
       }),
     },

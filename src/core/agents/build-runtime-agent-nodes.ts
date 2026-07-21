@@ -1,3 +1,7 @@
+import {
+  applyRuntimeAgentHandoffToUpdate,
+} from "../execution/runtime-agent-handoff.js";
+
 import { Overwrite } from "@langchain/langgraph";
 
 import type { RuntimeAgentExecutionContext } from "../execution/context.js";
@@ -52,15 +56,31 @@ export const createRuntimeAgentPrepareNode = (bundle: RuntimeAgentGraphBundle) =
     };
   };
 
-export const createRuntimeAgentFinalizeNode = (bundle: RuntimeAgentGraphBundle) =>
+export const createRuntimeAgentFinalizeNode = (
+  bundle: RuntimeAgentGraphBundle,
+  agentId: string,
+) =>
   (state: AgentState): AgentStateUpdate => {
-    const finalized = bundle.finalize({
-      agentMessages: state.agentMessages ?? [],
-      stepCount: state.stepCount ?? 0,
-    });
+    const agentMessages = state.agentMessages ?? [];
+    const stepCount = state.stepCount ?? 0;
+    const finalized = bundle.finalize({ agentMessages, stepCount });
+    const handoffMessages = Array.isArray(finalized.messages) ? finalized.messages : undefined;
+    const withHandoff = handoffMessages
+      ? applyRuntimeAgentHandoffToUpdate(
+        { messages: handoffMessages },
+        {
+          agentId,
+          agentName: bundle.name,
+          agentMessages,
+          stepCount,
+          maxSteps: bundle.maxSteps,
+        },
+      )
+      : undefined;
 
     return {
       ...finalized,
+      ...(withHandoff ? { messages: withHandoff.messages } : {}),
       agentMessages: new Overwrite([]),
       stepCount: 0,
     };

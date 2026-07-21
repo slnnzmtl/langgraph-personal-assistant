@@ -20,13 +20,51 @@ export const SkillAttachmentRuleSchema = z.object({
 
 export type SkillAttachmentRule = z.infer<typeof SkillAttachmentRuleSchema>;
 
-export const RuntimeAgentDefinitionSchema = z.object({
+const CapabilityIdListSchema = z.array(z.string().min(1)).min(1);
+
+export type RuntimeAgentDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  systemPrompt: string;
+  promptSourceKey?: string | undefined;
+  capabilityIds: string[];
+  toolBundleIds: string[];
+  executor: string;
+  modelKey?: string | undefined;
+  builtin: boolean;
+  maxSteps: number;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+const normalizeCapabilityFields = <
+  T extends { capabilityIds?: string[] | undefined; toolBundleIds?: string[] | undefined },
+>(
+  agent: T,
+): Omit<T, "capabilityIds" | "toolBundleIds"> & { capabilityIds: string[]; toolBundleIds: string[] } => {
+  const capabilityIds = agent.capabilityIds ?? agent.toolBundleIds;
+
+  if (!capabilityIds) {
+    throw new Error("Runtime agent definitions require capabilityIds.");
+  }
+
+  return {
+    ...agent,
+    capabilityIds,
+    toolBundleIds: capabilityIds,
+  };
+};
+
+const RuntimeAgentDefinitionBaseSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
   promptSourceKey: z.string().min(1).optional(),
-  toolBundleIds: z.array(z.string().min(1)).min(1),
+  capabilityIds: CapabilityIdListSchema.optional(),
+  toolBundleIds: CapabilityIdListSchema.optional(),
   executor: z.string().min(1).default("generic"),
   modelKey: z.string().min(1).optional(),
   builtin: z.boolean().default(false),
@@ -36,31 +74,97 @@ export const RuntimeAgentDefinitionSchema = z.object({
   updatedAt: z.string().min(1),
 });
 
-export type RuntimeAgentDefinition = z.infer<typeof RuntimeAgentDefinitionSchema>;
+export const parseRuntimeAgentDefinition = (input: unknown): RuntimeAgentDefinition =>
+  normalizeCapabilityFields(RuntimeAgentDefinitionBaseSchema.parse(input));
+
+export const RuntimeAgentDefinitionSchema = z.custom<RuntimeAgentDefinition>((value) => {
+  try {
+    parseRuntimeAgentDefinition(value);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 export const RuntimeAgentsDocumentSchema = z.object({
   version: z.literal(RUNTIME_AGENT_SCHEMA_VERSION),
-  agents: z.array(RuntimeAgentDefinitionSchema),
+  agents: z.array(z.unknown()).transform((agents) => agents.map(parseRuntimeAgentDefinition)),
 });
 
 export type RuntimeAgentsDocument = z.infer<typeof RuntimeAgentsDocumentSchema>;
 
-export const CreateRuntimeAgentInputSchema = z.object({
+export type CreateRuntimeAgentInput = {
+  name: string;
+  description: string;
+  systemPrompt: string;
+  capabilityIds?: string[] | undefined;
+  toolBundleIds?: string[] | undefined;
+  executor?: string | undefined;
+  modelKey?: string | undefined;
+  maxSteps?: number | undefined;
+  enabled?: boolean | undefined;
+};
+
+export type UpdateRuntimeAgentInput = Partial<CreateRuntimeAgentInput>;
+
+const CreateRuntimeAgentInputBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  toolBundleIds: RuntimeAgentDefinitionSchema.shape.toolBundleIds,
-  executor: RuntimeAgentDefinitionSchema.shape.executor.optional(),
-  modelKey: RuntimeAgentDefinitionSchema.shape.modelKey,
+  capabilityIds: CapabilityIdListSchema.optional(),
+  toolBundleIds: CapabilityIdListSchema.optional(),
+  executor: z.string().min(1).optional(),
+  modelKey: z.string().min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
 
-export const UpdateRuntimeAgentInputSchema = CreateRuntimeAgentInputSchema.partial();
+export const parseCreateRuntimeAgentInput = (input: unknown): CreateRuntimeAgentInput & {
+  capabilityIds: string[];
+  toolBundleIds: string[];
+} => {
+  const parsed = CreateRuntimeAgentInputBaseSchema.parse(input);
 
-export type CreateRuntimeAgentInput = z.infer<typeof CreateRuntimeAgentInputSchema>;
+  if (!parsed.capabilityIds && !parsed.toolBundleIds) {
+    throw new Error("capabilityIds are required");
+  }
 
-export type UpdateRuntimeAgentInput = z.infer<typeof UpdateRuntimeAgentInputSchema>;
+  return normalizeCapabilityFields(parsed);
+};
+
+export const CreateRuntimeAgentInputSchema = z.custom<
+  CreateRuntimeAgentInput & { capabilityIds: string[]; toolBundleIds: string[] }
+>((value) => {
+  try {
+    parseCreateRuntimeAgentInput(value);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+export const parseUpdateRuntimeAgentInput = (input: unknown): UpdateRuntimeAgentInput => {
+  const parsed = CreateRuntimeAgentInputBaseSchema.partial().parse(input);
+
+  if (!parsed.capabilityIds && !parsed.toolBundleIds) {
+    return parsed as UpdateRuntimeAgentInput;
+  }
+
+  return normalizeCapabilityFields(parsed) as UpdateRuntimeAgentInput;
+};
+
+export const UpdateRuntimeAgentInputSchema = z.custom<UpdateRuntimeAgentInput>((value) => {
+  try {
+    parseUpdateRuntimeAgentInput(value);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+export const resolveAgentCapabilityIds = (
+  definition: Pick<RuntimeAgentDefinition, "capabilityIds" | "toolBundleIds">,
+): string[] => definition.capabilityIds ?? definition.toolBundleIds ?? [];
 
 export const toRuntimeAgentId = (name: string): string =>
   name

@@ -6,7 +6,7 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
-import { getEmptySubAgentHandoff } from "../../src/core/execution/empty-subagent-handoff.js";
+import { createEmptySubAgentHandoffMessage, getEmptySubAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import { trimMessagesToTokenBudgetSync } from "../../src/core/message-trimming.js";
 import { reduceAgentMessages } from "../../src/core/state.js";
 
@@ -296,7 +296,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode({
       messages: [
         new HumanMessage("today's plan"),
-        new AIMessage(""),
+        createEmptySubAgentHandoffMessage([], "Obsidian", "obsidian"),
       ],
       context: {},
       next: undefined,
@@ -475,7 +475,7 @@ describe("createSupervisorNode", () => {
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
-  it("lets Supervise_SG scheduler triggers continue through normal LLM routing", async () => {
+  it("lets supervisor scheduler triggers continue through normal LLM routing", async () => {
     const invokeSpy = vi.fn(() => ({
       next: "FINISH",
       reply: "Handled by the main supervisor",
@@ -484,7 +484,7 @@ describe("createSupervisorNode", () => {
     const supervisorNode = createAppSupervisorNode(connector);
 
     const result = await supervisorNode(
-      makeHumanState("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review\n\nPayload:\nReview today's priorities."),
+      makeHumanState("SYSTEM_CRON_TRIGGER:supervisor:morning-review\n\nPayload:\nReview today's priorities."),
     );
 
     expect(result.next).toBe("FINISH");

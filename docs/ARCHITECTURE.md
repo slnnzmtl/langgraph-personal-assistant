@@ -201,7 +201,7 @@ sequenceDiagram
 
 ### Supervisor responsibilities
 
-1. **Cron bypass** — agent-targeted `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` routes straight to that agent. `Supervise_SG` triggers intentionally use normal supervisor routing.
+1. **Cron bypass** — agent-targeted `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` routes straight to that agent. `supervisor` cron triggers intentionally use normal supervisor routing.
 2. **Empty sub-agent handoff** — when a runtime agent finishes with no user-facing text, the supervisor synthesizes a reply from bounded tool context (up to 2k chars, last 3 tool results).
 3. **Completion detection** — a non-tool AI reply from a sub-agent short-circuits routing and goes to `FINISH`.
 4. **Structured routing** — dynamic Zod schema built from enabled runtime agents; `FINISH` requires a `reply`, delegation omits it.
@@ -314,15 +314,17 @@ RuntimeAgentDefinitionSchema = z.object({
 });
 ```
 
-### Built-in domains
+### Code-seeded and persisted agents
 
-| ID | Executor | Max Steps | Tool Bundle | Requires |
+Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` with domain executors (`finance`, `obsidian`, etc.) and are wired into the graph at compile time when enabled.
+
+| ID | Executor | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
+| `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
 | `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
-| `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
 
-Custom agents use `executor: "generic"` and select from the tool bundle catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config`). Built-in domain policies have direct tool factories; their `toolBundleIds` describe the corresponding capability but are not their runtime tool-resolution path. Keep those two definitions aligned when adding a domain.
+Custom agents use `executor: "generic"` and select from the capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, `system-config-write`, etc.). Domain executors use dedicated policies with hooks; generic agents resolve tools from allowlisted capabilities.
 
 ---
 
@@ -414,12 +416,12 @@ personal-assistant/
 │   │   ├── policies/                               # Registry, generic policy
 │   │   └── types/                                  # Agent & policy schemas
 │   ├── app/                                        # This assistant's config
+│   │   ├── composition/bootstrap-agents.ts         # Built-in configurator seed
 │   │   ├── register-defaults.ts, workflow-context.ts
 │   │   ├── policies/                               # Domain policies + hooks
 │   │   ├── model-registry.ts
 │   │   └── runtime-agent-catalog.ts
 │   ├── runtime-agents/                             # Domain tools & specs
-│   │   ├── builtin-domains.ts
 │   │   ├── tool-bundles.ts, tool-bundle-catalog.ts
 │   │   ├── policies/{finance,obsidian,configuration}/
 │   │   └── bootstrap.ts
@@ -449,7 +451,7 @@ personal-assistant/
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
 
-The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-agent-nodes`, `create-sub-agent`, `empty-subagent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
+The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-agent-nodes`, `create-sub-agent`, `runtime-agent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
 
 ---
 
@@ -511,7 +513,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a built-in domain agent:**
 
-1. Add spec to `BUILTIN_DOMAIN_SPECS` in `runtime-agents/builtin-domains.ts`
+1. Add spec to `CONFIGURATOR_SPEC` / bootstrap helpers in `app/composition/bootstrap-agents.ts` (code seeds the configurator only; domain agents are persisted)
 2. Implement tools under `runtime-agents/policies/<domain>/`
 3. Add policy + hooks under `app/policies/`
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
@@ -527,7 +529,7 @@ import { createAssistant } from "./core/create-assistant.js";
 
 **Add a custom runtime agent at runtime:**
 
-Use the configuration agent in Telegram — creates a `generic` executor agent with selected tool bundles, persisted to `data/runtime-agents.json`. **Restart required** before the new agent appears as routable graph nodes.
+Use the configuration agent in Telegram — creates a `generic` executor agent with selected capabilities, persisted to `data/runtime-agents.json`. **Restart required** before the new agent appears as routable graph nodes.
 
 ---
 

@@ -19,16 +19,15 @@ export const normalizeSupervisorReply = (reply: string | undefined): string | un
 
 const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
 
-const buildRoutingDescription = (runtimeAgents: RuntimeAgentDefinition[]): string => {
+const buildRoutingDescription = (routableAgents: RuntimeAgentDefinition[]): string => {
   const base = [
     "The next graph node to execute.",
     "Use FINISH for general chat or any request you can answer directly.",
   ];
 
-  const enabledAgents = runtimeAgents.filter((agent) => agent.enabled);
-  if (enabledAgents.length > 0) {
+  if (routableAgents.length > 0) {
     base.push("Route to a runtime agent id when the request clearly matches one of these specialists:");
-    for (const agent of enabledAgents) {
+    for (const agent of routableAgents) {
       base.push(`- ${agent.id}: ${agent.description}`);
     }
   }
@@ -36,15 +35,27 @@ const buildRoutingDescription = (runtimeAgents: RuntimeAgentDefinition[]): strin
   return base.join(" ");
 };
 
-export const buildSupervisorRoutingSchema = (runtimeAgents: RuntimeAgentDefinition[] = []) => {
-  const enabledAgentIds = runtimeAgents
-    .filter((agent) => agent.enabled)
-    .map((agent) => agent.id);
+export const filterRoutableRuntimeAgents = (
+  runtimeAgents: RuntimeAgentDefinition[],
+  wiredAgentIds: ReadonlySet<string>,
+): RuntimeAgentDefinition[] =>
+  runtimeAgents.filter((agent) => agent.enabled && wiredAgentIds.has(agent.id));
 
-  const routeNames = [...BUILTIN_SUPERVISOR_ROUTES, ...enabledAgentIds] as [string, ...string[]];
+export const buildSupervisorRoutingSchema = (
+  runtimeAgents: RuntimeAgentDefinition[] = [],
+  wiredAgentIds?: ReadonlySet<string>,
+) => {
+  const routableAgents = wiredAgentIds
+    ? filterRoutableRuntimeAgents(runtimeAgents, wiredAgentIds)
+    : runtimeAgents.filter((agent) => agent.enabled);
+
+  const routeNames = [...BUILTIN_SUPERVISOR_ROUTES, ...routableAgents.map((agent) => agent.id)] as [
+    string,
+    ...string[],
+  ];
 
   return z.object({
-    next: z.enum(routeNames).describe(buildRoutingDescription(runtimeAgents)),
+    next: z.enum(routeNames).describe(buildRoutingDescription(routableAgents)),
     reply: z
       .string()
       .optional()

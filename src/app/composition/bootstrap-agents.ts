@@ -1,6 +1,7 @@
 import type { AppConfig } from "../../config.js";
 import { loadSystemPromptByKey } from "../../prompts/load-system-prompt.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
+import { resolveAgentCapabilityIds } from "../../core/types/agent.js";
 import type { RuntimeToolBundleId } from "../../runtime-agents/tool-bundles.js";
 
 export const CONFIGURATOR_AGENT_ID = "configuration" as const;
@@ -18,6 +19,7 @@ export type ConfiguratorSpec = {
   modelKey: typeof CONFIGURATOR_AGENT_ID;
   promptSourceKey: typeof CONFIGURATOR_AGENT_ID;
   toolBundleIds: RuntimeToolBundleId[];
+  capabilityIds: RuntimeToolBundleId[];
   maxSteps: number;
   configModelKey: AppModelConfigKey;
 };
@@ -30,6 +32,7 @@ export const CONFIGURATOR_SPEC: ConfiguratorSpec = {
   modelKey: CONFIGURATOR_AGENT_ID,
   promptSourceKey: CONFIGURATOR_AGENT_ID,
   toolBundleIds: ["system-config"],
+  capabilityIds: ["system-config"],
   maxSteps: 10,
   configModelKey: "configurationModel",
 };
@@ -54,6 +57,7 @@ export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
       systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
       promptSourceKey: spec.promptSourceKey,
       toolBundleIds: spec.toolBundleIds,
+      capabilityIds: spec.capabilityIds,
       executor: spec.executor,
       modelKey: spec.modelKey,
       builtin: true,
@@ -100,7 +104,7 @@ export const applyLocalModuleAvailability = (
   }
 
   return agents.map((agent) => {
-    if (agent.toolBundleIds.includes("finance-domain")) {
+    if (resolveAgentCapabilityIds(agent).includes("finance-domain")) {
       return {
         ...agent,
         enabled: false,

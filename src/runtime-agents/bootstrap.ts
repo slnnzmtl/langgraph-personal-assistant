@@ -2,7 +2,7 @@ import type { RuntimeAgentRepository } from "../core/agents/repository.js";
 import {
   CONFIGURATOR_AGENT_ID,
   buildDefaultRuntimeAgents,
-} from "./builtin-domains.js";
+} from "../app/composition/bootstrap-agents.js";
 import { isRuntimeAgentBuiltin } from "../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 
@@ -26,6 +26,7 @@ const mergeConfiguratorAgent = (
     promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
     executor: defaultAgent.executor,
     toolBundleIds: defaultAgent.toolBundleIds,
+    capabilityIds: defaultAgent.capabilityIds,
   };
 };
 

@@ -50,7 +50,10 @@ export const createGenericPolicy = <
           });
         }
 
-        return agentDeps.resolveToolBundles(agentDeps.definition.toolBundleIds, agentDeps.bundleDeps);
+        return agentDeps.resolveToolBundles(
+          agentDeps.definition.capabilityIds ?? agentDeps.definition.toolBundleIds,
+          agentDeps.bundleDeps,
+        );
       },
       createLlmNode: (agentDeps, tools) =>
         createRuntimeAgentNode(

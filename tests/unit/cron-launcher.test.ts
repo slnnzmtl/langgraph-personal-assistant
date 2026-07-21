@@ -17,9 +17,9 @@ describe("setupCron", () => {
   it("accepts the main supervisor as a cron target", () => {
     expect(isCronTargetRoute(SUPERVISE_CRON_ROUTE, cronTargetAgentIds)).toBe(true);
     expect(buildCronTriggerForJob(SUPERVISE_CRON_ROUTE, "morning-review")).toBe(
-      "SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review",
+      "SYSTEM_CRON_TRIGGER:supervisor:morning-review",
     );
-    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:Supervise_SG:morning-review"), cronTargetAgentIds)).toBe(
+    expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:supervisor:morning-review"), cronTargetAgentIds)).toBe(
       SUPERVISE_CRON_ROUTE,
     );
   });

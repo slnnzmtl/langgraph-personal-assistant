@@ -83,9 +83,7 @@ export const createSupervisorSystem = async (
     models,
     runtimeAgents,
     defaultModelKey,
-    executors: deriveExecutors(runtimeAgents),
     cronTargetAgentIds,
-    obsidianVaultPath: config.obsidianVaultPath,
     cronJobRepository,
     runtimeAgentRepository,
     promptResolver,
@@ -93,8 +91,6 @@ export const createSupervisorSystem = async (
     bundleDeps,
     messageHistoryMaxTokens: config.messageHistoryMaxTokens,
     ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
-    ...(options.fileSender ? { fileSender: options.fileSender } : {}),
-    ...(supabaseSession ? { supabaseSession } : {}),
   });
 
   return {

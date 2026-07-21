@@ -97,6 +97,35 @@ describe("createRuntimeAgentRepository", () => {
     expect(agents.map((agent) => agent.id).sort()).toEqual(["agent-one", "agent-two"]);
   });
 
+  it("loads legacy toolBundleIds-only persisted agents as capabilityIds", async () => {
+    const rootDir = await createTempRoot();
+    const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
+    await mkdir(path.join(rootDir, "data"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "data", "runtime-agents.json"),
+      JSON.stringify({
+        version: 1,
+        agents: [{
+          id: "legacy-agent",
+          name: "Legacy",
+          description: "Legacy agent",
+          systemPrompt: "Legacy",
+          toolBundleIds: ["none"],
+          executor: "generic",
+          maxSteps: 4,
+          enabled: true,
+          createdAt: "2026-07-16T00:00:00.000Z",
+          updatedAt: "2026-07-16T00:00:00.000Z",
+        }],
+      }),
+      "utf8",
+    );
+
+    const agents = await repository.loadAgents();
+    expect(agents[0]?.capabilityIds).toEqual(["none"]);
+    expect(agents[0]?.toolBundleIds).toEqual(["none"]);
+  });
+
   it("rejects invalid persisted runtime agent data", async () => {
     const rootDir = await createTempRoot();
     const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");

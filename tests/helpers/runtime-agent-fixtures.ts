@@ -6,7 +6,7 @@ import {
   isLocalModuleAgent,
   type RuntimeAgentDefinition,
 } from "../../src/core/types/agent.js";
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");
 

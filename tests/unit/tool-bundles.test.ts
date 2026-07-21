@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildDefaultRuntimeAgents } from "../../src/runtime-agents/builtin-domains.js";
+import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
 import { deriveCronTargetAgentIds } from "../../src/app/runtime-agent-catalog.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
