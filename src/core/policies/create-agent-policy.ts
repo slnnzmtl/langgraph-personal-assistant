@@ -9,6 +9,7 @@ import {
 } from "../execution/create-sub-agent.js";
 import {
   createRuntimeAgentNode,
+  type RuntimeAgentNodeConfig,
   type RuntimeAgentNodeHooks,
   type SubAgentToolSource,
 } from "../execution/runtime-node.js";
@@ -49,6 +50,9 @@ export type CreateAgentPolicyConfig<TExtra extends Record<string, unknown> = Rec
     deps: AgentPolicyBundleDeps<TExtra>,
     options: AgentPolicyToolkitOptions,
   ) => RuntimeAgentNodeHooks;
+  logLabel?: string;
+  buildErrorMessage?: RuntimeAgentNodeConfig["buildErrorMessage"];
+  selectToolsForTurn?: RuntimeAgentNodeConfig["selectToolsForTurn"];
   mapResult?: (
     result: SubAgentState,
     config: { maxSteps: number; name: string },
@@ -59,9 +63,9 @@ const createAgentLlmNode = (
   model: BaseChatModel,
   definition: RuntimeAgentDefinition,
   tools: SubAgentToolSource | undefined,
-  hooks: RuntimeAgentNodeHooks,
+  nodeConfig: RuntimeAgentNodeConfig,
 ) =>
-  createRuntimeAgentNode(model, definition, tools, hooks) as (
+  createRuntimeAgentNode(model, definition, tools, nodeConfig) as (
     state: SubAgentState,
   ) => Promise<SubAgentStateUpdate>;
 
@@ -101,6 +105,13 @@ export const createAgentPolicy = <
       ? config.createHooks(deps, options)
       : (config.hooks ?? {});
 
+    const nodeConfig: RuntimeAgentNodeConfig = {
+      ...hooks,
+      ...(config.logLabel ? { logLabel: config.logLabel } : {}),
+      ...(config.buildErrorMessage ? { buildErrorMessage: config.buildErrorMessage } : {}),
+      ...(config.selectToolsForTurn ? { selectToolsForTurn: config.selectToolsForTurn } : {}),
+    };
+
     return createSubAgentGraphBundle({
       name: config.displayName ?? definition.name,
       maxSteps: definition.maxSteps,
@@ -109,8 +120,8 @@ export const createAgentPolicy = <
         config.resolveTools(agentDeps.definition, agentDeps.bundleDeps, {
           ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
         }),
-      createLlmNode: (agentDeps, tools) =>
-        createAgentLlmNode(agentDeps.model, agentDeps.definition, tools, hooks),
+      createLlmNode: (agentDeps, agentTools) =>
+        createAgentLlmNode(agentDeps.model, agentDeps.definition, agentTools, nodeConfig),
       mapResult: config.mapResult ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig)),
     });
   },

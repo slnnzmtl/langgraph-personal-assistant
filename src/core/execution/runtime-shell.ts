@@ -4,12 +4,8 @@ import {
   type RuntimeShellFormatters,
 } from "../system-context.js";
 
-type RuntimeShellOverrides = Partial<RuntimeAgentNodeHooks> &
-  Pick<RuntimeAgentNodeHooks, "logLabel" | "buildErrorMessage">;
-
 export const createRuntimeShellHooks = (
   formatters: RuntimeShellFormatters,
-  overrides: RuntimeShellOverrides,
 ): RuntimeAgentNodeHooks => {
   const appendSections = formatters.appendDynamicSections ?? defaultAppendDynamicSections;
 
@@ -28,6 +24,5 @@ export const createRuntimeShellHooks = (
         formatters.formatSystemMetadata(new Date(), { runtimeAgent: ctx.definition.name }),
       );
     },
-    ...overrides,
   };
 };

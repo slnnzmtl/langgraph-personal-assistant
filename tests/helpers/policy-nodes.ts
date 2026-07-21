@@ -1,14 +1,20 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import { createPromptResolver } from "../../src/core/agents/prompt-resolver.js";
-import { createRuntimeAgentNode } from "../../src/core/execution/runtime-node.js";
+import {
+  createRuntimeAgentNode,
+  type RuntimeAgentNodeConfig,
+} from "../../src/core/execution/runtime-node.js";
 import type { SubAgentToolSource } from "../../src/core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
-import { createObsidianNodeHooks } from "../../src/app/policies/obsidian-hooks.js";
+import {
+  createObsidianNodeHooks,
+  selectObsidianToolsForTurn,
+} from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { createRuntimeShellHooks } from "../../src/core/execution/runtime-shell.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
@@ -31,9 +37,9 @@ const createTestDomainLlmNode = (
   model: BaseChatModel,
   definition: RuntimeAgentDefinition,
   tools: SubAgentToolSource | undefined,
-  hooks: Parameters<typeof createRuntimeAgentNode>[3],
+  config: RuntimeAgentNodeConfig,
 ) =>
-  createRuntimeAgentNode(model, definition, tools, hooks) as (
+  createRuntimeAgentNode(model, definition, tools, config) as (
     state: SubAgentState,
   ) => Promise<SubAgentStateUpdate>;
 
@@ -45,11 +51,12 @@ export const createFinanceNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(definition),
   tools,
-  createRuntimeShellHooks(testShellFormatters, {
+  {
+    ...createRuntimeShellHooks(testShellFormatters),
     logLabel: "finance-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
-  }),
+  },
 );
 
 export const createObsidianNode = (
@@ -61,7 +68,13 @@ export const createObsidianNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(definition),
   prebuiltTools,
-  createObsidianNodeHooks(vaultRoot, testShellFormatters),
+  {
+    ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
+    logLabel: "obsidian-system-prompt",
+    buildErrorMessage: (error) =>
+      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
+    selectToolsForTurn: selectObsidianToolsForTurn,
+  },
 );
 
 type ConfigurationNodeOptions = {
@@ -78,10 +91,15 @@ export const createConfigurationNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(options.definition),
   tools,
-  createConfigurationNodeHooks({
-    repository: options.repository,
-    ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
-    skillCatalog: testSkillCatalog,
-    shellFormatters: testShellFormatters,
-  }),
+  {
+    ...createConfigurationNodeHooks({
+      repository: options.repository,
+      ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+      skillCatalog: testSkillCatalog,
+      shellFormatters: testShellFormatters,
+    }),
+    logLabel: "configuration-system-prompt",
+    buildErrorMessage: (error) =>
+      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+  },
 );

@@ -46,11 +46,7 @@ export const createAppExecutionKit = (
   const promptResolver = createPromptResolver(loadSystemPromptByKey);
   const executorSet = new Set(executors);
   const shellFormatters = createDefaultRuntimeShellFormatters(options.skillCatalog);
-  const genericShellHooks = createRuntimeShellHooks(shellFormatters, {
-    logLabel: "generic-runtime-agent",
-    buildErrorMessage: (error, definition) =>
-      `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
-  });
+  const genericShellHooks = createRuntimeShellHooks(shellFormatters);
 
   const domainPolicies = Object.entries(DOMAIN_POLICY_FACTORIES)
     .filter(([executor]) => executorSet.has(executor))
@@ -65,6 +61,9 @@ export const createAppExecutionKit = (
       resolveTools: (definition, bundleDeps, resolveOptions) =>
         resolveAgentCapabilityTools(definition, bundleDeps as RuntimeToolBundleDeps, resolveOptions ?? {}),
       hooks: genericShellHooks,
+      logLabel: "generic-runtime-agent",
+      buildErrorMessage: (error, definition) =>
+        `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
     }, {
       ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
       shellFormatters,

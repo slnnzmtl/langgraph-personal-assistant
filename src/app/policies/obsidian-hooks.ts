@@ -1,7 +1,9 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdir } from "node:fs/promises";
 
-import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
+import type { RuntimeAgentNodeHooks, RuntimeAgentTurnContext } from "../../core/execution/runtime-node.js";
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import type { SubAgentState } from "../../core/execution/sub-agent-state.js";
 import { formatObsidianRoutineHint } from "../../prompts/load-system-prompt.js";
@@ -70,35 +72,25 @@ export const mapObsidianSubAgentResult = (
   };
 };
 
-const resolveObsidianToolsForTurn = (
-  ctx: Parameters<NonNullable<RuntimeAgentNodeHooks["resolveToolsForTurn"]>>[0],
-) => {
-  if (!ctx.tools) {
-    return [];
-  }
-
-  let toolsForTurn = ctx.tools;
-
+export const selectObsidianToolsForTurn = (
+  ctx: RuntimeAgentTurnContext,
+  toolsForTurn: StructuredToolInterface[],
+): StructuredToolInterface[] => {
   const attachedSkillNames = getAttachedSkillNames(ctx.definition, ctx.state.agentMessages);
-  if (attachedSkillNames.size > 0) {
-    toolsForTurn = toolsForTurn.filter((tool) => tool.name !== "read_skill");
+  if (attachedSkillNames.size === 0) {
+    return toolsForTurn;
   }
 
-  return toolsForTurn;
+  return toolsForTurn.filter((tool) => tool.name !== "read_skill");
 };
 
 export const createObsidianNodeHooks = (
   vaultRoot: string,
   shellFormatters: RuntimeShellFormatters,
 ): RuntimeAgentNodeHooks => {
-  const baseHooks = createRuntimeShellHooks(shellFormatters, {
-    logLabel: "obsidian-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error."}`,
-  });
+  const baseHooks = createRuntimeShellHooks(shellFormatters);
 
   return {
-    ...baseHooks,
     beforeTurn: async () => {
       await mkdir(vaultRoot, { recursive: true });
       return null;
@@ -119,7 +111,6 @@ export const createObsidianNodeHooks = (
         formatObsidianRoutineHint(),
       );
     },
-    resolveToolsForTurn: resolveObsidianToolsForTurn,
     processResponse: (ctx, response) => {
       const responseText = extractMessageTextContent(response.content).trim();
       const toolCalls = response.tool_calls ?? [];
@@ -135,6 +126,5 @@ export const createObsidianNodeHooks = (
 
       return new AIMessage(buildObsidianCompletionSummary(ctx.state.agentMessages));
     },
-    emptyResponseMessage: () => "Completed the Obsidian task.",
   };
 };

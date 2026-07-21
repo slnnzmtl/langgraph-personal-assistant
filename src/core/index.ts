@@ -22,6 +22,7 @@ export { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.
 export {
   createRuntimeAgentNode,
   sanitizeResponseToolCalls,
+  type RuntimeAgentNodeConfig,
   type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
   type SubAgentToolSource,

@@ -2,12 +2,12 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
+import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
 import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
-import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
 
@@ -70,11 +70,10 @@ export const createConfigurationNodeHooks = (
   options: ConfigurationHooksOptions,
 ): RuntimeAgentNodeHooks => {
   const skillModules = options.skillCatalog?.listModules() ?? [CONFIGURATOR_AGENT_ID];
+  const baseHooks = createRuntimeShellHooks(options.shellFormatters);
 
-  return createRuntimeShellHooks(options.shellFormatters, {
-    logLabel: "configuration-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+  return {
+    ...baseHooks,
     beforeTurn: async (ctx) => {
       const latestMessage = ctx.state.agentMessages[ctx.state.agentMessages.length - 1];
       const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
@@ -114,8 +113,16 @@ export const createConfigurationNodeHooks = (
 
       return null;
     },
-    processResponse: (ctx, response) =>
-      sanitizeResponseToolCalls(response, ctx.allowedToolNames),
-    emptyResponseMessage: () => "Completed the configuration task.",
-  });
+    processResponse: (ctx, response) => {
+      const sanitized = sanitizeResponseToolCalls(response, ctx.allowedToolNames);
+      const responseText = extractMessageTextContent(sanitized.content).trim();
+      const toolCalls = sanitized.tool_calls ?? [];
+
+      if (toolCalls.length > 0 || responseText.length > 0) {
+        return sanitized;
+      }
+
+      return new AIMessage("Completed the configuration task.");
+    },
+  };
 };

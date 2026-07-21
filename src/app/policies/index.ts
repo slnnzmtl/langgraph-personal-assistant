@@ -5,7 +5,11 @@ import type { PolicyContext } from "../../core/types/policy-context.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
-import { createObsidianNodeHooks, mapObsidianSubAgentResult } from "./obsidian-hooks.js";
+import {
+  createObsidianNodeHooks,
+  mapObsidianSubAgentResult,
+  selectObsidianToolsForTurn,
+} from "./obsidian-hooks.js";
 import { resolveAgentCapabilityTools } from "../composition/resolve-agent-tools.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 
@@ -31,6 +35,10 @@ export const createObsidianPolicy = (options: DomainPolicyOptions = {}) =>
     resolveTools: resolveCapabilityTools,
     createHooks: (deps, policyOptions) =>
       createObsidianNodeHooks(deps.vaultRoot, policyOptions.shellFormatters!),
+    logLabel: "obsidian-system-prompt",
+    buildErrorMessage: (error) =>
+      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
+    selectToolsForTurn: selectObsidianToolsForTurn,
     mapResult: (result, { maxSteps }) =>
       mapObsidianSubAgentResult(result, maxSteps, () => ({
         messages: [
@@ -57,4 +65,7 @@ export const createConfigurationPolicy = (options: DomainPolicyOptions = {}) =>
         ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
         shellFormatters: policyOptions.shellFormatters!,
       }),
+    logLabel: "configuration-system-prompt",
+    buildErrorMessage: (error) =>
+      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
   }, options);
