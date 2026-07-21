@@ -113,8 +113,8 @@ describe("finance tools", () => {
 
     expect(readSkillTool).toBeDefined();
 
-    const result = String(await readSkillTool?.invoke({ name: "sync-expenses" }));
-    expect(result).toContain("# Expenses");
+    const result = String(await readSkillTool?.invoke({ name: "expense-view" }));
+    expect(result).toContain("<view_intent>");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
     expect(session.executeSql).not.toHaveBeenCalled();

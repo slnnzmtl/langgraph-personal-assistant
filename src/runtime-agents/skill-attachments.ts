@@ -2,10 +2,19 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
 import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
+import { resolveActiveSkillFromHistory } from "../tools/skill-history.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
 import { resolveAgentSkillModule } from "../core/types/agent.js";
+
+const FINANCE_MODULE = "finance";
+const FINANCE_SCHEMA_SKILL = "expense-ledger-schema";
+const FINANCE_COMPANION_SKILLS = new Set([
+  "expense-view",
+  "expense-sync",
+  "expense-update",
+]);
 
 const normalizeText = (text: string): string =>
   text.toLowerCase().replaceAll(/\s+/g, " ").trim();
@@ -136,6 +145,63 @@ export type ResolvedSkillAttachment = {
 const attachmentKey = (module: string, skillName: string): string =>
   `${module.toLowerCase()}:${skillName.toLowerCase()}`;
 
+const readSkillAttachmentContent = (
+  module: string,
+  skillName: string,
+  skillCatalog?: SkillCatalog,
+): string =>
+  skillCatalog
+    ? skillCatalog.readContent(skillName, { module })
+    : readSkillContent(skillName, { module });
+
+const addSkillAttachment = (
+  resolved: Map<string, ResolvedSkillAttachment>,
+  module: string,
+  skillName: string,
+  skillCatalog?: SkillCatalog,
+): void => {
+  const key = attachmentKey(module, skillName);
+  if (resolved.has(key)) {
+    return;
+  }
+
+  resolved.set(key, {
+    module,
+    skillName,
+    content: readSkillAttachmentContent(module, skillName, skillCatalog),
+  });
+};
+
+const orderFinanceAttachments = (
+  attachments: ResolvedSkillAttachment[],
+): ResolvedSkillAttachment[] =>
+  [...attachments].sort((left, right) => {
+    if (left.skillName === FINANCE_SCHEMA_SKILL) {
+      return -1;
+    }
+
+    if (right.skillName === FINANCE_SCHEMA_SKILL) {
+      return 1;
+    }
+
+    return left.skillName.localeCompare(right.skillName);
+  });
+
+const ensureFinanceSchemaAttachment = (
+  resolved: Map<string, ResolvedSkillAttachment>,
+  skillCatalog?: SkillCatalog,
+): void => {
+  const hasCompanion = [...resolved.values()].some((attachment) =>
+    FINANCE_COMPANION_SKILLS.has(attachment.skillName),
+  );
+
+  if (!hasCompanion) {
+    return;
+  }
+
+  addSkillAttachment(resolved, FINANCE_MODULE, FINANCE_SCHEMA_SKILL, skillCatalog);
+};
+
 export const resolveSkillAttachmentRulesForModule = (
   module: string,
   skillCatalog?: SkillCatalog,
@@ -159,6 +225,9 @@ export const resolveSkillAttachments = (
   }
 
   const resolved = new Map<string, ResolvedSkillAttachment>();
+  const rulesBySkillName = new Map(
+    rules.map((rule) => [rule.skillName.toLowerCase(), rule]),
+  );
 
   for (const rule of rules) {
     const matched = triggerTexts.some((text) => matchesSkillAttachmentRule(text, rule));
@@ -166,22 +235,23 @@ export const resolveSkillAttachments = (
       continue;
     }
 
-    const key = attachmentKey(rule.module, rule.skillName);
-    if (resolved.has(key)) {
-      continue;
-    }
-
-    const content = skillCatalog
-      ? skillCatalog.readContent(rule.skillName, { module: rule.module })
-      : readSkillContent(rule.skillName, { module: rule.module });
-    resolved.set(key, {
-      module: rule.module,
-      skillName: rule.skillName,
-      content,
-    });
+    addSkillAttachment(resolved, rule.module, rule.skillName, skillCatalog);
   }
 
-  return Array.from(resolved.values());
+  const activeSkill = resolveActiveSkillFromHistory(messages);
+  if (activeSkill) {
+    const stickyRule = rulesBySkillName.get(activeSkill.skillName);
+    if (stickyRule) {
+      addSkillAttachment(resolved, stickyRule.module, stickyRule.skillName, skillCatalog);
+    }
+  }
+
+  ensureFinanceSchemaAttachment(resolved, skillCatalog);
+
+  const attachments = Array.from(resolved.values());
+  return attachments.some((attachment) => attachment.module === FINANCE_MODULE)
+    ? orderFinanceAttachments(attachments)
+    : attachments;
 };
 
 export const appendConfiguredSkillAttachments = (

@@ -56,6 +56,19 @@ export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
 
 export type RuntimeToolBundleId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
 
+const BUILTIN_DESCRIPTOR_BY_ID = new Map<string, CapabilityDescriptor>(
+  BUILTIN_CAPABILITY_DESCRIPTORS.map((descriptor) => [descriptor.id, descriptor]),
+);
+
+const getBuiltinDescriptor = (id: RuntimeToolBundleId): CapabilityDescriptor => {
+  const descriptor = BUILTIN_DESCRIPTOR_BY_ID.get(id);
+  if (!descriptor) {
+    throw new Error(`Missing builtin capability descriptor: ${id}`);
+  }
+
+  return descriptor;
+};
+
 export type RuntimeToolBundleDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
@@ -97,15 +110,15 @@ const systemConfigOptions = (deps: RuntimeToolBundleDeps, writeAccess: boolean) 
 
 const createBuiltinCapabilityProviders = (): CapabilityProvider<RuntimeToolBundleDeps>[] => [
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[0]!,
+    descriptor: getBuiltinDescriptor("none"),
     resolveTools: () => [],
   },
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[1]!,
+    descriptor: getBuiltinDescriptor("obsidian-vault"),
     resolveTools: (deps) => createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender),
   },
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[2]!,
+    descriptor: getBuiltinDescriptor("finance-domain"),
     resolveTools: (deps) => {
       if (!deps.supabaseSession) {
         throw new Error("finance-domain capability requires a configured Supabase session.");
@@ -115,15 +128,15 @@ const createBuiltinCapabilityProviders = (): CapabilityProvider<RuntimeToolBundl
     },
   },
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[3]!,
+    descriptor: getBuiltinDescriptor("system-config"),
     resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
   },
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[4]!,
+    descriptor: getBuiltinDescriptor("system-config-read"),
     resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, false)),
   },
   {
-    descriptor: BUILTIN_CAPABILITY_DESCRIPTORS[5]!,
+    descriptor: getBuiltinDescriptor("system-config-write"),
     resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
   },
 ];

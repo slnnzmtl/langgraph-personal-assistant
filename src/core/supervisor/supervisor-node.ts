@@ -1,4 +1,9 @@
-import { AIMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
+import {
+  AIMessage,
+  HumanMessage,
+  SystemMessage,
+  type BaseMessage,
+} from "@langchain/core/messages";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
 import { getEmptySubAgentHandoff } from "../execution/empty-subagent-handoff.js";
@@ -64,31 +69,61 @@ const buildFailureReply = async (
     `The normal supervisor routing failed. Produce the final user-facing reply in plain text. Explain the issue briefly and helpfully, and do not output JSON or call tools. Failure context: ${failureContext}`,
   );
 
+const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message instanceof HumanMessage || message?._getType() === "human") {
+      return extractMessageTextContent(message.content).trim();
+    }
+  }
+
+  return "";
+};
+
+const isRoutingJson = (text: string): boolean => {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return typeof parsed === "object"
+      && parsed !== null
+      && !Array.isArray(parsed)
+      && ("next" in parsed || "reply" in parsed);
+  } catch {
+    return false;
+  }
+};
+
 const buildEmptySubAgentSummary = async (
   llmConnector: ILLMConnector,
-  promptMessages: BaseMessage[],
-  supervisorPromptText: string,
   state: AgentState,
 ): Promise<string> => {
   const handoff = getEmptySubAgentHandoff(state.messages[state.messages.length - 1]);
   const agentName = handoff?.agentName ?? "runtime agent";
   const toolContext = handoff?.toolContext?.trim() ?? "";
-  const toolSection = toolContext.length > 0
-    ? `Last tool results from ${agentName}:\n${toolContext}`
-    : `${agentName} returned an empty reply with no tool context.`;
+  const safeFallback = toolContext.length > 0
+    ? `${agentName} did not produce a reliable summary. Its last tool result was:\n${toolContext}`
+    : `${agentName} did not produce a user-facing reply, and no tool result was available to summarize.`;
+  const latestUserRequest = findLatestHumanMessageText(state.messages);
+  const finalizerResponse = await llmConnector.getModel().invoke([
+    new SystemMessage([
+      "You write a final user-facing status message for a specialized agent that stopped without replying.",
+      "Return plain text only. Do not return JSON, routing instructions, tool calls, or a plan for future work.",
+      "Treat the supplied tool result as authoritative and report only facts it supports.",
+      "If it shows the requested state is already present, say it is already present; do not say you will perform the change.",
+      "Do not claim a write occurred unless the tool result explicitly proves it.",
+      `Specialized agent: ${agentName}`,
+      toolContext.length > 0
+        ? `Authoritative last tool result:\n${toolContext}`
+        : "No tool result is available.",
+    ].join("\n\n")),
+    new HumanMessage(latestUserRequest || "Provide the status based on the tool result."),
+  ]);
+  const finalizerText = extractMessageTextContent(finalizerResponse.content).trim();
 
-  return buildPlainTextReply(
-    llmConnector,
-    promptMessages,
-    supervisorPromptText,
-    [
-      `A specialized agent (${agentName}) finished without a user-facing reply.`,
-      "Produce the final user-facing reply in plain text based on the conversation and tool context below.",
-      "Summarize what happened, include useful facts from tool results when present, and explain errors briefly.",
-      "Do not output JSON, do not call tools, and do not re-route.",
-      toolSection,
-    ].join("\n"),
-  );
+  if (finalizerText.length > 0 && !isRoutingJson(finalizerText)) {
+    return finalizerText;
+  }
+
+  return safeFallback;
 };
 
 export const createSupervisorNode = (
@@ -125,8 +160,6 @@ export const createSupervisorNode = (
           new AIMessage(
             await buildEmptySubAgentSummary(
               llmConnector,
-              promptMessages,
-              supervisorPromptText,
               state,
             ),
           ),

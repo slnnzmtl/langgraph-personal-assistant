@@ -19,10 +19,12 @@ const createCrudTools = (rootDir: string) =>
 describe("createReadSkillTool", () => {
   it("loads a finance skill by name", async () => {
     const readSkill = createReadSkillTool("finance", "xml");
-    const result = String(await readSkill.invoke({ name: "sync-expenses" }));
+    const result = String(await readSkill.invoke({ name: "expense-view" }));
 
-    expect(result).toContain("# Expenses");
-    expect(result).toContain("fetch_wise_transactions");
+    expect(result).toContain("<view_intent>");
+    expect(result).toContain("<latest_expenses_with_categories>");
+    expect(result).toContain("LEFT JOIN public.category AS c ON e.category = c.id");
+    expect(result).toContain("ORDER BY e.paid_date DESC, e.id DESC");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
   });
@@ -32,7 +34,7 @@ describe("createReadSkillTool", () => {
     const result = String(await readSkill.invoke({ name: "missing-skill" }));
 
     expect(result).toContain("Error reading skill:");
-    expect(result).toContain("sync-expenses");
+    expect(result).toContain("expense-view");
     expect(result).not.toContain("<skill_context>");
     expect(result).not.toContain("<available_tools>");
   });
@@ -46,7 +48,7 @@ describe("createReadSkillTool", () => {
   it("does not run actions when the skill read fails", async () => {
     const run = vi.fn().mockResolvedValue("[]");
     const registry = createSkillActionRegistry();
-    registerSkillActions(registry, "finance", "sync-expenses", [
+    registerSkillActions(registry, "finance", "expense-view", [
       { label: "expense_categories", run },
     ]);
 
@@ -59,15 +61,15 @@ describe("createReadSkillTool", () => {
   it("attaches registered action context after a successful skill read", async () => {
     const run = vi.fn().mockResolvedValue('[{"id":1,"name":"Food"}]');
     const registry = createSkillActionRegistry();
-    registerSkillActions(registry, "finance", "sync-expenses", [
+    registerSkillActions(registry, "finance", "expense-view", [
       { label: "expense_categories", run },
     ]);
 
     const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
-    const result = String(await readSkill.invoke({ name: "sync-expenses" }));
+    const result = String(await readSkill.invoke({ name: "expense-view" }));
 
     expect(run).toHaveBeenCalledTimes(1);
-    expect(result).toContain("# Expenses");
+    expect(result).toContain("<view_intent>");
     expect(result).toContain("<skill_context>");
     expect(result).toContain("expense_categories:");
     expect(result).toContain('"name":"Food"');
@@ -77,14 +79,14 @@ describe("createReadSkillTool", () => {
   it("returns the skill plus a non-fatal action error when enrichment fails", async () => {
     const run = vi.fn().mockRejectedValue(new Error("database unavailable"));
     const registry = createSkillActionRegistry();
-    registerSkillActions(registry, "finance", "sync-expenses", [
+    registerSkillActions(registry, "finance", "expense-view", [
       { label: "expense_categories", run },
     ]);
 
     const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
-    const result = String(await readSkill.invoke({ name: "sync-expenses" }));
+    const result = String(await readSkill.invoke({ name: "expense-view" }));
 
-    expect(result).toContain("# Expenses");
+    expect(result).toContain("<view_intent>");
     expect(result).toContain("action_error expense_categories:");
     expect(result).toContain("database unavailable");
   });
@@ -107,14 +109,14 @@ describe("createSkillCrudTools", () => {
 
     await createTool!.invoke({
       module: "finance",
-      name: "sync-expenses",
+      name: "expense-view",
       description: "Sync expenses",
       content: "# Sync",
     });
 
     const result = String(await listTool!.invoke({ module: "finance" }));
     expect(result).toContain("Module: finance");
-    expect(result).toContain("Skill Name: sync-expenses");
+    expect(result).toContain("Skill Name: expense-view");
     expect(result).toContain("Description: Sync expenses");
     expect(result).toContain("Status: Listed");
   });

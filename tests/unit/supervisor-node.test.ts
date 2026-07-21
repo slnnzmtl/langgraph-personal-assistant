@@ -317,6 +317,7 @@ describe("createSupervisorNode", () => {
       expect(systemText).toContain("exec_sql:");
       expect(systemText).toContain("expenses");
       expect(systemText).toContain("does not exist");
+      expect(systemText).not.toContain("You are the Root Supervisor");
       return new AIMessage("The query failed because the expenses table name was wrong.");
     });
     const connector: ILLMConnector = {
@@ -370,6 +371,55 @@ describe("createSupervisorNode", () => {
     const compactedHandoff = getEmptySubAgentHandoff(mergedMessages[1]);
     expect(compactedHandoff?.toolContext).toBe("[consumed: Finance tool results]");
     expect(compactedHandoff?.toolContext).not.toContain("expenses");
+  });
+
+  it("does not send routing instructions or accept routing JSON for an empty handoff", async () => {
+    const modelInvoke = vi.fn(async (input: unknown) => {
+      const messages = input as Array<{ content?: unknown }>;
+
+      expect(messages).toHaveLength(2);
+      expect(String(messages[0]?.content)).not.toContain("You are the Root Supervisor");
+      expect(String(messages[1]?.content)).toBe("it is shop");
+
+      return new AIMessage(JSON.stringify({
+        next: "finance",
+        reply: "I will update Moonmilk to Shop.",
+      }));
+    });
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => ({ next: "finance" }),
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createAppSupervisorNode(connector);
+    const toolContext = 'exec_sql: [{"name":"Moonmilk","amount":20,"category":"Shop","paid_date":"2026-07-20"}]';
+
+    const result = await supervisorNode({
+      messages: [
+        new HumanMessage("Moonmilk is not debt"),
+        new AIMessage("What category should Moonmilk use?"),
+        new HumanMessage("it is shop"),
+        new AIMessage({
+          content: "",
+          additional_kwargs: {
+            emptySubAgentHandoff: true,
+            agentName: "Finance",
+            toolContext,
+          },
+        }),
+      ],
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe("FINISH");
+    expect(firstStateUpdateMessage(result)?.content).toBe(
+      `Finance did not produce a reliable summary. Its last tool result was:\n${toolContext}`,
+    );
+    expect(modelInvoke).toHaveBeenCalledOnce();
   });
 
   it("routes scheduler finance triggers without invoking the LLM", async () => {

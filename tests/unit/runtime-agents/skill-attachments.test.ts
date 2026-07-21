@@ -44,6 +44,8 @@ describe("matchesSkillAttachmentRule", () => {
     "view expenses",
     "for yesterday",
     "for today",
+    "uniqlo is clothes category",
+    "change category for UNIQLO",
   ])("matches finance attachment rules for %j", (text) => {
     expect(financeRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
   });
@@ -131,15 +133,46 @@ describe("resolveSkillAttachments", () => {
     ])).toEqual([]);
   });
 
-  it("keeps sync-expenses attached on short follow-ups after a matching request", () => {
+  it("keeps expense-view attached on short follow-ups after a matching request", () => {
     const attachments = resolveSkillAttachments(financeRules(), [
       new HumanMessage("sync expenses"),
       new AIMessage("There were no transactions found for today."),
       new HumanMessage("for yesterday"),
     ]);
 
-    expect(attachments).toHaveLength(1);
-    expect(attachments[0]?.skillName).toBe("sync-expenses");
+    expect(attachments.map((attachment) => attachment.skillName)).toEqual([
+      "expense-ledger-schema",
+      "expense-sync",
+      "expense-view",
+    ]);
+  });
+
+  it("attaches expense-update for category corrections", () => {
+    const attachments = resolveSkillAttachments(financeRules(), [
+      new HumanMessage("uniqlo is clothes category"),
+    ]);
+
+    expect(attachments.map((attachment) => attachment.skillName)).toEqual([
+      "expense-ledger-schema",
+      "expense-update",
+    ]);
+  });
+
+  it("re-attaches a skill loaded via read_skill when follow-up phrasing does not match", () => {
+    const attachments = resolveSkillAttachments(financeRules(), [
+      new HumanMessage("thanks"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{ name: "read_skill", args: { name: "expense-update" }, id: "read-1", type: "tool_call" }],
+      }),
+      new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "Update skill body" }),
+      new HumanMessage("yes, all UNIQLO rows"),
+    ]);
+
+    expect(attachments.map((attachment) => attachment.skillName)).toEqual([
+      "expense-ledger-schema",
+      "expense-update",
+    ]);
   });
 
   it("still attaches Routine after read_skill was called in the same turn history", () => {
@@ -183,7 +216,7 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toBe("Base prompt");
   });
 
-  it("appends sync-expenses for finance expense-db queries", () => {
+  it("appends expense-view for finance expense-db queries", () => {
     const definition = getBuiltinRuntimeAgentDefinition("finance");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
@@ -192,7 +225,8 @@ describe("appendConfiguredSkillAttachments", () => {
     );
 
     expect(prompt).toContain("Base prompt");
-    expect(prompt).toContain('<attached_skill name="sync-expenses">');
+    expect(prompt).toContain('<attached_skill name="expense-view">');
+    expect(prompt).toContain('<attached_skill name="expense-ledger-schema">');
     expect(prompt).toContain("public.expense");
   });
 });
