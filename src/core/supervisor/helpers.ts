@@ -8,6 +8,7 @@ import { normalizeSupervisorReply, type RoutingDecision } from "./routing-schema
 export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
   next: agentId,
   lastHandoff: null,
+  routingFailureContext: null,
   context: {
     [RUNTIME_AGENT_CONTEXT_KEY]: agentId,
   },
@@ -38,7 +39,7 @@ export const detectCompletionState = (state: AgentState): AgentStateUpdate | nul
   }
 
   if (isRuntimeAgentHandoffComplete(state.lastHandoff)) {
-    return { next: "FINISH", lastHandoff: null };
+    return { next: "FINISH", lastHandoff: null, routingFailureContext: null };
   }
 
   return null;
@@ -59,6 +60,7 @@ export const resolveRoutingDecision = async (
     return {
       next: response.next,
       lastHandoff: null,
+      routingFailureContext: null,
       messages: [new AIMessage(reply)],
     };
   }

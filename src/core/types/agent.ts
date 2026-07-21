@@ -4,22 +4,6 @@ export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
 export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
-export const SkillAttachmentMatchSchema = z.object({
-  anyPhrases: z.array(z.string().min(1)).optional(),
-  allPhrases: z.array(z.string().min(1)).optional(),
-});
-
-export type SkillAttachmentMatch = z.infer<typeof SkillAttachmentMatchSchema>;
-
-export const SkillAttachmentRuleSchema = z.object({
-  module: z.string().min(1),
-  skillName: z.string().min(1),
-  cronJobName: z.string().min(1).optional(),
-  match: SkillAttachmentMatchSchema.optional(),
-});
-
-export type SkillAttachmentRule = z.infer<typeof SkillAttachmentRuleSchema>;
-
 const CapabilityIdListSchema = z.array(z.string().min(1)).min(1);
 
 export type RuntimeAgentDefinition = {

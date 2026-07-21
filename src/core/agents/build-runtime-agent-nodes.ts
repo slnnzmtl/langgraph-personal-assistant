@@ -4,6 +4,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { Overwrite } from "@langchain/langgraph";
 
 import type { RuntimeAgentExecutionContext } from "../execution/context.js";
+import { withResolvedAgentSystemPrompt } from "./resolve-system-prompt.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentGraphBundle } from "./runtime-agent-graph-bundle.js";
@@ -31,7 +32,7 @@ export const buildRuntimeAgentGraphNodeSets = (
   agents
     .filter((agent) => agent.enabled)
     .map((agent) => {
-      const resolved = context.promptResolver.withResolvedSystemPrompt(agent);
+      const resolved = withResolvedAgentSystemPrompt(agent, context.loadPromptByKey);
       const policy = context.policyRegistry.get(resolved.executor ?? "generic");
       const bundle = policy.createGraphBundle(context, resolved);
 

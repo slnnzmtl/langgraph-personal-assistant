@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase.js";
-import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "../../../src/core/types/agent.js";
 import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";

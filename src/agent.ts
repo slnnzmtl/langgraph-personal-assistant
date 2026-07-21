@@ -7,7 +7,7 @@ import type { RuntimeAgentDefinition } from "./core/types/agent.js";
 import { createAssistant } from "./core/create-assistant.js";
 import type { RuntimeAgentRepository } from "./core/agents/repository.js";
 import type { PolicyRegistry } from "./core/policies/registry.js";
-import type { PromptResolver } from "./core/agents/prompt-resolver.js";
+import type { LoadPromptByKey } from "./core/agents/resolve-system-prompt.js";
 import type { RuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 
@@ -21,7 +21,7 @@ export type CreateWorkflowGraphInput = {
   runtimeCron?: RuntimeCronService;
   defaultModelKey?: string;
   messageHistoryMaxTokens: number;
-  promptResolver: PromptResolver;
+  loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
   bundleDeps: RuntimeToolBundleDeps;
 };
@@ -36,7 +36,7 @@ export const createWorkflowGraph = ({
   runtimeCron,
   defaultModelKey = "generic",
   messageHistoryMaxTokens,
-  promptResolver,
+  loadPromptByKey,
   policyRegistry,
   bundleDeps,
 }: CreateWorkflowGraphInput) => {
@@ -51,7 +51,7 @@ export const createWorkflowGraph = ({
     cronJobRepository,
     ...(runtimeCron ? { runtimeCron } : {}),
     bundleDeps,
-    promptResolver,
+    loadPromptByKey,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
     cronTriggerResolver: {

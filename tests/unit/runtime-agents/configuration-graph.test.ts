@@ -5,7 +5,7 @@ import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-d
 import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
-import { createCompiledSubAgentGraph } from "../../../src/core/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
   FakeLLMConnector,
   createRuntimeExecutionContextFake,

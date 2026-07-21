@@ -1,13 +1,11 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import { createPromptResolver } from "../../src/core/agents/prompt-resolver.js";
 import {
   createRuntimeAgentNode,
   type RuntimeAgentNodeConfig,
 } from "../../src/core/execution/runtime-node.js";
 import type { SubAgentToolSource } from "../../src/core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
-import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
@@ -18,8 +16,8 @@ import {
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { createRuntimeShellHooks } from "../../src/core/execution/runtime-shell.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
+import { resolveTestAgentSystemPrompt } from "./resolve-test-agent-prompt.js";
 
-const testPromptResolver = createPromptResolver(loadSystemPromptByKey);
 const testSkillCatalog = createFilesystemSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
 
@@ -49,7 +47,7 @@ export const createFinanceNode = (
   tools?: SubAgentToolSource,
 ) => createTestDomainLlmNode(
   resolveModel(model),
-  testPromptResolver.withResolvedSystemPrompt(definition),
+  resolveTestAgentSystemPrompt(definition),
   tools,
   {
     ...createRuntimeShellHooks(testShellFormatters),
@@ -66,7 +64,7 @@ export const createObsidianNode = (
   prebuiltTools?: SubAgentToolSource,
 ) => createTestDomainLlmNode(
   resolveModel(model),
-  testPromptResolver.withResolvedSystemPrompt(definition),
+  resolveTestAgentSystemPrompt(definition),
   prebuiltTools,
   {
     ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
@@ -89,7 +87,7 @@ export const createConfigurationNode = (
   options: ConfigurationNodeOptions,
 ) => createTestDomainLlmNode(
   resolveModel(model),
-  testPromptResolver.withResolvedSystemPrompt(options.definition),
+  resolveTestAgentSystemPrompt(options.definition),
   tools,
   {
     ...createConfigurationNodeHooks({

@@ -5,7 +5,8 @@ import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-lo
 import { resolveActiveSkillFromHistory } from "../tools/skill-history.js";
 import { extractMessageTextContent } from "../utils/message-content.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
-import type { RuntimeAgentDefinition, SkillAttachmentRule } from "../core/types/agent.js";
+import type { RuntimeAgentDefinition } from "../core/types/agent.js";
+import type { SkillAttachmentRule } from "../core/skills/catalog.js";
 import { resolveAgentSkillModule } from "../core/types/agent.js";
 
 const FINANCE_MODULE = "finance";

@@ -39,7 +39,7 @@ flowchart TB
     end
 
     subgraph AppLayer["App Layer (src/app/, agent.ts)"]
-        WFC[createWorkflowContext]
+        WFC[createSupervisorSystem]
         WFG[createWorkflowGraph]
         KIT[createAppExecutionKit]
         POL[Domain Policies + Hooks]
@@ -97,7 +97,7 @@ flowchart TB
 
 ## Boot Sequence
 
-The assistant runs as **two processes** that share the same workflow graph wiring via `createWorkflowContext()`:
+The assistant runs as **two processes** that share the same workflow graph wiring via `createSupervisorSystem()`:
 
 ### Telegram bot (`src/index.ts`)
 
@@ -105,7 +105,7 @@ The assistant runs as **two processes** that share the same workflow graph wirin
 index.ts
   └─ loadConfig()
   └─ createApp()
-       └─ createWorkflowContext()
+       └─ createSupervisorSystem()
             ├─ GeminiConnector (supervisor model)
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
             ├─ Runtime agent repository (data/runtime-agents.json)
@@ -121,7 +121,7 @@ index.ts
 cron/index.ts
   └─ loadConfig()
   └─ createSchedulerApp()
-       └─ createWorkflowContext({ runtimeCron: lazyCron })
+       └─ createSupervisorSystem({ runtimeCron: lazyCron })
        └─ startCron() — node-cron + cron job bootstrap
        └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
@@ -240,7 +240,7 @@ Key abstractions:
 | `createSubAgentGraphBundle` | `execution/create-sub-agent.ts` | Builds bundle from deps + hooks; shared tools node factory |
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
 | `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
-| `createCompiledSubAgentGraph` | `execution/create-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
+| `createCompiledSubAgentGraph` | `tests/helpers/compiled-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
 | Domain hooks | `app/policies/*-hooks.ts` | Per-domain prompt enrichment, tool restrictions, result mapping |
 
 Tool execution uses `ToolNode.run()` (not `invoke()`) to avoid an extra Runnable boundary inside the parent graph node.
@@ -282,7 +282,7 @@ Two compaction strategies:
 
 ### Trimming rules
 
-- Hard cap of **~6,000 estimated tokens** (configured via `MESSAGE_HISTORY_MAX_TOKENS` in `loadConfig()`, passed through `createWorkflowContext()` into the message reducer; estimated as character length ÷ 4)
+- Hard cap of **~6,000 estimated tokens** (configured via `MESSAGE_HISTORY_MAX_TOKENS` in `loadConfig()`, passed through `createSupervisorSystem()` into the message reducer; estimated as character length ÷ 4)
 - Active in-flight tool sequences are kept as atomic units (may exceed the limit)
 - Latest human message is never dropped
 - Orphaned leading `ToolMessage`s are stripped
@@ -417,10 +417,9 @@ personal-assistant/
 │   │   └── types/                                  # Agent & policy schemas
 │   ├── app/                                        # This assistant's config
 │   │   ├── composition/bootstrap-agents.ts         # Built-in configurator seed
-│   │   ├── register-defaults.ts, workflow-context.ts
+│   │   ├── register-defaults.ts, composition/create-supervisor-system.ts
 │   │   ├── policies/                               # Domain policies + hooks
-│   │   ├── model-registry.ts
-│   │   └── runtime-agent-catalog.ts
+│   │   └── model-registry.ts
 │   ├── runtime-agents/                             # Domain tools & specs
 │   │   ├── tool-bundles.ts
 │   │   ├── policies/{finance,obsidian,configuration}/
@@ -502,7 +501,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 ### Simplification opportunities
 
 - **Done:** Keep the policy registry and generic policy — they eliminate duplicated sub-agent graphs and are justified by the three built-in domains plus configurable agents.
-- **Done:** Avoid adding a general dependency-injection container. `createWorkflowContext()` is the composition root and makes dependencies visible.
+- **Done:** Avoid adding a general dependency-injection container. `createSupervisorSystem()` is the composition root and makes dependencies visible.
 - **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
 - **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
 - **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
@@ -524,7 +523,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 ```typescript
 import { createAssistant } from "./core/create-assistant.js";
-// Provide runtimeAgents, policies, promptResolver, models, repository
+// Provide runtimeAgents, policies, loadPromptByKey, models, repository
 ```
 
 **Add a custom runtime agent at runtime:**

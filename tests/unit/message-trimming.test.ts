@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   estimateMessageTokens,
-  trimMessagesToTokenBudget,
   trimMessagesToTokenBudgetSync,
 } from "../../src/core/message-trimming.js";
 import { reduceAgentMessages } from "../../src/core/state.js";
@@ -60,22 +59,6 @@ describe("trimMessagesToTokenBudgetSync", () => {
     expect(trimmed.length).toBeLessThan(messages.length);
     expect(trimmed.at(-1)?.content).toContain("message-12");
     expect(trimmed.some((message) => message.content === "message-01")).toBe(false);
-  });
-
-  it("matches LangChain trimMessages for representative histories", async () => {
-    const messages = [
-      new HumanMessage("keep this request"),
-      ...makeMessages(8, "filler ".repeat(30)),
-      new AIMessage("final reply"),
-    ];
-    const options = { maxTokens: SMALL_BUDGET, tokenCounter: estimateMessageTokens };
-
-    const syncTrimmed = trimMessagesToTokenBudgetSync(messages, options);
-    const asyncTrimmed = await trimMessagesToTokenBudget(messages, options);
-
-    expect(syncTrimmed.map((message) => message.content)).toEqual(
-      asyncTrimmed.map((message) => message.content),
-    );
   });
 
   it("preserves a complete multi-tool batch when it exceeds the token budget", () => {

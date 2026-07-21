@@ -1,17 +1,14 @@
 export { createAssistant, type AssistantConfig } from "./create-assistant.js";
-export { createRuntimeAgentRepository, createRuntimeAgentRepositoryForConfig, type RuntimeAgentRepository } from "./agents/repository.js";
-export { createPromptResolver, type PromptResolver } from "./agents/prompt-resolver.js";
 export {
-  buildRuntimeAgentGraphNodeSets,
-  createRuntimeAgentFinalizeNode,
-  createRuntimeAgentPrepareNode,
-  runtimeAgentFinalizeNodeName,
-  runtimeAgentLlmNodeName,
-  runtimeAgentPrepareNodeName,
-  runtimeAgentToolsNodeName,
-  type RuntimeAgentGraphNodeSet,
-} from "./agents/build-runtime-agent-nodes.js";
-export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
+  createRuntimeAgentRepository,
+  createRuntimeAgentRepositoryForConfig,
+  type RuntimeAgentRepository,
+} from "./agents/repository.js";
+export {
+  resolveAgentSystemPrompt,
+  withResolvedAgentSystemPrompt,
+  type LoadPromptByKey,
+} from "./agents/resolve-system-prompt.js";
 export {
   createAgentPolicy,
   type AgentPolicyBundleDeps,
@@ -19,6 +16,7 @@ export {
   type CreateAgentPolicyConfig,
 } from "./policies/create-agent-policy.js";
 export { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
+export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 export {
   createRuntimeAgentNode,
   sanitizeResponseToolCalls,
@@ -27,17 +25,8 @@ export {
   type RuntimeAgentTurnContext,
   type SubAgentToolSource,
 } from "./execution/runtime-node.js";
-export { createRuntimeShellHooks } from "./execution/runtime-shell.js";
-export {
-  defaultAppendDynamicSections,
-  type RuntimeShellFormatters,
-  type SystemContextFormatter,
-  type SystemMetadataOptions,
-} from "./system-context.js";
 export type { RuntimeAgentPolicy } from "./types/policy.js";
 export type { PolicyContext } from "./types/policy-context.js";
-export type { RuntimeAgentGraphBundle } from "./agents/runtime-agent-graph-bundle.js";
-export { createDefaultPrepare } from "./agents/runtime-agent-graph-bundle.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,
@@ -52,8 +41,18 @@ export {
   type RuntimeAgentDefinition,
   type CreateRuntimeAgentInput,
   type UpdateRuntimeAgentInput,
-  type SkillAttachmentRule,
-  type SkillAttachmentMatch,
 } from "./types/agent.js";
-export type { SkillCatalog, SkillMeta, SkillFull, SkillDisplayStatus } from "./skills/catalog.js";
-export { createCapabilityCatalog, type CapabilityCatalog, type CapabilityDescriptor, type CapabilityProvider } from "../capabilities/index.js";
+export type {
+  SkillCatalog,
+  SkillMeta,
+  SkillFull,
+  SkillDisplayStatus,
+  SkillAttachmentRule,
+  SkillAttachmentMatch,
+} from "./skills/catalog.js";
+export {
+  createCapabilityCatalog,
+  type CapabilityCatalog,
+  type CapabilityDescriptor,
+  type CapabilityProvider,
+} from "../capabilities/index.js";

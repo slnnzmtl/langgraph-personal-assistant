@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { SkillAttachmentRule } from "../core/types/agent.js";
+import type { SkillAttachmentRule } from "../core/skills/catalog.js";
 
 export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
 

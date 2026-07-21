@@ -1,14 +1,8 @@
-import {
-  AIMessage,
-  HumanMessage,
-  SystemMessage,
-  type BaseMessage,
-} from "@langchain/core/messages";
+import { SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
 import { stripToolsForSupervisor } from "./message-history.js";
 import type { RuntimeAgentRepository } from "../agents/repository.js";
 import {
@@ -17,6 +11,7 @@ import {
   type RoutingDecision,
 } from "./routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
+import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE } from "../state.js";
 import {
   detectCompletionState,
   needsEmptySubAgentSummary,
@@ -34,100 +29,6 @@ export type SupervisorNodeOptions = {
   wiredAgentIds: ReadonlySet<string>;
   loadSupervisorPrompt: () => string;
   cronTriggerResolver?: CronTriggerResolver;
-};
-
-const buildPlainTextReply = async (
-  llmConnector: ILLMConnector,
-  promptMessages: BaseMessage[],
-  supervisorPromptText: string,
-  instruction: string,
-  config?: RunnableConfig,
-): Promise<string> => {
-  const fallbackResponse = await llmConnector.getModel().invoke([
-    new SystemMessage(`${supervisorPromptText}\n${instruction}`),
-    ...promptMessages.slice(1),
-  ], config);
-
-  const fallbackText = extractMessageTextContent(fallbackResponse.content).trim();
-
-  if (fallbackText.length > 0) {
-    return fallbackText;
-  }
-
-  throw new Error("Supervisor final reply model returned an empty response.");
-};
-
-const buildFailureReply = async (
-  llmConnector: ILLMConnector,
-  promptMessages: BaseMessage[],
-  supervisorPromptText: string,
-  failureContext: string,
-  config?: RunnableConfig,
-): Promise<string> =>
-  buildPlainTextReply(
-    llmConnector,
-    promptMessages,
-    supervisorPromptText,
-    `The normal supervisor routing failed. Produce the final user-facing reply in plain text. Explain the issue briefly and helpfully, and do not output JSON or call tools. Failure context: ${failureContext}`,
-    config,
-  );
-
-const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message instanceof HumanMessage || message?._getType() === "human") {
-      return extractMessageTextContent(message.content).trim();
-    }
-  }
-
-  return "";
-};
-
-const isRoutingJson = (text: string): boolean => {
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return typeof parsed === "object"
-      && parsed !== null
-      && !Array.isArray(parsed)
-      && ("next" in parsed || "reply" in parsed);
-  } catch {
-    return false;
-  }
-};
-
-const buildEmptySubAgentSummary = async (
-  llmConnector: ILLMConnector,
-  state: AgentState,
-  config?: RunnableConfig,
-): Promise<string> => {
-  const handoff = state.lastHandoff;
-  const agentName = handoff?.agentName ?? "runtime agent";
-  const toolContext = handoff?.toolContext?.trim() ?? "";
-  const safeFallback = toolContext.length > 0
-    ? `${agentName} did not produce a reliable summary. Its last tool result was:\n${toolContext}`
-    : `${agentName} did not produce a user-facing reply, and no tool result was available to summarize.`;
-  const latestUserRequest = findLatestHumanMessageText(state.messages);
-  const finalizerResponse = await llmConnector.getModel().invoke([
-    new SystemMessage([
-      "You write a final user-facing status message for a specialized agent that stopped without replying.",
-      "Return plain text only. Do not return JSON, routing instructions, tool calls, or a plan for future work.",
-      "Treat the supplied tool result as authoritative and report only facts it supports.",
-      "If it shows the requested state is already present, say it is already present; do not say you will perform the change.",
-      "Do not claim a write occurred unless the tool result explicitly proves it.",
-      `Specialized agent: ${agentName}`,
-      toolContext.length > 0
-        ? `Authoritative last tool result:\n${toolContext}`
-        : "No tool result is available.",
-    ].join("\n\n")),
-    new HumanMessage(latestUserRequest || "Provide the status based on the tool result."),
-  ], config);
-  const finalizerText = extractMessageTextContent(finalizerResponse.content).trim();
-
-  if (finalizerText.length > 0 && !isRoutingJson(finalizerText)) {
-    return finalizerText;
-  }
-
-  return safeFallback;
 };
 
 export const createSupervisorNode = (
@@ -157,19 +58,7 @@ export const createSupervisorNode = (
     const promptMessages = stripToolsForSupervisor(rawPromptMessages);
 
     if (needsEmptySubAgentSummary(state)) {
-      return {
-        next: "FINISH",
-        lastHandoff: null,
-        messages: [
-          new AIMessage(
-            await buildEmptySubAgentSummary(
-              llmConnector,
-              state,
-              config,
-            ),
-          ),
-        ],
-      };
+      return { next: EMPTY_REPLY_ROUTE };
     }
 
     const completionUpdate = detectCompletionState(state);
@@ -189,19 +78,9 @@ export const createSupervisorNode = (
     const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(routingSchema);
 
     const buildFailureUpdate = async (failureContext: string): Promise<AgentStateUpdate> => ({
-      next: "FINISH",
+      next: FAILURE_REPLY_ROUTE,
+      routingFailureContext: failureContext,
       lastHandoff: null,
-      messages: [
-        new AIMessage(
-          await buildFailureReply(
-            llmConnector,
-            promptMessages,
-            supervisorPromptText,
-            failureContext,
-            config,
-          ),
-        ),
-      ],
     });
 
     let response: RoutingDecision;

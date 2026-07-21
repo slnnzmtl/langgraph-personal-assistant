@@ -10,7 +10,7 @@ import {
   routeAfterRuntimeAgentLlm,
   routeAfterRuntimeAgentTools,
 } from "./agents/build-runtime-agent-nodes.js";
-import { createPromptResolver, type PromptResolver } from "./agents/prompt-resolver.js";
+import type { LoadPromptByKey } from "./agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "./agents/repository.js";
 import { createRuntimeAgentExecutionContext } from "./execution/context.js";
 import { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
@@ -18,8 +18,16 @@ import { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.j
 import type { RuntimeAgentPolicy } from "./types/policy.js";
 import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
+import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
+import { createFailureReplyNode } from "./supervisor/failure-reply-node.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
-import { createAgentStateAnnotation, FINISH_ROUTE, type AgentState } from "./state.js";
+import {
+  createAgentStateAnnotation,
+  EMPTY_REPLY_ROUTE,
+  FAILURE_REPLY_ROUTE,
+  FINISH_ROUTE,
+  type AgentState,
+} from "./state.js";
 
 export type AssistantConfig = {
   supervisorLlm: ILLMConnector;
@@ -30,7 +38,7 @@ export type AssistantConfig = {
   cronJobRepository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
   bundleDeps?: Record<string, unknown>;
-  loadPromptByKey?: (key: string) => string;
+  loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
   policies?: RuntimeAgentPolicy[];
   genericPolicyDeps?: GenericPolicyDeps;
@@ -38,16 +46,10 @@ export type AssistantConfig = {
   checkpointer?: MemorySaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
-  promptResolver?: PromptResolver;
   policyRegistry?: PolicyRegistry;
 };
 
 export const createAssistant = (config: AssistantConfig) => {
-  const promptResolver = config.promptResolver
-    ?? (config.loadPromptByKey
-      ? createPromptResolver(config.loadPromptByKey)
-      : (() => { throw new Error("createAssistant requires promptResolver or loadPromptByKey."); })());
-
   const policyRegistry = config.policyRegistry
     ?? (config.policies && config.genericPolicyDeps
       ? createPolicyRegistry([
@@ -64,7 +66,7 @@ export const createAssistant = (config: AssistantConfig) => {
     cronJobRepository: config.cronJobRepository,
     ...(config.runtimeCron ? { runtimeCron: config.runtimeCron } : {}),
     ...(config.bundleDeps ? { bundleDeps: config.bundleDeps } : {}),
-    promptResolver,
+    loadPromptByKey: config.loadPromptByKey,
     policyRegistry,
   });
 
@@ -80,8 +82,15 @@ export const createAssistant = (config: AssistantConfig) => {
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
   });
+  const emptyReplyNode = createEmptyReplyNode(config.supervisorLlm);
+  const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {
+    loadSupervisorPrompt: config.loadSupervisorPrompt,
+  });
 
-  const graph = new StateGraph(agentStateAnnotation).addNode("supervisor", supervisorNode);
+  const graph = new StateGraph(agentStateAnnotation)
+    .addNode("supervisor", supervisorNode)
+    .addNode(EMPTY_REPLY_ROUTE, emptyReplyNode)
+    .addNode(FAILURE_REPLY_ROUTE, failureReplyNode);
 
   for (const nodeSet of runtimeAgentNodeSets) {
     const { bundle } = nodeSet;
@@ -120,6 +129,8 @@ export const createAssistant = (config: AssistantConfig) => {
 
   const supervisorRoutes: Record<string, string | typeof END> = {
     [FINISH_ROUTE]: END,
+    [EMPTY_REPLY_ROUTE]: EMPTY_REPLY_ROUTE,
+    [FAILURE_REPLY_ROUTE]: FAILURE_REPLY_ROUTE,
   };
 
   for (const nodeSet of runtimeAgentNodeSets) {
@@ -132,7 +143,9 @@ export const createAssistant = (config: AssistantConfig) => {
       "supervisor",
       (state: AgentState) => state.next ?? FINISH_ROUTE,
       supervisorRoutes as Record<string, typeof END>,
-    );
+    )
+    .addEdge(EMPTY_REPLY_ROUTE, END)
+    .addEdge(FAILURE_REPLY_ROUTE, END);
 
   return graph.compile({
     checkpointer: memory,

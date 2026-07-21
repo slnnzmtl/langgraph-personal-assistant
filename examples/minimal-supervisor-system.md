@@ -49,7 +49,7 @@ import { createAppExecutionKit } from "../src/app/register-defaults.js";
 import { createFilesystemSkillCatalog } from "../src/integrations/skills/filesystem-skill-catalog.js";
 
 const skillCatalog = createFilesystemSkillCatalog({ approvedModules: ["researcher"] });
-const { promptResolver, policyRegistry } = createAppExecutionKit(["generic"], { skillCatalog });
+const { loadPromptByKey, policyRegistry } = createAppExecutionKit(["generic"], { skillCatalog });
 ```
 
 ## 4. Build the graph
@@ -69,7 +69,7 @@ const graph = createAssistant({
   runtimeAgentRepository,
   cronJobRepository,
   bundleDeps,
-  promptResolver,
+  loadPromptByKey,
   policyRegistry,
   loadSupervisorPrompt: () => "<supervisor prompt>",
 });

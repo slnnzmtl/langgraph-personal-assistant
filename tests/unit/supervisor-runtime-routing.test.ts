@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
+import { FAILURE_REPLY_ROUTE } from "../../src/core/state.js";
 
 describe("supervisor runtime routing", () => {
   it("maps a runtime agent id to the agent route and stores the selection in context", async () => {
@@ -37,26 +38,21 @@ describe("supervisor runtime routing", () => {
     expect(result.context?.[RUNTIME_AGENT_CONTEXT_KEY]).toBe("daily-summary");
   });
 
-  it("rejects unknown runtime agent ids with a FINISH fallback reply", async () => {
+  it("routes unknown runtime agent ids to failure_reply", async () => {
     const repository = createRuntimeAgentRepositoryFake();
     const supervisorNode = createAppSupervisorNode(
-      new FakeLLMConnector((input) => {
-        if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
-          return new AIMessage("That runtime agent is unavailable.");
-        }
-
-        return { next: "missing-agent" };
-      }),
+      new FakeLLMConnector(() => ({ next: "missing-agent" })),
       { runtimeAgentRepository: repository },
     );
 
     const result = await supervisorNode(makeHumanState("use missing agent"));
 
-    expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toContain("unavailable");
+    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
+    expect(result.routingFailureContext).toContain("missing-agent");
+    expect(result.messages).toBeUndefined();
   });
 
-  it("rejects enabled agents that exist in the repository but are not wired into the graph", async () => {
+  it("routes unwired enabled agents to failure_reply", async () => {
     const repository = createRuntimeAgentRepositoryFake([
       ...buildTestRuntimeAgents(),
       {
@@ -74,13 +70,7 @@ describe("supervisor runtime routing", () => {
     ]);
 
     const supervisorNode = createAppSupervisorNode(
-      new FakeLLMConnector((input) => {
-        if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
-          return new AIMessage("That runtime agent is unavailable.");
-        }
-
-        return { next: "unwired-agent" };
-      }),
+      new FakeLLMConnector(() => ({ next: "unwired-agent" })),
       {
         runtimeAgentRepository: repository,
         wiredAgentIds: new Set(["finance", "obsidian", "configuration"]),
@@ -89,7 +79,8 @@ describe("supervisor runtime routing", () => {
 
     const result = await supervisorNode(makeHumanState("use unwired agent"));
 
-    expect(result.next).toBe("FINISH");
-    expect(result.messages?.[0]?.content).toContain("unavailable");
+    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
+    expect(result.routingFailureContext).toContain("unwired-agent");
+    expect(result.messages).toBeUndefined();
   });
 });

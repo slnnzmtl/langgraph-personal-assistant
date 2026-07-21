@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { createSubAgentGraphBundle, createCompiledSubAgentGraph } from "../../src/core/execution/create-sub-agent.js";
+import { createSubAgentGraphBundle } from "../../src/core/execution/create-sub-agent.js";
+import { createCompiledSubAgentGraph } from "../helpers/compiled-sub-agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
 import { hasPendingToolCalls } from "../../src/tools/routing.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";

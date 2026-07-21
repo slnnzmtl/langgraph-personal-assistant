@@ -9,6 +9,8 @@ import {
 } from "./message-trimming.js";
 
 export const FINISH_ROUTE = "FINISH" as const;
+export const EMPTY_REPLY_ROUTE = "empty_reply" as const;
+export const FAILURE_REPLY_ROUTE = "failure_reply" as const;
 
 export type AgentStateAnnotationOptions = {
   messageHistoryMaxTokens: number;
@@ -54,6 +56,10 @@ export const createAgentStateAnnotation = ({
     handoffStatus: Annotation<RuntimeAgentHandoffStatus | undefined>({
       reducer: (_left, right) => right,
       default: () => undefined,
+    }),
+    routingFailureContext: Annotation<string | null>({
+      reducer: (_left, right) => right ?? null,
+      default: () => null,
     }),
   });
 

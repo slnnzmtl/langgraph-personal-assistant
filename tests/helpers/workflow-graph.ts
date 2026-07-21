@@ -12,7 +12,7 @@ import {
   deriveExecutors,
   deriveModelKeys,
   deriveSkillModules,
-} from "../../src/app/runtime-agent-catalog.js";
+} from "../../src/app/composition/create-supervisor-system.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "../../src/core/message-trimming.js";
@@ -68,7 +68,7 @@ export const createTestWorkflowGraph = ({
   const skillCatalog = createFilesystemSkillCatalog({
     approvedModules: deriveSkillModules(runtimeAgents),
   });
-  const { promptResolver, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
+  const { loadPromptByKey, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
     skillCatalog,
   });
   const bundleDeps = createRuntimeToolBundleDeps(obsidianVaultPath, {
@@ -94,7 +94,7 @@ export const createTestWorkflowGraph = ({
     messageHistoryMaxTokens,
     cronJobRepository,
     runtimeAgentRepository,
-    promptResolver,
+    loadPromptByKey,
     policyRegistry,
     bundleDeps,
   });

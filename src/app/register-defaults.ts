@@ -1,6 +1,5 @@
 import { createPolicyRegistry } from "../core/policies/registry.js";
 import { createAgentPolicy } from "../core/policies/create-agent-policy.js";
-import { createPromptResolver } from "../core/agents/prompt-resolver.js";
 import {
   appendDynamicSections,
   formatSystemMetadata,
@@ -43,7 +42,6 @@ export const createAppExecutionKit = (
   executors: Iterable<string> = DEPLOYMENT_EXECUTOR_IDS,
   options: AppExecutionKitOptions = {},
 ) => {
-  const promptResolver = createPromptResolver(loadSystemPromptByKey);
   const executorSet = new Set(executors);
   const shellFormatters = createDefaultRuntimeShellFormatters(options.skillCatalog);
   const genericShellHooks = createRuntimeShellHooks(shellFormatters);
@@ -71,5 +69,5 @@ export const createAppExecutionKit = (
     ...domainPolicies,
   ]);
 
-  return { promptResolver, policyRegistry, shellFormatters };
+  return { loadPromptByKey: loadSystemPromptByKey, policyRegistry, shellFormatters };
 };

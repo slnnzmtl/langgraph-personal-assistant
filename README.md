@@ -64,7 +64,7 @@ graph TD
 | **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), bootstrap |
 | **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
 
-Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `PromptResolver`, so multiple assistant instances do not share global policy or prompt state.
+Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
 
 ### Runtime flow
 
@@ -276,4 +276,4 @@ tests/                      # Unit and e2e tests
 
 - **New built-in domain agent:** add persisted agent spec + tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`. Restart required.
 - **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works.
-- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `promptLoaders`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry` + `promptResolver`).
+- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `loadPromptByKey`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry`).

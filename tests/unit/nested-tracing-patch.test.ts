@@ -171,9 +171,7 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
         },
       ],
       {
-        promptResolver: {
-          withResolvedSystemPrompt: (definition) => definition,
-        },
+        loadPromptByKey: (key) => key,
         policyRegistry: {
           get: () => ({
             executor: "generic",

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type SkillDisplayStatus = "Created" | "Updated" | "Deleted" | "Listed" | "Previewed" | "Read";
 
 export type SkillMeta = {
@@ -14,6 +16,22 @@ export type SkillFull = SkillMeta & {
 export type ListSkillsOptions = {
   module?: string;
 };
+
+export const SkillAttachmentMatchSchema = z.object({
+  anyPhrases: z.array(z.string().min(1)).optional(),
+  allPhrases: z.array(z.string().min(1)).optional(),
+});
+
+export type SkillAttachmentMatch = z.infer<typeof SkillAttachmentMatchSchema>;
+
+export const SkillAttachmentRuleSchema = z.object({
+  module: z.string().min(1),
+  skillName: z.string().min(1),
+  cronJobName: z.string().min(1).optional(),
+  match: SkillAttachmentMatchSchema.optional(),
+});
+
+export type SkillAttachmentRule = z.infer<typeof SkillAttachmentRuleSchema>;
 
 export type SkillCatalog = {
   listSkills(options?: ListSkillsOptions): SkillMeta[];
@@ -39,16 +57,6 @@ export type SkillCatalog = {
     status?: SkillDisplayStatus,
   ): string;
   formatForPrompt(skills: SkillMeta[]): string;
-};
-
-export type SkillAttachmentRule = {
-  module: string;
-  skillName: string;
-  cronJobName?: string;
-  match?: {
-    anyPhrases?: string[];
-    allPhrases?: string[];
-  };
 };
 
 export type SkillAttachmentCatalog = {
