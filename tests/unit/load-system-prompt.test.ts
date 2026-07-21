@@ -56,6 +56,8 @@ describe("named prompt loaders", () => {
     expect(prompt).toContain("expense-sync");
     expect(prompt).toContain("expense-update");
     expect(prompt).toContain("call `read_skill`");
+    expect(prompt).toContain("<tool_error_recovery>");
+    expect(prompt).toContain("ambiguous SQL columns");
     expect(prompt).toContain("<runtime_execution>");
     expect(prompt).toContain("Never return an empty turn");
     expect(prompt).not.toContain("After every tool result, always continue");

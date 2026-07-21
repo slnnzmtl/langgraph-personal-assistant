@@ -11,6 +11,27 @@
 3. Scoped `UPDATE public.expense SET category = &lt;id&gt; WHERE id IN (...)` or `DELETE FROM public.expense WHERE id IN (...)` — PK only.
 4. Verify with a follow-up `SELECT` on the same IDs before confirming to the user.
 
+<verification_query>
+After an UPDATE or DELETE, verify with exactly this query (replace IDs):
+
+```sql
+SELECT
+  e.id,
+  e.name,
+  e.amount,
+  e.paid_date,
+  e.category,
+  c.name AS category_name
+FROM public.expense AS e
+LEFT JOIN public.category AS c ON e.category = c.id
+WHERE e.id IN (...);
+```
+</verification_query>
+
+<sql_join_rules>
+Whenever a query joins tables, qualify every selected column with its table alias (e.g. `e.id`, `c.name`). Never use bare `id`, `name`, or `category` in a join.
+</sql_join_rules>
+
 For conversational corrections (e.g. "UNIQLO is Clothes"):
 - Infer merchant from context and category from the user's statement.
 - If multiple rows match, update all shown in recent context or ask which dates to change.

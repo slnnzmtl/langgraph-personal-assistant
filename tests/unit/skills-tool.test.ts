@@ -29,6 +29,16 @@ describe("createReadSkillTool", () => {
     expect(result).not.toContain("<available_tools>");
   });
 
+  it("includes canonical aliased verification SQL in expense-update", async () => {
+    const readSkill = createReadSkillTool("finance", "xml");
+    const result = String(await readSkill.invoke({ name: "expense-update" }));
+
+    expect(result).toContain("<verification_query>");
+    expect(result).toContain("e.id");
+    expect(result).toContain("c.name AS category_name");
+    expect(result).toContain("qualify every selected column");
+  });
+
   it("lists available skills when the requested skill is missing", async () => {
     const readSkill = createReadSkillTool("finance", "xml");
     const result = String(await readSkill.invoke({ name: "missing-skill" }));

@@ -2,8 +2,10 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
+  TOOL_RESULT_RECOVERY_DIRECTIVE,
   scopeSubAgentMessages,
 } from "../../src/core/execution/sub-agent-messages.js";
 import { SystemMessage } from "@langchain/core/messages";
@@ -79,5 +81,36 @@ describe("isEmptyModelResponse", () => {
 
   it("treats undefined/null content as empty so Gemini empty candidates retry", () => {
     expect(isEmptyModelResponse(new AIMessage({ content: undefined as unknown as string }))).toBe(true);
+  });
+});
+
+describe("buildRecoveryPromptMessages", () => {
+  it("appends a recovery directive after the normal prompt history", () => {
+    const system = new SystemMessage("system");
+    const stateMessages = [
+      new HumanMessage("uniqlo is clothes"),
+      new AIMessage({
+        content: "",
+        tool_calls: [{
+          name: "exec_sql",
+          args: { sql: "SELECT id FROM public.expense" },
+          id: "sql-1",
+          type: "tool_call",
+        }],
+      }),
+      new ToolMessage({
+        tool_call_id: "sql-1",
+        name: "exec_sql",
+        content: JSON.stringify({ error: { message: "column reference \"id\" is ambiguous" } }),
+      }),
+    ];
+    const promptMessages = buildRuntimeAgentPromptMessages(system, stateMessages);
+    const recoveryMessages = buildRecoveryPromptMessages(promptMessages);
+
+    expect(recoveryMessages).toHaveLength(promptMessages.length + 1);
+    expect(recoveryMessages.at(-1)).toBeInstanceOf(HumanMessage);
+    expect(String(recoveryMessages.at(-1)?.content)).toBe(TOOL_RESULT_RECOVERY_DIRECTIVE);
+    expect(String(recoveryMessages.at(-1)?.content)).toContain("ambiguous column");
+    expect(String(recoveryMessages.at(-2)?.content)).toContain("ambiguous");
   });
 });

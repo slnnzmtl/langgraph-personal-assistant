@@ -17,6 +17,14 @@ Before every expense SELECT, INSERT, UPDATE, or DELETE, follow attached skills o
 Updates and deletes require a prior narrow SELECT and must target rows by `id` only.
 </database_safety>
 
+<tool_error_recovery>
+When a tool returns an error payload, do not treat it as completion.
+Inspect the error, fix the smallest faulty tool call (e.g. qualify ambiguous SQL columns with table aliases), and retry.
+Continue the required workflow — especially post-update verification — before confirming to the user.
+Only report failure to the user after a retry cannot proceed.
+Never confirm a write unless a successful tool payload in history proves it.
+</tool_error_recovery>
+
 <intents>
   <intent type="EXPENSES_VIEW">
     <action>Follow attached or loaded `expense-view` skill.</action>

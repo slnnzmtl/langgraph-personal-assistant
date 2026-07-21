@@ -14,6 +14,7 @@ import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
 import { createEmptySubAgentHandoffMessage } from "./empty-subagent-handoff.js";
 import {
+  buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
 } from "./sub-agent-messages.js";
@@ -200,12 +201,23 @@ export const createRuntimeAgentNode = (
         throw new Error("Runtime agent LLM model must return an AI message.");
       }
 
-      // Flash-lite and similar models sometimes return empty candidates after tool
-      // results. Retry once so the agent can produce a real reply.
+      // Domain hooks may salvage an empty response (e.g. Obsidian read_file summaries).
+      // Only use the recovery retry when the response is still empty afterward.
       if (isEmptyModelResponse(response) && isLoopContinuation) {
-        response = await modelForTurn.invoke(promptMessages);
-        if (!(response instanceof AIMessage)) {
-          throw new Error("Runtime agent LLM model must return an AI message.");
+        const salvaged = hooks.processResponse
+          ? hooks.processResponse(ctx, response)
+          : response;
+
+        if (!isEmptyModelResponse(salvaged)) {
+          response = salvaged;
+        } else {
+          // Flash-lite and similar models sometimes return empty candidates after tool
+          // results. Retry once with an explicit recovery directive so the agent can
+          // repair recoverable tool errors or reply with status.
+          response = await modelForTurn.invoke(buildRecoveryPromptMessages(promptMessages));
+          if (!(response instanceof AIMessage)) {
+            throw new Error("Runtime agent LLM model must return an AI message.");
+          }
         }
       }
 

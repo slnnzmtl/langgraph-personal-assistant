@@ -137,9 +137,11 @@ describe("finance subgraph tool batching", () => {
     };
     const tools = createFinanceTools(mockSession, financeSkillModule);
     let financeCalls = 0;
+    const invokeInputs: unknown[] = [];
 
-    const model = new FakeLLMConnector(() => {
+    const model = new FakeLLMConnector((input) => {
       financeCalls += 1;
+      invokeInputs.push(input);
       if (financeCalls === 1) {
         return new AIMessage("");
       }
@@ -170,6 +172,83 @@ describe("finance subgraph tool batching", () => {
 
     expect(financeCalls).toBe(2);
     expect(update.messages?.[0]?.content).toBe("The last expense date in the database is 2026-07-16.");
+    const recoveryInput = invokeInputs[1] as Array<{ content?: unknown }>;
+    expect(String(recoveryInput.at(-1)?.content)).toContain("Your previous response was empty after a tool result.");
+  });
+
+  it("recovers from ambiguous verification SQL after an empty candidate", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue([]),
+      close: vi.fn(),
+    };
+    const tools = createFinanceTools(mockSession, financeSkillModule);
+    let financeCalls = 0;
+    const ambiguousError = JSON.stringify({
+      error: {
+        message: 'Failed to run sql query: ERROR:  42702: column reference "id" is ambiguous',
+      },
+    });
+
+    const model = new FakeLLMConnector(() => {
+      financeCalls += 1;
+
+      if (financeCalls === 1) {
+        return new AIMessage("");
+      }
+
+      if (financeCalls === 2) {
+        return new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "exec_sql",
+            args: {
+              sql: "SELECT e.id, e.name, e.amount, e.paid_date, e.category, c.name AS category_name FROM public.expense AS e LEFT JOIN public.category AS c ON e.category = c.id WHERE e.id IN (1634, 1633)",
+            },
+            id: "verify-2",
+            type: "tool_call",
+          }],
+        });
+      }
+
+      return new AIMessage(
+        "Updated both UNIQLO expenses to Shop: 34.00 and 37.00 on 2026-07-19.",
+      );
+    }).getModel();
+
+    const subgraph = createCompiledFinanceSubgraph(model, tools);
+    const result = await subgraph.invoke({
+      messages: [
+        new HumanMessage("uniqlo is clothes"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "exec_sql",
+            args: { sql: "UPDATE public.expense SET category = 33 WHERE id IN (1634, 1633)" },
+            id: "update-1",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({ tool_call_id: "update-1", name: "exec_sql", content: "[]" }),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "exec_sql",
+            args: {
+              sql: "SELECT id, name, amount, paid_date, category, c.name AS category_name FROM public.expense AS e LEFT JOIN public.category AS c ON e.category = c.id WHERE e.id IN (1634, 1633)",
+            },
+            id: "verify-1",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({ tool_call_id: "verify-1", name: "exec_sql", content: ambiguousError }),
+      ],
+      stepCount: 2,
+    });
+
+    expect(financeCalls).toBeGreaterThanOrEqual(3);
+    expect(result.messages.at(-1)?.content).toBe(
+      "Updated both UNIQLO expenses to Shop: 34.00 and 37.00 on 2026-07-19.",
+    );
   });
 
   it("completes the remaining tool call before prompting the model", async () => {
