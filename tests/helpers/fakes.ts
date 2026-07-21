@@ -115,15 +115,18 @@ export const createRuntimeAgentRepositoryFake = (
       storedAgents = [...agents];
     },
     createAgent: async (input) => {
+      if (!input.capabilityIds) {
+        throw new Error("capabilityIds are required");
+      }
+
       const timestamp = new Date().toISOString();
       const id = input.name.trim().toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-+|-+$/g, "");
-      const capabilityIds = input.capabilityIds ?? input.toolBundleIds ?? [];
       const nextAgent: RuntimeAgentDefinition = {
         id,
         name: input.name.trim(),
         description: input.description.trim(),
         systemPrompt: input.systemPrompt.trim(),
-        capabilityIds,
+        capabilityIds: input.capabilityIds,
         executor: input.executor ?? "generic",
         builtin: false,
         maxSteps: input.maxSteps ?? 8,
@@ -146,11 +149,7 @@ export const createRuntimeAgentRepositoryFake = (
         ...(input.name !== undefined ? { name: input.name.trim() } : {}),
         ...(input.description !== undefined ? { description: input.description.trim() } : {}),
         ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() } : {}),
-        ...(input.capabilityIds !== undefined || input.toolBundleIds !== undefined
-          ? {
-            capabilityIds: input.capabilityIds ?? input.toolBundleIds ?? current.capabilityIds,
-          }
-          : {}),
+        ...(input.capabilityIds !== undefined ? { capabilityIds: input.capabilityIds } : {}),
         ...(input.executor !== undefined ? { executor: input.executor } : {}),
         ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),

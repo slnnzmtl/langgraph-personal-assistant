@@ -110,7 +110,7 @@ describe("createRuntimeAgentRepository", () => {
           name: "Legacy",
           description: "Legacy agent",
           systemPrompt: "Legacy",
-          capabilityIds: ["none"],
+          toolBundleIds: ["none"],
           executor: "generic",
           maxSteps: 4,
           enabled: true,

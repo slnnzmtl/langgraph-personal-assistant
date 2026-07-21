@@ -38,21 +38,21 @@ export type RuntimeAgentDefinition = {
   updatedAt: string;
 };
 
-const normalizeCapabilityFields = <
-  T extends { capabilityIds?: string[] | undefined; toolBundleIds?: string[] | undefined },
->(
-  agent: T,
-): Omit<T, "capabilityIds" | "toolBundleIds"> & { capabilityIds: string[] } => {
+type PersistedCapabilityFields = {
+  capabilityIds?: string[] | undefined;
+  toolBundleIds?: string[] | undefined;
+};
+
+const migratePersistedCapabilityIds = (
+  agent: PersistedCapabilityFields,
+): string[] => {
   const capabilityIds = agent.capabilityIds ?? agent.toolBundleIds;
 
   if (!capabilityIds) {
     throw new Error("Runtime agent definitions require capabilityIds.");
   }
 
-  return {
-    ...agent,
-    capabilityIds,
-  };
+  return capabilityIds;
 };
 
 const RuntimeAgentDefinitionBaseSchema = z.object({
@@ -77,8 +77,8 @@ const LEGACY_GENERIC_EXECUTORS = new Set(["finance"]);
 export const normalizeRuntimeAgentDefinition = (
   input: z.infer<typeof RuntimeAgentDefinitionBaseSchema>,
 ): RuntimeAgentDefinition => {
-  const { toolBundleIds: _legacyToolBundleIds, ...withoutLegacyBundles } = input;
-  const { capabilityIds, ...rest } = normalizeCapabilityFields(withoutLegacyBundles);
+  const { toolBundleIds: _legacyToolBundleIds, capabilityIds: _legacyCapabilityIds, ...rest } = input;
+  const capabilityIds = migratePersistedCapabilityIds(input);
   const legacyExecutor = rest.executor ?? "generic";
   const executor = LEGACY_GENERIC_EXECUTORS.has(legacyExecutor) ? "generic" : legacyExecutor;
 
@@ -116,8 +116,7 @@ export type CreateRuntimeAgentInput = {
   name: string;
   description: string;
   systemPrompt: string;
-  capabilityIds?: string[] | undefined;
-  toolBundleIds?: string[] | undefined;
+  capabilityIds: string[];
   executor?: string | undefined;
   modelKey?: string | undefined;
   maxSteps?: number | undefined;
@@ -130,29 +129,17 @@ const CreateRuntimeAgentInputBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  capabilityIds: CapabilityIdListSchema.optional(),
-  toolBundleIds: CapabilityIdListSchema.optional(),
+  capabilityIds: CapabilityIdListSchema,
   executor: z.string().min(1).optional(),
   modelKey: z.string().min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
 
-export const parseCreateRuntimeAgentInput = (input: unknown): CreateRuntimeAgentInput & {
-  capabilityIds: string[];
-} => {
-  const parsed = CreateRuntimeAgentInputBaseSchema.parse(input);
+export const parseCreateRuntimeAgentInput = (input: unknown): CreateRuntimeAgentInput =>
+  CreateRuntimeAgentInputBaseSchema.parse(input);
 
-  if (!parsed.capabilityIds && !parsed.toolBundleIds) {
-    throw new Error("capabilityIds are required");
-  }
-
-  return normalizeCapabilityFields(parsed);
-};
-
-export const CreateRuntimeAgentInputSchema = z.custom<
-  CreateRuntimeAgentInput & { capabilityIds: string[] }
->((value) => {
+export const CreateRuntimeAgentInputSchema = z.custom<CreateRuntimeAgentInput>((value) => {
   try {
     parseCreateRuntimeAgentInput(value);
     return true;
@@ -161,15 +148,8 @@ export const CreateRuntimeAgentInputSchema = z.custom<
   }
 });
 
-export const parseUpdateRuntimeAgentInput = (input: unknown): UpdateRuntimeAgentInput => {
-  const parsed = CreateRuntimeAgentInputBaseSchema.partial().parse(input);
-
-  if (!parsed.capabilityIds && !parsed.toolBundleIds) {
-    return parsed as UpdateRuntimeAgentInput;
-  }
-
-  return normalizeCapabilityFields(parsed) as UpdateRuntimeAgentInput;
-};
+export const parseUpdateRuntimeAgentInput = (input: unknown): UpdateRuntimeAgentInput =>
+  CreateRuntimeAgentInputBaseSchema.partial().parse(input) as UpdateRuntimeAgentInput;
 
 export const UpdateRuntimeAgentInputSchema = z.custom<UpdateRuntimeAgentInput>((value) => {
   try {

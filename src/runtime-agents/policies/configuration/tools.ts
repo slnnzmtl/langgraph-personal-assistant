@@ -35,8 +35,7 @@ const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
-  capabilityIds: z.array(z.string().min(1)).min(1).optional(),
-  toolBundleIds: z.array(z.string().min(1)).min(1).optional(),
+  capabilityIds: z.array(z.string().min(1)).min(1),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -47,7 +46,6 @@ const UpdateRuntimeAgentToolSchema = z.object({
   description: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
   capabilityIds: z.array(z.string().min(1)).min(1).optional(),
-  toolBundleIds: z.array(z.string().min(1)).min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
 });
@@ -255,17 +253,12 @@ export const createRuntimeAgentTools = (
   const createRuntimeAgent = tool(
     async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
       try {
-        const capabilityIds = input.capabilityIds ?? input.toolBundleIds;
-        if (!capabilityIds) {
-          throw new Error("capabilityIds are required");
-        }
-
-        validateRuntimeToolBundleIds(capabilityIds, bundleDeps);
+        validateRuntimeToolBundleIds(input.capabilityIds, bundleDeps);
         const agent = await repository.createAgent({
           name: input.name,
           description: input.description,
           systemPrompt: input.systemPrompt,
-          capabilityIds,
+          capabilityIds: input.capabilityIds,
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
@@ -280,16 +273,7 @@ export const createRuntimeAgentTools = (
       name: "create_runtime_agent",
       description: "Create and persist a reusable runtime sub-agent from a name, routing description, system prompt, and allowlisted capabilities.",
       schema: CreateRuntimeAgentToolSchema.extend({
-        capabilityIds: z.array(capabilityIdSchema).min(1).optional(),
-        toolBundleIds: z.array(capabilityIdSchema).min(1).optional(),
-      }).superRefine((input, ctx) => {
-        if (!input.capabilityIds && !input.toolBundleIds) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "capabilityIds are required",
-            path: ["capabilityIds"],
-          });
-        }
+        capabilityIds: z.array(capabilityIdSchema).min(1),
       }),
     },
   );
@@ -297,16 +281,15 @@ export const createRuntimeAgentTools = (
   const updateRuntimeAgent = tool(
     async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
       try {
-        const capabilityIds = input.capabilityIds ?? input.toolBundleIds;
-        if (capabilityIds) {
-          validateRuntimeToolBundleIds(capabilityIds, bundleDeps);
+        if (input.capabilityIds) {
+          validateRuntimeToolBundleIds(input.capabilityIds, bundleDeps);
         }
 
         const agent = await repository.updateAgent(input.id, {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
           ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt } : {}),
-          ...(capabilityIds !== undefined ? { capabilityIds } : {}),
+          ...(input.capabilityIds !== undefined ? { capabilityIds: input.capabilityIds } : {}),
           ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
@@ -324,7 +307,6 @@ export const createRuntimeAgentTools = (
       description: "Update a persisted runtime agent definition, including enable/disable status.",
       schema: UpdateRuntimeAgentToolSchema.extend({
         capabilityIds: z.array(capabilityIdSchema).min(1).optional(),
-        toolBundleIds: z.array(capabilityIdSchema).min(1).optional(),
       }),
     },
   );
