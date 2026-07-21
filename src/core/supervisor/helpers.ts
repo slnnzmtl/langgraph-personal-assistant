@@ -5,13 +5,6 @@ import type { AgentState, AgentStateUpdate } from "../state.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 import { normalizeSupervisorReply, type RoutingDecision } from "./routing-schema.js";
 
-export type ResolveAgentId = (routeOrId: string) => string;
-
-export const defaultResolveAgentId: ResolveAgentId = (routeOrId) => routeOrId;
-
-export const createResolveAgentId = (resolveAgentId?: ResolveAgentId): ResolveAgentId =>
-  resolveAgentId ?? defaultResolveAgentId;
-
 export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
   next: agentId,
   context: {
@@ -22,20 +15,17 @@ export const routeToRuntimeAgent = (agentId: string): AgentStateUpdate => ({
 export const tryCronRouteUpdate = (
   cronRoute: string | undefined,
   superviseCronRoute: string | undefined,
-  resolveAgentId: ResolveAgentId,
   wiredAgentIds?: ReadonlySet<string>,
 ): AgentStateUpdate | null => {
   if (!cronRoute || cronRoute === superviseCronRoute) {
     return null;
   }
 
-  const agentId = resolveAgentId(cronRoute);
-
-  if (wiredAgentIds && !wiredAgentIds.has(agentId)) {
+  if (wiredAgentIds && !wiredAgentIds.has(cronRoute)) {
     return null;
   }
 
-  return routeToRuntimeAgent(agentId);
+  return routeToRuntimeAgent(cronRoute);
 };
 
 export const needsEmptySubAgentSummary = (state: AgentState): boolean => {
@@ -63,7 +53,6 @@ export const detectCompletionState = (
 export const resolveRoutingDecision = async (
   response: RoutingDecision,
   enabledAgentIds: Set<string>,
-  resolveAgentId: ResolveAgentId,
   onFailure: (failureContext: string) => Promise<AgentStateUpdate>,
 ): Promise<AgentStateUpdate> => {
   if (response.next === "FINISH") {
@@ -79,9 +68,7 @@ export const resolveRoutingDecision = async (
     };
   }
 
-  const agentId = resolveAgentId(response.next);
-
-  if (!enabledAgentIds.has(agentId)) {
+  if (!enabledAgentIds.has(response.next)) {
     return onFailure(`Unknown or disabled runtime agent route: ${response.next}`);
   }
 
@@ -91,5 +78,5 @@ export const resolveRoutingDecision = async (
     );
   }
 
-  return routeToRuntimeAgent(agentId);
+  return routeToRuntimeAgent(response.next);
 };

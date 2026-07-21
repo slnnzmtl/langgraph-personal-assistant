@@ -308,7 +308,7 @@ describe("createWorkflowGraph", () => {
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        toolBundleIds: ["none"] as const,
+        capabilityIds: ["none"] as const,
         executor: "generic",
         maxSteps: 4,
         enabled: true,

@@ -1,3 +1,5 @@
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
 import { resolveModel } from "../execution/context.js";
 import {
   createSubAgentGraphBundle,
@@ -11,17 +13,13 @@ import type { SkillCatalog } from "../skills/catalog.js";
 export type GenericPolicyDeps<
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 > = {
-  resolveToolBundles: (
-    bundleIds: RuntimeAgentDefinition["toolBundleIds"],
-    bundleDeps: TBundleDeps,
-  ) => import("@langchain/core/tools").StructuredToolInterface[];
-  runtimeShellHooks?: RuntimeAgentNodeHooks;
-  skillCatalog?: SkillCatalog;
-  resolveAgentTools?: (
+  resolveAgentTools: (
     definition: RuntimeAgentDefinition,
     bundleDeps: TBundleDeps,
     options?: { skillCatalog?: SkillCatalog },
-  ) => import("@langchain/core/tools").StructuredToolInterface[];
+  ) => StructuredToolInterface[];
+  runtimeShellHooks?: RuntimeAgentNodeHooks;
+  skillCatalog?: SkillCatalog;
 };
 
 export const createGenericPolicy = <
@@ -39,22 +37,13 @@ export const createGenericPolicy = <
         model: resolveModel(context),
         definition,
         bundleDeps,
-        resolveToolBundles: deps.resolveToolBundles,
         resolveAgentTools: deps.resolveAgentTools,
         skillCatalog: deps.skillCatalog,
       },
-      createTools: (agentDeps) => {
-        if (agentDeps.resolveAgentTools) {
-          return agentDeps.resolveAgentTools(agentDeps.definition, agentDeps.bundleDeps, {
-            ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
-          });
-        }
-
-        return agentDeps.resolveToolBundles(
-          agentDeps.definition.capabilityIds ?? agentDeps.definition.toolBundleIds,
-          agentDeps.bundleDeps,
-        );
-      },
+      createTools: (agentDeps) =>
+        agentDeps.resolveAgentTools(agentDeps.definition, agentDeps.bundleDeps, {
+          ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
+        }),
       createLlmNode: (agentDeps, tools) =>
         createRuntimeAgentNode(
           agentDeps.model,

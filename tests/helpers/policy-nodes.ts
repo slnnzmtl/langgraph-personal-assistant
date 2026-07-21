@@ -10,7 +10,7 @@ import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types
 import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
 import { createFinanceNodeHooks } from "../../src/app/policies/finance-hooks.js";
 import { createObsidianNodeHooks } from "../../src/app/policies/obsidian-hooks.js";
-import { createDefaultRuntimeShellFormatters } from "../../src/app/runtime-shell-formatters.js";
+import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 
 const testPromptResolver = createPromptResolver(loadSystemPromptByKey);

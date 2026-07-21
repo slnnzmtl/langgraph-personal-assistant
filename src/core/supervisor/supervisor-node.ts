@@ -19,7 +19,6 @@ import {
 } from "./routing-schema.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import {
-  createResolveAgentId,
   detectCompletionState,
   needsEmptySubAgentSummary,
   resolveRoutingDecision,
@@ -36,7 +35,6 @@ export type SupervisorNodeOptions = {
   wiredAgentIds: ReadonlySet<string>;
   loadSupervisorPrompt: () => string;
   cronTriggerResolver?: CronTriggerResolver;
-  resolveAgentId?: (routeOrId: string) => string;
 };
 
 const buildPlainTextReply = async (
@@ -138,7 +136,6 @@ export const createSupervisorNode = (
   options: SupervisorNodeOptions,
 ) =>
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
-    const resolveAgentId = createResolveAgentId(options.resolveAgentId);
     const supervisorPromptText = options.loadSupervisorPrompt();
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
     const lastMessage = state.messages[state.messages.length - 1];
@@ -147,7 +144,6 @@ export const createSupervisorNode = (
     const cronRouteUpdate = tryCronRouteUpdate(
       cronRoute,
       options.cronTriggerResolver?.superviseCronRoute,
-      resolveAgentId,
       options.wiredAgentIds,
     );
 
@@ -227,7 +223,6 @@ export const createSupervisorNode = (
     return resolveRoutingDecision(
       response,
       enabledAgentIds,
-      resolveAgentId,
       buildFailureUpdate,
     );
   };

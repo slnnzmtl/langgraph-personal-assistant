@@ -1,9 +1,13 @@
 import { createPolicyRegistry } from "../core/policies/registry.js";
 import { createGenericPolicy } from "../core/policies/generic.js";
 import { createPromptResolver } from "../core/agents/prompt-resolver.js";
-import { loadSystemPromptByKey } from "../prompts/load-system-prompt.js";
+import {
+  appendDynamicSections,
+  formatSystemMetadata,
+  loadSystemPromptByKey,
+} from "../prompts/load-system-prompt.js";
+import { appendConfiguredSkillAttachments } from "../runtime-agents/skill-attachments.js";
 import type { RuntimeToolBundleDeps } from "../runtime-agents/tool-bundles.js";
-import { resolveRuntimeToolBundles } from "../runtime-agents/tool-bundles.js";
 import {
   createConfigurationPolicy,
   createFinancePolicy,
@@ -12,9 +16,17 @@ import {
 import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
-import { createDefaultRuntimeShellFormatters } from "./runtime-shell-formatters.js";
 import { resolveAgentCapabilityTools } from "./composition/resolve-agent-tools.js";
 import { createRuntimeShellHooks } from "../core/execution/runtime-shell.js";
+
+export const createDefaultRuntimeShellFormatters = (
+  skillCatalog?: SkillCatalog,
+): RuntimeShellFormatters => ({
+  formatSystemMetadata,
+  appendDynamicSections,
+  appendSkillAttachments: (basePrompt, definition, messages) =>
+    appendConfiguredSkillAttachments(basePrompt, definition, messages, skillCatalog),
+});
 
 export const DOMAIN_POLICY_FACTORIES: Record<string, (options: AppExecutionKitOptions) => RuntimeAgentPolicy> = {
   finance: createFinancePolicy,
@@ -51,8 +63,6 @@ export const createAppExecutionKit = (
 
   const policyRegistry = createPolicyRegistry([
     createGenericPolicy<RuntimeToolBundleDeps>({
-      resolveToolBundles: (bundleIds, bundleDeps) =>
-        resolveRuntimeToolBundles(bundleIds, bundleDeps),
       resolveAgentTools: (definition, bundleDeps, resolveOptions) =>
         resolveAgentCapabilityTools(definition, bundleDeps, resolveOptions ?? {}),
       runtimeShellHooks: genericShellHooks,

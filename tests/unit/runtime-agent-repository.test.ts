@@ -34,7 +34,7 @@ describe("createRuntimeAgentRepository", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You summarize days.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
       maxSteps: 5,
     });
 
@@ -62,14 +62,14 @@ describe("createRuntimeAgentRepository", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You summarize days.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
     });
 
     await expect(repository.createAgent({
       name: "daily-summary",
       description: "Duplicate attempt.",
       systemPrompt: "Duplicate.",
-      toolBundleIds: ["none"],
+      capabilityIds: ["none"],
     })).rejects.toThrow(/already exists/i);
   });
 
@@ -82,13 +82,13 @@ describe("createRuntimeAgentRepository", () => {
         name: "Agent One",
         description: "First agent.",
         systemPrompt: "First.",
-        toolBundleIds: ["none"],
+        capabilityIds: ["none"],
       }),
       repository.createAgent({
         name: "Agent Two",
         description: "Second agent.",
         systemPrompt: "Second.",
-        toolBundleIds: ["none"],
+        capabilityIds: ["none"],
       }),
     ]);
 
@@ -110,7 +110,7 @@ describe("createRuntimeAgentRepository", () => {
           name: "Legacy",
           description: "Legacy agent",
           systemPrompt: "Legacy",
-          toolBundleIds: ["none"],
+          capabilityIds: ["none"],
           executor: "generic",
           maxSteps: 4,
           enabled: true,
@@ -123,7 +123,6 @@ describe("createRuntimeAgentRepository", () => {
 
     const agents = await repository.loadAgents();
     expect(agents[0]?.capabilityIds).toEqual(["none"]);
-    expect(agents[0]?.toolBundleIds).toEqual(["none"]);
   });
 
   it("rejects invalid persisted runtime agent data", async () => {

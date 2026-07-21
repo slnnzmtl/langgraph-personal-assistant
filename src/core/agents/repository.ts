@@ -131,7 +131,6 @@ export const createRuntimeAgentRepository = (
           description: parsed.description.trim(),
           systemPrompt: parsed.systemPrompt.trim(),
           capabilityIds: parsed.capabilityIds,
-          toolBundleIds: parsed.toolBundleIds,
           executor: "generic",
           builtin: false,
           maxSteps: parsed.maxSteps ?? 8,
@@ -176,10 +175,7 @@ export const createRuntimeAgentRepository = (
           ...(parsed.description !== undefined ? { description: parsed.description.trim() } : {}),
           ...(parsed.systemPrompt !== undefined && !builtin ? { systemPrompt: parsed.systemPrompt.trim() } : {}),
           ...(parsed.capabilityIds !== undefined && !builtin
-            ? {
-              capabilityIds: parsed.capabilityIds,
-              toolBundleIds: parsed.toolBundleIds ?? parsed.capabilityIds,
-            }
+            ? { capabilityIds: parsed.capabilityIds }
             : {}),
           ...(parsed.executor !== undefined && !builtin ? { executor: parsed.executor } : {}),
           ...(parsed.modelKey !== undefined && !builtin ? { modelKey: parsed.modelKey } : {}),

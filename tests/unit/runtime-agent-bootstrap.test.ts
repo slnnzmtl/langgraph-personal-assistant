@@ -4,8 +4,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { ensureBuiltinRuntimeAgents } from "../../src/runtime-agents/bootstrap.js";
-import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
+import {
+  applyLocalModuleAvailability,
+  ensureBuiltinRuntimeAgents,
+} from "../../src/app/composition/bootstrap-agents.js";
 import { createRuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
@@ -53,7 +55,7 @@ describe("ensureBuiltinRuntimeAgents", () => {
         name: "Configuration",
         description: "custom description",
         systemPrompt: "old",
-        toolBundleIds: ["system-config"],
+        capabilityIds: ["system-config"],
         executor: "configuration",
         modelKey: "configuration",
         builtin: true,
@@ -67,7 +69,7 @@ describe("ensureBuiltinRuntimeAgents", () => {
         name: "Obsidian",
         description: "local description",
         systemPrompt: "local prompt",
-        toolBundleIds: ["obsidian-vault"],
+        capabilityIds: ["obsidian-vault"],
         executor: "obsidian",
         builtin: false,
         maxSteps: 8,
@@ -93,8 +95,8 @@ describe("applyLocalModuleAvailability", () => {
   it("disables finance-domain agents when Supabase is unavailable", () => {
     const agents = applyLocalModuleAvailability(buildLocalModuleAgents(), { supabaseAvailable: false });
 
-    const financeAgent = agents.find((agent) => agent.toolBundleIds.includes("finance-domain"));
-    const obsidianAgent = agents.find((agent) => agent.toolBundleIds.includes("obsidian-vault"));
+    const financeAgent = agents.find((agent) => agent.capabilityIds.includes("finance-domain"));
+    const obsidianAgent = agents.find((agent) => agent.capabilityIds.includes("obsidian-vault"));
 
     expect(financeAgent?.enabled).toBe(false);
     expect(obsidianAgent?.enabled).toBe(true);

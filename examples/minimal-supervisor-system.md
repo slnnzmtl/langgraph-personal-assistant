@@ -14,7 +14,7 @@ const researcher: RuntimeAgentDefinition = {
   name: "Researcher",
   description: "Answer factual questions with web search.",
   systemPrompt: "You are a concise research assistant.",
-  toolBundleIds: ["none"],
+  capabilityIds: ["none"],
   executor: "generic",
   builtin: false,
   maxSteps: 6,

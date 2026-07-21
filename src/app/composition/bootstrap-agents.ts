@@ -1,7 +1,8 @@
 import type { AppConfig } from "../../config.js";
 import { loadSystemPromptByKey } from "../../prompts/load-system-prompt.js";
+import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
-import { resolveAgentCapabilityIds } from "../../core/types/agent.js";
+import { isRuntimeAgentBuiltin, resolveAgentCapabilityIds } from "../../core/types/agent.js";
 import type { RuntimeToolBundleId } from "../../runtime-agents/tool-bundles.js";
 
 export const CONFIGURATOR_AGENT_ID = "configuration" as const;
@@ -18,7 +19,6 @@ export type ConfiguratorSpec = {
   executor: typeof CONFIGURATOR_AGENT_ID;
   modelKey: typeof CONFIGURATOR_AGENT_ID;
   promptSourceKey: typeof CONFIGURATOR_AGENT_ID;
-  toolBundleIds: RuntimeToolBundleId[];
   capabilityIds: RuntimeToolBundleId[];
   maxSteps: number;
   configModelKey: AppModelConfigKey;
@@ -31,17 +31,13 @@ export const CONFIGURATOR_SPEC: ConfiguratorSpec = {
   executor: CONFIGURATOR_AGENT_ID,
   modelKey: CONFIGURATOR_AGENT_ID,
   promptSourceKey: CONFIGURATOR_AGENT_ID,
-  toolBundleIds: ["system-config"],
   capabilityIds: ["system-config"],
   maxSteps: 10,
   configModelKey: "configurationModel",
 };
 
-/** @deprecated Use CONFIGURATOR_SPEC */
-export const BUILTIN_DOMAIN_SPECS = [CONFIGURATOR_SPEC];
-
 /** Core agent ids bootstrapped from code (configurator only). */
-export const BUILTIN_DOMAIN_IDS = [CONFIGURATOR_AGENT_ID] as readonly string[];
+export const BUILTIN_AGENT_IDS = [CONFIGURATOR_AGENT_ID] as readonly string[];
 
 const buildTimestamp = (): string => new Date().toISOString();
 
@@ -56,7 +52,6 @@ export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
       description: spec.description,
       systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
       promptSourceKey: spec.promptSourceKey,
-      toolBundleIds: spec.toolBundleIds,
       capabilityIds: spec.capabilityIds,
       executor: spec.executor,
       modelKey: spec.modelKey,
@@ -67,6 +62,54 @@ export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
       updatedAt: timestamp,
     },
   ];
+};
+
+const mergeConfiguratorAgent = (
+  defaultAgent: RuntimeAgentDefinition,
+  persistedAgents: RuntimeAgentDefinition[],
+): RuntimeAgentDefinition => {
+  const persisted = persistedAgents.find((agent) => agent.id === CONFIGURATOR_AGENT_ID);
+
+  if (!persisted || !isRuntimeAgentBuiltin(defaultAgent)) {
+    return defaultAgent;
+  }
+
+  return {
+    ...defaultAgent,
+    description: persisted.description,
+    maxSteps: Math.max(defaultAgent.maxSteps, persisted.maxSteps),
+    enabled: persisted.enabled,
+    updatedAt: persisted.updatedAt,
+    modelKey: defaultAgent.modelKey,
+    promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
+    executor: defaultAgent.executor,
+    capabilityIds: defaultAgent.capabilityIds,
+  };
+};
+
+export const ensureBuiltinRuntimeAgents = async (
+  repository: RuntimeAgentRepository,
+): Promise<RuntimeAgentDefinition[]> => {
+  const configurator = buildDefaultRuntimeAgents()[0]!;
+  const persistedAgents = await repository.loadAgents();
+  const localAgents = persistedAgents.filter((agent) => agent.id !== CONFIGURATOR_AGENT_ID);
+  const mergedConfigurator = mergeConfiguratorAgent(configurator, persistedAgents);
+  const mergedAgents = [...localAgents, mergedConfigurator].sort((left, right) =>
+    left.id.localeCompare(right.id),
+  );
+
+  const persistedById = new Map(persistedAgents.map((agent) => [agent.id, agent]));
+  const changed = mergedAgents.length !== persistedAgents.length
+    || mergedAgents.some((agent) => {
+      const persisted = persistedById.get(agent.id);
+      return !persisted || JSON.stringify(persisted) !== JSON.stringify(agent);
+    });
+
+  if (changed) {
+    await repository.saveAgents(mergedAgents);
+  }
+
+  return mergedAgents;
 };
 
 const resolveModelConfigKey = (modelKey: string): AppModelConfigKey | undefined => {
@@ -124,6 +167,3 @@ export const buildSkillModuleOwnerPattern = (modules: readonly string[]): RegExp
 
   return new RegExp(`\\b(${owners.join("|")})\\b`);
 };
-
-/** @deprecated Use buildSkillModuleOwnerPattern with an explicit module list */
-export const buildBuiltinDomainOwnerPattern = buildSkillModuleOwnerPattern;

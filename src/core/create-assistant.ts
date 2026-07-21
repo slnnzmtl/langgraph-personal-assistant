@@ -35,7 +35,6 @@ export type AssistantConfig = {
   policies?: RuntimeAgentPolicy[];
   genericPolicyDeps?: GenericPolicyDeps;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
-  resolveAgentId?: (routeOrId: string) => string;
   checkpointer?: MemorySaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
@@ -80,7 +79,6 @@ export const createAssistant = (config: AssistantConfig) => {
     wiredAgentIds,
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
-    ...(config.resolveAgentId ? { resolveAgentId: config.resolveAgentId } : {}),
   });
 
   const graph = new StateGraph(agentStateAnnotation).addNode("supervisor", supervisorNode);

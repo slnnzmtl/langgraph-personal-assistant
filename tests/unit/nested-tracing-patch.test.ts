@@ -162,7 +162,7 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
           name: "Finance",
           description: "Finance agent",
           systemPrompt: "finance",
-          toolBundleIds: ["none"],
+          capabilityIds: ["none"],
           executor: "generic",
           maxSteps: 4,
           enabled: true,

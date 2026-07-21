@@ -181,15 +181,4 @@ export const resolveRuntimeToolBundles = (
 export const formatRuntimeToolBundleCatalog = (deps: RuntimeToolBundleDeps): string =>
   getCapabilityCatalog(deps).formatCatalog(toCapabilityAvailabilityContext(deps));
 
-/** @deprecated Use BUILTIN_CAPABILITY_DESCRIPTORS */
-export const RUNTIME_TOOL_BUNDLE_CATALOG = BUILTIN_CAPABILITY_DESCRIPTORS;
-
-/** @deprecated Use createDefaultCapabilityCatalog().createIdSchema() */
-export { createDefaultCapabilityCatalog as createRuntimeToolBundleIdSchemaSource };
-
-/** @deprecated Use BUILTIN_CAPABILITY_DESCRIPTORS ids */
-export const RUNTIME_TOOL_BUNDLE_IDS = BUILTIN_CAPABILITY_DESCRIPTORS.map(
-  (entry) => entry.id,
-) as unknown as readonly RuntimeToolBundleId[];
-
 export type RuntimeToolBundleCatalogEntry = CapabilityDescriptor;

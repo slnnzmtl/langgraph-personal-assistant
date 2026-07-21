@@ -7,7 +7,7 @@ import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js"
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
 import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
 import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
-import { createSkillAttachmentNodeHooks } from "./skill-scoped-hooks.js";
+import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
 
@@ -71,7 +71,7 @@ export const createConfigurationNodeHooks = (
 ): RuntimeAgentNodeHooks => {
   const skillModules = options.skillCatalog?.listModules() ?? [CONFIGURATOR_AGENT_ID];
 
-  return createSkillAttachmentNodeHooks(options.shellFormatters, {
+  return createRuntimeShellHooks(options.shellFormatters, {
     logLabel: "configuration-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,

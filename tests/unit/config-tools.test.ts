@@ -200,7 +200,7 @@ describe("createConfigurationTools", () => {
       name: "Daily Summary",
       description: "Summarize the user's day.",
       systemPrompt: "You are a daily summary specialist.",
-      toolBundleIds: ["none"],
+        capabilityIds: ["none"],
     });
 
     expect(created).toContain("daily-summary");

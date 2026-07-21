@@ -1,4 +1,3 @@
-import { AIMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import { resolveModel } from "../../core/execution/context.js";
@@ -103,20 +102,3 @@ export const createDomainGraphPolicy = <TDeps extends Record<string, unknown>>(
       ...(config.mapResult ? { mapResult: config.mapResult } : {}),
     });
   });
-
-export const createMaxStepsResultMapper = (
-  agentLabel: string,
-  buildMessage: (maxSteps: number) => string,
-) =>
-  (result: SubAgentState, { maxSteps }: { maxSteps: number; name: string }): AgentStateUpdate => {
-    if (result.stepCount >= maxSteps) {
-      return {
-        messages: [new AIMessage(buildMessage(maxSteps))],
-      };
-    }
-
-    const lastMessage = result.agentMessages[result.agentMessages.length - 1];
-    return {
-      messages: [lastMessage as AIMessage],
-    };
-  };

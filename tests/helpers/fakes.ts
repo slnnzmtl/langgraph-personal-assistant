@@ -124,7 +124,6 @@ export const createRuntimeAgentRepositoryFake = (
         description: input.description.trim(),
         systemPrompt: input.systemPrompt.trim(),
         capabilityIds,
-        toolBundleIds: capabilityIds,
         executor: input.executor ?? "generic",
         builtin: false,
         maxSteps: input.maxSteps ?? 8,
@@ -150,7 +149,6 @@ export const createRuntimeAgentRepositoryFake = (
         ...(input.capabilityIds !== undefined || input.toolBundleIds !== undefined
           ? {
             capabilityIds: input.capabilityIds ?? input.toolBundleIds ?? current.capabilityIds,
-            toolBundleIds: input.capabilityIds ?? input.toolBundleIds ?? current.toolBundleIds,
           }
           : {}),
         ...(input.executor !== undefined ? { executor: input.executor } : {}),

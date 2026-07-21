@@ -76,7 +76,7 @@ describe("framework boundaries", () => {
       description: "Finance",
       systemPrompt: "Finance",
       promptSourceKey: "finance",
-      toolBundleIds: ["finance-domain"],
+      capabilityIds: ["finance-domain"],
       executor: "finance",
       builtin: false,
       maxSteps: 8,

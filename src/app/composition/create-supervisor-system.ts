@@ -5,12 +5,12 @@ import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository
 import type { RuntimeCronService } from "../../cron/types.js";
 import { createRuntimeAgentRepositoryForConfig } from "../../core/agents/repository.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import { ensureBuiltinRuntimeAgents } from "../../runtime-agents/bootstrap.js";
 import {
   applyLocalModuleAvailability,
   buildDefaultRuntimeAgents,
   buildSkillModuleOwnerPattern,
   CONFIGURATOR_AGENT_ID,
+  ensureBuiltinRuntimeAgents,
 } from "./bootstrap-agents.js";
 import { setupSupabaseSession } from "../../services/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";

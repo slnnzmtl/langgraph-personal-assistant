@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createDefaultRuntimeShellFormatters } from "../../../src/app/runtime-shell-formatters.js";
+import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
 import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BUILTIN_DOMAIN_IDS,
-  BUILTIN_DOMAIN_SPECS,
+  BUILTIN_AGENT_IDS,
   CONFIGURATOR_AGENT_ID,
   CONFIGURATOR_SPEC,
   applyLocalModuleAvailability,
@@ -16,8 +15,8 @@ import type { AppConfig } from "../../../src/config.js";
 
 describe("configurator manifest", () => {
   it("defines only the core configuration agent as built-in", () => {
-    expect(BUILTIN_DOMAIN_IDS).toEqual([CONFIGURATOR_AGENT_ID]);
-    expect(BUILTIN_DOMAIN_SPECS).toEqual([CONFIGURATOR_SPEC]);
+    expect(BUILTIN_AGENT_IDS).toEqual([CONFIGURATOR_AGENT_ID]);
+    expect(CONFIGURATOR_SPEC.id).toBe(CONFIGURATOR_AGENT_ID);
     expect(listSkillModules()).toEqual(expect.arrayContaining(["finance", "obsidian", "configuration"]));
   });
 
@@ -39,7 +38,7 @@ describe("configurator manifest", () => {
 
   it("disables finance-domain agents when Supabase is unavailable", () => {
     const financeAgent = buildLocalModuleAgents().find((agent) =>
-      agent.toolBundleIds.includes("finance-domain"),
+      agent.capabilityIds.includes("finance-domain"),
     );
 
     expect(financeAgent).toBeDefined();

@@ -36,7 +36,7 @@ Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.
 
 1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/tool-bundles.ts` (or register a custom provider).
 2. Implement `CapabilityProvider.resolveTools`.
-3. Grant the capability ID on agent definitions (`toolBundleIds`).
+3. Grant the capability ID on agent definitions (`capabilityIds`).
 4. Domain and generic agents resolve tools through the same catalog via `resolveAgentCapabilityTools()`.
 
 ## Self-configuration (optional product feature)

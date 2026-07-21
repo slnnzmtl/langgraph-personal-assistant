@@ -29,7 +29,6 @@ export type RuntimeAgentDefinition = {
   systemPrompt: string;
   promptSourceKey?: string | undefined;
   capabilityIds: string[];
-  toolBundleIds: string[];
   executor: string;
   modelKey?: string | undefined;
   builtin: boolean;
@@ -43,7 +42,7 @@ const normalizeCapabilityFields = <
   T extends { capabilityIds?: string[] | undefined; toolBundleIds?: string[] | undefined },
 >(
   agent: T,
-): Omit<T, "capabilityIds" | "toolBundleIds"> & { capabilityIds: string[]; toolBundleIds: string[] } => {
+): Omit<T, "capabilityIds" | "toolBundleIds"> & { capabilityIds: string[] } => {
   const capabilityIds = agent.capabilityIds ?? agent.toolBundleIds;
 
   if (!capabilityIds) {
@@ -53,7 +52,6 @@ const normalizeCapabilityFields = <
   return {
     ...agent,
     capabilityIds,
-    toolBundleIds: capabilityIds,
   };
 };
 
@@ -121,7 +119,6 @@ const CreateRuntimeAgentInputBaseSchema = z.object({
 
 export const parseCreateRuntimeAgentInput = (input: unknown): CreateRuntimeAgentInput & {
   capabilityIds: string[];
-  toolBundleIds: string[];
 } => {
   const parsed = CreateRuntimeAgentInputBaseSchema.parse(input);
 
@@ -133,7 +130,7 @@ export const parseCreateRuntimeAgentInput = (input: unknown): CreateRuntimeAgent
 };
 
 export const CreateRuntimeAgentInputSchema = z.custom<
-  CreateRuntimeAgentInput & { capabilityIds: string[]; toolBundleIds: string[] }
+  CreateRuntimeAgentInput & { capabilityIds: string[] }
 >((value) => {
   try {
     parseCreateRuntimeAgentInput(value);
@@ -163,8 +160,8 @@ export const UpdateRuntimeAgentInputSchema = z.custom<UpdateRuntimeAgentInput>((
 });
 
 export const resolveAgentCapabilityIds = (
-  definition: Pick<RuntimeAgentDefinition, "capabilityIds" | "toolBundleIds">,
-): string[] => definition.capabilityIds ?? definition.toolBundleIds ?? [];
+  definition: Pick<RuntimeAgentDefinition, "capabilityIds">,
+): string[] => definition.capabilityIds;
 
 export const toRuntimeAgentId = (name: string): string =>
   name

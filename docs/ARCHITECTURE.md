@@ -309,7 +309,7 @@ Agents are first-class persisted entities (`data/runtime-agents.json`):
 ```typescript
 RuntimeAgentDefinitionSchema = z.object({
   id, name, description, systemPrompt,
-  promptSourceKey?, toolBundleIds, executor, modelKey?,
+  promptSourceKey?, capabilityIds, executor, modelKey?,
   builtin, maxSteps, enabled, createdAt, updatedAt,
 });
 ```
@@ -422,7 +422,7 @@ personal-assistant/
 │   │   ├── model-registry.ts
 │   │   └── runtime-agent-catalog.ts
 │   ├── runtime-agents/                             # Domain tools & specs
-│   │   ├── tool-bundles.ts, tool-bundle-catalog.ts
+│   │   ├── tool-bundles.ts
 │   │   ├── policies/{finance,obsidian,configuration}/
 │   │   └── bootstrap.ts
 │   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts entry)

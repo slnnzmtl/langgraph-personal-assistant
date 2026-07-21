@@ -15,7 +15,7 @@ describe("runtime tool bundles", () => {
   it("seeds the configuration agent with the system-config bundle", () => {
     const configuration = buildDefaultRuntimeAgents().find((agent) => agent.id === "configuration");
 
-    expect(configuration?.toolBundleIds).toEqual(["system-config"]);
+    expect(configuration?.capabilityIds).toEqual(["system-config"]);
   });
 
   it("resolves system-config tools when repositories are available", () => {
