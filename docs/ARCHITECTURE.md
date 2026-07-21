@@ -1,16 +1,16 @@
 # Personal Assistant — Architecture Review
 
-*Implementation review as of July 2026, based on the current codebase (~79 source files and 44 unit test files). This document describes verified behavior and separates current defects from conditional future work.*
+*Implementation review as of July 2026, based on the current codebase (~79 source files and 46 unit test files). This document describes verified behavior and separates current defects from conditional future work.*
 
 ---
 
 ## Executive Summary
 
-This is a single-user, Telegram-hosted personal assistant built on **LangGraph**. Its execution path is **Supervisor → runtime-agent dispatcher → nested sub-agent tool loop**. The codebase is deliberately split into three layers:
+This is a single-user, Telegram-hosted personal assistant built on **LangGraph**. Its execution path is **Supervisor → per-agent prepare / llm ⇄ tools / finalize → Supervisor**. The codebase is deliberately split into three layers:
 
 | Layer | Role |
 |---|---|
-| **`src/core/`** | Reusable assistant framework (graph, state, policies API, sub-agent factory) |
+| **`src/core/`** | Reusable assistant framework (graph, state, policies API, runtime agent bundle factory) |
 | **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
 | **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
 
@@ -49,8 +49,11 @@ flowchart TB
     subgraph Core["Core Framework (src/core/)"]
         CA[createAssistant]
         SUP[Supervisor Node]
-        DISP[Runtime_SG Dispatcher]
-        SA[createSubAgent]
+        PREP["{agent}__prepare"]
+        LLM["{agent}__llm"]
+        TOOLS["{agent}__tools"]
+        FINN["{agent}__finalize"]
+        BUNDLE[RuntimeAgentGraphBundle]
         STATE[AgentState + Reducers]
     end
 
@@ -76,14 +79,18 @@ flowchart TB
     WFG --> KIT --> CA
     KIT --> POL
     CA --> SUP
-    SUP -->|Runtime_SG| DISP
-    DISP --> SUP
+    SUP -->|agent id| PREP
+    PREP --> LLM
+    LLM -->|tool calls| TOOLS
+    TOOLS --> LLM
+    LLM --> FINN
+    FINN --> SUP
     SUP -->|FINISH| TG
-    DISP --> SA
-    SA --> FIN & OBS & CFG
+    BUNDLE --> PREP & LLM & TOOLS & FINN
+    LLM & TOOLS --> FIN & OBS & CFG
     FIN --> SB & WISE
     OBS --> VAULT
-    SUP & SA --> GEMINI
+    SUP & LLM --> GEMINI
 ```
 
 ---
@@ -124,7 +131,9 @@ Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with sy
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
-Each process compiles its own graph instance at startup. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
+Each process compiles its own graph instance at startup from the enabled runtime agents loaded from `data/runtime-agents.json`. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
+
+**Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON but does not add new graph nodes until the process restarts.
 
 Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
 
@@ -132,28 +141,21 @@ Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Do
 
 ## Root LangGraph
 
-Defined in `create-assistant.ts`:
+Defined in `create-assistant.ts`. The supervisor is the only shared routing node; each enabled runtime agent gets four flat nodes on the **same** parent state (no nested `compiledSubgraph.invoke()`):
 
-```typescript
-const graph = new StateGraph(AgentStateAnnotation)
-  .addNode("supervisor", supervisorNode)
-  .addNode("Runtime_SG", runtimeAgentDispatcher);
-
-graph
-  .addEdge(START, "supervisor")
-  .addConditionalEdges(
-    "supervisor",
-    (state: AgentState) => state.next ?? "FINISH",
-    {
-      Runtime_SG: "Runtime_SG",
-      FINISH: END,
-    },
-  );
-
-graph.addEdge("Runtime_SG", "supervisor");
+```
+supervisor
+  → {id}__prepare    # scope parent messages into agentMessages (Overwrite)
+  → {id}__llm ⇄ {id}__tools
+  → {id}__finalize   # merge final AI into messages, clear agentMessages
+  → supervisor
 ```
 
-Only **two graph nodes** at the root level. All domain complexity lives in nested sub-graphs compiled inside policy handlers.
+Supervisor conditional edges route to `{id}__prepare` when `state.next === id`, or to `END` when `state.next === "FINISH"`.
+
+Node sets are built at compile time by `buildRuntimeAgentGraphNodeSets()` from `config.runtimeAgents` and policy `createGraphBundle()` implementations.
+
+**Why flat nodes:** nesting a compiled LangGraph inside a parent node (or calling `ToolNode.invoke()` from within a node) duplicates LangChain auto-injected `LangChainTracer` handlers and produces stderr noise (`No chain run to end`, etc.; [langchainjs#11189](https://github.com/langchain-ai/langchainjs/issues/11189)). The production graph avoids nested Runnable boundaries; tools use `ToolNode.run()` directly.
 
 ---
 
@@ -164,14 +166,15 @@ sequenceDiagram
     participant U as User
     participant T as Telegram Adapter
     participant S as Supervisor
-    participant D as Runtime Dispatcher
-    participant P as Policy Handler
-    participant SG as Sub-Agent Graph
+    participant P as prepare
+    participant L as llm
+    participant X as tools
+    participant F as finalize
 
     U->>T: Message
     T->>S: invoke(state)
     alt Agent-targeted cron trigger
-        S->>D: route directly (skip LLM)
+        S->>P: route directly (skip LLM)
     else Supervisor cron trigger
         S->>S: structured JSON routing
     else Empty sub-agent reply
@@ -183,12 +186,15 @@ sequenceDiagram
         S->>S: structured JSON routing
         alt FINISH
             S->>T: direct reply
-        else Route to agent
-            S->>D: context.runtimeAgentId
-            D->>P: policy by executor
-            P->>SG: llm ⇄ tools loop
-            SG->>D: AIMessage result
-            D->>S: append to messages
+        else Route to agent id
+            S->>P: Overwrite agentMessages
+            P->>L: llm turn
+            loop tool loop
+                L->>X: ToolNode.run
+                X->>L: tool results in agentMessages
+            end
+            L->>F: finalize
+            F->>S: append final AI to messages
         end
     end
 ```
@@ -200,38 +206,44 @@ sequenceDiagram
 3. **Completion detection** — a non-tool AI reply from a sub-agent short-circuits routing and goes to `FINISH`.
 4. **Structured routing** — dynamic Zod schema built from enabled runtime agents; `FINISH` requires a `reply`, delegation omits it.
 
-### Dispatcher responsibilities
+### Runtime agent loop responsibilities
 
-- Reads `context.runtimeAgentId`
-- Loads agent definition from repository
-- Resolves system prompt via `PromptResolver`
-- Selects policy by `executor` (`finance`, `obsidian`, `configuration`, `generic`)
-- Caches policy handlers per executor (or per generic agent revision)
+At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGraphBundle`**:
+
+| Phase | Node | Purpose |
+|---|---|---|
+| **prepare** | `{id}__prepare` | Scope recent parent `messages` into `agentMessages` via `scopeSubAgentMessages`; reset `stepCount` |
+| **llm** | `{id}__llm` | `createRuntimeAgentNode` — prompt assembly, tool binding, sanitization, recovery retry |
+| **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
+| **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
+
+Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/policies/<domain>/`.
+
+**Generic agents** (user-created via configuration) use `createGenericPolicy()` and compose tools from allowlisted **tool bundles** rather than hard-coded domain tools.
 
 ---
 
-## Sub-Agent Pattern
+## Runtime Agent Loop (Shared Topology)
 
-Every runtime agent runs the same nested topology via `createSubAgent()`:
+Every runtime agent shares the same **llm ⇄ tools** loop logic, wired as flat nodes on the parent graph:
 
 ```
-START → llm → [tools ⇄ llm]* → END
-         ↑         ↑
-    maxSteps    ToolNode
-    guard       (LangGraph prebuilt)
+{id}__prepare → {id}__llm → [{id}__tools ⇄ {id}__llm}]* → {id}__finalize
 ```
 
 Key abstractions:
 
 | Component | File | Purpose |
 |---|---|---|
-| `createSubAgent` | `execution/create-sub-agent.ts` | Compiles nested graph, wraps as root node |
+| `buildRuntimeAgentGraphNodeSets` | `agents/build-runtime-agent-nodes.ts` | Compile-time registry: prepare/llm/tools/finalize node names + routing helpers |
+| `RuntimeAgentGraphBundle` | `agents/runtime-agent-graph-bundle.ts` | Policy output: prepare, llmNode, toolsNode, finalize, maxSteps |
+| `createSubAgentGraphBundle` | `execution/create-sub-agent.ts` | Builds bundle from deps + hooks; shared tools node factory |
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
-| `createSubgraphNodeWrapper` | `execution/subgraph-wrapper.ts` | Maps sub-state → parent `AgentStateUpdate` |
 | `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
+| `createCompiledSubAgentGraph` | `execution/create-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
 | Domain hooks | `app/policies/*-hooks.ts` | Per-domain prompt enrichment, tool restrictions, result mapping |
 
-**Generic agents** (user-created via configuration) use `createGenericPolicy()` and compose tools from allowlisted **tool bundles** rather than hard-coded domain tools.
+Tool execution uses `ToolNode.run()` (not `invoke()`) to avoid an extra Runnable boundary inside the parent graph node.
 
 ---
 
@@ -240,21 +252,20 @@ Key abstractions:
 ### Root state shape (`AgentState`)
 
 ```typescript
-export const AgentStateAnnotation = Annotation.Root({
-  messages: Annotation<BaseMessage[]>({
-    reducer: reduceAgentMessages,
-    default: () => [],
-  }),
-  next: Annotation<RouteName | undefined>({
-    reducer: (_left, right) => right,
-    default: () => undefined,
-  }),
-  context: Annotation<Record<string, unknown>>({
-    reducer: (left, right) => ({ ...left, ...right }),
-    default: () => ({}),
-  }),
-});
+export const createAgentStateAnnotation = ({ messageHistoryMaxTokens }) =>
+  Annotation.Root({
+    messages: Annotation<BaseMessage[]>({ reducer: reduceAgentMessages, ... }),
+    agentMessages: Annotation<BaseMessage[]>({ reducer: reduceAgentMessages, ... }),
+    stepCount: Annotation<number>({ reducer: (_left, right) => right, default: () => 0 }),
+    next: Annotation<string | undefined>({ reducer: (_left, right) => right, ... }),
+    context: Annotation<Record<string, unknown>>({ ... }),
+  });
 ```
+
+- **`messages`** — supervisor-visible conversation history; final sub-agent replies land here via finalize.
+- **`agentMessages`** — scoped working set for the active runtime agent loop; cleared after finalize.
+- **`stepCount`** — tool-loop iteration guard (compared to agent `maxSteps`).
+- **`next`** — routing target: agent id (e.g. `finance`) or `FINISH`.
 
 ### Message reducer pipeline
 
@@ -332,11 +343,11 @@ Each policy implements:
 ```typescript
 type RuntimeAgentPolicy = {
   readonly executor: string;
-  createHandler: (context, definition) => RuntimeAgentPolicyHandler;
+  createGraphBundle: (context, definition) => RuntimeAgentGraphBundle;
 };
 ```
 
-Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the graph topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy handlers and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and `src/core/policies/generic.ts` resolves allowlisted bundles for configurable agents.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and `src/core/policies/generic.ts` resolves allowlisted bundles for configurable agents.
 
 ---
 
@@ -398,8 +409,8 @@ personal-assistant/
 │   │   ├── create-assistant.ts                     # Main graph API
 │   │   ├── state.ts, message-compaction.ts, message-trimming.ts  # State + trimming
 │   │   ├── supervisor/                             # Routing, history sanitization
-│   │   ├── agents/                                 # Dispatch, repository, prompts
-│   │   ├── execution/                              # Sub-agent factory, runtime node
+│   │   ├── agents/                                 # Graph bundles, build-runtime-agent-nodes, repository
+│   │   ├── execution/                              # Sub-agent bundle factory, runtime node, tool loop
 │   │   ├── policies/                               # Registry, generic policy
 │   │   └── types/                                  # Agent & policy schemas
 │   ├── app/                                        # This assistant's config
@@ -424,7 +435,7 @@ personal-assistant/
 ├── skills/           # Agent playbooks
 ├── data/             # Persisted cron jobs + runtime agents
 ├── specs/            # Pointer to docs/ARCHITECTURE.md (legacy specs retired)
-├── tests/unit/       # 44 Vitest suites
+├── tests/unit/       # 46 Vitest suites
 ├── tests/e2e/        # Playwright workflow tests
 └── sql/              # Supabase setup scripts
 ```
@@ -433,22 +444,22 @@ personal-assistant/
 
 ## Testing Posture
 
-- **44 unit test files** covering graph topology, state reducers, compaction, token-budget trimming, supervisor routing, sub-agent behavior, cron, skills, MCP self-healing, and domain tools
+- **46 unit test files** covering graph topology, state reducers, compaction, token-budget trimming, supervisor routing, runtime agent loops, cron, skills, MCP self-healing, and domain tools
 - **E2E** via Playwright (`tests/e2e/workflow.spec.ts`)
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
 
-The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent`, `empty-subagent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
+The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-agent-nodes`, `create-sub-agent`, `empty-subagent-handoff`) has dedicated test coverage, which is appropriate given its complexity.
 
 ---
 
 ## What Is Working Well
 
-1. **Shared execution topology (DRY)** — all domains use one sub-agent factory; policies customize tools and prompt hooks instead of copying graphs.
+1. **Shared execution topology (DRY)** — all domains use one graph-bundle factory; policies customize tools and prompt hooks instead of copying graphs.
 2. **Data-driven routing** — built-in and custom agents share one schema, and the supervisor schema is derived from enabled agents.
 3. **Useful failure boundaries** — unavailable finance integration disables that capability; routing and empty-handoff failures return a user-facing response.
 4. **Deliberate context control** — trimming and tool-result compaction address a genuine LLM-cost and message-validity problem.
-5. **Small, explicit root graph (KISS)** — the root graph has only the supervisor and dispatcher. Domain work remains in the runtime policy layer.
+5. **Flat root graph for tracing correctness** — runtime agent loops are parent-graph nodes (prepare/llm/tools/finalize), not nested compiled subgraphs, avoiding LangSmith tracer duplication under `LANGCHAIN_TRACING_V2`.
 
 ---
 
@@ -480,7 +491,7 @@ The core framework (`state`, `message-trimming`, `supervisor`, `create-sub-agent
 | **Database-backed event log and long-term memory** | The application has one trusted user and Telegram remains the source of visible message history. Add it only for recall, audit, or restart-continuity requirements that cannot be met otherwise. |
 | **Multi-user tenancy and role-based authorization** | The current adapter is intentionally single-user. A generic-agent capability model is needed before opening access to additional users, not before. |
 | **Extracting `src/core/` into a package** | The existing split is adequate as internal organization. A published/shared package would add versioning, compatibility, and release overhead without a second concrete consumer. |
-| **More graph nodes or a workflow engine** | The two-node root graph is already simple. Add graph structure only for a durable business workflow that cannot fit a runtime-agent tool loop. |
+| **More graph nodes or a workflow engine** | The supervisor plus per-agent flat nodes are already explicit. Add graph structure only for a durable business workflow that cannot fit a runtime-agent tool loop. |
 
 ### Capability boundary for custom agents
 
@@ -492,7 +503,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 - **Done:** Avoid adding a general dependency-injection container. `createWorkflowContext()` is the composition root and makes dependencies visible.
 - **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
 - **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
-- **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified `Runtime_SG` dispatcher model.
+- **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
 
 ---
 
@@ -505,22 +516,23 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 3. Add policy + hooks under `app/policies/`
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
 5. Add prompt file under `prompts/`
+6. Restart the process so `createAssistant()` recompiles graph nodes for the new agent
 
 **Reuse the framework elsewhere:**
 
 ```typescript
 import { createAssistant } from "./core/create-assistant.js";
-// Provide your own policies, promptResolver, models, repository
+// Provide runtimeAgents, policies, promptResolver, models, repository
 ```
 
 **Add a custom runtime agent at runtime:**
 
-Use the configuration agent in Telegram — creates a `generic` executor agent with selected tool bundles, persisted to `data/runtime-agents.json`.
+Use the configuration agent in Telegram — creates a `generic` executor agent with selected tool bundles, persisted to `data/runtime-agents.json`. **Restart required** before the new agent appears as routable graph nodes.
 
 ---
 
 ## Summary
 
-The execution architecture is appropriately small: a supervisor delegates to a data-defined runtime agent, and every domain shares the same tool-loop factory. That is a good KISS/DRY trade-off for this assistant. The more sophisticated parts—token budgeting, tool-result compaction, and empty-handoff recovery—address concrete LangGraph and LLM constraints rather than speculative extensibility.
+The execution architecture keeps routing simple: a supervisor delegates to compile-time-registered runtime agents, and every domain shares the same flat prepare/llm/tools/finalize loop. That is a good KISS/DRY trade-off for this assistant. The more sophisticated parts—token budgeting, tool-result compaction, empty-handoff recovery, and flat graph topology for LangSmith tracing—address concrete LangGraph and LLM constraints rather than speculative extensibility.
 
 The immediate priority is making the Docker deployment match the filesystem contracts already assumed by the application. Phase 1 deployment fixes (shared `data/`, skills at `/app/skills`, scheduler enablement, unified cron registry, in-process write serialization) are implemented. Introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.
