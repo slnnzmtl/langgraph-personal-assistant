@@ -72,8 +72,29 @@ const RuntimeAgentDefinitionBaseSchema = z.object({
   updatedAt: z.string().min(1),
 });
 
+const LEGACY_GENERIC_EXECUTORS = new Set(["finance"]);
+
+export const normalizeRuntimeAgentDefinition = (
+  input: z.infer<typeof RuntimeAgentDefinitionBaseSchema>,
+): RuntimeAgentDefinition => {
+  const { toolBundleIds: _legacyToolBundleIds, ...withoutLegacyBundles } = input;
+  const { capabilityIds, ...rest } = normalizeCapabilityFields(withoutLegacyBundles);
+  const legacyExecutor = rest.executor ?? "generic";
+  const executor = LEGACY_GENERIC_EXECUTORS.has(legacyExecutor) ? "generic" : legacyExecutor;
+
+  const modelKey = rest.modelKey
+    ?? (LEGACY_GENERIC_EXECUTORS.has(legacyExecutor) ? legacyExecutor : undefined);
+
+  return {
+    ...rest,
+    capabilityIds,
+    executor,
+    ...(modelKey ? { modelKey } : {}),
+  };
+};
+
 export const parseRuntimeAgentDefinition = (input: unknown): RuntimeAgentDefinition =>
-  normalizeCapabilityFields(RuntimeAgentDefinitionBaseSchema.parse(input));
+  normalizeRuntimeAgentDefinition(RuntimeAgentDefinitionBaseSchema.parse(input));
 
 export const RuntimeAgentDefinitionSchema = z.custom<RuntimeAgentDefinition>((value) => {
   try {
@@ -181,5 +202,8 @@ export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boole
 export const resolveAgentSkillModule = (definition: RuntimeAgentDefinition): string =>
   definition.promptSourceKey ?? definition.id;
 
+const DOMAIN_MODULE_CAPABILITY_IDS = new Set(["finance-domain", "obsidian-vault"]);
+
 export const isLocalModuleAgent = (definition: RuntimeAgentDefinition): boolean =>
-  !isRuntimeAgentBuiltin(definition) && (definition.executor ?? "generic") !== "generic";
+  !isRuntimeAgentBuiltin(definition)
+  && definition.capabilityIds.some((capabilityId) => DOMAIN_MODULE_CAPABILITY_IDS.has(capabilityId));

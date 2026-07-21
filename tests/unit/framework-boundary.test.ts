@@ -65,7 +65,7 @@ describe("framework boundaries", () => {
     ).toThrow(/unavailable/i);
   });
 
-  it("resolves the same finance bundle tools for generic and domain-style definitions", () => {
+  it("resolves finance tools for generic executor agents with finance-domain capability", () => {
     const deps = createRuntimeToolBundleDeps("/tmp/vault", {
       supabaseSession: { executeSql: async () => [] } as never,
     });
@@ -77,7 +77,8 @@ describe("framework boundaries", () => {
       systemPrompt: "Finance",
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
-      executor: "finance",
+      executor: "generic",
+      modelKey: "finance",
       builtin: false,
       maxSteps: 8,
       enabled: true,

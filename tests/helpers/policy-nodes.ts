@@ -8,9 +8,9 @@ import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
-import { createFinanceNodeHooks } from "../../src/app/policies/finance-hooks.js";
 import { createObsidianNodeHooks } from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
+import { createRuntimeShellHooks } from "../../src/core/execution/runtime-shell.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 
 const testPromptResolver = createPromptResolver(loadSystemPromptByKey);
@@ -45,7 +45,11 @@ export const createFinanceNode = (
   resolveModel(model),
   testPromptResolver.withResolvedSystemPrompt(definition),
   tools,
-  createFinanceNodeHooks(testShellFormatters),
+  createRuntimeShellHooks(testShellFormatters, {
+    logLabel: "finance-system-prompt",
+    buildErrorMessage: (error) =>
+      `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
+  }),
 );
 
 export const createObsidianNode = (

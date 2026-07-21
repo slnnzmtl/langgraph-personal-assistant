@@ -92,18 +92,22 @@ describe("createWorkflowGraph", () => {
     vi.useRealTimers();
   });
 
-  it("visits the finance node on finance route (fallback when no repository)", async () => {
+  it("rejects finance routing when Supabase is unavailable", async () => {
     let calls = 0;
-    const app = makeGraph(() => {
+    const app = makeGraph((input) => {
       calls += 1;
+
+      if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
+        return new AIMessage("Finance is unavailable in this deployment.");
+      }
+
       return { next: "finance" };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
 
-    // Supervisor routes once; finance fallback runs; supervisor then auto-FINISHes via isSubAgentComplete
-    expect(calls).toBe(1);
-    expect(state.messages.at(-1)?.content).toContain("Supabase session is not configured.");
+    expect(calls).toBe(2);
+    expect(state.messages.at(-1)?.content).toContain("Finance is unavailable");
   });
 
   it("visits the finance node on finance route (real integration with mock session)", async () => {

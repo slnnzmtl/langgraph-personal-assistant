@@ -17,5 +17,8 @@ export const deriveModelKeys = (
 export const deriveExecutors = (agents: RuntimeAgentDefinition[]): Set<string> =>
   new Set(agents.map((agent) => agent.executor ?? "generic"));
 
+export const deriveSkillModules = (agents: RuntimeAgentDefinition[]): string[] =>
+  [...new Set(agents.map((agent) => agent.promptSourceKey ?? agent.id))];
+
 export const deriveCronTargetAgentIds = (agents: RuntimeAgentDefinition[]): string[] =>
   agents.filter((agent) => agent.enabled).map((agent) => agent.id);

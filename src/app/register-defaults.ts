@@ -10,7 +10,6 @@ import { appendConfiguredSkillAttachments } from "../runtime-agents/skill-attach
 import type { RuntimeToolBundleDeps } from "../runtime-agents/tool-bundles.js";
 import {
   createConfigurationPolicy,
-  createFinancePolicy,
   createObsidianPolicy,
 } from "./policies/index.js";
 import type { RuntimeAgentPolicy } from "../core/types/policy.js";
@@ -29,7 +28,6 @@ export const createDefaultRuntimeShellFormatters = (
 });
 
 export const DOMAIN_POLICY_FACTORIES: Record<string, (options: AppExecutionKitOptions) => RuntimeAgentPolicy> = {
-  finance: createFinancePolicy,
   obsidian: createObsidianPolicy,
   configuration: createConfigurationPolicy,
 };

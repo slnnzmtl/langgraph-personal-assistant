@@ -7,6 +7,7 @@ import {
 } from "../execution/create-sub-agent.js";
 import { createRuntimeAgentNode, type RuntimeAgentNodeHooks } from "../execution/runtime-node.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
+import { resolveAgentModelKey } from "../types/agent.js";
 import { createRuntimeAgentPolicy } from "../types/policy.js";
 import type { SkillCatalog } from "../skills/catalog.js";
 
@@ -34,7 +35,7 @@ export const createGenericPolicy = <
       name: definition.name,
       maxSteps: definition.maxSteps,
       deps: {
-        model: resolveModel(context),
+        model: resolveModel(context, resolveAgentModelKey(definition)),
         definition,
         bundleDeps,
         resolveAgentTools: deps.resolveAgentTools,

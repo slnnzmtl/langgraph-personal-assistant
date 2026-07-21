@@ -19,6 +19,7 @@ import {
   deriveCronTargetAgentIds,
   deriveExecutors,
   deriveModelKeys,
+  deriveSkillModules,
 } from "../runtime-agent-catalog.js";
 import {
   createDefaultCapabilityCatalog,
@@ -59,7 +60,7 @@ export const createSupervisorSystem = async (
   const cronJobRepository = createCronJobRepositoryForConfig(config.cronJobsFilePath, cronTargetAgentIds);
   const capabilityCatalog = createDefaultCapabilityCatalog();
   const skillCatalog = createFilesystemSkillCatalog({
-    approvedModules: [CONFIGURATOR_AGENT_ID, ...deriveExecutors(runtimeAgents)],
+    approvedModules: [CONFIGURATOR_AGENT_ID, ...deriveSkillModules(runtimeAgents)],
   });
 
   const bundleDeps = createRuntimeToolBundleDeps(config.obsidianVaultPath, {

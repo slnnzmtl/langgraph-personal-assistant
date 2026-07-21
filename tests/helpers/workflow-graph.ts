@@ -5,9 +5,13 @@ import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import {
+  applyLocalModuleAvailability,
+} from "../../src/app/composition/bootstrap-agents.js";
+import {
   deriveCronTargetAgentIds,
   deriveExecutors,
   deriveModelKeys,
+  deriveSkillModules,
 } from "../../src/app/runtime-agent-catalog.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
@@ -45,6 +49,9 @@ export const createTestWorkflowGraph = ({
   supabaseSession,
   fileSender,
 }: TestWorkflowGraphOptions) => {
+  runtimeAgents = applyLocalModuleAvailability(runtimeAgents, {
+    supabaseAvailable: supabaseSession !== undefined,
+  });
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey);
   const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
     ? supervisorLlm.getSharedRuntimeModel()
@@ -59,7 +66,7 @@ export const createTestWorkflowGraph = ({
   );
 
   const skillCatalog = createFilesystemSkillCatalog({
-    approvedModules: deriveExecutors(runtimeAgents),
+    approvedModules: deriveSkillModules(runtimeAgents),
   });
   const { promptResolver, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
     skillCatalog,

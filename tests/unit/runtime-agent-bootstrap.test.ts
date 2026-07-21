@@ -40,7 +40,8 @@ describe("ensureBuiltinRuntimeAgents", () => {
     const agents = await ensureBuiltinRuntimeAgents(repository);
 
     expect(agents.map((agent) => agent.id)).toEqual(["configuration", "finance", "obsidian"]);
-    expect(agents.find((agent) => agent.id === "finance")?.executor).toBe("finance");
+    expect(agents.find((agent) => agent.id === "finance")?.executor).toBe("generic");
+    expect(agents.find((agent) => agent.id === "finance")?.modelKey).toBe("finance");
     expect(agents.find((agent) => agent.id === "obsidian")?.executor).toBe("obsidian");
   });
 
