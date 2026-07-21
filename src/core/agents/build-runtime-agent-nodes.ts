@@ -8,7 +8,7 @@ import { withResolvedAgentSystemPrompt } from "./resolve-system-prompt.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentGraphBundle } from "./runtime-agent-graph-bundle.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../execution/tool-routing.js";
 import type { SubAgentState } from "../execution/sub-agent-state.js";
 
 export const runtimeAgentPrepareNodeName = (agentId: string): string => `${agentId}__prepare`;

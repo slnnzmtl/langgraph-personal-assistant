@@ -13,9 +13,7 @@ import {
 import type { LoadPromptByKey } from "./agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "./agents/repository.js";
 import { createRuntimeAgentExecutionContext } from "./execution/context.js";
-import { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
-import { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
-import type { RuntimeAgentPolicy } from "./types/policy.js";
+import type { PolicyRegistry } from "./policies/registry.js";
 import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
 import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
@@ -40,23 +38,15 @@ export type AssistantConfig = {
   bundleDeps?: Record<string, unknown>;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
-  policies?: RuntimeAgentPolicy[];
-  genericPolicyDeps?: GenericPolicyDeps;
+  policyRegistry: PolicyRegistry;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
   checkpointer?: MemorySaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
-  policyRegistry?: PolicyRegistry;
 };
 
 export const createAssistant = (config: AssistantConfig) => {
-  const policyRegistry = config.policyRegistry
-    ?? (config.policies && config.genericPolicyDeps
-      ? createPolicyRegistry([
-        createGenericPolicy(config.genericPolicyDeps),
-        ...config.policies,
-      ])
-      : (() => { throw new Error("createAssistant requires policyRegistry or policies with genericPolicyDeps."); })());
+  const policyRegistry = config.policyRegistry;
 
   const memory = config.checkpointer ?? new MemorySaver();
   const executionContext = createRuntimeAgentExecutionContext({

@@ -1,26 +1,25 @@
-# Supervisor Agent Framework
+# Execution Kernel
 
-This repository exposes a small framework for building supervisor → specialist agent systems. Product-specific domains (Obsidian, finance, configuration) compose the framework; they do not live inside it.
+`src/core/` holds the LangGraph execution kernel for this personal assistant. Product-specific domains (Obsidian, finance, configuration) compose the kernel from `src/app/` and `src/runtime-agents/`; they do not live inside core.
 
 ## Layers
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| Core | `src/core/` | Agent definitions, graph execution, policies, capability contracts, skill ports |
+| Core | `src/core/` | Agent definitions, graph execution, policies API, capability contracts, skill ports |
 | Capabilities | `src/capabilities/` | Declarative capability descriptors and catalog validation |
 | Composition | `src/app/composition/` | Bootstrap agents, register capabilities, build the supervisor system |
 | Integrations | `src/integrations/` | Concrete adapters (filesystem skills, vault, Supabase, cron) |
 | Product policies | `src/app/policies/` | Domain hooks and optional configuration feature |
 
-## Public core API
+## Core API (in-repo)
 
-Import from `src/core/index.ts`:
+Import from `src/core/index.ts` when wiring within this monorepo:
 
-- `createAssistant` — compile the supervisor graph
-- `createGenericPolicy`, `createPolicyRegistry` — register executors
+- `createAssistant` — compile the supervisor graph (requires a `policyRegistry`)
+- `createAgentPolicy`, `createPolicyRegistry` — register executors
 - `createRuntimeAgentRepository` — persist agent definitions
 - `createCapabilityCatalog` — validate and resolve tool bundles
-- `createRuntimeShellHooks` — shared metadata + skill attachment shell
 - Types: `RuntimeAgentDefinition`, `RuntimeAgentPolicy`, `SkillCatalog`, `CapabilityDescriptor`
 
 ## Composition entry point
@@ -48,6 +47,6 @@ The configuration executor can manage skills, cron jobs, and generic agents when
 
 Adding new executable integrations remains a deployment/code change; the configurator composes registered capabilities only.
 
-## Minimal new supervisor system
+## Graph composition walkthrough
 
-See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md).
+See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md) for how this assistant composes its graph (requires this monorepo's app layer).

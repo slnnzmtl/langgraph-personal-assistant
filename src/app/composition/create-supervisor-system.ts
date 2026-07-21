@@ -3,7 +3,7 @@ import { createWorkflowGraph } from "../../agent.js";
 import { GeminiConnector } from "../../connectors/llm-connector.js";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
 import type { RuntimeCronService } from "../../cron/types.js";
-import { createRuntimeAgentRepositoryForConfig } from "../../core/agents/repository.js";
+import { createRuntimeAgentRepositoryForConfig } from "./create-runtime-agent-repository.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import { resolveAgentModelKey } from "../../core/types/agent.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";

@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
+import { extractMessageTextContent } from "../messages/message-content.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { FINISH_ROUTE } from "../state.js";
 import { findLatestHumanMessageText, isRoutingJson } from "./reply-helpers.js";

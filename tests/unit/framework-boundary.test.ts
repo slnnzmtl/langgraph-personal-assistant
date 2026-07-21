@@ -42,13 +42,18 @@ const collectSourceFiles = (dir: string): string[] => {
 
 describe("framework boundaries", () => {
   it("keeps core free of runtime-agents imports", () => {
-    const forbidden = ["runtime-agents/", "app/policies/", "integrations/"];
+    const forbiddenPathSegments = ["runtime-agents/", "app/policies/", "integrations/", "../../tools/"];
+    const forbiddenImportSubstrings = ["utils/message-content.js"];
 
     for (const file of collectSourceFiles(CORE_ROOT)) {
       const content = readFileSync(file, "utf8");
 
-      for (const segment of forbidden) {
+      for (const segment of forbiddenPathSegments) {
         expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+      }
+
+      for (const importPath of forbiddenImportSubstrings) {
+        expect(content.includes(importPath), `${file} must not import ${importPath}`).toBe(false);
       }
     }
   });

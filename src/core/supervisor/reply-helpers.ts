@@ -6,7 +6,7 @@ import {
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
+import { extractMessageTextContent } from "../messages/message-content.js";
 
 export const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {

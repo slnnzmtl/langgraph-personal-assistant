@@ -10,7 +10,7 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 
 | Layer | Role |
 |---|---|
-| **`src/core/`** | Reusable assistant framework (graph, state, policies API, runtime agent bundle factory) |
+| **`src/core/`** | Execution kernel (graph, state, policies API, runtime agent bundle factory) |
 | **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
 | **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
 
@@ -219,7 +219,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 
 Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/policies/<domain>/`.
 
-**Generic agents** (user-created via configuration) use `createGenericPolicy()` and compose tools from allowlisted **tool bundles** rather than hard-coded domain tools.
+**Generic agents** (user-created via configuration) register through `createAppExecutionKit()` with the generic executor policy and compose tools from allowlisted **capabilities** rather than hard-coded domain tools.
 
 ---
 
@@ -349,7 +349,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and `src/core/policies/generic.ts` resolves allowlisted bundles for configurable agents.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and the generic executor policy in `createAppExecutionKit()` resolves allowlisted capabilities for configurable agents.
 
 ---
 
@@ -518,13 +518,6 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
 5. Add prompt file under `prompts/`
 6. Restart the process so `createAssistant()` recompiles graph nodes for the new agent
-
-**Reuse the framework elsewhere:**
-
-```typescript
-import { createAssistant } from "./core/create-assistant.js";
-// Provide runtimeAgents, policies, loadPromptByKey, models, repository
-```
 
 **Add a custom runtime agent at runtime:**
 

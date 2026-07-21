@@ -3,9 +3,9 @@ import path from "node:path";
 
 import {
   RuntimeAgentsDocumentSchema,
-  isLocalModuleAgent,
   type RuntimeAgentDefinition,
 } from "../../src/core/types/agent.js";
+import { isLocalModuleAgent } from "../../src/app/composition/agent-legacy.js";
 import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");

@@ -1,6 +1,6 @@
-# Minimal supervisor system
+# Graph composition walkthrough
 
-This walkthrough shows how to stand up a new supervisor system using the framework boundaries in this repo.
+This walkthrough shows how **this personal assistant** composes its supervisor graph. It requires this monorepo's app layer (`src/app/`) and domain runtime (`src/runtime-agents/`) — not a standalone package.
 
 ## 1. Define agents
 
@@ -66,6 +66,7 @@ const bundleDeps = createRuntimeToolBundleDeps("/path/to/vault", {
 const graph = createAssistant({
   supervisorLlm,
   models: { generic: model },
+  runtimeAgents,
   runtimeAgentRepository,
   cronJobRepository,
   bundleDeps,
@@ -79,4 +80,4 @@ const graph = createAssistant({
 
 Enable the built-in configuration executor and grant `system-config` so an operator agent can attach approved capabilities, edit skills, and schedule cron jobs—without modifying source code.
 
-For a production deployment, copy `createSupervisorSystem()` and replace integrations (Telegram, Supabase, Obsidian) with your own adapters under `src/integrations/`.
+For production wiring, prefer `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts`.

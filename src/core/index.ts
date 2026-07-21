@@ -1,8 +1,8 @@
 export { createAssistant, type AssistantConfig } from "./create-assistant.js";
 export {
   createRuntimeAgentRepository,
-  createRuntimeAgentRepositoryForConfig,
   type RuntimeAgentRepository,
+  type RuntimeAgentRepositoryOptions,
 } from "./agents/repository.js";
 export {
   resolveAgentSystemPrompt,
@@ -15,7 +15,6 @@ export {
   type AgentPolicyToolkitOptions,
   type CreateAgentPolicyConfig,
 } from "./policies/create-agent-policy.js";
-export { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
 export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 export {
   createRuntimeAgentNode,
@@ -37,7 +36,6 @@ export {
   resolveAgentModelKey,
   resolveAgentSkillModule,
   isRuntimeAgentBuiltin,
-  isLocalModuleAgent,
   type RuntimeAgentDefinition,
   type CreateRuntimeAgentInput,
   type UpdateRuntimeAgentInput,

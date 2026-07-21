@@ -1,6 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "../../utils/message-content.js";
+import { extractMessageTextContent } from "../messages/message-content.js";
 
 const MAX_TOOL_CONTEXT_CHARS = 2_000;
 

@@ -4,7 +4,7 @@ A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.
 
 ## Architecture
 
-The codebase is split into a **reusable framework** (`src/core/`), an **app layer** (`src/app/`) for this assistant's policies and wiring, and **domain runtime** code (`src/runtime-agents/`) for tools, bundles, and defaults. The graph entry point is `createAssistant()` in `src/core/create-assistant.ts`; the Telegram app calls it via `createWorkflowGraph()` in `src/agent.ts`.
+The codebase is split into an **execution kernel** (`src/core/`), an **app layer** (`src/app/`) for this assistant's policies and wiring, and **domain runtime** code (`src/runtime-agents/`) for tools, bundles, and defaults. The graph entry point is `createAssistant()` in `src/core/create-assistant.ts`; the Telegram app calls it via `createWorkflowGraph()` in `src/agent.ts`.
 
 ```mermaid
 graph TD
@@ -18,7 +18,7 @@ graph TD
         AppPolicies[finance / obsidian / configuration policies]
     end
 
-    subgraph CoreFramework [Core framework]
+    subgraph CoreKernel [Execution kernel]
         CreateAssistant[createAssistant]
         Supervisor{Supervisor}
         Prepare["agent__prepare"]
@@ -59,7 +59,7 @@ graph TD
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| **Core framework** | `src/core/` | LangGraph topology, supervisor routing, flat runtime-agent loops, policy registry API, agent repository, shared state |
+| **Execution kernel** | `src/core/` | LangGraph topology, supervisor routing, flat runtime-agent loops, policy registry API, agent repository, shared state |
 | **App layer** | `src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
 | **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), bootstrap |
 | **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
@@ -234,7 +234,7 @@ pnpm check              # TypeScript type check
 
 ```
 src/
-  core/                     # Reusable assistant framework
+  core/                     # Execution kernel (LangGraph, supervisor, policies API)
     create-assistant.ts     # createAssistant() — main graph API
     state.ts                # AgentState, message trimming
     supervisor/             # Supervisor node, routing schema, message sanitization
@@ -276,4 +276,3 @@ tests/                      # Unit and e2e tests
 
 - **New built-in domain agent:** add persisted agent spec + tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`. Restart required.
 - **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works.
-- **Reusing the framework:** import `createAssistant` from `src/core/create-assistant.ts` with your own `policies`, `loadPromptByKey`, and `genericPolicyDeps` (or pass a pre-built `policyRegistry`).

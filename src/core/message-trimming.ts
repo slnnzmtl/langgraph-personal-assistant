@@ -5,7 +5,7 @@ import {
   type BaseMessage,
 } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "../utils/message-content.js";
+import { extractMessageTextContent } from "./messages/message-content.js";
 
 export const DEFAULT_MESSAGE_HISTORY_MAX_TOKENS = 6_000;
 
