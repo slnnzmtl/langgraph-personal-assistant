@@ -1,11 +1,11 @@
 import { resolveModel } from "../execution/context.js";
 import {
-  createSubAgent,
+  createSubAgentGraphBundle,
   mapDefaultSubAgentResult,
 } from "../execution/create-sub-agent.js";
 import { createRuntimeAgentNode, type RuntimeAgentNodeHooks } from "../execution/runtime-node.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
-import type { RuntimeAgentPolicy } from "../types/policy.js";
+import { createRuntimeAgentPolicy } from "../types/policy.js";
 import type { SkillCatalog } from "../skills/catalog.js";
 
 export type GenericPolicyDeps<
@@ -28,12 +28,11 @@ export const createGenericPolicy = <
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
 >(
   deps: GenericPolicyDeps<TBundleDeps>,
-): RuntimeAgentPolicy => ({
-  executor: "generic",
-  createHandler: (context, definition) => {
+) =>
+  createRuntimeAgentPolicy("generic", (context, definition) => {
     const bundleDeps = context.bundleDeps as TBundleDeps;
 
-    return createSubAgent({
+    return createSubAgentGraphBundle({
       name: definition.name,
       maxSteps: definition.maxSteps,
       deps: {
@@ -62,5 +61,4 @@ export const createGenericPolicy = <
         ),
       mapResult: (result, config) => mapDefaultSubAgentResult(result, config),
     });
-  },
-});
+  });

@@ -1,6 +1,9 @@
+import type { RunnableConfig } from "@langchain/core/runnables";
+
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { createRuntimeAgentFailureMessage } from "../execution/runtime-node.js";
 import type { RuntimeAgentPolicyHandler } from "../types/policy.js";
+import { resolveRuntimeAgentPolicyHandler } from "../types/policy.js";
 import type { RuntimeAgentExecutionContext } from "../execution/context.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 
@@ -34,13 +37,13 @@ const resolvePolicyHandler = (
     return cached;
   }
 
-  const handler = policy.createHandler(context, definition);
+  const handler = resolveRuntimeAgentPolicyHandler(policy, context, definition);
   cache.set(cacheKey, handler);
   return handler;
 };
 
 export const createRuntimeAgentDispatcher = (context: RuntimeAgentExecutionContext) =>
-  async (parentState: AgentState): Promise<AgentStateUpdate> => {
+  async (parentState: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
     const runtimeAgentId = parentState.context[RUNTIME_AGENT_CONTEXT_KEY];
 
     if (typeof runtimeAgentId !== "string" || runtimeAgentId.trim().length === 0) {
@@ -67,7 +70,7 @@ export const createRuntimeAgentDispatcher = (context: RuntimeAgentExecutionConte
       const resolvedDefinition = context.promptResolver.withResolvedSystemPrompt(definition);
       const executor = resolvedDefinition.executor ?? "generic";
       const handler = resolvePolicyHandler(context, executor, resolvedDefinition);
-      return handler(parentState);
+      return handler(parentState, config);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       return {

@@ -8,10 +8,10 @@ describe("createSubgraphNodeWrapper", () => {
   it("returns the last AI message from the subgraph result", async () => {
     const wrapper = createSubgraphNodeWrapper({
       subgraphName: "Test",
-      buildInitialState: (parentState) => ({ messages: parentState.messages }),
+      buildInitialState: (parentState) => ({ agentMessages: parentState.messages }),
       compiledSubgraph: {
         invoke: async () => ({
-          messages: [new AIMessage("subgraph done")],
+          agentMessages: [new AIMessage("subgraph done")],
         }),
       },
     });
@@ -28,10 +28,10 @@ describe("createSubgraphNodeWrapper", () => {
   it("uses mapResult when provided", async () => {
     const wrapper = createSubgraphNodeWrapper({
       subgraphName: "Test",
-      buildInitialState: (parentState) => ({ messages: parentState.messages, stepCount: 0 }),
+      buildInitialState: (parentState) => ({ agentMessages: parentState.messages, stepCount: 0 }),
       compiledSubgraph: {
         invoke: async () => ({
-          messages: [new AIMessage("ignored")],
+          agentMessages: [new AIMessage("ignored")],
           stepCount: 3,
         }),
       },
@@ -49,10 +49,33 @@ describe("createSubgraphNodeWrapper", () => {
     expect(result.messages?.[0]?.content).toBe("steps: 3");
   });
 
+  it("forwards RunnableConfig to the compiled subgraph invoke", async () => {
+    const config = { callbacks: [] };
+    const invoke = vi.fn().mockResolvedValue({
+      agentMessages: [new AIMessage("done")],
+    });
+    const wrapper = createSubgraphNodeWrapper({
+      subgraphName: "Test",
+      buildInitialState: (parentState) => ({ agentMessages: parentState.messages }),
+      compiledSubgraph: { invoke },
+    });
+
+    await wrapper({
+      messages: [new HumanMessage("hello")],
+      context: {},
+      next: undefined,
+    }, config);
+
+    expect(invoke).toHaveBeenCalledWith(
+      { agentMessages: [new HumanMessage("hello")] },
+      config,
+    );
+  });
+
   it("returns a failure message when the subgraph throws", async () => {
     const wrapper = createSubgraphNodeWrapper({
       subgraphName: "Finance",
-      buildInitialState: (parentState) => ({ messages: parentState.messages }),
+      buildInitialState: (parentState) => ({ agentMessages: parentState.messages }),
       compiledSubgraph: {
         invoke: async () => {
           throw new Error("boom");

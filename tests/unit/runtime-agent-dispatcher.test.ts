@@ -1,8 +1,9 @@
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createRuntimeAgentDispatcher } from "../../src/core/agents/dispatch.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
+import type { RuntimeAgentPolicyHandler } from "../../src/core/types/policy.js";
 import {
   FakeLLMConnector,
   createRuntimeAgentRepositoryFake,
@@ -81,5 +82,46 @@ describe("createRuntimeAgentDispatcher", () => {
     });
 
     expect(result.messages?.[0]?.content).toContain("daily summary");
+  });
+
+  it("forwards RunnableConfig to the policy handler", async () => {
+    const handler = vi.fn<RuntimeAgentPolicyHandler>().mockResolvedValue({
+      messages: [new AIMessage("handled")],
+    });
+    const repository = createRuntimeAgentRepositoryFake([
+      {
+        id: "daily-summary",
+        name: "Daily Summary",
+        description: "Summarize the user's day.",
+        systemPrompt: "You summarize days.",
+        toolBundleIds: ["none"],
+        executor: "generic",
+        maxSteps: 4,
+        enabled: true,
+        createdAt: "2026-07-16T00:00:00.000Z",
+        updatedAt: "2026-07-16T00:00:00.000Z",
+      },
+    ]);
+    const llmConnector = new FakeLLMConnector(() => new AIMessage("unused"));
+    const context = createRuntimeExecutionContextFake({
+      repository,
+      llmConnector,
+    });
+    context.policyRegistry.register({
+      executor: "generic",
+      createHandler: () => handler,
+    });
+
+    const dispatcher = createRuntimeAgentDispatcher(context);
+    const parentState = {
+      messages: [new HumanMessage("summarize my day")],
+      context: { [RUNTIME_AGENT_CONTEXT_KEY]: "daily-summary" },
+      next: "Runtime_SG" as const,
+    };
+    const config = { callbacks: [] };
+
+    await dispatcher(parentState, config);
+
+    expect(handler).toHaveBeenCalledWith(parentState, config);
   });
 });

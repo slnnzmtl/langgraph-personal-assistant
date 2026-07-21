@@ -76,7 +76,7 @@ export const createConfigurationNodeHooks = (
     buildErrorMessage: (error) =>
       `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
     beforeTurn: async (ctx) => {
-      const latestMessage = ctx.state.messages[ctx.state.messages.length - 1];
+      const latestMessage = ctx.state.agentMessages[ctx.state.agentMessages.length - 1];
       const latestMessageText = latestMessage ? extractMessageTextContent(latestMessage.content).trim() : "";
 
       if (
@@ -89,7 +89,7 @@ export const createConfigurationNodeHooks = (
           ? jobs.map(formatCronJobForDisplay).join("\n\n")
           : "No cron jobs configured.";
 
-        return { messages: [new AIMessage(content)] };
+        return { agentMessages: [new AIMessage(content)] };
       }
 
       if (
@@ -98,10 +98,10 @@ export const createConfigurationNodeHooks = (
         && options.skillCatalog
         && isConfigurationSkillCatalogRequest(latestMessageText, skillModules)
       ) {
-        return { messages: [new AIMessage(formatConfigurationSkillCatalog(options.skillCatalog))] };
+        return { agentMessages: [new AIMessage(formatConfigurationSkillCatalog(options.skillCatalog))] };
       }
 
-      if (shouldReconcileCron(ctx.state.messages)) {
+      if (shouldReconcileCron(ctx.state.agentMessages)) {
         await reconcileRuntimeCron(options.repository, options.runtimeCron);
       }
 
@@ -109,7 +109,7 @@ export const createConfigurationNodeHooks = (
         latestMessage instanceof ToolMessage ? latestMessage : undefined,
       );
       if (readOnlySkillToolResult) {
-        return { messages: [new AIMessage(readOnlySkillToolResult)] };
+        return { agentMessages: [new AIMessage(readOnlySkillToolResult)] };
       }
 
       return null;

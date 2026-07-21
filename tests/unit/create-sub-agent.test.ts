@@ -18,17 +18,17 @@ const createTestLlmNode = (handler: (input: unknown) => AIMessage) => {
   const model = new FakeLLMConnector(handler).getModel();
 
   return async (state: SubAgentState): Promise<SubAgentStateUpdate> => {
-    if (hasPendingToolCalls(state.messages)) {
+    if (hasPendingToolCalls(state.agentMessages)) {
       return { stepCount: state.stepCount };
     }
 
-    const lastMessage = state.messages[state.messages.length - 1];
+    const lastMessage = state.agentMessages[state.agentMessages.length - 1];
     const isLoopContinuation = lastMessage instanceof ToolMessage;
     const stepCount = isLoopContinuation ? state.stepCount + 1 : 1;
-    const response = await model.invoke(state.messages);
+    const response = await model.invoke(state.agentMessages);
 
     return {
-      messages: [response as AIMessage],
+      agentMessages: [response as AIMessage],
       stepCount,
     };
   };
@@ -62,7 +62,7 @@ describe("createCompiledSubAgentGraph", () => {
     });
 
     expect(llmCalls).toBe(2);
-    expect(result.messages.at(-1)?.content).toBe("subgraph done");
+    expect(result.agentMessages.at(-1)?.content).toBe("subgraph done");
   });
 
   it("terminates when maxSteps is reached", async () => {
@@ -75,13 +75,13 @@ describe("createCompiledSubAgentGraph", () => {
 
     const subgraph = createCompiledSubAgentGraph("Test", 1, llmNode, [echoTool]);
     const result = await subgraph.invoke({
-      messages: [new HumanMessage("loop forever")],
+      agentMessages: [new HumanMessage("loop forever")],
       stepCount: 0,
     });
 
     expect(result.stepCount).toBe(1);
-    expect(result.messages.at(-1)).toBeInstanceOf(AIMessage);
-    expect((result.messages.at(-1) as AIMessage).tool_calls?.length).toBeGreaterThan(0);
+    expect(result.agentMessages.at(-1)).toBeInstanceOf(AIMessage);
+    expect((result.agentMessages.at(-1) as AIMessage).tool_calls?.length).toBeGreaterThan(0);
   });
 });
 
@@ -93,7 +93,7 @@ describe("createSubAgent", () => {
       deps: {},
       createTools: () => [],
       createLlmNode: () => async () => ({
-        messages: [new AIMessage("subgraph done")],
+        agentMessages: [new AIMessage("subgraph done")],
         stepCount: 1,
       }),
     });
@@ -114,7 +114,7 @@ describe("createSubAgent", () => {
       deps: {},
       createTools: () => [],
       createLlmNode: () => async () => ({
-        messages: [new AIMessage("ignored")],
+        agentMessages: [new AIMessage("ignored")],
         stepCount: 3,
       }),
       mapResult: (result, { maxSteps }) => ({

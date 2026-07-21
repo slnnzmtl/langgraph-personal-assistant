@@ -84,7 +84,7 @@ describe("configuration subgraph", () => {
     });
 
     const update = await configNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("create a cron job"),
         new AIMessage({
           content: "",
@@ -99,7 +99,7 @@ describe("configuration subgraph", () => {
     });
 
     expect(configCalls).toBe(0);
-    expect(update.messages).toBeUndefined();
+    expect(update.agentMessages).toBeUndefined();
     expect(update.stepCount).toBe(1);
   });
 
@@ -140,11 +140,11 @@ describe("configuration subgraph", () => {
     });
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);
     const result = await subgraph.invoke({
-      messages: [new HumanMessage("update cron jobs")],
+      agentMessages: [new HumanMessage("update cron jobs")],
       stepCount: 0,
     });
 
     expect(configCalls).toBeGreaterThanOrEqual(2);
-    expect(result.messages.at(-1)?.content).toBe("Configuration updated.");
+    expect(result.agentMessages.at(-1)?.content).toBe("Configuration updated.");
   });
 });

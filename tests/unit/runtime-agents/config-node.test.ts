@@ -45,13 +45,13 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [new HumanMessage("list cron jobs")],
+      agentMessages: [new HumanMessage("list cron jobs")],
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toContain("Job name: sync-wise-transactions");
-    expect(result.messages?.[0]?.content).toContain("Schedule: 0 7 * * *");
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toContain("Job name: sync-wise-transactions");
+    expect(result.agentMessages?.[0]?.content).toContain("Schedule: 0 7 * * *");
     expect(invokeSpy).not.toHaveBeenCalled();
     expect(runtimeCron.addJob).not.toHaveBeenCalled();
   });
@@ -75,15 +75,15 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [new HumanMessage("list available skills")],
+      agentMessages: [new HumanMessage("list available skills")],
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toContain("Module: configuration");
-    expect(result.messages?.[0]?.content).toContain("Skill Name: cron");
-    expect(result.messages?.[0]?.content).toContain("Skill Name: skill-management");
-    expect(result.messages?.[0]?.content).toContain("Status: Listed");
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toContain("Module: configuration");
+    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: cron");
+    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: skill-management");
+    expect(result.agentMessages?.[0]?.content).toContain("Status: Listed");
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
@@ -116,12 +116,12 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [new HumanMessage("list finance skills")],
+      agentMessages: [new HumanMessage("list finance skills")],
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.tool_calls?.[0]?.name).toBe("read_skill");
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.tool_calls?.[0]?.name).toBe("read_skill");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -154,13 +154,13 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [new HumanMessage("do something with skills")],
+      agentMessages: [new HumanMessage("do something with skills")],
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.tool_calls ?? []).toHaveLength(0);
-    expect(String(result.messages?.[0]?.content)).toContain(
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.tool_calls ?? []).toHaveLength(0);
+    expect(String(result.agentMessages?.[0]?.content)).toContain(
       "That tool is not available for this runtime agent.",
     );
     expect(invokeSpy).toHaveBeenCalledTimes(1);
@@ -186,7 +186,7 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [
+      agentMessages: [
         new HumanMessage("read sync-expenses"),
         new AIMessage({
           content: "",
@@ -208,8 +208,8 @@ describe("createConfigurationNode", () => {
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toBe(skillContent);
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toBe(skillContent);
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
@@ -233,7 +233,7 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [
+      agentMessages: [
         new HumanMessage("list skills"),
         new AIMessage({
           content: "",
@@ -255,8 +255,8 @@ describe("createConfigurationNode", () => {
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toBe(listContent);
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toBe(listContent);
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
@@ -278,7 +278,7 @@ describe("createConfigurationNode", () => {
     );
 
     const result = await node({
-      messages: [
+      agentMessages: [
         new HumanMessage("edit sync-expenses"),
         new AIMessage({
           content: "",
@@ -300,8 +300,8 @@ describe("createConfigurationNode", () => {
       stepCount: 0,
     });
 
-    expect(result.messages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.messages?.[0]?.content).toBe("Ready to edit.");
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toBe("Ready to edit.");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 });

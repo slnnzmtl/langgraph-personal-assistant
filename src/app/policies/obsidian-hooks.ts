@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
+import type { SubAgentState } from "../../core/execution/sub-agent-state.js";
 import { formatObsidianRoutineHint } from "../../prompts/load-system-prompt.js";
 import { extractMessageTextContent } from "../../utils/message-content.js";
 import { buildDirectoryTree } from "../../utils/file-system.js";
@@ -44,19 +45,19 @@ const hasCompletedObsidianReply = (message: BaseMessage | undefined): message is
   && extractMessageTextContent(message.content).trim().length > 0;
 
 export const mapObsidianSubAgentResult = (
-  result: { messages: BaseMessage[]; stepCount: number },
+  result: SubAgentState,
   maxSteps: number,
   onMaxStepsExceeded: () => { messages: AIMessage[] },
 ): { messages: AIMessage[] } => {
-  const lastMessage = result.messages[result.messages.length - 1];
+  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
 
   if (hasCompletedObsidianReply(lastMessage)) {
     return { messages: [lastMessage] };
   }
 
-  if (hasSuccessfulObsidianWrite(result.messages)) {
+  if (hasSuccessfulObsidianWrite(result.agentMessages)) {
     return {
-      messages: [new AIMessage(buildObsidianCompletionSummary(result.messages))],
+      messages: [new AIMessage(buildObsidianCompletionSummary(result.agentMessages))],
     };
   }
 
@@ -65,7 +66,7 @@ export const mapObsidianSubAgentResult = (
   }
 
   return {
-    messages: [new AIMessage(buildObsidianCompletionSummary(result.messages))],
+    messages: [new AIMessage(buildObsidianCompletionSummary(result.agentMessages))],
   };
 };
 
@@ -78,7 +79,7 @@ const resolveObsidianToolsForTurn = (
 
   let toolsForTurn = ctx.tools;
 
-  const attachedSkillNames = getAttachedSkillNames(ctx.definition, ctx.state.messages);
+  const attachedSkillNames = getAttachedSkillNames(ctx.definition, ctx.state.agentMessages);
   if (attachedSkillNames.size > 0) {
     toolsForTurn = toolsForTurn.filter((tool) => tool.name !== "read_skill");
   }
@@ -127,12 +128,12 @@ export const createObsidianNodeHooks = (
         return response;
       }
 
-      const hasToolResults = ctx.state.messages.some((message) => message instanceof ToolMessage);
+      const hasToolResults = ctx.state.agentMessages.some((message) => message instanceof ToolMessage);
       if (!hasToolResults) {
         return new AIMessage("Completed the Obsidian task.");
       }
 
-      return new AIMessage(buildObsidianCompletionSummary(ctx.state.messages));
+      return new AIMessage(buildObsidianCompletionSummary(ctx.state.agentMessages));
     },
     emptyResponseMessage: () => "Completed the Obsidian task.",
   };

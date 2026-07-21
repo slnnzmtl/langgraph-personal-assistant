@@ -3,7 +3,8 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import { resolveModel } from "../../core/execution/context.js";
 import type { PolicyContext } from "../../core/types/policy-context.js";
-import { createSubAgent, createSubAgentOrStub } from "../../core/execution/create-sub-agent.js";
+import { createSubAgentGraphBundle } from "../../core/execution/create-sub-agent.js";
+import { createUnavailableGraphBundle } from "../../core/agents/runtime-agent-graph-bundle.js";
 import {
   createRuntimeAgentNode,
   type SubAgentToolSource,
@@ -11,7 +12,7 @@ import {
 import type { SubAgentState, SubAgentStateUpdate } from "../../core/execution/sub-agent-state.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import { resolveAgentModelKey } from "../../core/types/agent.js";
-import type { RuntimeAgentPolicy } from "../../core/types/policy.js";
+import { createRuntimeAgentPolicy } from "../../core/types/policy.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
@@ -37,51 +38,48 @@ const createDomainLlmNode = (
 
 export const createFinancePolicy = (
   options: DomainPolicyOptions = {},
-): RuntimeAgentPolicy => ({
-  executor: "finance",
-  createHandler: (context: PolicyContext, definition) => {
+) =>
+  createRuntimeAgentPolicy("finance", (context: PolicyContext, definition) => {
     if (!options.shellFormatters) {
       throw new Error("createFinancePolicy requires runtime shell formatters.");
     }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const session = bundleDeps.supabaseSession;
 
-    return createSubAgentOrStub(
-      (deps) => deps.session !== undefined,
-      "Supabase session is not configured.",
-      {
-        name: "Finance",
-        maxSteps: definition.maxSteps,
-        deps: {
-          model: resolveModel(context, resolveAgentModelKey(definition)),
-          definition,
-          session,
-          bundleDeps,
-          skillCatalog: options.skillCatalog,
-        },
-        createTools: (deps) =>
-          resolveAgentCapabilityTools(deps.definition, deps.bundleDeps, {
-            ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
-          }),
-        createLlmNode: (deps, tools) =>
-          createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks(options.shellFormatters)),
+    if (!session) {
+      return createUnavailableGraphBundle("Finance", "Supabase session is not configured.");
+    }
+
+    return createSubAgentGraphBundle({
+      name: "Finance",
+      maxSteps: definition.maxSteps,
+      deps: {
+        model: resolveModel(context, resolveAgentModelKey(definition)),
+        definition,
+        session,
+        bundleDeps,
+        skillCatalog: options.skillCatalog,
       },
-    );
-  },
-});
+      createTools: (deps) =>
+        resolveAgentCapabilityTools(deps.definition, deps.bundleDeps, {
+          ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
+        }),
+      createLlmNode: (deps, tools) =>
+        createDomainLlmNode(deps.model, deps.definition, tools, createFinanceNodeHooks(options.shellFormatters!)),
+    });
+  });
 
 export const createObsidianPolicy = (
   options: DomainPolicyOptions = {},
-): RuntimeAgentPolicy => ({
-  executor: "obsidian",
-  createHandler: (context, definition) => {
+) =>
+  createRuntimeAgentPolicy("obsidian", (context, definition) => {
     if (!options.shellFormatters) {
       throw new Error("createObsidianPolicy requires runtime shell formatters.");
     }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
     const maxSteps = definition.maxSteps;
 
-    return createSubAgent({
+    return createSubAgentGraphBundle({
       name: "Obsidian",
       maxSteps,
       deps: {
@@ -112,20 +110,18 @@ export const createObsidianPolicy = (
           ],
         })),
     });
-  },
-});
+  });
 
 export const createConfigurationPolicy = (
   options: DomainPolicyOptions = {},
-): RuntimeAgentPolicy => ({
-  executor: "configuration",
-  createHandler: (context, definition) => {
+) =>
+  createRuntimeAgentPolicy("configuration", (context, definition) => {
     if (!options.shellFormatters) {
       throw new Error("createConfigurationPolicy requires runtime shell formatters.");
     }
     const bundleDeps = context.bundleDeps as RuntimeToolBundleDeps;
 
-    return createSubAgent({
+    return createSubAgentGraphBundle({
       name: "Configuration",
       maxSteps: definition.maxSteps,
       deps: {
@@ -153,5 +149,4 @@ export const createConfigurationPolicy = (
           }),
         ),
     });
-  },
-});
+  });

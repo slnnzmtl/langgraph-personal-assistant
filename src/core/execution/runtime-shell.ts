@@ -19,7 +19,7 @@ export const createRuntimeShellHooks = (
         ? formatters.appendSkillAttachments(
           ctx.basePrompt.trim(),
           ctx.definition,
-          ctx.state.messages,
+          ctx.state.agentMessages,
         )
         : ctx.basePrompt.trim();
 

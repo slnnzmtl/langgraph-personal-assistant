@@ -1,13 +1,18 @@
 import { AIMessage } from "@langchain/core/messages";
+import type { RunnableConfig } from "@langchain/core/runnables";
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../../tools/routing.js";
-import { createSubgraphNodeWrapper } from "./subgraph-wrapper.js";
+import {
+  graphBundleToHandler,
+  type RuntimeAgentGraphBundle,
+} from "../agents/runtime-agent-graph-bundle.js";
 import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import type { SubAgentToolSource } from "./runtime-node.js";
 import {
+  createSubAgentStateAnnotation,
   SubAgentStateAnnotation,
   type SubAgentState,
   type SubAgentStateUpdate,
@@ -15,6 +20,7 @@ import {
 
 export type SubAgentLlmNode = (
   state: SubAgentState,
+  config?: RunnableConfig,
 ) => Promise<SubAgentStateUpdate>;
 
 export type SubAgentConfig<TDeps> = {
@@ -28,6 +34,16 @@ export type SubAgentConfig<TDeps> = {
     config: { maxSteps: number; name: string },
   ) => AgentStateUpdate;
   buildInitialState?: (parentState: AgentState) => SubAgentState;
+  messageHistoryMaxTokens?: number;
+};
+
+const createToolsNode = (tools: SubAgentToolSource) => {
+  const toolNode = new ToolNode(tools);
+
+  return async (state: SubAgentState, config?: RunnableConfig): Promise<SubAgentStateUpdate> => {
+    const result = await toolNode.invoke({ messages: state.agentMessages }, config);
+    return { agentMessages: result.messages };
+  };
 };
 
 export const createCompiledSubAgentGraph = (
@@ -35,11 +51,14 @@ export const createCompiledSubAgentGraph = (
   maxSteps: number,
   llmNode: SubAgentLlmNode,
   tools: SubAgentToolSource,
+  options?: { messageHistoryMaxTokens?: number },
 ) => {
-  const toolNode = new ToolNode(tools);
-  const toolsNode = toolNode.invoke.bind(toolNode);
+  const stateAnnotation = options?.messageHistoryMaxTokens
+    ? createSubAgentStateAnnotation({ messageHistoryMaxTokens: options.messageHistoryMaxTokens })
+    : SubAgentStateAnnotation;
+  const toolsNode = createToolsNode(tools);
 
-  const graph = new StateGraph(SubAgentStateAnnotation)
+  const graph = new StateGraph(stateAnnotation)
     .addNode("llm", llmNode)
     .addNode("tools", toolsNode)
     .addEdge(START, "llm")
@@ -48,14 +67,14 @@ export const createCompiledSubAgentGraph = (
         return END;
       }
 
-      if (hasPendingToolCalls(state.messages) || lastMessageRequestsTools(state.messages)) {
+      if (hasPendingToolCalls(state.agentMessages) || lastMessageRequestsTools(state.agentMessages)) {
         return "tools";
       }
 
       return END;
     })
     .addConditionalEdges("tools", (state: SubAgentState) => {
-      if (hasPendingToolCalls(state.messages)) {
+      if (hasPendingToolCalls(state.agentMessages)) {
         return "tools";
       }
 
@@ -65,28 +84,36 @@ export const createCompiledSubAgentGraph = (
   return graph.compile({ name: `${name.toLowerCase()}-subgraph` });
 };
 
-export const createSubAgent = <TDeps>(config: SubAgentConfig<TDeps>) => {
+export const createSubAgentGraphBundle = <TDeps>(config: SubAgentConfig<TDeps>): RuntimeAgentGraphBundle => {
   const tools = config.createTools(config.deps);
   const llmNode = config.createLlmNode(config.deps, tools);
-  const compiledSubgraph = createCompiledSubAgentGraph(config.name, config.maxSteps, llmNode, tools);
+  const compiledSubgraph = createCompiledSubAgentGraph(
+    config.name,
+    config.maxSteps,
+    llmNode,
+    tools,
+    config.messageHistoryMaxTokens
+      ? { messageHistoryMaxTokens: config.messageHistoryMaxTokens }
+      : undefined,
+  );
 
-  return createSubgraphNodeWrapper<SubAgentState>({
-    subgraphName: config.name,
-    buildInitialState:
+  return {
+    name: config.name,
+    prepare:
       config.buildInitialState
       ?? ((parentState) => ({
-        messages: scopeSubAgentMessages(parentState.messages),
+        agentMessages: scopeSubAgentMessages(parentState.messages),
         stepCount: 0,
       })),
-    compiledSubgraph,
-    ...(config.mapResult
-      ? {
-          mapResult: (result: SubAgentState) =>
-            config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name }),
-        }
-      : {}),
-  });
+    subgraph: compiledSubgraph,
+    finalize: config.mapResult
+      ? (result) => config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name })
+      : (result) => mapDefaultSubAgentResult(result, { maxSteps: config.maxSteps, name: config.name }),
+  };
 };
+
+export const createSubAgent = <TDeps>(config: SubAgentConfig<TDeps>) =>
+  graphBundleToHandler(createSubAgentGraphBundle(config));
 
 export const createSubAgentOrStub = <TDeps>(
   isAvailable: (deps: TDeps) => boolean,
@@ -94,7 +121,7 @@ export const createSubAgentOrStub = <TDeps>(
   config: SubAgentConfig<TDeps>,
 ) => {
   if (!isAvailable(config.deps)) {
-    return async (_state: AgentState): Promise<AgentStateUpdate> => ({
+    return async (_state: AgentState, _config?: RunnableConfig): Promise<AgentStateUpdate> => ({
       messages: [new AIMessage(unavailableMessage)],
     });
   }
@@ -123,8 +150,10 @@ export const mapDefaultSubAgentResult = (
     return createMaxStepsExceededUpdate(name, maxSteps, options?.maxStepsMessage);
   }
 
-  const lastMessage = result.messages[result.messages.length - 1];
+  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
   return {
     messages: [lastMessage as AIMessage],
   };
 };
+
+export { createDefaultPrepare } from "../agents/runtime-agent-graph-bundle.js";

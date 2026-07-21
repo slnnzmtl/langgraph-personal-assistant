@@ -50,7 +50,7 @@ describe("mapObsidianSubAgentResult", () => {
     const finalReply = new AIMessage("OK. I've created English learning.md.");
     const result = mapObsidianSubAgentResult(
       {
-        messages: [
+        agentMessages: [
           new HumanMessage("Save to note English learning"),
           new AIMessage({
             content: "",
@@ -79,7 +79,7 @@ describe("mapObsidianSubAgentResult", () => {
   it("summarizes a successful write when maxSteps is hit without a final reply", () => {
     const result = mapObsidianSubAgentResult(
       {
-        messages: [
+        agentMessages: [
           new HumanMessage("Save to note English learning"),
           new AIMessage({
             content: "",
@@ -116,7 +116,7 @@ describe("mapObsidianSubAgentResult", () => {
   it("reports max steps only when the edit did not complete", () => {
     const result = mapObsidianSubAgentResult(
       {
-        messages: [
+        agentMessages: [
           new HumanMessage("keep searching forever"),
           new AIMessage({
             content: "",
@@ -296,10 +296,10 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [new HumanMessage("create a note for today")],
+      agentMessages: [new HumanMessage("create a note for today")],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Completed the Obsidian task.");
   });
 
@@ -342,10 +342,10 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [new HumanMessage("give me a plan for today")],
+      agentMessages: [new HumanMessage("give me a plan for today")],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
   });
 
@@ -367,10 +367,10 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [new HumanMessage("create today's routine note")],
+      agentMessages: [new HumanMessage("create today's routine note")],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Prepared today's routine note.");
   });
 
@@ -390,10 +390,10 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [new HumanMessage("read my fitness log")],
+      agentMessages: [new HumanMessage("read my fitness log")],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Read the fitness log.");
   });
 
@@ -422,7 +422,7 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("today's plan"),
         new AIMessage({
           content: "",
@@ -442,7 +442,7 @@ describe("createObsidianNode", () => {
       stepCount: 2,
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toContain("## Summary");
     expect(firstMessage?.content).toContain("- [ ] Gym");
   });
@@ -472,10 +472,10 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [new HumanMessage("show me the vault structure")],
+      agentMessages: [new HumanMessage("show me the vault structure")],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
   });
 
@@ -494,7 +494,7 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("create a note for today, move unchecked todos from yesterday's note"),
         new AIMessage({
           content: "",
@@ -514,7 +514,7 @@ describe("createObsidianNode", () => {
       ],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
   });
 
@@ -543,7 +543,7 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("find routine note matches for potuzhno event note"),
         new AIMessage({
           content: "",
@@ -564,7 +564,7 @@ describe("createObsidianNode", () => {
       ],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     const finalText = typeof firstMessage?.content === "string" ? firstMessage.content : JSON.stringify(firstMessage?.content ?? "");
 
     expect(finalText).toContain("routine/July/July 3 - Fri.md");
@@ -603,7 +603,7 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("add sauna to today's plan"),
         new AIMessage({
           content: "",
@@ -628,7 +628,7 @@ describe("createObsidianNode", () => {
       ],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Added sauna to today's tasks in your routine.");
   });
 
@@ -647,7 +647,7 @@ describe("createObsidianNode", () => {
     const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
 
     const result = await obsidianNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("collect and save today's note"),
         new AIMessage({
           content: "",
@@ -682,7 +682,7 @@ describe("createObsidianNode", () => {
       ],
     });
 
-    const firstMessage = Array.isArray(result.messages) ? result.messages[0] : undefined;
+    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Prepared today's note successfully.");
   });
 

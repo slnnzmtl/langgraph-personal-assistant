@@ -19,6 +19,8 @@ export {
   type SystemMetadataOptions,
 } from "./system-context.js";
 export type { RuntimeAgentPolicy, RuntimeAgentPolicyHandler } from "./types/policy.js";
+export type { RuntimeAgentGraphBundle, CompiledRuntimeAgentGraph } from "./agents/runtime-agent-graph-bundle.js";
+export { createRuntimeAgentPolicy, resolveRuntimeAgentPolicyHandler } from "./types/policy.js";
 export type { PolicyContext } from "./types/policy-context.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,

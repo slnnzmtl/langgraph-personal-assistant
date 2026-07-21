@@ -141,8 +141,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [new HumanMessage("sync finances")],
+    const update = await financeNode({
+      agentMessages: [new HumanMessage("sync finances")],
         stepCount: 7,
       });
 
@@ -153,8 +153,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [
+    const update = await financeNode({
+      agentMessages: [
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],
@@ -168,8 +168,8 @@ describe("finance tools", () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
       const financeNode = createFinanceNode(model, financeDefinition, []);
 
-      const update = await financeNode({
-        messages: [
+    const update = await financeNode({
+      agentMessages: [
           new HumanMessage("sync finances"),
           new ToolMessage({ tool_call_id: "t1", name: "exec_sql", content: "[]" }),
         ],

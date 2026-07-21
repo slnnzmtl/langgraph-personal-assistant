@@ -31,7 +31,7 @@ describe("finance subgraph tool batching", () => {
     const financeNode = createFinanceNode(model, financeDefinition, []);
 
     const update = await financeNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("sync finances"),
         new AIMessage({
           content: "",
@@ -46,7 +46,7 @@ describe("finance subgraph tool batching", () => {
     });
 
     expect(financeCalls).toBe(0);
-    expect(update.messages).toBeUndefined();
+    expect(update.agentMessages).toBeUndefined();
     expect(update.stepCount).toBe(1);
   });
 
@@ -86,12 +86,12 @@ describe("finance subgraph tool batching", () => {
 
     const subgraph = createCompiledFinanceSubgraph(model, tools);
     const result = await subgraph.invoke({
-      messages: [new HumanMessage("sync finances")],
+      agentMessages: [new HumanMessage("sync finances")],
       stepCount: 0,
     });
 
     expect(financeCalls).toBeGreaterThanOrEqual(2);
-    expect(result.messages.at(-1)?.content).toBe("Finance sync completed.");
+    expect(result.agentMessages.at(-1)?.content).toBe("Finance sync completed.");
   });
 
   it("hands empty replies to the supervisor with last tool context", async () => {
@@ -109,7 +109,7 @@ describe("finance subgraph tool batching", () => {
 
     const financeNode = createFinanceNode(model, financeDefinition, tools);
     const update = await financeNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("get yesterday transactions"),
         new AIMessage({
           content: "",
@@ -121,7 +121,7 @@ describe("finance subgraph tool batching", () => {
     });
 
     expect(financeCalls).toBe(2);
-    const handoff = update.messages?.[0] as AIMessage;
+    const handoff = update.agentMessages?.[0] as AIMessage;
     expect(handoff.content).toBe("");
     expect(handoff.additional_kwargs).toMatchObject({
       emptySubAgentHandoff: true,
@@ -150,7 +150,7 @@ describe("finance subgraph tool batching", () => {
 
     const financeNode = createFinanceNode(model, financeDefinition, tools);
     const update = await financeNode({
-      messages: [
+      agentMessages: [
         new HumanMessage("what the last expense date in db?"),
         new AIMessage({
           content: "",
@@ -171,7 +171,7 @@ describe("finance subgraph tool batching", () => {
     });
 
     expect(financeCalls).toBe(2);
-    expect(update.messages?.[0]?.content).toBe("The last expense date in the database is 2026-07-16.");
+    expect(update.agentMessages?.[0]?.content).toBe("The last expense date in the database is 2026-07-16.");
     const recoveryInput = invokeInputs[1] as Array<{ content?: unknown }>;
     expect(String(recoveryInput.at(-1)?.content)).toContain("Your previous response was empty after a tool result.");
   });
@@ -217,7 +217,7 @@ describe("finance subgraph tool batching", () => {
 
     const subgraph = createCompiledFinanceSubgraph(model, tools);
     const result = await subgraph.invoke({
-      messages: [
+      agentMessages: [
         new HumanMessage("uniqlo is clothes"),
         new AIMessage({
           content: "",
@@ -246,7 +246,7 @@ describe("finance subgraph tool batching", () => {
     });
 
     expect(financeCalls).toBeGreaterThanOrEqual(3);
-    expect(result.messages.at(-1)?.content).toBe(
+    expect(result.agentMessages.at(-1)?.content).toBe(
       "Updated both UNIQLO expenses to Shop: 34.00 and 37.00 on 2026-07-19.",
     );
   });
@@ -270,7 +270,7 @@ describe("finance subgraph tool batching", () => {
 
     const subgraph = createCompiledFinanceSubgraph(model, tools);
     const partialState = {
-      messages: [
+      agentMessages: [
         new HumanMessage("sync finances"),
         new AIMessage({
           content: "",
@@ -292,6 +292,6 @@ describe("finance subgraph tool batching", () => {
     const result = await subgraph.invoke(partialState);
 
     expect(financeCalls).toBe(1);
-    expect(result.messages.at(-1)?.content).toBe("Done after the full batch.");
+    expect(result.agentMessages.at(-1)?.content).toBe("Done after the full batch.");
   });
 });
