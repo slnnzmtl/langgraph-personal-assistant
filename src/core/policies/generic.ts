@@ -1,14 +1,8 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import { resolveModel } from "../execution/context.js";
-import {
-  createSubAgentGraphBundle,
-  mapDefaultSubAgentResult,
-} from "../execution/create-sub-agent.js";
-import { createRuntimeAgentNode, type RuntimeAgentNodeHooks } from "../execution/runtime-node.js";
+import { createAgentPolicy } from "./create-agent-policy.js";
+import type { RuntimeAgentNodeHooks } from "../execution/runtime-node.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
-import { resolveAgentModelKey } from "../types/agent.js";
-import { createRuntimeAgentPolicy } from "../types/policy.js";
 import type { SkillCatalog } from "../skills/catalog.js";
 
 export type GenericPolicyDeps<
@@ -28,30 +22,13 @@ export const createGenericPolicy = <
 >(
   deps: GenericPolicyDeps<TBundleDeps>,
 ) =>
-  createRuntimeAgentPolicy("generic", (context, definition) => {
-    const bundleDeps = context.bundleDeps as TBundleDeps;
-
-    return createSubAgentGraphBundle({
-      name: definition.name,
-      maxSteps: definition.maxSteps,
-      deps: {
-        model: resolveModel(context, resolveAgentModelKey(definition)),
+  createAgentPolicy({
+    executor: "generic",
+    resolveTools: (definition, bundleDeps, options) =>
+      deps.resolveAgentTools(
         definition,
-        bundleDeps,
-        resolveAgentTools: deps.resolveAgentTools,
-        skillCatalog: deps.skillCatalog,
-      },
-      createTools: (agentDeps) =>
-        agentDeps.resolveAgentTools(agentDeps.definition, agentDeps.bundleDeps, {
-          ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
-        }),
-      createLlmNode: (agentDeps, tools) =>
-        createRuntimeAgentNode(
-          agentDeps.model,
-          agentDeps.definition,
-          tools,
-          deps.runtimeShellHooks,
-        ),
-      mapResult: (result, config) => mapDefaultSubAgentResult(result, config),
-    });
+        bundleDeps as TBundleDeps,
+        options,
+      ),
+    ...(deps.runtimeShellHooks ? { hooks: deps.runtimeShellHooks } : {}),
   });

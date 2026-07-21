@@ -1,0 +1,117 @@
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
+import { createUnavailableGraphBundle } from "../agents/runtime-agent-graph-bundle.js";
+import { resolveModel } from "../execution/context.js";
+import {
+  createSubAgentGraphBundle,
+  mapDefaultSubAgentResult,
+} from "../execution/create-sub-agent.js";
+import {
+  createRuntimeAgentNode,
+  type RuntimeAgentNodeHooks,
+  type SubAgentToolSource,
+} from "../execution/runtime-node.js";
+import type { SubAgentState, SubAgentStateUpdate } from "../execution/sub-agent-state.js";
+import type { AgentStateUpdate } from "../state.js";
+import type { SkillCatalog } from "../skills/catalog.js";
+import type { RuntimeShellFormatters } from "../system-context.js";
+import type { RuntimeAgentDefinition } from "../types/agent.js";
+import { resolveAgentModelKey } from "../types/agent.js";
+import type { PolicyContext } from "../types/policy-context.js";
+import type { RuntimeAgentPolicy } from "../types/policy.js";
+
+export type AgentPolicyToolkitOptions = {
+  skillCatalog?: SkillCatalog | undefined;
+  shellFormatters?: RuntimeShellFormatters;
+};
+
+export type AgentPolicyBundleDeps<TExtra extends Record<string, unknown>> = {
+  model: BaseChatModel;
+  definition: RuntimeAgentDefinition;
+  bundleDeps: Record<string, unknown>;
+  skillCatalog?: SkillCatalog;
+} & TExtra;
+
+export type CreateAgentPolicyConfig<TExtra extends Record<string, unknown> = Record<string, never>> = {
+  executor: string;
+  displayName?: string;
+  requireShellFormatters?: boolean;
+  resolveDeps?: (context: PolicyContext, definition: RuntimeAgentDefinition) => TExtra | null;
+  unavailableMessage?: (reason: string) => string;
+  resolveTools: (
+    definition: RuntimeAgentDefinition,
+    bundleDeps: Record<string, unknown>,
+    options: { skillCatalog?: SkillCatalog },
+  ) => StructuredToolInterface[];
+  hooks?: RuntimeAgentNodeHooks;
+  createHooks?: (
+    deps: AgentPolicyBundleDeps<TExtra>,
+    options: AgentPolicyToolkitOptions,
+  ) => RuntimeAgentNodeHooks;
+  mapResult?: (
+    result: SubAgentState,
+    config: { maxSteps: number; name: string },
+  ) => AgentStateUpdate;
+};
+
+const createAgentLlmNode = (
+  model: BaseChatModel,
+  definition: RuntimeAgentDefinition,
+  tools: SubAgentToolSource | undefined,
+  hooks: RuntimeAgentNodeHooks,
+) =>
+  createRuntimeAgentNode(model, definition, tools, hooks) as (
+    state: SubAgentState,
+  ) => Promise<SubAgentStateUpdate>;
+
+export const createAgentPolicy = <
+  TExtra extends Record<string, unknown> = Record<string, never>,
+>(
+  config: CreateAgentPolicyConfig<TExtra>,
+  options: AgentPolicyToolkitOptions = {},
+): RuntimeAgentPolicy => ({
+  executor: config.executor,
+  createGraphBundle: (context, definition) => {
+    const needsHooks = config.createHooks !== undefined;
+    if (config.requireShellFormatters !== false && needsHooks && !options.shellFormatters) {
+      throw new Error(`createAgentPolicy(${config.executor}) requires runtime shell formatters.`);
+    }
+
+    const resolvedExtra = config.resolveDeps?.(context, definition) ?? ({} as TExtra);
+
+    if (config.resolveDeps && resolvedExtra === null) {
+      const displayName = config.displayName ?? definition.name;
+      return createUnavailableGraphBundle(
+        displayName,
+        config.unavailableMessage?.("required dependencies are not configured.")
+          ?? `${displayName} is unavailable because required dependencies are not configured.`,
+      );
+    }
+
+    const deps: AgentPolicyBundleDeps<TExtra> = {
+      model: resolveModel(context, resolveAgentModelKey(definition)),
+      definition,
+      bundleDeps: context.bundleDeps,
+      ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
+      ...resolvedExtra,
+    };
+
+    const hooks = config.createHooks
+      ? config.createHooks(deps, options)
+      : (config.hooks ?? {});
+
+    return createSubAgentGraphBundle({
+      name: config.displayName ?? definition.name,
+      maxSteps: definition.maxSteps,
+      deps,
+      createTools: (agentDeps) =>
+        config.resolveTools(agentDeps.definition, agentDeps.bundleDeps, {
+          ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
+        }),
+      createLlmNode: (agentDeps, tools) =>
+        createAgentLlmNode(agentDeps.model, agentDeps.definition, tools, hooks),
+      mapResult: config.mapResult ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig)),
+    });
+  },
+});

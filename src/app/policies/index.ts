@@ -1,17 +1,24 @@
 import { AIMessage } from "@langchain/core/messages";
 
+import { createAgentPolicy, type AgentPolicyToolkitOptions } from "../../core/policies/create-agent-policy.js";
 import type { PolicyContext } from "../../core/types/policy-context.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
 import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import { createObsidianNodeHooks, mapObsidianSubAgentResult } from "./obsidian-hooks.js";
-import {
-  createDomainGraphPolicy,
-  type DomainPolicyOptions,
-} from "./create-domain-graph-policy.js";
+import { resolveAgentCapabilityTools } from "../composition/resolve-agent-tools.js";
+import type { SkillCatalog } from "../../core/skills/catalog.js";
+
+export type DomainPolicyOptions = AgentPolicyToolkitOptions;
+
+const resolveCapabilityTools = (
+  definition: RuntimeAgentDefinition,
+  bundleDeps: Record<string, unknown>,
+  options: { skillCatalog?: SkillCatalog },
+) => resolveAgentCapabilityTools(definition, bundleDeps as RuntimeToolBundleDeps, options);
 
 export const createObsidianPolicy = (options: DomainPolicyOptions = {}) =>
-  createDomainGraphPolicy({
+  createAgentPolicy({
     executor: "obsidian",
     displayName: "Obsidian",
     resolveDeps: (context: PolicyContext) => {
@@ -21,6 +28,7 @@ export const createObsidianPolicy = (options: DomainPolicyOptions = {}) =>
         fileSender: bundleDeps.fileSender,
       };
     },
+    resolveTools: resolveCapabilityTools,
     createHooks: (deps, policyOptions) =>
       createObsidianNodeHooks(deps.vaultRoot, policyOptions.shellFormatters!),
     mapResult: (result, { maxSteps }) =>
@@ -34,13 +42,14 @@ export const createObsidianPolicy = (options: DomainPolicyOptions = {}) =>
   }, options);
 
 export const createConfigurationPolicy = (options: DomainPolicyOptions = {}) =>
-  createDomainGraphPolicy({
+  createAgentPolicy({
     executor: "configuration",
     displayName: "Configuration",
     resolveDeps: (context: PolicyContext, _definition: RuntimeAgentDefinition) => ({
       repository: context.cronJobRepository,
       runtimeCron: context.runtimeCron,
     }),
+    resolveTools: resolveCapabilityTools,
     createHooks: (deps, policyOptions) =>
       createConfigurationNodeHooks({
         repository: deps.repository,

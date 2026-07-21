@@ -12,6 +12,12 @@ export {
   type RuntimeAgentGraphNodeSet,
 } from "./agents/build-runtime-agent-nodes.js";
 export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
+export {
+  createAgentPolicy,
+  type AgentPolicyBundleDeps,
+  type AgentPolicyToolkitOptions,
+  type CreateAgentPolicyConfig,
+} from "./policies/create-agent-policy.js";
 export { createGenericPolicy, type GenericPolicyDeps } from "./policies/generic.js";
 export {
   createRuntimeAgentNode,
@@ -28,7 +34,6 @@ export {
   type SystemMetadataOptions,
 } from "./system-context.js";
 export type { RuntimeAgentPolicy } from "./types/policy.js";
-export { createRuntimeAgentPolicy } from "./types/policy.js";
 export type { PolicyContext } from "./types/policy-context.js";
 export type { RuntimeAgentGraphBundle } from "./agents/runtime-agent-graph-bundle.js";
 export { createDefaultPrepare } from "./agents/runtime-agent-graph-bundle.js";

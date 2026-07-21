@@ -1,5 +1,5 @@
 import { createPolicyRegistry } from "../core/policies/registry.js";
-import { createGenericPolicy } from "../core/policies/generic.js";
+import { createAgentPolicy } from "../core/policies/create-agent-policy.js";
 import { createPromptResolver } from "../core/agents/prompt-resolver.js";
 import {
   appendDynamicSections,
@@ -60,11 +60,14 @@ export const createAppExecutionKit = (
     }));
 
   const policyRegistry = createPolicyRegistry([
-    createGenericPolicy<RuntimeToolBundleDeps>({
-      resolveAgentTools: (definition, bundleDeps, resolveOptions) =>
-        resolveAgentCapabilityTools(definition, bundleDeps, resolveOptions ?? {}),
-      runtimeShellHooks: genericShellHooks,
+    createAgentPolicy({
+      executor: "generic",
+      resolveTools: (definition, bundleDeps, resolveOptions) =>
+        resolveAgentCapabilityTools(definition, bundleDeps as RuntimeToolBundleDeps, resolveOptions ?? {}),
+      hooks: genericShellHooks,
+    }, {
       ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
+      shellFormatters,
     }),
     ...domainPolicies,
   ]);

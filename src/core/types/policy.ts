@@ -10,11 +10,3 @@ export type RuntimeAgentPolicy = {
     definition: RuntimeAgentDefinition,
   ) => RuntimeAgentGraphBundle;
 };
-
-export const createRuntimeAgentPolicy = (
-  executor: string,
-  createGraphBundle: RuntimeAgentPolicy["createGraphBundle"],
-): RuntimeAgentPolicy => ({
-  executor,
-  createGraphBundle,
-});
