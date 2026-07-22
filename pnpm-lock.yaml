@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@langchain/core': 1.2.1
+
 importers:
 
   .:
@@ -18,7 +21,7 @@ importers:
   apps/personal-assistant:
     dependencies:
       '@langchain/core':
-        specifier: ^1.2.1
+        specifier: 1.2.1
         version: 1.2.1(ws@8.21.0)
       '@langchain/google-genai':
         specifier: ^2.2.0
@@ -66,16 +69,16 @@ importers:
 
   packages/supervisor-framework:
     dependencies:
-      '@langchain/core':
-        specifier: ^1.2.1
-        version: 1.2.1(ws@8.21.0)
-      '@langchain/langgraph':
-        specifier: ^1.4.7
-        version: 1.4.7(@langchain/core@1.2.1(ws@8.21.0))(zod@4.4.3)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@langchain/core':
+        specifier: 1.2.1
+        version: 1.2.1(ws@8.21.0)
+      '@langchain/langgraph':
+        specifier: ^1.4.7
+        version: 1.4.7(@langchain/core@1.2.1(ws@8.21.0))(zod@4.4.3)
       '@types/node':
         specifier: ^24.0.13
         version: 24.13.2
@@ -268,18 +271,18 @@ packages:
     resolution: {integrity: sha512-1mDqbmB6+iC6ZBQY15r5xJg9wPErnQ774inpKh6qi6BrrjadDwaPHoklJW5IXU94edKiDpm1akIzJCrQDWe6yA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@langchain/core': ^1.2.0
+      '@langchain/core': 1.2.1
 
   '@langchain/langgraph-checkpoint@1.1.3':
     resolution: {integrity: sha512-wgzdQNeEsdw1e+4lvlj0tdq/RYR/k1vPin10g0ymGoehZDDgd9nvIllGXSXN4TFgF9sf5qQP/KTkOcLfeseIhA==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@langchain/core': ^1.1.48
+      '@langchain/core': 1.2.1
 
   '@langchain/langgraph-sdk@1.9.25':
     resolution: {integrity: sha512-mRKW8zyQUaHox+HirRFMRrPqOvNbQI3xeXDt6kkk4PbBg77V92bsO1WzUVNrmJ81zCkvxyOrWSK8D6ioCj0a8A==}
     peerDependencies:
-      '@langchain/core': ^1.1.48
+      '@langchain/core': 1.2.1
       react: ^18 || ^19
       react-dom: ^18 || ^19
       svelte: ^4.0.0 || ^5.0.0
@@ -298,7 +301,7 @@ packages:
     resolution: {integrity: sha512-2tcyf3QGC7v89kqSxMCtRvzg/3L/4yHtOaWC49A8KieCciWJs7LGaxHoPB6QRxXyUgyR+Zg9Q1ss/XJIE+JuSQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@langchain/core': ^1.1.48
+      '@langchain/core': 1.2.1
       zod: ^3.25.32 || ^4.2.0
 
   '@langchain/protocol@0.0.18':
