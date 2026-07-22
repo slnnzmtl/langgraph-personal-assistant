@@ -22,31 +22,13 @@ export type RuntimeAgentDefinition = {
   updatedAt: string;
 };
 
-type PersistedCapabilityFields = {
-  capabilityIds?: string[] | undefined;
-  toolBundleIds?: string[] | undefined;
-};
-
-const migratePersistedCapabilityIds = (
-  agent: PersistedCapabilityFields,
-): string[] => {
-  const capabilityIds = agent.capabilityIds ?? agent.toolBundleIds;
-
-  if (!capabilityIds) {
-    throw new Error("Runtime agent definitions require capabilityIds.");
-  }
-
-  return capabilityIds;
-};
-
 const RuntimeAgentDefinitionBaseSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
   promptSourceKey: z.string().min(1).optional(),
-  capabilityIds: CapabilityIdListSchema.optional(),
-  toolBundleIds: CapabilityIdListSchema.optional(),
+  capabilityIds: CapabilityIdListSchema,
   executor: z.string().min(1).default("generic"),
   modelKey: z.string().min(1).optional(),
   builtin: z.boolean().default(false),
@@ -58,17 +40,11 @@ const RuntimeAgentDefinitionBaseSchema = z.object({
 
 export const normalizeRuntimeAgentDefinition = (
   input: z.infer<typeof RuntimeAgentDefinitionBaseSchema>,
-): RuntimeAgentDefinition => {
-  const { toolBundleIds: _legacyToolBundleIds, capabilityIds: _legacyCapabilityIds, ...rest } = input;
-  const capabilityIds = migratePersistedCapabilityIds(input);
-
-  return {
-    ...rest,
-    capabilityIds,
-    executor: rest.executor ?? "generic",
-    ...(rest.modelKey ? { modelKey: rest.modelKey } : {}),
-  };
-};
+): RuntimeAgentDefinition => ({
+  ...input,
+  executor: input.executor ?? "generic",
+  ...(input.modelKey ? { modelKey: input.modelKey } : {}),
+});
 
 export const parseRuntimeAgentDefinition = (input: unknown): RuntimeAgentDefinition =>
   normalizeRuntimeAgentDefinition(RuntimeAgentDefinitionBaseSchema.parse(input));

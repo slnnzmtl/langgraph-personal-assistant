@@ -1,5 +1,12 @@
 import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "./types.js";
-import { cronJobsEqual } from "./cron-job-equality.js";
+
+const cronJobsEqual = (left: CronJobDefinition, right: CronJobDefinition): boolean =>
+  left.jobName === right.jobName
+  && left.schedule === right.schedule
+  && left.targetRoute === right.targetRoute
+  && left.enabled === right.enabled
+  && left.timezone === right.timezone
+  && JSON.stringify(left.payload) === JSON.stringify(right.payload);
 
 export const reconcileRuntimeCron = async (
   repository: CronJobRepository,

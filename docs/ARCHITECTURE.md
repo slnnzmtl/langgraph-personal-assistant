@@ -388,7 +388,7 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
-| **Wise** | REST API for transaction sync | `mcp/wise.ts`, `services/wise/` |
+| **Wise** | REST API for transaction sync | `services/wise/` |
 | **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron-triggers.ts`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
