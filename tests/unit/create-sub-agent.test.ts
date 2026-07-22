@@ -6,7 +6,7 @@ import { z } from "zod";
 import { createSubAgentGraphBundle } from "../../src/core/execution/create-sub-agent.js";
 import { createCompiledSubAgentGraph } from "../helpers/compiled-sub-agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
-import { hasPendingToolCalls } from "../../src/tools/routing.js";
+import { hasPendingToolCalls } from "../../src/core/execution/tool-routing.js";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
 const echoTool = tool(async ({ text }: { text: string }) => text, {

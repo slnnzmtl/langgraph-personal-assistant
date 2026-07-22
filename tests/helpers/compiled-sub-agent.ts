@@ -4,7 +4,7 @@ import {
   createSubAgentToolsNode,
   type SubAgentLlmNode,
 } from "../../src/core/execution/create-sub-agent.js";
-import { hasPendingToolCalls, lastMessageRequestsTools } from "../../src/tools/routing.js";
+import { hasPendingToolCalls, lastMessageRequestsTools } from "../../src/core/execution/tool-routing.js";
 import type { SubAgentToolSource } from "../../src/core/execution/runtime-node.js";
 import {
   createSubAgentStateAnnotation,

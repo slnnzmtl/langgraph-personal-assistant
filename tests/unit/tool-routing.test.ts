@@ -5,7 +5,7 @@ import {
   findLastAIMessage,
   hasPendingToolCalls,
   lastMessageRequestsTools,
-} from "../../src/tools/routing.js";
+} from "../../src/core/execution/tool-routing.js";
 
 describe("tool-routing", () => {
   it("detects pending tool calls when only part of a batch has responses", () => {
