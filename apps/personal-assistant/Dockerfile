@@ -16,6 +16,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 
+COPY tsconfig.base.json ./
 COPY packages/supervisor-framework packages/supervisor-framework
 COPY apps/personal-assistant apps/personal-assistant
 RUN pnpm --filter @personal-assistant/supervisor-framework build \
@@ -40,6 +41,7 @@ CMD ["node", "dist/index.js"]
 
 FROM deps AS development
 
+COPY tsconfig.base.json ./
 COPY packages/supervisor-framework packages/supervisor-framework
 COPY apps/personal-assistant apps/personal-assistant
 

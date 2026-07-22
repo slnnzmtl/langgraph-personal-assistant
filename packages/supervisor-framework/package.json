@@ -13,6 +13,8 @@
     "test:unit": "ENABLE_PROMPT_LOGS=false vitest run"
   },
   "dependencies": {
+    "@langchain/core": "^1.2.1",
+    "@langchain/langgraph": "^1.4.7",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
@@ -20,8 +22,6 @@
     "@langchain/langgraph": "^1.4.7"
   },
   "devDependencies": {
-    "@langchain/core": "^1.2.1",
-    "@langchain/langgraph": "^1.4.7",
     "@types/node": "^24.0.13",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
