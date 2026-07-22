@@ -13,12 +13,12 @@ import {
   getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
 
-import { createFilesystemSkillCatalog } from "../../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../../src/prompts/skill-catalog.js";
 import { createDefaultCapabilityCatalog } from "../../../src/runtime-agents/builtin-capabilities.js";
 
 const capabilityCatalog = createDefaultCapabilityCatalog();
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
-const configurationShellFormatters = createDefaultRuntimeShellFormatters(createFilesystemSkillCatalog());
+const configurationShellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");
 

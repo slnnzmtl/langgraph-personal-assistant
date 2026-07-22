@@ -22,7 +22,7 @@ import {
   createDefaultCapabilityCatalog,
   createCapabilityDeps,
 } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { FakeLLMConnector } from "./fakes.js";
 
@@ -68,7 +68,7 @@ export const createTestWorkflowGraph = ({
   );
 
   const capabilityCatalog = createDefaultCapabilityCatalog();
-  const skillCatalog = createFilesystemSkillCatalog({
+  const skillCatalog = createSkillCatalog({
     approvedModules: deriveSkillModules(runtimeAgents),
   });
   const { loadPromptByKey, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {

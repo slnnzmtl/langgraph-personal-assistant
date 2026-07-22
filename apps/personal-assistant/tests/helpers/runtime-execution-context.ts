@@ -11,7 +11,7 @@ import {
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createDefaultCapabilityCatalog, type CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
@@ -28,7 +28,7 @@ export const createAppRuntimeExecutionContext = (
   const defaultModelKey = "generic";
   const executors = input.executors ?? deriveExecutors(runtimeAgents);
   const { loadPromptByKey, policyRegistry } = createAppExecutionKit(executors, {
-    skillCatalog: createFilesystemSkillCatalog(),
+    skillCatalog: createSkillCatalog(),
     capabilityCatalog: createDefaultCapabilityCatalog(),
   });
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds

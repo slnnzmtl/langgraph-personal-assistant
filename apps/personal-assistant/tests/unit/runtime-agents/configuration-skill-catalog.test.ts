@@ -4,10 +4,10 @@ import {
   formatConfigurationSkillCatalog,
   isConfigurationSkillCatalogRequest,
 } from "../../../src/app/policies/configuration-hooks.js";
-import { createFilesystemSkillCatalog } from "../../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../../src/prompts/skill-catalog.js";
 import { CONFIGURATOR_AGENT_ID } from "../../../src/app/composition/bootstrap-agents.js";
 
-const skillCatalog = createFilesystemSkillCatalog({
+const skillCatalog = createSkillCatalog({
   approvedModules: [CONFIGURATOR_AGENT_ID, "finance", "obsidian"],
 });
 const skillModules = skillCatalog.listModules();
