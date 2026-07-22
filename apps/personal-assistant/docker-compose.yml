@@ -1,0 +1,54 @@
+name: personal-assistant
+
+services:
+  personal-assistant:
+    build:
+      context: ../..
+      dockerfile: apps/personal-assistant/Dockerfile
+      target: production
+    env_file:
+      - .env
+    environment:
+      OBSIDIAN_VAULT_PATH: /data/obsidian-vault
+    volumes:
+      - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+      - ${DATA_HOST_PATH:-./data}:/app/apps/personal-assistant/data
+    restart: unless-stopped
+
+  personal-assistant-scheduler:
+    build:
+      context: ../..
+      dockerfile: apps/personal-assistant/Dockerfile
+      target: production
+    env_file:
+      - .env
+    environment:
+      OBSIDIAN_VAULT_PATH: /data/obsidian-vault
+    command: ["node", "dist/cron/index.js"]
+    volumes:
+      - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+      - ${DATA_HOST_PATH:-./data}:/app/apps/personal-assistant/data
+    restart: unless-stopped
+
+  personal-assistant-dev:
+    build:
+      context: ../..
+      dockerfile: apps/personal-assistant/Dockerfile
+      target: development
+    profiles:
+      - dev
+    env_file:
+      - .env
+    environment:
+      OBSIDIAN_VAULT_PATH: /data/obsidian-vault
+    command: sh -c "yes | pnpm install && pnpm dev"
+    volumes:
+      - ../..:/app
+      - personal-assistant-node-modules:/app/node_modules
+      - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
+    restart: unless-stopped
+
+volumes:
+  personal-assistant-node-modules:
+
+# Future services can be added here without changing the bot's mount or env contract.

@@ -1,53 +1,61 @@
-# Supervisor Agent Framework
+# Execution Kernel & Framework
 
-This repository exposes a small framework for building supervisor → specialist agent systems. Product-specific domains (Obsidian, finance, configuration) compose the framework; they do not live inside it.
+The reusable supervisor bootstrap ships as the workspace package **`@personal-assistant/supervisor-framework`** (`packages/supervisor-framework/`). It contains the LangGraph execution kernel (`src/core/`), pack bootstrap (`src/framework/`), and capability catalog (`src/capabilities/`).
 
-## Layers
+Product-specific domains (Obsidian, finance, configuration) live in `apps/personal-assistant/` and must not be imported by the framework package.
+
+## Monorepo layers
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| Core | `src/core/` | Agent definitions, graph execution, policies, capability contracts, skill ports |
-| Capabilities | `src/capabilities/` | Declarative capability descriptors and catalog validation |
-| Composition | `src/app/composition/` | Bootstrap agents, register capabilities, build the supervisor system |
-| Integrations | `src/integrations/` | Concrete adapters (filesystem skills, vault, Supabase, cron) |
-| Product policies | `src/app/policies/` | Domain hooks and optional configuration feature |
+| Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
+| Personal app | `apps/personal-assistant/src/app/` | Composition, `createSupervisorSystem`, domain hooks |
+| Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
+| Integrations | `apps/personal-assistant/src/integrations/` | Filesystem skills, vault, Supabase adapters |
 
-## Public core API
+## Intentional boundaries
 
-Import from `src/core/index.ts`:
+- `packages/supervisor-framework/src/core/` — execution kernel only. Must not import app or product integrations.
+- `packages/supervisor-framework/src/framework/` — orchestration only. May import `core` and `capabilities`.
+- `apps/personal-assistant/src/app/` — composition and policies. Imports `@personal-assistant/supervisor-framework` and `runtime-agents/`.
+- `apps/personal-assistant/src/runtime-agents/` — domain tools. Must **not** import `src/app/`.
 
-- `createAssistant` — compile the supervisor graph
-- `createGenericPolicy`, `createPolicyRegistry` — register executors
-- `createRuntimeAgentRepository` — persist agent definitions
-- `createCapabilityCatalog` — validate and resolve tool bundles
-- `createRuntimeShellHooks` — shared metadata + skill attachment shell
-- Types: `RuntimeAgentDefinition`, `RuntimeAgentPolicy`, `SkillCatalog`, `CapabilityDescriptor`
+Boundary tests:
 
-## Composition entry point
+- Framework: `packages/supervisor-framework/tests/unit/framework-boundary.test.ts`
+- App: `apps/personal-assistant/tests/unit/app-boundary.test.ts`
 
-Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts` to wire this deployment:
+## Framework API (client and personal packs)
 
-1. Bootstrap built-in agents (`configuration` only)
-2. Build capability catalog + skill catalog
-3. Register policies via `createAppExecutionKit()`
-4. Compile the LangGraph workflow
+Import from `@personal-assistant/supervisor-framework`:
 
-## Adding a capability
+- `bootstrapSupervisorSystem` — generic pack bootstrap
+- `resolveAgentTools` — catalog-based tool resolution
+- `createAssistant`, `createAgentPolicy`, `createPolicyRegistry` — graph and policy helpers
+- Defaults: `createFileRuntimeAgentRepository`, `createNoopCronJobRepository`, `createEmptySkillCatalog`
+- Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 
-1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/tool-bundles.ts` (or register a custom provider).
+Optional bootstrap hooks (omit for minimal packs):
+
+- `createRuntimeAgentRepository(config)` — defaults to file-backed JSON repo
+- `createCronJobRepository(...)` — defaults to in-memory no-op
+- `buildSkillCatalog(agents)` — defaults to empty catalog
+
+Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
+
+## Composition entry points
+
+**Personal deployment:** `createSupervisorSystem()` in the personal app composition layer.
+
+**Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, policy registry, and optional cron/skills/repo hooks.
+
+## Adding a capability (personal app)
+
+1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `apps/personal-assistant/src/runtime-agents/builtin-capabilities.ts`.
 2. Implement `CapabilityProvider.resolveTools`.
 3. Grant the capability ID on agent definitions (`capabilityIds`).
-4. Domain and generic agents resolve tools through the same catalog via `resolveAgentCapabilityTools()`.
+4. Resolve tools through `resolveAgentTools()` (framework) or `createPersonalResolveTools()` (personal pack with `read_skill`).
 
-## Self-configuration (optional product feature)
+## Graph composition walkthrough
 
-The configuration executor can manage skills, cron jobs, and generic agents when granted `system-config`. Finer grants:
-
-- `system-config-read` — list/preview only
-- `system-config-write` — create/update/delete
-
-Adding new executable integrations remains a deployment/code change; the configurator composes registered capabilities only.
-
-## Minimal new supervisor system
-
-See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md).
+See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md) and [docs/PACK_DEVELOPMENT.md](./PACK_DEVELOPMENT.md).

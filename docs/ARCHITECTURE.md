@@ -10,11 +10,11 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 
 | Layer | Role |
 |---|---|
-| **`src/core/`** | Reusable assistant framework (graph, state, policies API, runtime agent bundle factory) |
+| **`src/core/`** | Execution kernel (graph, state, policies API, runtime agent bundle factory) |
 | **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
 | **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
 
-The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `src/core/` as an internal framework, not a separately reusable product, until a second deployment has concrete requirements that justify a package boundary.
+The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `packages/supervisor-framework/` as an internal framework package, not a separately published product, until a second deployment outside this monorepo justifies npm release.
 
 ### Design constraints
 
@@ -38,12 +38,15 @@ flowchart TB
         CRIDX[cron/index.ts]
     end
 
-    subgraph AppLayer["App Layer (src/app/, agent.ts)"]
+    subgraph AppLayer["App Layer (src/app/)"]
         WFC[createSupervisorSystem]
-        WFG[createWorkflowGraph]
         KIT[createAppExecutionKit]
         POL[Domain Policies + Hooks]
         MR[Model Registry]
+    end
+
+    subgraph FrameworkLayer["Framework (src/framework/)"]
+        BOOT[bootstrapSupervisorSystem]
     end
 
     subgraph Core["Core Framework (src/core/)"]
@@ -61,7 +64,7 @@ flowchart TB
         FIN[Finance Tools]
         OBS[Obsidian Tools]
         CFG[Configuration Tools]
-        BUND[Tool Bundles]
+        BUND[Capabilities]
     end
 
     subgraph External["External Services"]
@@ -71,12 +74,12 @@ flowchart TB
         WISE[Wise API]
     end
 
-    TG --> IDX --> WFC --> WFG --> CA
+    TG --> IDX --> WFC --> BOOT --> CA
     CRIDX --> CRON
     CRON --> WFC
     CRON -->|graph.invoke| CA
     CRON -->|summary report| TG
-    WFG --> KIT --> CA
+    WFC --> KIT --> CA
     KIT --> POL
     CA --> SUP
     SUP -->|agent id| PREP
@@ -110,7 +113,7 @@ index.ts
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
             ├─ Runtime agent repository (data/runtime-agents.json)
             ├─ ensureBuiltinRuntimeAgents() — merge persisted + built-ins
-            ├─ createWorkflowGraph() → createAssistant()
+            ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
 ```
@@ -219,7 +222,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 
 Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/policies/<domain>/`.
 
-**Generic agents** (user-created via configuration) use `createGenericPolicy()` and compose tools from allowlisted **tool bundles** rather than hard-coded domain tools.
+**Generic agents** (user-created via configuration) register through `createAppExecutionKit()` with the generic executor policy and compose tools from allowlisted **capabilities** rather than hard-coded domain tools.
 
 ---
 
@@ -316,15 +319,15 @@ RuntimeAgentDefinitionSchema = z.object({
 
 ### Code-seeded and persisted agents
 
-Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` with domain executors (`finance`, `obsidian`, etc.) and are wired into the graph at compile time when enabled.
+Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
 | ID | Executor | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
 | `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
-| `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
+| `finance` | `generic` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
 
-Custom agents use `executor: "generic"` and select from the capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, `system-config-write`, etc.). Domain executors use dedicated policies with hooks; generic agents resolve tools from allowlisted capabilities.
+Custom agents use `executor: "generic"` and select from the grantable capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Domain executors select optional LLM hooks; tools always come from `capabilityIds`.
 
 ---
 
@@ -334,7 +337,6 @@ Policies are registered at app bootstrap in `src/app/register-defaults.ts`:
 
 ```typescript
 DOMAIN_POLICY_FACTORIES = {
-  finance: createFinancePolicy,
   obsidian: createObsidianPolicy,
   configuration: createConfigurationPolicy,
 };
@@ -349,7 +351,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and `src/core/policies/generic.ts` resolves allowlisted bundles for configurable agents.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and the generic executor policy in `createAppExecutionKit()` resolves allowlisted capabilities for configurable agents.
 
 ---
 
@@ -388,7 +390,7 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
-| **Wise** | REST API for transaction sync | `mcp/wise.ts`, `services/wise/` |
+| **Wise** | REST API for transaction sync | `services/wise/` |
 | **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron-triggers.ts`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
@@ -401,44 +403,46 @@ Configurable via `MCP_MAX_RECONNECT_ATTEMPTS` (default `1`), `MCP_RECONNECT_BASE
 
 ---
 
+## Intentional layer boundaries
+
+These paths look thin or product-specific but should **stay separate**. Do not merge them without a concrete second-deployment need.
+
+| Path | Role | Why keep separate |
+|---|---|---|
+| `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
+| `apps/personal-assistant/src/app/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
+| `src/app.ts` | Telegram process bootstrap | Sibling to `src/cron/index.ts`, not nested under `src/app/` |
+| `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
+| `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
+| `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
+| `src/framework/index.ts` | Pack SDK barrel | Bootstrap + kernel re-exports for client packs |
+| `src/core/index.ts` | Documented kernel barrel | Kernel-only exports; framework barrel preferred for packs |
+| `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
+
+---
+
 ## Directory Map
 
 ```
-personal-assistant/
-├── src/
-│   ├── index.ts, app.ts, agent.ts, config.ts, cron-triggers.ts  # Bootstrap & wiring
-│   ├── core/                                       # Framework (reusable)
-│   │   ├── create-assistant.ts                     # Main graph API
-│   │   ├── state.ts, message-compaction.ts, message-trimming.ts  # State + trimming
-│   │   ├── supervisor/                             # Routing, history sanitization
-│   │   ├── agents/                                 # Graph bundles, build-runtime-agent-nodes, repository
-│   │   ├── execution/                              # Sub-agent bundle factory, runtime node, tool loop
-│   │   ├── policies/                               # Registry, generic policy
-│   │   └── types/                                  # Agent & policy schemas
-│   ├── app/                                        # This assistant's config
-│   │   ├── composition/bootstrap-agents.ts         # Built-in configurator seed
-│   │   ├── register-defaults.ts, composition/create-supervisor-system.ts
-│   │   ├── policies/                               # Domain policies + hooks
-│   │   └── model-registry.ts
-│   ├── runtime-agents/                             # Domain tools & specs
-│   │   ├── tool-bundles.ts
-│   │   ├── policies/{finance,obsidian,configuration}/
-│   │   └── bootstrap.ts
-│   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts entry)
-│   ├── telegram/                                   # I/O adapter + cron reporter
-│   ├── tools/                                      # Shared tools (skills, routing)
-│   ├── prompts/                                    # Prompt & skill loading
-│   ├── services/                                   # Obsidian, Supabase, Wise
-│   ├── mcp/                                        # MCP client wrappers + self-healing
-│   ├── connectors/                                 # LLM connector abstraction
-│   └── utils/                                      # Message content, FS, SQL, datetime
-├── prompts/          # System prompt files
-├── skills/           # Agent playbooks
-├── data/             # Persisted cron jobs + runtime agents
-├── specs/            # Pointer to docs/ARCHITECTURE.md (legacy specs retired)
-├── tests/unit/       # 46 Vitest suites
-├── tests/e2e/        # Playwright workflow tests
-└── sql/              # Supabase setup scripts
+personal-assistant/                 # pnpm workspace root
+├── packages/
+│   └── supervisor-framework/       # @personal-assistant/supervisor-framework
+│       ├── src/core/               # Execution kernel
+│       ├── src/framework/          # bootstrapSupervisorSystem, resolveAgentTools
+│       ├── src/capabilities/
+│       └── tests/unit/             # Framework boundary + kernel tests
+├── apps/
+│   └── personal-assistant/
+│       ├── src/
+│       │   ├── index.ts, app.ts, config.ts, cron-triggers.ts
+│       │   ├── app/                # Composition & domain hooks
+│       │   ├── runtime-agents/     # Domain tools & capability catalog
+│       │   ├── cron/ telegram/ tools/ services/ mcp/ connectors/ ...
+│       ├── prompts/ skills/ data/ sql/
+│       ├── tests/unit/ tests/e2e/
+│       └── Dockerfile docker-compose.yml
+├── docs/ examples/
+└── pnpm-workspace.yaml
 ```
 
 ---
@@ -504,7 +508,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 - **Done:** Avoid adding a general dependency-injection container. `createSupervisorSystem()` is the composition root and makes dependencies visible.
 - **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
 - **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
-- **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
+- **Done:** Legacy subgraph specs referring to `Finance_SG` and `Obsidian_SG` were retired; this document describes the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
 
 ---
 
@@ -518,13 +522,6 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
 5. Add prompt file under `prompts/`
 6. Restart the process so `createAssistant()` recompiles graph nodes for the new agent
-
-**Reuse the framework elsewhere:**
-
-```typescript
-import { createAssistant } from "./core/create-assistant.js";
-// Provide runtimeAgents, policies, loadPromptByKey, models, repository
-```
 
 **Add a custom runtime agent at runtime:**
 
