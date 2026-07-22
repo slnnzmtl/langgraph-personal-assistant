@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
-import { createReadSkillTool } from "../../../tools/skill-management.js";
 import { fetchWiseTransactions } from "../../../services/wise/index.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
@@ -75,11 +74,3 @@ export const createFinanceDomainToolsFromSession = (
 
   return [execSql, fetchWise, getCategories];
 };
-
-export const createFinanceTools = (
-  mcpSession: SupabaseMcpSession,
-  skillModule: string,
-): StructuredToolInterface[] => [
-  createReadSkillTool(skillModule, "xml"),
-  ...createFinanceDomainToolsFromSession(mcpSession),
-];

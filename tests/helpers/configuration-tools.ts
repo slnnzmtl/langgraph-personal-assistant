@@ -1,9 +1,10 @@
 import { vi } from "vitest";
 
-import { createConfigurationTools as createConfigurationToolsImpl } from "../../src/runtime-agents/policies/configuration/tools.js";
+import { createSystemConfigDomainTools } from "../../src/runtime-agents/policies/configuration/tools.js";
 import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agents.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
+import { createReadSkillTool } from "../../src/tools/skill-management.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "./fakes.js";
 
 export const createCronRepositoryFake = (
@@ -40,12 +41,15 @@ export const createConfigurationTools = (
   repository: CronJobRepository = createCronRepositoryFake(),
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
   skillModule: string = CONFIGURATOR_AGENT_ID,
-) =>
-  createConfigurationToolsImpl(
-    {
-      ...defaultConfigurationBundleDeps,
-      cronJobRepository: repository,
-      runtimeAgentRepository,
-    },
-    skillModule,
-  );
+) => {
+  const bundleDeps = {
+    ...defaultConfigurationBundleDeps,
+    cronJobRepository: repository,
+    runtimeAgentRepository,
+  };
+
+  return [
+    createReadSkillTool(skillModule, "xml"),
+    ...createSystemConfigDomainTools(bundleDeps),
+  ];
+};

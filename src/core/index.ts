@@ -2,7 +2,6 @@ export { createAssistant, type AssistantConfig } from "./create-assistant.js";
 export {
   createRuntimeAgentRepository,
   type RuntimeAgentRepository,
-  type RuntimeAgentRepositoryOptions,
 } from "./agents/repository.js";
 export {
   resolveAgentSystemPrompt,

@@ -6,9 +6,9 @@ import {
   createConfigurationTools,
   createCronRepositoryFake,
 } from "../../helpers/configuration-tools.js";
-import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import { getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
-const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
+const configurationDefinition = getRuntimeAgentFixture("configuration");
 
 const defaultCronJobs = [
   {

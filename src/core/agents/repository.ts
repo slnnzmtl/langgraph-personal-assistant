@@ -72,17 +72,11 @@ const validateUniqueAgentId = (agents: RuntimeAgentDefinition[], id: string): vo
   }
 };
 
-export type RuntimeAgentRepositoryOptions = {
-  transformAgent?: (agent: RuntimeAgentDefinition) => RuntimeAgentDefinition;
-};
-
 export const createRuntimeAgentRepository = (
   rootDir: string,
   relativePath: string,
-  options: RuntimeAgentRepositoryOptions = {},
 ): RuntimeAgentRepository => {
   const fileKey = resolveSafePath(rootDir, relativePath);
-  const transformAgent = options.transformAgent ?? ((agent) => agent);
 
   return {
     async loadAgents(): Promise<RuntimeAgentDefinition[]> {
@@ -91,7 +85,7 @@ export const createRuntimeAgentRepository = (
       }
 
       const rawContent = await readTextFile(rootDir, relativePath);
-      return parseDocument(rawContent).agents.map(transformAgent);
+      return parseDocument(rawContent).agents;
     },
 
     async getAgent(id: string): Promise<RuntimeAgentDefinition | undefined> {

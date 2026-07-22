@@ -9,7 +9,7 @@ import { createCompiledSubAgentGraph } from "../helpers/compiled-sub-agent.js";
 import { createRuntimeAgentNode } from "../../src/core/execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../../src/core/execution/sub-agent-state.js";
 import { hasPendingToolCalls } from "../../src/core/execution/tool-routing.js";
-import { getBuiltinRuntimeAgentDefinition } from "../helpers/fakes.js";
+import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
 class PairingCallbackHandler extends BaseCallbackHandler {
   name = "PairingCallbackHandler";
@@ -127,7 +127,7 @@ describe("callback propagation", () => {
   });
 
   it("forwards config through createRuntimeAgentNode model invokes", async () => {
-    const definition = getBuiltinRuntimeAgentDefinition("finance");
+    const definition = getRuntimeAgentFixture("finance");
     let receivedConfig: unknown;
 
     const model = {

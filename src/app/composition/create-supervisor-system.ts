@@ -1,9 +1,11 @@
+import path from "node:path";
+
 import type { AppConfig } from "../../config.js";
 import { createWorkflowGraph } from "../../agent.js";
 import { GeminiConnector } from "../../connectors/llm-connector.js";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
 import type { RuntimeCronService } from "../../cron/types.js";
-import { createRuntimeAgentRepositoryForConfig } from "./create-runtime-agent-repository.js";
+import { createRuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import { resolveAgentModelKey } from "../../core/types/agent.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
@@ -67,7 +69,10 @@ export const createSupervisorSystem = async (
 ): Promise<SupervisorSystemContext> => {
   const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
   const supabaseSession = await setupSupabaseSession(config);
-  const runtimeAgentRepository = createRuntimeAgentRepositoryForConfig(config.runtimeAgentsFilePath);
+  const runtimeAgentRepository = createRuntimeAgentRepository(
+    process.cwd(),
+    path.relative(process.cwd(), config.runtimeAgentsFilePath),
+  );
 
   const runtimeAgents = applyLocalModuleAvailability(
     await ensureBuiltinRuntimeAgents(runtimeAgentRepository),

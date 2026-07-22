@@ -10,7 +10,7 @@ import type { LoadPromptByKey } from "./core/agents/resolve-system-prompt.js";
 import type { PromptLoggingHook } from "./core/ports/prompt-logging.js";
 import type { RuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
-import { appReplyUxConfig } from "./app/composition/reply-ux.js";
+import { defaultReplyUxConfig } from "./core/supervisor/reply-ux.js";
 import { logSystemPromptInvocation } from "./logging/system-prompt-logger.js";
 
 export type CreateWorkflowGraphInput = {
@@ -52,7 +52,7 @@ export const createWorkflowGraph = ({
     loadPromptByKey,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
-    replyUx: appReplyUxConfig,
+    replyUx: defaultReplyUxConfig,
     promptLogging,
     cronTriggerResolver: {
       resolveCronTriggerRoute: (message) => cronTriggerResolver.resolveCronTriggerRoute(message) ?? undefined,

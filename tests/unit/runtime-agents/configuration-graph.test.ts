@@ -9,14 +9,14 @@ import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js
 import {
   FakeLLMConnector,
   createRuntimeExecutionContextFake,
-  getBuiltinRuntimeAgentDefinition,
+  getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
 
 import { createFilesystemSkillCatalog } from "../../../src/integrations/skills/filesystem-skill-catalog.js";
 
 const configurationShellFormatters = createDefaultRuntimeShellFormatters(createFilesystemSkillCatalog());
 
-const configurationDefinition = getBuiltinRuntimeAgentDefinition("configuration");
+const configurationDefinition = getRuntimeAgentFixture("configuration");
 
 describe("configuration subgraph", () => {
   it("executes tool calls before returning to the parent wrapper", async () => {

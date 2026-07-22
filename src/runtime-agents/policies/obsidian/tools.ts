@@ -1,7 +1,6 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../../telegram/file-sender.js";
-import { createReadSkillTool } from "../../../tools/skill-management.js";
 import {
   RelativePathSchema,
   resolveVaultPath,
@@ -161,12 +160,3 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
 
   return baseTools as any;
 };
-
-export const createObsidianTools = (
-  vaultRoot: string,
-  fileSender: IFileSender | undefined,
-  skillModule: string,
-): StructuredToolInterface[] => [
-  createReadSkillTool(skillModule, "xml"),
-  ...createObsidianVaultTools(vaultRoot, fileSender),
-];

@@ -4,11 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
 import { createFinanceNode } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "../../../src/core/types/agent.js";
-import { createFinanceTools } from "../../../src/runtime-agents/policies/finance/tools.js";
-import { getFinanceDomainTool } from "../../helpers/finance-tools.js";
-import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import { createFinanceTestTools, getFinanceDomainTool } from "../../helpers/finance-tools.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
-const financeDefinition = getBuiltinRuntimeAgentDefinition("finance");
+const financeDefinition = getRuntimeAgentFixture("finance");
 const financeSkillModule = resolveAgentSkillModule(financeDefinition);
 
 const wiseTransactions = [
@@ -108,7 +107,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(session, financeSkillModule);
+    const tools = createFinanceTestTools(session, financeSkillModule);
     const readSkillTool = tools.find((tool) => tool.name === "read_skill");
 
     expect(readSkillTool).toBeDefined();
@@ -125,7 +124,7 @@ describe("finance tools", () => {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const tools = createFinanceTools(session, financeSkillModule);
+    const tools = createFinanceTestTools(session, financeSkillModule);
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",

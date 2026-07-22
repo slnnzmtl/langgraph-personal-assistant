@@ -15,11 +15,16 @@ import {
 } from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { createRuntimeShellHooks } from "../../src/core/execution/runtime-shell.js";
+import { withResolvedAgentSystemPrompt } from "../../src/core/agents/resolve-system-prompt.js";
+import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
-import { resolveTestAgentSystemPrompt } from "./resolve-test-agent-prompt.js";
 
 const testSkillCatalog = createFilesystemSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
+
+const resolveTestAgentSystemPrompt = (
+  definition: Parameters<typeof withResolvedAgentSystemPrompt>[0],
+) => withResolvedAgentSystemPrompt(definition, loadSystemPromptByKey);
 
 type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
 

@@ -21,9 +21,9 @@ import {
   createPromptLoader,
   loadObsidianSystemPrompt,
 } from "../../../src/prompts/load-system-prompt.js";
-import { FakeLLMConnector, getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
-const obsidianDefinition = getBuiltinRuntimeAgentDefinition("obsidian");
+const obsidianDefinition = getRuntimeAgentFixture("obsidian");
 
 const tempPaths: string[] = [];
 

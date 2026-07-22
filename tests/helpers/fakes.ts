@@ -12,6 +12,7 @@ import {
   defaultTestCronTargetAgentIds,
   getRuntimeAgentFixture,
 } from "./runtime-agent-fixtures.js";
+export { getRuntimeAgentFixture } from "./runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
@@ -173,8 +174,6 @@ export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
   cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
-
-export const getBuiltinRuntimeAgentDefinition = getRuntimeAgentFixture;
 
 export const createAppSupervisorNode = (
   llmConnector: ILLMConnector,

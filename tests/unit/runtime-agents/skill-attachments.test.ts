@@ -11,7 +11,7 @@ import {
   resolveSkillAttachmentRulesForModule,
   resolveSkillAttachments,
 } from "../../../src/runtime-agents/skill-attachments.js";
-import { getBuiltinRuntimeAgentDefinition } from "../../helpers/fakes.js";
+import { getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const routineRules = () => resolveSkillAttachmentRulesForModule("obsidian");
 const financeRules = () => resolveSkillAttachmentRulesForModule("finance");
@@ -192,7 +192,7 @@ describe("resolveSkillAttachments", () => {
 
 describe("appendConfiguredSkillAttachments", () => {
   it("appends configured attachments to the base prompt", () => {
-    const definition = getBuiltinRuntimeAgentDefinition("obsidian");
+    const definition = getRuntimeAgentFixture("obsidian");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
@@ -206,7 +206,7 @@ describe("appendConfiguredSkillAttachments", () => {
   });
 
   it("returns the base prompt unchanged when intent does not match", () => {
-    const definition = getBuiltinRuntimeAgentDefinition("obsidian");
+    const definition = getRuntimeAgentFixture("obsidian");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
@@ -217,7 +217,7 @@ describe("appendConfiguredSkillAttachments", () => {
   });
 
   it("appends expense-view for finance expense-db queries", () => {
-    const definition = getBuiltinRuntimeAgentDefinition("finance");
+    const definition = getRuntimeAgentFixture("finance");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
