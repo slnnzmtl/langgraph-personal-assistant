@@ -1,3 +1,4 @@
+// Telegram bot process entry — distinct from src/cron/ scheduler entry.
 import { Telegraf } from "telegraf";
 
 import { createSupervisorSystem } from "./app/composition/create-supervisor-system.js";

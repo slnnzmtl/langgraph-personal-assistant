@@ -1,3 +1,4 @@
+// Deployment-specific graph wiring: cron triggers, prompt logging, supervisor prompt.
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "./connectors/llm-connector.js";

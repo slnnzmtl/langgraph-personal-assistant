@@ -401,42 +401,63 @@ Configurable via `MCP_MAX_RECONNECT_ATTEMPTS` (default `1`), `MCP_RECONNECT_BASE
 
 ---
 
+## Intentional layer boundaries
+
+These paths look thin or product-specific but should **stay separate**. Do not merge them without a concrete second-deployment need.
+
+| Path | Role | Why keep separate |
+|---|---|---|
+| `src/agent.ts` | App graph wiring (`createWorkflowGraph`) | Cron trigger resolver, prompt logging, supervisor prompt — between core and `createSupervisorSystem()` |
+| `src/app.ts` | Telegram process bootstrap | Sibling to `src/cron/index.ts`, not nested under `src/app/` |
+| `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
+| `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
+| `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
+| `src/app/composition/resolve-agent-tools.ts` | Capability → tools + `read_skill` | Shared by generic and domain policies |
+| `src/core/index.ts` | Documented kernel barrel | Unused by in-repo imports today; public API surface in FRAMEWORK.md |
+| `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
+
+---
+
 ## Directory Map
 
 ```
 personal-assistant/
 ├── src/
 │   ├── index.ts, app.ts, agent.ts, config.ts, cron-triggers.ts  # Bootstrap & wiring
-│   ├── core/                                       # Framework (reusable)
+│   ├── core/                                       # Execution kernel
+│   │   ├── index.ts                                # Documented public barrel
 │   │   ├── create-assistant.ts                     # Main graph API
-│   │   ├── state.ts, message-compaction.ts, message-trimming.ts  # State + trimming
-│   │   ├── supervisor/                             # Routing, history sanitization
-│   │   ├── agents/                                 # Graph bundles, build-runtime-agent-nodes, repository
-│   │   ├── execution/                              # Sub-agent bundle factory, runtime node, tool loop
+│   │   ├── state.ts, message-compaction.ts, message-trimming.ts
+│   │   ├── supervisor/                             # Routing, history, reply UX
+│   │   ├── agents/                                 # Graph bundles, repository
+│   │   ├── execution/                              # Runtime node, tool loop
 │   │   ├── policies/                               # Registry, generic policy
+│   │   ├── ports/                                  # LLM and prompt-logging ports
 │   │   └── types/                                  # Agent & policy schemas
-│   ├── app/                                        # This assistant's config
-│   │   ├── composition/bootstrap-agents.ts         # Built-in configurator seed
-│   │   ├── register-defaults.ts, composition/create-supervisor-system.ts
-│   │   ├── policies/                               # Domain policies + hooks
+│   ├── app/                                        # Composition & domain hooks
+│   │   ├── composition/                            # bootstrap-agents, create-supervisor-system
+│   │   ├── policies/                               # Domain policies + LLM hooks
+│   │   ├── register-defaults.ts
 │   │   └── model-registry.ts
-│   ├── runtime-agents/                             # Domain tools & specs
+│   ├── runtime-agents/                             # Domain tools & capability catalog
 │   │   ├── tool-bundles.ts
-│   │   ├── policies/{finance,obsidian,configuration}/
-│   │   └── bootstrap.ts
-│   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts entry)
+│   │   ├── skill-attachments.ts
+│   │   └── policies/{finance,obsidian,configuration}/
+│   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts)
 │   ├── telegram/                                   # I/O adapter + cron reporter
-│   ├── tools/                                      # Shared tools (skills, routing)
+│   ├── tools/                                      # Shared tools (skills, output)
 │   ├── prompts/                                    # Prompt & skill loading
 │   ├── services/                                   # Obsidian, Supabase, Wise
-│   ├── mcp/                                        # MCP client wrappers + self-healing
-│   ├── connectors/                                 # LLM connector abstraction
-│   └── utils/                                      # Message content, FS, SQL, datetime
+│   ├── mcp/                                        # Supabase MCP + transport errors
+│   ├── connectors/                                 # Gemini connector
+│   ├── capabilities/                               # Capability catalog types
+│   ├── integrations/                               # Filesystem skill catalog
+│   └── utils/                                      # SQL, datetime helpers
 ├── prompts/          # System prompt files
 ├── skills/           # Agent playbooks
 ├── data/             # Persisted cron jobs + runtime agents
-├── specs/            # Pointer to docs/ARCHITECTURE.md (legacy specs retired)
-├── tests/unit/       # 46 Vitest suites
+├── docs/             # Architecture and framework docs
+├── tests/unit/       # Vitest suites
 ├── tests/e2e/        # Playwright workflow tests
 └── sql/              # Supabase setup scripts
 ```
@@ -504,7 +525,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 - **Done:** Avoid adding a general dependency-injection container. `createSupervisorSystem()` is the composition root and makes dependencies visible.
 - **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
 - **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
-- **Done:** Legacy `specs/` documents referring to `Finance_SG` and `Obsidian_SG` were retired; see [specs/README.md](../specs/README.md) and this document for the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
+- **Done:** Legacy subgraph specs referring to `Finance_SG` and `Obsidian_SG` were retired; this document describes the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
 
 ---
 

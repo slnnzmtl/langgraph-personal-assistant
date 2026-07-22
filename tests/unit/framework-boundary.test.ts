@@ -40,9 +40,27 @@ const collectSourceFiles = (dir: string): string[] => {
   return files;
 };
 
+const assertNoForbiddenImports = (
+  rootDir: string,
+  forbiddenPathSegments: readonly string[],
+  forbiddenImportSubstrings: readonly string[] = [],
+): void => {
+  for (const file of collectSourceFiles(rootDir)) {
+    const content = readFileSync(file, "utf8");
+
+    for (const segment of forbiddenPathSegments) {
+      expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+    }
+
+    for (const importPath of forbiddenImportSubstrings) {
+      expect(content.includes(importPath), `${file} must not import ${importPath}`).toBe(false);
+    }
+  }
+};
+
 describe("framework boundaries", () => {
   it("keeps core free of runtime-agents imports", () => {
-    const forbiddenPathSegments = [
+    assertNoForbiddenImports(CORE_ROOT, [
       "runtime-agents/",
       "app/policies/",
       "integrations/",
@@ -50,20 +68,15 @@ describe("framework boundaries", () => {
       "../../connectors/",
       "../../logging/",
       "../../utils/",
-    ];
-    const forbiddenImportSubstrings = ["utils/message-content.js"];
+    ], ["utils/message-content.js"]);
+  });
 
-    for (const file of collectSourceFiles(CORE_ROOT)) {
-      const content = readFileSync(file, "utf8");
-
-      for (const segment of forbiddenPathSegments) {
-        expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
-      }
-
-      for (const importPath of forbiddenImportSubstrings) {
-        expect(content.includes(importPath), `${file} must not import ${importPath}`).toBe(false);
-      }
-    }
+  it("keeps runtime-agents free of app composition and policy imports", () => {
+    assertNoForbiddenImports(path.resolve("src/runtime-agents"), [
+      "app/composition/",
+      "app/policies/",
+      "app/register-defaults",
+    ]);
   });
 
   it("rejects unavailable capability grants", () => {

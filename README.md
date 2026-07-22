@@ -61,7 +61,7 @@ graph TD
 |---|---|---|
 | **Execution kernel** | `src/core/` | LangGraph topology, supervisor routing, flat runtime-agent loops, policy registry API, agent repository, shared state |
 | **App layer** | `src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
-| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), bootstrap |
+| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
 | **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
 
 Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
@@ -253,12 +253,12 @@ src/
 
   app/composition/          # Bootstrap agents, supervisor system wiring
     bootstrap-agents.ts     # CONFIGURATOR_SPEC — code-seeded configurator only
-  runtime-agents/           # Domain tools and bootstrap helpers
-    bootstrap.ts            # Merge persisted agents with defaults
-    tool-bundles.ts         # Tool bundle catalog
+  runtime-agents/           # Domain tools and capability catalog (no app imports)
+    tool-bundles.ts         # Capability providers and bundle deps
+    skill-attachments.ts    # Skill auto-attachment rules
     policies/               # finance / obsidian / configuration tool implementations
 
-  cron/                     # Scheduler bootstrap, runner, job repository
+  cron/                     # Scheduler process (separate from Telegram bot)
   telegram/                 # Telegram adapter and file sender
   tools/                    # Shared tools (skills, routing, guarded tool nodes)
   prompts/                  # Prompt and skill loading (load-system-prompt.ts)
@@ -268,7 +268,6 @@ prompts/                    # System prompt files (.xml / .md)
 skills/                     # Agent skill playbooks
 data/                       # Persisted cron jobs and runtime agents
 docs/                       # Architecture and design documentation (see docs/ARCHITECTURE.md)
-specs/                      # Pointer to docs/ARCHITECTURE.md
 tests/                      # Unit and e2e tests
 ```
 

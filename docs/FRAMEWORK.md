@@ -4,13 +4,28 @@
 
 ## Layers
 
-| Layer | Path | Responsibility |
-|---|---|---|
-| Core | `src/core/` | Agent definitions, graph execution, policies API, capability contracts, skill ports |
-| Capabilities | `src/capabilities/` | Declarative capability descriptors and catalog validation |
-| Composition | `src/app/composition/` | Bootstrap agents, register capabilities, build the supervisor system |
-| Integrations | `src/integrations/` | Concrete adapters (filesystem skills, vault, Supabase, cron) |
-| Product policies | `src/app/policies/` | Domain hooks and optional configuration feature |
+
+| Layer            | Path                   | Responsibility                                                                      |
+| ---------------- | ---------------------- | ----------------------------------------------------------------------------------- |
+| Core             | `src/core/`            | Agent definitions, graph execution, policies API, capability contracts, skill ports |
+| Capabilities     | `src/capabilities/`    | Declarative capability descriptors and catalog validation                           |
+| Composition      | `src/app/composition/` | Bootstrap agents, register capabilities, build the supervisor system                |
+| Integrations     | `src/integrations/`    | Concrete adapters (filesystem skills, vault, Supabase)                              |
+| Domain runtime   | `src/runtime-agents/`  | Capability providers and domain tool factories                                      |
+| Product policies | `src/app/policies/`    | Domain hooks and optional configuration feature                                     |
+
+
+
+
+## Intentional boundaries
+
+- `src/app/` — composition, policies, hooks. Imports `src/runtime-agents/` for tools.
+- `src/runtime-agents/` — domain tools and capability catalog. Must **not** import `src/app/`.
+- `src/cron/` — scheduler infrastructure; separate process from Telegram (`src/app.ts`).
+- `src/agent.ts` — deployment graph wiring between core and supervisor bootstrap.
+- `src/core/index.ts` — documented kernel barrel; in-repo code may import modules directly.
+
+Boundary tests live in `tests/unit/framework-boundary.test.ts`.
 
 ## Core API (in-repo)
 
@@ -22,6 +37,8 @@ Import from `src/core/index.ts` when wiring within this monorepo:
 - `createCapabilityCatalog` — validate and resolve tool bundles
 - Types: `RuntimeAgentDefinition`, `RuntimeAgentPolicy`, `SkillCatalog`, `CapabilityDescriptor`
 
+
+
 ## Composition entry point
 
 Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts` to wire this deployment:
@@ -31,12 +48,16 @@ Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.
 3. Register policies via `createAppExecutionKit()`
 4. Compile the LangGraph workflow
 
+
+
 ## Adding a capability
 
 1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/tool-bundles.ts` (or register a custom provider).
 2. Implement `CapabilityProvider.resolveTools`.
 3. Grant the capability ID on agent definitions (`capabilityIds`).
 4. Domain and generic agents resolve tools through the same catalog via `resolveAgentCapabilityTools()`.
+
+
 
 ## Self-configuration (optional product feature)
 
