@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import {
   createRuntimeShellHooks,
@@ -15,6 +15,71 @@ import { formatCronJobForDisplay } from "../../runtime-agents/policies/configura
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);
+
+const normalizeRequestText = (text: string): string =>
+  text.toLowerCase().replaceAll(/\s+/g, " ").trim();
+
+export const isSkillMutatingIntent = (text: string): boolean => {
+  const normalized = normalizeRequestText(text);
+  return (
+    /\b(create|add|new|bootstrap|draft|author|write|edit|update|change|rewrite|delete|remove)\b/.test(normalized)
+    && /\bskills?\b/.test(normalized)
+  );
+};
+
+export const isSkillListDisplayIntent = (text: string): boolean => {
+  const normalized = normalizeRequestText(text);
+  if (isSkillMutatingIntent(text)) {
+    return false;
+  }
+
+  return (
+    /\b(list|show|view|inspect|what|which|available)\b/.test(normalized)
+    && /\bskills?\b/.test(normalized)
+  );
+};
+
+export const isSkillPreviewDisplayIntent = (text: string): boolean => {
+  const normalized = normalizeRequestText(text);
+  if (isSkillMutatingIntent(text)) {
+    return false;
+  }
+
+  return (
+    /\b(preview|read|open|show|view|inspect)\b/.test(normalized)
+    && /\bskill\b/.test(normalized)
+  );
+};
+
+const getTriggerUserText = (messages: readonly BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message instanceof HumanMessage) {
+      return extractMessageTextContent(message.content).trim();
+    }
+  }
+
+  return "";
+};
+
+export const shouldShortCircuitReadOnlySkillTool = (
+  toolName: string,
+  triggerUserText: string,
+): boolean => {
+  if (isSkillMutatingIntent(triggerUserText)) {
+    return false;
+  }
+
+  if (toolName === "list_skills") {
+    return isSkillListDisplayIntent(triggerUserText);
+  }
+
+  if (toolName === "preview_skill") {
+    return true;
+  }
+
+  return false;
+};
 
 type ConfigurationHooksOptions = {
   repository: CronJobRepository;
@@ -110,7 +175,11 @@ export const createConfigurationNodeHooks = (
         latestMessage instanceof ToolMessage ? latestMessage : undefined,
       );
       if (readOnlySkillToolResult) {
-        return { agentMessages: [new AIMessage(readOnlySkillToolResult)] };
+        const toolName = latestMessage instanceof ToolMessage ? latestMessage.name ?? "" : "";
+        const triggerUserText = getTriggerUserText(ctx.state.agentMessages);
+        if (shouldShortCircuitReadOnlySkillTool(toolName, triggerUserText)) {
+          return { agentMessages: [new AIMessage(readOnlySkillToolResult)] };
+        }
       }
 
       return null;

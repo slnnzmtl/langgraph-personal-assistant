@@ -260,6 +260,50 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).not.toHaveBeenCalled();
   });
 
+  it("continues to the model after list_skills during skill bootstrap enrichment", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
+    const listContent = "Module: finance\nSkill Name: expense-sync\nStatus: Listed";
+
+    const node = createConfigurationNode(
+      {
+        invoke: async (input: any) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+      } as never,
+      createConfigurationTools(repository),
+      {
+        repository: repository as never,
+        definition: configurationDefinition,
+      },
+    );
+
+    const result = await node({
+      agentMessages: [
+        new HumanMessage("Create a new skill named finance-summary for the finance agent."),
+        new AIMessage({
+          content: "",
+          tool_calls: [{ name: "list_runtime_agents", args: {}, id: "agents-1", type: "tool_call" }],
+        }),
+        new ToolMessage({ name: "list_runtime_agents", tool_call_id: "agents-1", content: "Agent ID: finance" }),
+        new AIMessage({
+          content: "",
+          tool_calls: [{ name: "list_capabilities", args: {}, id: "caps-1", type: "tool_call" }],
+        }),
+        new ToolMessage({ name: "list_capabilities", tool_call_id: "caps-1", content: "finance-domain" }),
+        new AIMessage({
+          content: "",
+          tool_calls: [{ name: "list_skills", args: { module: "finance" }, id: "list-1", type: "tool_call" }],
+        }),
+        new ToolMessage({ name: "list_skills", tool_call_id: "list-1", content: listContent }),
+      ],
+      stepCount: 3,
+    });
+
+    expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
+    expect(result.agentMessages?.[0]?.content).toContain("Status: Draft");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));

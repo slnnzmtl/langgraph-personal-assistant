@@ -229,4 +229,18 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toContain('<attached_skill name="expense-ledger-schema">');
     expect(prompt).toContain("public.expense");
   });
+
+  it("appends skill-bootstrap for configuration skill create requests", () => {
+    const definition = getRuntimeAgentFixture("configuration");
+    const prompt = appendConfiguredSkillAttachments(
+      "Base prompt",
+      definition,
+      [new HumanMessage("Create a new skill for the finance agent named finance-summary.")],
+    );
+
+    expect(prompt).toContain("Base prompt");
+    expect(prompt).toContain('<attached_skill name="skill-bootstrap">');
+    expect(prompt).toContain("Never ask the user for description or content");
+    expect(prompt).toContain("list_skills(module)");
+  });
 });

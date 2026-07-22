@@ -13,7 +13,9 @@
    - Never execute the skill steps or call downstream agent tools after a preview.
 
 3. CREATE (create, add, new):
-   - Call `create_skill(module, name, description, content)`.
+   - Default: follow `skill-bootstrap` (from `<attached_skills>` or `read_skill("skill-bootstrap")`).
+   - Only call `create_skill(module, name, description, content)` directly when the user already provides all four: module, name, description, and full body content.
+   - Never ask the user for missing description or content manually; bootstrap gathers context and drafts them.
    - Use a concise kebab-case name and a clear one-line description.
    - The tool sets the root `<skill module="...">` attribute from the module argument.
 
