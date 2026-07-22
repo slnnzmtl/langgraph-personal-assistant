@@ -6,7 +6,7 @@ import {
   resolveSafePath,
   searchFilesByContent,
   writeTextFile,
-} from "../utils/file-system.js";
+} from "../core/persistence/file-system.js";
 
 export const RelativePathSchema = z
   .string()

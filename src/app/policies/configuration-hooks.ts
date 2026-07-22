@@ -3,7 +3,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { RuntimeAgentNodeHooks } from "../../core/execution/runtime-node.js";
 import { sanitizeResponseToolCalls } from "../../core/execution/runtime-node.js";
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
+import { extractMessageTextContent } from "../../core/messages/message-content.js";
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
 import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";

@@ -3,7 +3,7 @@ import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../core/execution/sub-agent-messages.js";
 import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
 import { resolveActiveSkillFromHistory } from "../tools/skill-history.js";
-import { extractMessageTextContent } from "../utils/message-content.js";
+import { extractMessageTextContent } from "../core/messages/message-content.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { SkillAttachmentRule } from "../core/skills/catalog.js";

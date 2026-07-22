@@ -1,6 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "../utils/message-content.js";
+import { extractMessageTextContent } from "../core/messages/message-content.js";
 
 export type ActiveSkillSelection = {
   skillName: string;

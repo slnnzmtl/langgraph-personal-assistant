@@ -7,8 +7,8 @@ import type { RuntimeAgentNodeHooks, RuntimeAgentTurnContext } from "../../core/
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
 import type { SubAgentState } from "../../core/execution/sub-agent-state.js";
 import { formatObsidianRoutineHint } from "../../prompts/load-system-prompt.js";
-import { extractMessageTextContent } from "../../utils/message-content.js";
-import { buildDirectoryTree } from "../../utils/file-system.js";
+import { extractMessageTextContent } from "../../core/messages/message-content.js";
+import { buildDirectoryTree } from "../../core/persistence/file-system.js";
 import { getAttachedSkillNames } from "../../runtime-agents/skill-attachments.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
 

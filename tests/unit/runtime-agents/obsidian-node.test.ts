@@ -16,7 +16,7 @@ import {
 } from "../../../src/services/obsidian.js";
 import { mapObsidianSubAgentResult } from "../../../src/app/policies/obsidian-hooks.js";
 import { createObsidianNode } from "../../helpers/policy-nodes.js";
-import { extractMessageTextContent } from "../../../src/utils/message-content.js";
+import { extractMessageTextContent } from "../../../src/core/messages/message-content.js";
 import {
   createPromptLoader,
   loadObsidianSystemPrompt,
