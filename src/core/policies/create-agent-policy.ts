@@ -2,7 +2,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import { createUnavailableGraphBundle } from "../agents/runtime-agent-graph-bundle.js";
-import { resolveModel } from "../execution/context.js";
+import { resolveModel, type RuntimeAgentExecutionContext } from "../execution/context.js";
 import {
   createSubAgentGraphBundle,
   mapDefaultSubAgentResult,
@@ -19,7 +19,6 @@ import type { SkillCatalog } from "../skills/catalog.js";
 import type { RuntimeShellFormatters } from "../system-context.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import { resolveAgentModelKey } from "../types/agent.js";
-import type { PolicyContext } from "../types/policy-context.js";
 import type { RuntimeAgentPolicy } from "../types/policy.js";
 
 export type AgentPolicyToolkitOptions = {
@@ -27,27 +26,33 @@ export type AgentPolicyToolkitOptions = {
   shellFormatters?: RuntimeShellFormatters;
 };
 
-export type AgentPolicyBundleDeps<TExtra extends Record<string, unknown>> = {
+export type AgentPolicyBundleDeps<
+  TBundleDeps extends Record<string, unknown>,
+  TExtra extends Record<string, unknown>,
+> = {
   model: BaseChatModel;
   definition: RuntimeAgentDefinition;
-  bundleDeps: Record<string, unknown>;
+  bundleDeps: TBundleDeps;
   skillCatalog?: SkillCatalog;
 } & TExtra;
 
-export type CreateAgentPolicyConfig<TExtra extends Record<string, unknown> = Record<string, never>> = {
+export type CreateAgentPolicyConfig<
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+  TExtra extends Record<string, unknown> = Record<string, never>,
+> = {
   executor: string;
   displayName?: string;
   requireShellFormatters?: boolean;
-  resolveDeps?: (context: PolicyContext, definition: RuntimeAgentDefinition) => TExtra | null;
+  resolveDeps?: (context: RuntimeAgentExecutionContext<TBundleDeps>, definition: RuntimeAgentDefinition) => TExtra | null;
   unavailableMessage?: (reason: string) => string;
   resolveTools: (
     definition: RuntimeAgentDefinition,
-    bundleDeps: Record<string, unknown>,
+    bundleDeps: TBundleDeps,
     options: { skillCatalog?: SkillCatalog },
   ) => StructuredToolInterface[];
   hooks?: RuntimeAgentNodeHooks;
   createHooks?: (
-    deps: AgentPolicyBundleDeps<TExtra>,
+    deps: AgentPolicyBundleDeps<TBundleDeps, TExtra>,
     options: AgentPolicyToolkitOptions,
   ) => RuntimeAgentNodeHooks;
   logLabel?: string;
@@ -70,19 +75,21 @@ const createAgentLlmNode = (
   ) => Promise<SubAgentStateUpdate>;
 
 export const createAgentPolicy = <
+  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 >(
-  config: CreateAgentPolicyConfig<TExtra>,
+  config: CreateAgentPolicyConfig<TBundleDeps, TExtra>,
   options: AgentPolicyToolkitOptions = {},
 ): RuntimeAgentPolicy => ({
   executor: config.executor,
   createGraphBundle: (context, definition) => {
+    const policyContext = context as RuntimeAgentExecutionContext<TBundleDeps>;
     const needsHooks = config.createHooks !== undefined;
     if (config.requireShellFormatters !== false && needsHooks && !options.shellFormatters) {
       throw new Error(`createAgentPolicy(${config.executor}) requires runtime shell formatters.`);
     }
 
-    const resolvedExtra = config.resolveDeps?.(context, definition) ?? ({} as TExtra);
+    const resolvedExtra = config.resolveDeps?.(policyContext, definition) ?? ({} as TExtra);
 
     if (config.resolveDeps && resolvedExtra === null) {
       const displayName = config.displayName ?? definition.name;
@@ -93,10 +100,10 @@ export const createAgentPolicy = <
       );
     }
 
-    const deps: AgentPolicyBundleDeps<TExtra> = {
-      model: resolveModel(context, resolveAgentModelKey(definition)),
+    const deps: AgentPolicyBundleDeps<TBundleDeps, TExtra> = {
+      model: resolveModel(policyContext, resolveAgentModelKey(definition)),
       definition,
-      bundleDeps: context.bundleDeps,
+      bundleDeps: policyContext.bundleDeps,
       ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
       ...resolvedExtra,
     };
@@ -107,6 +114,7 @@ export const createAgentPolicy = <
 
     const nodeConfig: RuntimeAgentNodeConfig = {
       ...hooks,
+      ...(policyContext.promptLogging ? { promptLogging: policyContext.promptLogging } : {}),
       ...(config.logLabel ? { logLabel: config.logLabel } : {}),
       ...(config.buildErrorMessage ? { buildErrorMessage: config.buildErrorMessage } : {}),
       ...(config.selectToolsForTurn ? { selectToolsForTurn: config.selectToolsForTurn } : {}),

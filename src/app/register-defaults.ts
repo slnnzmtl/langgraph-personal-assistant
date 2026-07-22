@@ -54,10 +54,10 @@ export const createAppExecutionKit = (
     }));
 
   const policyRegistry = createPolicyRegistry([
-    createAgentPolicy({
+    createAgentPolicy<RuntimeToolBundleDeps>({
       executor: "generic",
       resolveTools: (definition, bundleDeps, resolveOptions) =>
-        resolveAgentCapabilityTools(definition, bundleDeps as RuntimeToolBundleDeps, resolveOptions ?? {}),
+        resolveAgentCapabilityTools(definition, bundleDeps, resolveOptions ?? {}),
       hooks: genericShellHooks,
       logLabel: "generic-runtime-agent",
       buildErrorMessage: (error, definition) =>

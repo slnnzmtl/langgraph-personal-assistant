@@ -1,8 +1,8 @@
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { fileExists, readTextFile, resolveSafePath } from "../../utils/file-system.js";
-import { withSerializedFileWrite } from "../../utils/json-store.js";
+import { fileExists, readTextFile, resolveSafePath } from "../persistence/file-system.js";
+import { withSerializedFileWrite } from "../persistence/json-store.js";
 import {
   RUNTIME_AGENT_SCHEMA_VERSION,
   parseCreateRuntimeAgentInput,

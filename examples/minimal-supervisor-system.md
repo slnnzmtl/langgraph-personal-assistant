@@ -61,6 +61,8 @@ import { createRuntimeToolBundleDeps } from "../src/runtime-agents/tool-bundles.
 const bundleDeps = createRuntimeToolBundleDeps("/path/to/vault", {
   capabilityCatalog: catalog,
   skillCatalog,
+  cronJobRepository,
+  runtimeAgentRepository,
 });
 
 const graph = createAssistant({
@@ -68,7 +70,6 @@ const graph = createAssistant({
   models: { generic: model },
   runtimeAgents,
   runtimeAgentRepository,
-  cronJobRepository,
   bundleDeps,
   loadPromptByKey,
   policyRegistry,

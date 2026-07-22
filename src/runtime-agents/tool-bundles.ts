@@ -2,7 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
-import type { CronJobRepository } from "../cron/types.js";
+import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 import {
@@ -76,6 +76,7 @@ export type RuntimeToolBundleDeps = {
   cronTargetAgentIds?: readonly string[];
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
+  runtimeCron?: RuntimeCronService;
   capabilityCatalog?: CapabilityCatalog;
   skillCatalog?: SkillCatalog;
 };
@@ -88,6 +89,7 @@ export const createRuntimeToolBundleDeps = (
     cronTargetAgentIds?: readonly string[];
     cronJobRepository?: CronJobRepository;
     runtimeAgentRepository?: RuntimeAgentRepository;
+    runtimeCron?: RuntimeCronService;
     capabilityCatalog?: CapabilityCatalog;
     skillCatalog?: SkillCatalog;
   } = {},
@@ -98,6 +100,7 @@ export const createRuntimeToolBundleDeps = (
   ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
   ...(options.runtimeAgentRepository ? { runtimeAgentRepository: options.runtimeAgentRepository } : {}),
+  ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
   ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
 });

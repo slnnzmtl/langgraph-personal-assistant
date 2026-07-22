@@ -275,4 +275,4 @@ tests/                      # Unit and e2e tests
 ### Extending the assistant
 
 - **New built-in domain agent:** add persisted agent spec + tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`. Restart required.
-- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works.
+- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works. Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).

@@ -5,8 +5,9 @@ import {
 } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
-import type { ILLMConnector } from "../../connectors/llm-connector.js";
+import type { ILLMConnector } from "../ports/llm-connector.js";
 import { extractMessageTextContent } from "../messages/message-content.js";
+import { defaultReplyUxConfig, type ReplyUxConfig } from "./reply-ux.js";
 
 export const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -57,12 +58,13 @@ export const buildFailureReplyText = async (
   promptMessages: BaseMessage[],
   supervisorPromptText: string,
   failureContext: string,
+  replyUx: ReplyUxConfig = defaultReplyUxConfig,
   config?: RunnableConfig,
 ): Promise<string> =>
   buildPlainTextReply(
     llmConnector,
     promptMessages,
     supervisorPromptText,
-    `The normal supervisor routing failed. Produce the final user-facing reply in plain text. Explain the issue briefly and helpfully, and do not output JSON or call tools. Failure context: ${failureContext}`,
+    replyUx.buildFailureReplyInstruction(failureContext),
     config,
   );

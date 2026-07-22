@@ -1,18 +1,9 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { RunnableConfig } from "@langchain/core/runnables";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import type { z } from "zod";
 
-export type RoutingChain<TRoute> = {
-  invoke(input: unknown, config?: RunnableConfig): Promise<TRoute>;
-};
+import type { ILLMConnector, RoutingChain } from "../core/ports/llm-connector.js";
 
-export interface ILLMConnector {
-  getModel(): BaseChatModel;
-  bindRoutingTools<TRoute extends Record<string, unknown>>(
-    schema: z.ZodType<TRoute>,
-  ): RoutingChain<TRoute>;
-}
+export type { ILLMConnector, RoutingChain } from "../core/ports/llm-connector.js";
 
 export class GeminiConnector implements ILLMConnector {
   private readonly model: ChatGoogleGenerativeAI;
@@ -30,7 +21,7 @@ export class GeminiConnector implements ILLMConnector {
   }
 
   bindRoutingTools<TRoute extends Record<string, unknown>>(
-    schema: z.ZodType<TRoute>,
+    schema: Parameters<ILLMConnector["bindRoutingTools"]>[0],
   ): RoutingChain<TRoute> {
     return this.model.withStructuredOutput(schema, {
       name: "route_request",

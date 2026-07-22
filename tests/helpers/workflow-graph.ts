@@ -92,7 +92,6 @@ export const createTestWorkflowGraph = ({
     defaultModelKey,
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
     messageHistoryMaxTokens,
-    cronJobRepository,
     runtimeAgentRepository,
     loadPromptByKey,
     policyRegistry,

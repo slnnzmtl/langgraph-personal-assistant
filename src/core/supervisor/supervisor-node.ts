@@ -1,8 +1,8 @@
 import { SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
-import type { ILLMConnector } from "../../connectors/llm-connector.js";
-import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
+import type { ILLMConnector } from "../ports/llm-connector.js";
+import { noopPromptLogging, type PromptLoggingHook } from "../ports/prompt-logging.js";
 import { stripToolsForSupervisor } from "./message-history.js";
 import type { RuntimeAgentRepository } from "../agents/repository.js";
 import {
@@ -28,6 +28,7 @@ export type SupervisorNodeOptions = {
   runtimeAgentRepository?: RuntimeAgentRepository;
   wiredAgentIds: ReadonlySet<string>;
   loadSupervisorPrompt: () => string;
+  promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: CronTriggerResolver;
 };
 
@@ -36,6 +37,7 @@ export const createSupervisorNode = (
   options: SupervisorNodeOptions,
 ) =>
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
+    const promptLogging = options.promptLogging ?? noopPromptLogging;
     const supervisorPromptText = options.loadSupervisorPrompt();
     const supervisorPrompt = new SystemMessage(supervisorPromptText);
     const lastMessage = state.messages[state.messages.length - 1];
@@ -67,7 +69,7 @@ export const createSupervisorNode = (
       return completionUpdate;
     }
 
-    await logSystemPromptInvocation("supervisor-system-prompt", rawPromptMessages);
+    await promptLogging("supervisor-system-prompt", rawPromptMessages);
 
     const runtimeAgents = options.runtimeAgentRepository
       ? await options.runtimeAgentRepository.loadAgents()

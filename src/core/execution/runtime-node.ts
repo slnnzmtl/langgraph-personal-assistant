@@ -3,7 +3,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { RunnableConfig } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
+import { noopPromptLogging, type PromptLoggingHook } from "../ports/prompt-logging.js";
 import {
   defaultAppendDynamicSections,
   type SystemContextFormatter,
@@ -70,6 +70,7 @@ export type RuntimeAgentNodeHooks = {
 
 export type RuntimeAgentNodeConfig = RuntimeAgentNodeHooks & {
   logLabel?: string;
+  promptLogging?: PromptLoggingHook;
   buildErrorMessage?: (error: unknown, definition: RuntimeAgentDefinition) => string;
   selectToolsForTurn?: (
     ctx: RuntimeAgentTurnContext,
@@ -147,6 +148,7 @@ export const createRuntimeAgentNode = (
   const basePrompt = definition.systemPrompt.trim();
   const logLabel = config.logLabel ?? `runtime-agent-${definition.id}`;
   const buildErrorMessage = config.buildErrorMessage ?? defaultBuildErrorMessage;
+  const promptLogging = config.promptLogging ?? noopPromptLogging;
 
   return async (state: SubAgentState, runnableConfig?: RunnableConfig): Promise<SubAgentStateUpdate> => {
     try {
@@ -189,7 +191,7 @@ export const createRuntimeAgentNode = (
       const systemInstructions = new SystemMessage(systemPromptText);
       const promptMessages = buildRuntimeAgentPromptMessages(systemInstructions, state.agentMessages);
 
-      await logSystemPromptInvocation(logLabel, promptMessages);
+      await promptLogging(logLabel, promptMessages);
 
       const modelForTurn = toolsForTurn.length > 0
         ? bindTools(toolsForTurn)

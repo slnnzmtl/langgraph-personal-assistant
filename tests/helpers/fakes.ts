@@ -220,16 +220,16 @@ export const createRuntimeExecutionContextFake = (options?: {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();
   const cronJobRepository = options?.cronJobRepository ?? emptyCronRepository();
+  const repository = options?.repository ?? createRuntimeAgentRepositoryFake();
 
   return createAppRuntimeExecutionContext({
     defaultModel: model,
-    repository: options?.repository ?? createRuntimeAgentRepositoryFake(),
-    cronJobRepository,
+    repository,
     bundleDeps: {
       obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
       cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
       cronJobRepository,
-      runtimeAgentRepository: options?.repository ?? createRuntimeAgentRepositoryFake(),
+      runtimeAgentRepository: repository,
     },
   });
 };

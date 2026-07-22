@@ -89,6 +89,7 @@ export const createSupervisorSystem = async (
     skillCatalog,
     ...(options.fileSender ? { fileSender: options.fileSender } : {}),
     ...(supabaseSession ? { supabaseSession } : {}),
+    ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
   });
 
   const defaultModelKey = "generic";
@@ -103,13 +104,11 @@ export const createSupervisorSystem = async (
     runtimeAgents,
     defaultModelKey,
     cronTargetAgentIds,
-    cronJobRepository,
     runtimeAgentRepository,
     loadPromptByKey,
     policyRegistry,
     bundleDeps,
     messageHistoryMaxTokens: config.messageHistoryMaxTokens,
-    ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
   });
 
   return {

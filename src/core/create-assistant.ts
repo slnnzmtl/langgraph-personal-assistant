@@ -1,8 +1,8 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ILLMConnector } from "../connectors/llm-connector.js";
-import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
+import type { ILLMConnector } from "./ports/llm-connector.js";
+import type { PromptLoggingHook } from "./ports/prompt-logging.js";
 import {
   buildRuntimeAgentGraphNodeSets,
   createRuntimeAgentFinalizeNode,
@@ -18,6 +18,7 @@ import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
 import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
 import { createFailureReplyNode } from "./supervisor/failure-reply-node.js";
+import { defaultReplyUxConfig, type ReplyUxConfig } from "./supervisor/reply-ux.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
 import {
   createAgentStateAnnotation,
@@ -27,37 +28,39 @@ import {
   type AgentState,
 } from "./state.js";
 
-export type AssistantConfig = {
+export type AssistantConfig<TBundleDeps extends Record<string, unknown> = Record<string, unknown>> = {
   supervisorLlm: ILLMConnector;
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
   runtimeAgents: RuntimeAgentDefinition[];
   runtimeAgentRepository: RuntimeAgentRepository;
-  cronJobRepository: CronJobRepository;
-  runtimeCron?: RuntimeCronService;
-  bundleDeps?: Record<string, unknown>;
+  bundleDeps: TBundleDeps;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
   policyRegistry: PolicyRegistry;
+  replyUx?: ReplyUxConfig;
+  promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
   checkpointer?: MemorySaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
 };
 
-export const createAssistant = (config: AssistantConfig) => {
+export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
+  config: AssistantConfig<TBundleDeps>,
+) => {
   const policyRegistry = config.policyRegistry;
+  const replyUx = config.replyUx ?? defaultReplyUxConfig;
 
   const memory = config.checkpointer ?? new MemorySaver();
   const executionContext = createRuntimeAgentExecutionContext({
     models: config.models,
     ...(config.defaultModelKey ? { defaultModelKey: config.defaultModelKey } : {}),
     repository: config.runtimeAgentRepository,
-    cronJobRepository: config.cronJobRepository,
-    ...(config.runtimeCron ? { runtimeCron: config.runtimeCron } : {}),
-    ...(config.bundleDeps ? { bundleDeps: config.bundleDeps } : {}),
+    bundleDeps: config.bundleDeps,
     loadPromptByKey: config.loadPromptByKey,
     policyRegistry,
+    ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
   });
 
   const agentStateAnnotation = createAgentStateAnnotation({
@@ -70,11 +73,13 @@ export const createAssistant = (config: AssistantConfig) => {
     runtimeAgentRepository: config.runtimeAgentRepository,
     wiredAgentIds,
     loadSupervisorPrompt: config.loadSupervisorPrompt,
+    ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
   });
-  const emptyReplyNode = createEmptyReplyNode(config.supervisorLlm);
+  const emptyReplyNode = createEmptyReplyNode(config.supervisorLlm, replyUx);
   const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {
     loadSupervisorPrompt: config.loadSupervisorPrompt,
+    replyUx,
   });
 
   const graph = new StateGraph(agentStateAnnotation)

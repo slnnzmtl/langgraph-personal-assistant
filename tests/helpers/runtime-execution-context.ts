@@ -9,16 +9,14 @@ import {
 } from "../../src/app/composition/create-supervisor-system.js";
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { createRuntimeAgentExecutionContext as createCoreExecutionContext } from "../../src/core/execution/context.js";
-import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
   repository?: RuntimeAgentRepository;
-  cronJobRepository: CronJobRepository;
-  runtimeCron?: RuntimeCronService;
   bundleDeps: RuntimeToolBundleDeps;
   executors?: Iterable<string>;
 };
@@ -44,8 +42,6 @@ export const createAppRuntimeExecutionContext = (
     ),
     defaultModelKey,
     repository: input.repository ?? createRuntimeAgentRepositoryFake(),
-    cronJobRepository: input.cronJobRepository,
-    ...(input.runtimeCron ? { runtimeCron: input.runtimeCron } : {}),
     bundleDeps: {
       ...input.bundleDeps,
       cronTargetAgentIds,
