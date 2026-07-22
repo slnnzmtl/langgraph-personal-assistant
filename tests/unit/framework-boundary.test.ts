@@ -130,7 +130,7 @@ describe("framework boundaries", () => {
     });
 
     const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
-    const writeTools = resolveCapabilities(["system-config-write"], deps).map((tool) => tool.name);
+    const writeTools = resolveCapabilities(["system-config"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
     expect(readTools).not.toContain("create_cron_job");

@@ -24,7 +24,7 @@ export type CreateWorkflowGraphInput = {
   messageHistoryMaxTokens: number;
   loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
-  bundleDeps: CapabilityDeps;
+  capabilityDeps: CapabilityDeps;
   promptLogging?: PromptLoggingHook;
 };
 
@@ -38,7 +38,7 @@ export const createWorkflowGraph = ({
   messageHistoryMaxTokens,
   loadPromptByKey,
   policyRegistry,
-  bundleDeps,
+  capabilityDeps,
   promptLogging = logSystemPromptInvocation,
 }: CreateWorkflowGraphInput) => {
   const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
@@ -49,7 +49,7 @@ export const createWorkflowGraph = ({
     runtimeAgents,
     defaultModelKey,
     runtimeAgentRepository,
-    bundleDeps,
+    capabilityDeps,
     loadPromptByKey,
     policyRegistry,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,

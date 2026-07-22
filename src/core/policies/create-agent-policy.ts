@@ -26,34 +26,34 @@ export type AgentPolicyToolkitOptions = {
   shellFormatters?: RuntimeShellFormatters;
 };
 
-export type AgentPolicyBundleDeps<
-  TBundleDeps extends Record<string, unknown>,
+export type AgentPolicyCapabilityDeps<
+  TCapabilityDeps extends Record<string, unknown>,
   TExtra extends Record<string, unknown>,
 > = {
   model: BaseChatModel;
   definition: RuntimeAgentDefinition;
-  bundleDeps: TBundleDeps;
+  capabilityDeps: TCapabilityDeps;
   skillCatalog?: SkillCatalog;
 } & TExtra;
 
 export type CreateAgentPolicyConfig<
-  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+  TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 > = {
   /** Selects optional LLM hooks; tools always come from capabilityIds. */
   executor: string;
   displayName?: string;
   requireShellFormatters?: boolean;
-  resolveDeps?: (context: RuntimeAgentExecutionContext<TBundleDeps>, definition: RuntimeAgentDefinition) => TExtra | null;
+  resolveDeps?: (context: RuntimeAgentExecutionContext<TCapabilityDeps>, definition: RuntimeAgentDefinition) => TExtra | null;
   unavailableMessage?: (reason: string) => string;
   resolveTools: (
     definition: RuntimeAgentDefinition,
-    bundleDeps: TBundleDeps,
+    capabilityDeps: TCapabilityDeps,
     options: { skillCatalog?: SkillCatalog },
   ) => StructuredToolInterface[];
   hooks?: RuntimeAgentNodeHooks;
   createHooks?: (
-    deps: AgentPolicyBundleDeps<TBundleDeps, TExtra>,
+    deps: AgentPolicyCapabilityDeps<TCapabilityDeps, TExtra>,
     options: AgentPolicyToolkitOptions,
   ) => RuntimeAgentNodeHooks;
   logLabel?: string;
@@ -76,15 +76,15 @@ const createAgentLlmNode = (
   ) => Promise<SubAgentStateUpdate>;
 
 export const createAgentPolicy = <
-  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+  TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 >(
-  config: CreateAgentPolicyConfig<TBundleDeps, TExtra>,
+  config: CreateAgentPolicyConfig<TCapabilityDeps, TExtra>,
   options: AgentPolicyToolkitOptions = {},
 ): RuntimeAgentPolicy => ({
   executor: config.executor,
   createGraphBundle: (context, definition) => {
-    const policyContext = context as RuntimeAgentExecutionContext<TBundleDeps>;
+    const policyContext = context as RuntimeAgentExecutionContext<TCapabilityDeps>;
     const needsHooks = config.createHooks !== undefined;
     if (config.requireShellFormatters !== false && needsHooks && !options.shellFormatters) {
       throw new Error(`createAgentPolicy(${config.executor}) requires runtime shell formatters.`);
@@ -101,10 +101,10 @@ export const createAgentPolicy = <
       );
     }
 
-    const deps: AgentPolicyBundleDeps<TBundleDeps, TExtra> = {
+    const deps: AgentPolicyCapabilityDeps<TCapabilityDeps, TExtra> = {
       model: resolveModel(policyContext, resolveAgentModelKey(definition)),
       definition,
-      bundleDeps: policyContext.bundleDeps,
+      capabilityDeps: policyContext.capabilityDeps,
       ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
       ...resolvedExtra,
     };
@@ -126,7 +126,7 @@ export const createAgentPolicy = <
       maxSteps: definition.maxSteps,
       deps,
       createTools: (agentDeps) =>
-        config.resolveTools(agentDeps.definition, agentDeps.bundleDeps, {
+        config.resolveTools(agentDeps.definition, agentDeps.capabilityDeps, {
           ...(agentDeps.skillCatalog ? { skillCatalog: agentDeps.skillCatalog } : {}),
         }),
       createLlmNode: (agentDeps, agentTools) =>

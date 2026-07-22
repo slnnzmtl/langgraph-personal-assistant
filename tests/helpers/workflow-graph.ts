@@ -95,6 +95,6 @@ export const createTestWorkflowGraph = ({
     runtimeAgentRepository,
     loadPromptByKey,
     policyRegistry,
-    bundleDeps: capabilityDeps,
+    capabilityDeps: capabilityDeps,
   });
 };

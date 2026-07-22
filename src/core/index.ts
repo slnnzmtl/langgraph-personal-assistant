@@ -10,7 +10,7 @@ export {
 } from "./agents/resolve-system-prompt.js";
 export {
   createAgentPolicy,
-  type AgentPolicyBundleDeps,
+  type AgentPolicyCapabilityDeps,
   type AgentPolicyToolkitOptions,
   type CreateAgentPolicyConfig,
 } from "./policies/create-agent-policy.js";

@@ -30,13 +30,13 @@ import {
   type AgentState,
 } from "./state.js";
 
-export type AssistantConfig<TBundleDeps extends Record<string, unknown> = Record<string, unknown>> = {
+export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>> = {
   supervisorLlm: ILLMConnector;
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
   runtimeAgents: RuntimeAgentDefinition[];
   runtimeAgentRepository: RuntimeAgentRepository;
-  bundleDeps: TBundleDeps;
+  capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
   policyRegistry: PolicyRegistry;
@@ -48,8 +48,8 @@ export type AssistantConfig<TBundleDeps extends Record<string, unknown> = Record
   messageHistoryMaxTokens?: number;
 };
 
-export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
-  config: AssistantConfig<TBundleDeps>,
+export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>(
+  config: AssistantConfig<TCapabilityDeps>,
 ) => {
   const policyRegistry = config.policyRegistry;
   const replyUx = config.replyUx ?? defaultReplyUxConfig;
@@ -59,7 +59,7 @@ export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
     models: config.models,
     ...(config.defaultModelKey ? { defaultModelKey: config.defaultModelKey } : {}),
     repository: config.runtimeAgentRepository,
-    bundleDeps: config.bundleDeps,
+    capabilityDeps: config.capabilityDeps,
     loadPromptByKey: config.loadPromptByKey,
     policyRegistry,
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),

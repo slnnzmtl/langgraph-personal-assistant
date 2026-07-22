@@ -68,7 +68,8 @@ Personal pack wiring:
 The configuration executor can manage skills, cron jobs, and generic agents when granted `system-config`. Finer grants:
 
 - `system-config-read` — list/preview only (grantable to other agents)
-- `system-config-write` — create/update/delete (reserved; not grantable via config API)
+
+Write access is reserved for the configurator via `system-config` (`configurable: false`).
 
 Adding new executable integrations remains a deployment/code change; the configurator composes registered capabilities only.
 

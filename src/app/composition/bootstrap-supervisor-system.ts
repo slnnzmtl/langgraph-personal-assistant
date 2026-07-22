@@ -137,7 +137,7 @@ export const bootstrapSupervisorSystem = async (
     runtimeAgentRepository,
     loadPromptByKey,
     policyRegistry,
-    bundleDeps: capabilityDeps,
+    capabilityDeps: capabilityDeps,
     messageHistoryMaxTokens: pack.config.messageHistoryMaxTokens,
   });
 

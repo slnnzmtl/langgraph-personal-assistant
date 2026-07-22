@@ -70,7 +70,7 @@ const graph = createAssistant({
   models: { generic: model },
   runtimeAgents,
   runtimeAgentRepository,
-  bundleDeps: capabilityDeps,
+  capabilityDeps: capabilityDeps,
   loadPromptByKey,
   policyRegistry,
   loadSupervisorPrompt: () => "<supervisor prompt>",

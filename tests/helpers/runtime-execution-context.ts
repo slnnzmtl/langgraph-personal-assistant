@@ -42,7 +42,7 @@ export const createAppRuntimeExecutionContext = (
     ),
     defaultModelKey,
     repository: input.repository ?? createRuntimeAgentRepositoryFake(),
-    bundleDeps: {
+    capabilityDeps: {
       ...input.capabilityDeps,
       cronTargetAgentIds,
     },

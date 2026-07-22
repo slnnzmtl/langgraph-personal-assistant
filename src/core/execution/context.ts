@@ -7,20 +7,20 @@ import type { PolicyRegistry } from "../policies/registry.js";
 import type { PolicyContext } from "../types/policy-context.js";
 
 export type RuntimeAgentExecutionContext<
-  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
-> = PolicyContext<TBundleDeps> & {
+  TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
+> = PolicyContext<TCapabilityDeps> & {
   loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
   promptLogging?: PromptLoggingHook;
 };
 
 export type CreateRuntimeAgentExecutionContextInput<
-  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+  TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
 > = {
   models: Record<string, BaseChatModel>;
   defaultModelKey?: string;
   repository: RuntimeAgentRepository;
-  bundleDeps: TBundleDeps;
+  capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
   promptLogging?: PromptLoggingHook;
@@ -41,14 +41,14 @@ export const resolveModel = (
 };
 
 export const createRuntimeAgentExecutionContext = <
-  TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
+  TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
 >(
-  input: CreateRuntimeAgentExecutionContextInput<TBundleDeps>,
-): RuntimeAgentExecutionContext<TBundleDeps> => ({
+  input: CreateRuntimeAgentExecutionContextInput<TCapabilityDeps>,
+): RuntimeAgentExecutionContext<TCapabilityDeps> => ({
   models: input.models,
   defaultModelKey: input.defaultModelKey ?? "generic",
   repository: input.repository,
-  bundleDeps: input.bundleDeps,
+  capabilityDeps: input.capabilityDeps,
   loadPromptByKey: input.loadPromptByKey,
   policyRegistry: input.policyRegistry,
   ...(input.promptLogging ? { promptLogging: input.promptLogging } : {}),

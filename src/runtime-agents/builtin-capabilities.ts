@@ -46,12 +46,6 @@ export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
     requiresConfigurationRepos: true,
     configurable: true,
   },
-  {
-    id: "system-config-write",
-    description: "Create, update, and delete cron jobs, runtime agents, and skills.",
-    requiresConfigurationRepos: true,
-    configurable: false,
-  },
 ];
 
 export type BuiltinCapabilityId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
@@ -140,10 +134,6 @@ const createBuiltinCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[
   {
     descriptor: getBuiltinDescriptor("system-config-read"),
     resolveTools: (deps) => resolveSystemConfigCapability(deps, false),
-  },
-  {
-    descriptor: getBuiltinDescriptor("system-config-write"),
-    resolveTools: (deps) => resolveSystemConfigCapability(deps, true),
   },
 ];
 

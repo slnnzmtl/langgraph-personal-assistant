@@ -75,7 +75,7 @@ Pick capabilities from the allowlisted catalog. Some need deployment deps:
 | `obsidian-vault` | yes | Obsidian vault path configured |
 | `finance-domain` | yes | Supabase; agents using it are auto-disabled if Supabase is missing |
 | `system-config-read` | yes | Cron + agent repositories |
-| `system-config` / `system-config-write` | no | Reserved for the configurator |
+| `system-config` | no | Reserved for the configurator (read + write) |
 
 ### Optional follow-ups (after restart)
 

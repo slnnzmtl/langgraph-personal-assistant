@@ -19,8 +19,8 @@ export const createObsidianPolicy = (options: DomainPolicyOptions = {}) =>
     executor: "obsidian",
     displayName: "Obsidian",
     resolveDeps: (context: RuntimeAgentExecutionContext<CapabilityDeps>) => ({
-      vaultRoot: context.bundleDeps.obsidianVaultPath,
-      fileSender: context.bundleDeps.fileSender,
+      vaultRoot: context.capabilityDeps.obsidianVaultPath,
+      fileSender: context.capabilityDeps.fileSender,
     }),
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
       resolveAgentTools(definition, capabilityDeps, resolveOptions ?? {}),
@@ -48,7 +48,7 @@ export const createConfigurationPolicy = (options: DomainPolicyOptions = {}) =>
     executor: "configuration",
     displayName: "Configuration",
     resolveDeps: (context: RuntimeAgentExecutionContext<CapabilityDeps>) => {
-      const { cronJobRepository, runtimeCron } = context.bundleDeps;
+      const { cronJobRepository, runtimeCron } = context.capabilityDeps;
 
       if (!cronJobRepository) {
         return null;
