@@ -29,6 +29,7 @@ describe("named prompt loaders", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
+    expect(prompt).toContain("post_handoff_replan_rules");
     expect(prompt).not.toContain("<runtime_execution>");
     expect(prompt).toContain("CURRENT DATETIME:");
     expect(prompt.indexOf("You are the Root Supervisor")).toBeLessThan(

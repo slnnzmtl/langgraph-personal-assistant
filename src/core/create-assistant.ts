@@ -18,6 +18,7 @@ import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
 import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
 import { createFailureReplyNode } from "./supervisor/failure-reply-node.js";
+import { createPostHandoffFinishNode } from "./supervisor/post-handoff-finish-node.js";
 import { defaultReplyUxConfig, type ReplyUxConfig } from "./supervisor/reply-ux.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
 import {
@@ -25,6 +26,7 @@ import {
   EMPTY_REPLY_ROUTE,
   FAILURE_REPLY_ROUTE,
   FINISH_ROUTE,
+  POST_HANDOFF_FINISH_ROUTE,
   type AgentState,
 } from "./state.js";
 
@@ -81,11 +83,13 @@ export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     replyUx,
   });
+  const postHandoffFinishNode = createPostHandoffFinishNode(config.supervisorLlm, replyUx);
 
   const graph = new StateGraph(agentStateAnnotation)
     .addNode("supervisor", supervisorNode)
     .addNode(EMPTY_REPLY_ROUTE, emptyReplyNode)
-    .addNode(FAILURE_REPLY_ROUTE, failureReplyNode);
+    .addNode(FAILURE_REPLY_ROUTE, failureReplyNode)
+    .addNode(POST_HANDOFF_FINISH_ROUTE, postHandoffFinishNode);
 
   for (const nodeSet of runtimeAgentNodeSets) {
     const { bundle } = nodeSet;
@@ -126,6 +130,7 @@ export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
     [FINISH_ROUTE]: END,
     [EMPTY_REPLY_ROUTE]: EMPTY_REPLY_ROUTE,
     [FAILURE_REPLY_ROUTE]: FAILURE_REPLY_ROUTE,
+    [POST_HANDOFF_FINISH_ROUTE]: POST_HANDOFF_FINISH_ROUTE,
   };
 
   for (const nodeSet of runtimeAgentNodeSets) {
@@ -140,7 +145,8 @@ export const createAssistant = <TBundleDeps extends Record<string, unknown>>(
       supervisorRoutes as Record<string, typeof END>,
     )
     .addEdge(EMPTY_REPLY_ROUTE, END)
-    .addEdge(FAILURE_REPLY_ROUTE, END);
+    .addEdge(FAILURE_REPLY_ROUTE, END)
+    .addEdge(POST_HANDOFF_FINISH_ROUTE, END);
 
   return graph.compile({
     checkpointer: memory,

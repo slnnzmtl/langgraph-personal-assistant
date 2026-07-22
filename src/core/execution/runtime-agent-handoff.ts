@@ -75,17 +75,20 @@ export const buildRuntimeAgentHandoff = (args: {
   const status = args.explicitStatus
     ?? resolveRuntimeAgentHandoffStatus(args.message, args.stepCount, args.maxSteps);
 
+  const responseText = extractMessageTextContent(args.message.content).trim();
+  const toolContext = formatRecentToolResultsForHandoff(args.agentMessages);
+
   return {
     kind: "runtime-agent-handoff",
     agentId: args.agentId,
     agentName: args.agentName,
     status,
-    ...(status === "empty"
-      ? { toolContext: formatRecentToolResultsForHandoff(args.agentMessages) }
+    ...(status === "empty" || (responseText.length === 0 && toolContext.length > 0)
+      ? { toolContext }
       : {}),
   };
 };
 
 export const isRuntimeAgentHandoffComplete = (
   handoff: RuntimeAgentHandoff | null | undefined,
-): boolean => handoff !== null && handoff !== undefined && handoff.status !== "empty";
+): handoff is RuntimeAgentHandoff => handoff !== null && handoff !== undefined && handoff.status !== "empty";

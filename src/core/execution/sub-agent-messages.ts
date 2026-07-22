@@ -43,6 +43,34 @@ export const scopeSubAgentMessages = (
   return messages.slice(startIndex);
 };
 
+export const applyDelegationPrompt = (
+  messages: BaseMessage[],
+  prompt: string,
+): BaseMessage[] => {
+  const trimmed = prompt.trim();
+  if (trimmed.length === 0) {
+    return messages;
+  }
+
+  let lastHumanIndex = -1;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message && isHumanMessage(message)) {
+      lastHumanIndex = index;
+      break;
+    }
+  }
+
+  if (lastHumanIndex === -1) {
+    return [new HumanMessage(trimmed), ...messages];
+  }
+
+  const nextMessages = [...messages];
+  nextMessages[lastHumanIndex] = new HumanMessage(trimmed);
+  return nextMessages;
+};
+
 export const buildRuntimeAgentPromptMessages = (
   systemInstructions: BaseMessage,
   stateMessages: BaseMessage[],

@@ -2,6 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
+  applyDelegationPrompt,
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
@@ -45,6 +46,31 @@ describe("scopeSubAgentMessages", () => {
     const messages = [new AIMessage("orphan reply")];
 
     expect(scopeSubAgentMessages(messages)).toEqual(messages);
+  });
+});
+
+describe("applyDelegationPrompt", () => {
+  it("replaces the latest human message with the delegated prompt", () => {
+    const messages = [
+      new HumanMessage("where is the note?"),
+      new AIMessage("Checking."),
+      new HumanMessage("show me today's plan and yesterday expenses"),
+    ];
+
+    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
+
+    expect(result).toHaveLength(3);
+    expect(String(result[0]?.content)).toBe("where is the note?");
+    expect(String(result.at(-1)?.content)).toBe("Show yesterday's expenses.");
+  });
+
+  it("prepends a human message when no human message exists", () => {
+    const messages = [new AIMessage("orphan reply")];
+
+    const result = applyDelegationPrompt(messages, "Show today's plan.");
+
+    expect(result).toHaveLength(2);
+    expect(String(result[0]?.content)).toBe("Show today's plan.");
   });
 });
 

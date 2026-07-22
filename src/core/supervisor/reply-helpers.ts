@@ -1,4 +1,5 @@
 import {
+  AIMessage,
   HumanMessage,
   SystemMessage,
   type BaseMessage,
@@ -14,6 +15,36 @@ export const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
     const message = messages[index];
     if (message instanceof HumanMessage || message?._getType() === "human") {
       return extractMessageTextContent(message.content).trim();
+    }
+  }
+
+  return "";
+};
+
+export const findLatestAiReplySinceLastHuman = (messages: BaseMessage[]): string => {
+  let lastHumanIndex = -1;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message instanceof HumanMessage || message?._getType() === "human") {
+      lastHumanIndex = index;
+      break;
+    }
+  }
+
+  for (let index = messages.length - 1; index > lastHumanIndex; index -= 1) {
+    const message = messages[index];
+    if (message === undefined) {
+      continue;
+    }
+
+    if (!(message instanceof AIMessage || message._getType() === "ai")) {
+      continue;
+    }
+
+    const text = extractMessageTextContent(message.content).trim();
+    if (text.length > 0 && !isRoutingJson(text)) {
+      return text;
     }
   }
 
@@ -60,11 +91,16 @@ export const buildFailureReplyText = async (
   failureContext: string,
   replyUx: ReplyUxConfig = defaultReplyUxConfig,
   config?: RunnableConfig,
-): Promise<string> =>
-  buildPlainTextReply(
-    llmConnector,
-    promptMessages,
-    supervisorPromptText,
-    replyUx.buildFailureReplyInstruction(failureContext),
-    config,
-  );
+): Promise<string> => {
+  try {
+    return await buildPlainTextReply(
+      llmConnector,
+      promptMessages,
+      supervisorPromptText,
+      replyUx.buildFailureReplyInstruction(failureContext),
+      config,
+    );
+  } catch {
+    return `I couldn't finish routing your request. ${failureContext}`;
+  }
+};

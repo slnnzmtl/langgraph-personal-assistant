@@ -38,8 +38,39 @@ const makeWorkflowGraph = (
 
 const createRouteSupervisor = (
   route: string | (() => unknown) = "obsidian",
-): FakeLLMConnector =>
-  new FakeLLMConnector(() => (typeof route === "function" ? route() : { next: route }));
+  delegationPrompt?: string,
+): FakeLLMConnector => {
+  let calls = 0;
+
+  return new FakeLLMConnector((input) => {
+    if (typeof route === "function") {
+      return route();
+    }
+
+    calls += 1;
+
+    if (calls === 1) {
+      return {
+        next: route,
+        prompt: delegationPrompt ?? `Handle the ${route} request.`,
+      };
+    }
+
+    if (Array.isArray(input)) {
+      for (let index = input.length - 1; index >= 0; index -= 1) {
+        const message = input[index];
+        if (message instanceof AIMessage || message?._getType?.() === "ai") {
+          const content = typeof message.content === "string" ? message.content.trim() : "";
+          if (content.length > 0) {
+            return { next: "FINISH", reply: content };
+          }
+        }
+      }
+    }
+
+    return { next: "FINISH", reply: "Done." };
+  });
+};
 
 const writeSuccessSummary = (summary: string, relativePath: string): string =>
   `${summary} saved to ${relativePath}.`;
@@ -220,7 +251,21 @@ test.describe("workflow graph", () => {
   });
 
   test("routes a finance request to the finance mock branch", async () => {
-    const connector = new FakeLLMConnector(() => ({ next: "finance" }));
+    const connector = new FakeLLMConnector((input) => {
+      if (Array.isArray(input)) {
+        for (let index = input.length - 1; index >= 0; index -= 1) {
+          const message = input[index];
+          if (message instanceof AIMessage || message?._getType?.() === "ai") {
+            const content = typeof message.content === "string" ? message.content.trim() : "";
+            if (content.length > 0) {
+              return { next: "FINISH", reply: content };
+            }
+          }
+        }
+      }
+
+      return { next: "finance", prompt: "Log my coffee expense." };
+    });
     const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-finance-vault"));
 
     const finalState = await app.invoke(
@@ -245,7 +290,7 @@ test.describe("workflow graph", () => {
           const latestText = getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>);
 
           if (latestText.includes("save turn 6")) {
-            return { next: "obsidian" };
+            return { next: "obsidian", prompt: "Save turn 6 to the vault." };
           }
 
           return {
@@ -738,7 +783,21 @@ test.describe("workflow graph", () => {
     ];
     const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 
-    const connector = new FakeLLMConnector(() => ({ next: "daily-summary" }));
+    const connector = new FakeLLMConnector((input) => {
+      if (Array.isArray(input)) {
+        for (let index = input.length - 1; index >= 0; index -= 1) {
+          const message = input[index];
+          if (message instanceof AIMessage || message?._getType?.() === "ai") {
+            const content = typeof message.content === "string" ? message.content.trim() : "";
+            if (content.length > 0) {
+              return { next: "FINISH", reply: content };
+            }
+          }
+        }
+      }
+
+      return { next: "daily-summary", prompt: "Summarize my day." };
+    });
     const app = makeWorkflowGraph(
       connector,
       path.join(os.tmpdir(), "unused-runtime-agent-vault"),

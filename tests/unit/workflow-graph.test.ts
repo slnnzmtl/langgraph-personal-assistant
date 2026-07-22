@@ -13,6 +13,41 @@ import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
 const threadConfig = { configurable: { thread_id: "unit-test-thread" } };
 
+const latestHumanInputText = (input: unknown): string => {
+  if (!Array.isArray(input)) {
+    return "";
+  }
+
+  for (let index = input.length - 1; index >= 0; index -= 1) {
+    const message = input[index];
+    if (message instanceof HumanMessage || message?._getType?.() === "human") {
+      return String(message.content ?? "");
+    }
+  }
+
+  return "";
+};
+
+const routeOnceThenFinish = (route: string, finishReply?: string, delegationPrompt?: string) => {
+  let calls = 0;
+
+  return () => {
+    calls += 1;
+
+    if (calls === 1) {
+      return {
+        next: route,
+        prompt: delegationPrompt ?? `Handle the ${route} request.`,
+      };
+    }
+
+    return {
+      next: "FINISH",
+      reply: finishReply ?? "Done",
+    };
+  };
+};
+
 const makeCronJobsFilePath = () => path.join(process.cwd(), ".tmp", `workflow-graph-${process.pid}-${Math.random().toString(36).slice(2)}.json`);
 
 const makeGraph = (
@@ -101,7 +136,7 @@ describe("createWorkflowGraph", () => {
         return new AIMessage("Finance is unavailable in this deployment.");
       }
 
-      return { next: "finance" };
+      return { next: "finance", prompt: "Show finances." };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
@@ -117,10 +152,14 @@ describe("createWorkflowGraph", () => {
     };
 
     let calls = 0;
+    const supervisorHandler = routeOnceThenFinish(
+      "finance",
+      "Finance sync completed successfully",
+    );
     const app = makeGraph(
       () => {
         calls += 1;
-        return { next: "finance" };
+        return supervisorHandler();
       },
       undefined,
       undefined,
@@ -129,11 +168,8 @@ describe("createWorkflowGraph", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
 
-    // Supervisor routes once; finance runs with mock session; supervisor then auto-FINISHes
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
-    // Note: executeSql may or may not be called depending on what the LLM decides to do
-    // The LLM has access to the session but chooses when to invoke tools
   });
 
   it("preserves every finance tool result when the model emits parallel tool calls", async () => {
@@ -143,7 +179,7 @@ describe("createWorkflowGraph", () => {
     };
     let financeCalls = 0;
     const app = makeGraph(
-      () => ({ next: "finance" }),
+      routeOnceThenFinish("finance", "Finance sync completed successfully"),
       undefined,
       (input) => {
         financeCalls += 1;
@@ -194,41 +230,46 @@ describe("createWorkflowGraph", () => {
 
   it("visits the obsidian node on obsidian route", async () => {
     let supervisorCalls = 0;
+    const supervisorHandler = routeOnceThenFinish("obsidian", "obsidian result");
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "obsidian" };
+        return supervisorHandler();
       },
       () => new AIMessage("obsidian result"),
     );
 
     const state = await app.invoke({ messages: [new HumanMessage("write a note")] }, threadConfig);
 
-    // Supervisor routes once; obsidian runs; supervisor then auto-FINISHes via isSubAgentComplete
-    expect(supervisorCalls).toBe(1);
+    expect(supervisorCalls).toBe(2);
     expect(state.messages.at(-1)?.content).toBe("obsidian result");
   });
 
   it("visits the configuration node on configuration route", async () => {
     let supervisorCalls = 0;
+    const supervisorHandler = routeOnceThenFinish(
+      "configuration",
+      "Cron configuration is not implemented yet, but this route is now reserved for chat-driven cron setup.",
+    );
     const app = makeGraph(() => {
       supervisorCalls += 1;
-      return { next: "configuration" };
+      return supervisorHandler();
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("schedule a daily reminder")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(1);
+    expect(supervisorCalls).toBe(2);
     expect(state.messages.at(-1)?.content).toContain("Cron configuration");
   });
 
   it("executes config tool calls before returning to the supervisor", async () => {
     let supervisorCalls = 0;
     let configCalls = 0;
+    const supervisorHandler = routeOnceThenFinish("configuration", "Created cron job daily-note.");
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "configuration" };
+        return supervisorHandler();
       },
       undefined,
       undefined,
@@ -275,8 +316,64 @@ describe("createWorkflowGraph", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("set up a cron job for daily notes")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(1);
+    expect(supervisorCalls).toBe(2);
     expect(state.messages.at(-1)?.content).toContain("Created cron job");
+  });
+
+  it("executes a multi-agent queue sequentially before re-planning", async () => {
+    const mockSession: SupabaseMcpSession = {
+      executeSql: vi.fn().mockResolvedValue({ rows: [] }),
+      close: vi.fn(),
+    };
+    let supervisorCalls = 0;
+    let financeCalls = 0;
+    let obsidianCalls = 0;
+    let financeInput = "";
+    let obsidianInput = "";
+    const app = makeGraph(
+      () => {
+        supervisorCalls += 1;
+
+        if (supervisorCalls === 1) {
+          return {
+            next: "finance",
+            queue: [
+              { agentId: "finance", prompt: "Show yesterday's expenses." },
+              { agentId: "obsidian", prompt: "Show today's plan." },
+            ],
+          };
+        }
+
+        return { next: "FINISH", reply: "Finance synced and note written." };
+      },
+      (input) => {
+        obsidianCalls += 1;
+        obsidianInput = latestHumanInputText(input);
+        return new AIMessage("obsidian note saved");
+      },
+      (input) => {
+        financeCalls += 1;
+        financeInput = latestHumanInputText(input);
+        return new AIMessage("Finance sync completed successfully");
+      },
+      mockSession,
+    );
+
+    const state = await app.invoke(
+      { messages: [new HumanMessage("show me today's plan and yesterday expenses")] },
+      threadConfig,
+    );
+
+    expect(supervisorCalls).toBe(2);
+    expect(financeCalls).toBe(1);
+    expect(obsidianCalls).toBe(1);
+    expect(financeInput).toBe("Show yesterday's expenses.");
+    expect(obsidianInput).toBe("Show today's plan.");
+    expect(financeInput).not.toContain("today's plan");
+    expect(obsidianInput).not.toContain("yesterday expenses");
+    expect(state.messages.some((message) => String(message.content).includes("Finance sync completed"))).toBe(true);
+    expect(state.messages.some((message) => String(message.content).includes("obsidian note saved"))).toBe(true);
+    expect(state.messages.at(-1)?.content).toBe("Finance synced and note written.");
   });
 
   it("routes scheduled finance triggers to the finance node without supervisor LLM routing", async () => {
@@ -288,7 +385,7 @@ describe("createWorkflowGraph", () => {
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "FINISH", reply: "LLM should not route scheduled triggers" };
+        return { next: "FINISH", reply: "Finance sync completed successfully" };
       },
       undefined,
       () => new AIMessage("Finance sync completed successfully"),
@@ -300,8 +397,8 @@ describe("createWorkflowGraph", () => {
       threadConfig,
     );
 
-    expect(supervisorCalls).toBe(0);
-    expect(state.messages.at(-1)?.content).toContain("Finance sync completed successfully");
+    expect(supervisorCalls).toBe(1);
+    expect(state.messages.some((message) => String(message.content).includes("Finance sync completed successfully"))).toBe(true);
   });
 
   it("routes to a runtime agent when the supervisor selects a custom agent id", async () => {
@@ -323,10 +420,11 @@ describe("createWorkflowGraph", () => {
     const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 
     let supervisorCalls = 0;
+    const supervisorHandler = routeOnceThenFinish("daily-summary", "Here is your daily summary.");
     const app = makeGraph(
       () => {
         supervisorCalls += 1;
-        return { next: "daily-summary" };
+        return supervisorHandler();
       },
       undefined,
       undefined,
@@ -341,7 +439,7 @@ describe("createWorkflowGraph", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("summarize my day")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(1);
+    expect(supervisorCalls).toBe(2);
     expect(state.context?.runtimeAgentId).toBe("daily-summary");
     expect(state.messages.at(-1)?.content).toContain("daily summary");
   });

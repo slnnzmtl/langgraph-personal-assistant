@@ -6,6 +6,7 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import { createEmptyReplyNode } from "../../src/core/supervisor/empty-reply-node.js";
 import { createFailureReplyNode } from "../../src/core/supervisor/failure-reply-node.js";
+import { createPostHandoffFinishNode } from "../../src/core/supervisor/post-handoff-finish-node.js";
 import { FINISH_ROUTE } from "../../src/core/state.js";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import { firstStateUpdateMessage } from "../helpers/fakes.js";
@@ -129,6 +130,71 @@ describe("supervisor reply nodes", () => {
     expect(firstStateUpdateMessage(result)?.content).toBe(
       `Finance did not produce a reliable summary. Its last tool result was:\n${toolContext}`,
     );
+  });
+
+  it("post_handoff_finish reuses a specialist reply when one is already in the thread", async () => {
+    const modelInvoke = vi.fn();
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => ({ next: "finance" }),
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const postHandoffFinishNode = createPostHandoffFinishNode(connector);
+
+    const result = await postHandoffFinishNode({
+      messages: [
+        new HumanMessage("sync expenses"),
+        new AIMessage("Synced 5 Wise transactions."),
+      ],
+      lastHandoff: {
+        kind: "runtime-agent-handoff",
+        agentId: "finance",
+        agentName: "Finance",
+        status: "ok",
+      },
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(result.messages).toBeUndefined();
+    expect(modelInvoke).not.toHaveBeenCalled();
+  });
+
+  it("post_handoff_finish falls back to tool context when the model returns empty", async () => {
+    const modelInvoke = vi.fn(async () => new AIMessage(""));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => ({ next: "finance" }),
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const postHandoffFinishNode = createPostHandoffFinishNode(connector);
+    const toolContext = "fetch_wise_transactions: Fetched and normalized 5 Wise transactions";
+
+    const result = await postHandoffFinishNode({
+      messages: [new HumanMessage("sync expenses")],
+      lastHandoff: {
+        kind: "runtime-agent-handoff",
+        agentId: "finance",
+        agentName: "Finance",
+        status: "ok",
+        toolContext,
+      },
+      context: {},
+      next: undefined,
+    });
+
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(firstStateUpdateMessage(result)?.content).toBe(
+      "Finance completed your request: sync expenses. Tool results:\nfetch_wise_transactions: Fetched and normalized 5 Wise transactions",
+    );
+    expect(modelInvoke).toHaveBeenCalledOnce();
   });
 
   it("failure_reply generates a user-facing explanation from routingFailureContext", async () => {
