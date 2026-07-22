@@ -9,7 +9,7 @@ import type { RuntimeAgentRepository } from "./core/agents/repository.js";
 import type { PolicyRegistry } from "./core/policies/registry.js";
 import type { LoadPromptByKey } from "./core/agents/resolve-system-prompt.js";
 import type { PromptLoggingHook } from "./core/ports/prompt-logging.js";
-import type { RuntimeToolBundleDeps } from "./runtime-agents/tool-bundles.js";
+import type { CapabilityDeps } from "./runtime-agents/builtin-capabilities.js";
 import { loadSupervisorSystemPrompt } from "./prompts/load-system-prompt.js";
 import { defaultReplyUxConfig } from "./core/supervisor/reply-ux.js";
 import { logSystemPromptInvocation } from "./logging/system-prompt-logger.js";
@@ -24,7 +24,7 @@ export type CreateWorkflowGraphInput = {
   messageHistoryMaxTokens: number;
   loadPromptByKey: LoadPromptByKey;
   policyRegistry: PolicyRegistry;
-  bundleDeps: RuntimeToolBundleDeps;
+  bundleDeps: CapabilityDeps;
   promptLogging?: PromptLoggingHook;
 };
 
@@ -43,7 +43,7 @@ export const createWorkflowGraph = ({
 }: CreateWorkflowGraphInput) => {
   const cronTriggerResolver = createCronTriggerResolver(cronTargetAgentIds);
 
-  return createAssistant<RuntimeToolBundleDeps>({
+  return createAssistant<CapabilityDeps>({
     supervisorLlm,
     models,
     runtimeAgents,

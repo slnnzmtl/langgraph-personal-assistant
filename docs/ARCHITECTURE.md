@@ -61,7 +61,7 @@ flowchart TB
         FIN[Finance Tools]
         OBS[Obsidian Tools]
         CFG[Configuration Tools]
-        BUND[Tool Bundles]
+        BUND[Capabilities]
     end
 
     subgraph External["External Services"]
@@ -316,15 +316,15 @@ RuntimeAgentDefinitionSchema = z.object({
 
 ### Code-seeded and persisted agents
 
-Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` with domain executors (`finance`, `obsidian`, etc.) and are wired into the graph at compile time when enabled.
+Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
 | ID | Executor | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
 | `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
-| `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
+| `finance` | `generic` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
 
-Custom agents use `executor: "generic"` and select from the capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, `system-config-write`, etc.). Domain executors use dedicated policies with hooks; generic agents resolve tools from allowlisted capabilities.
+Custom agents use `executor: "generic"` and select from the grantable capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Domain executors select optional LLM hooks; tools always come from `capabilityIds`.
 
 ---
 
@@ -334,7 +334,6 @@ Policies are registered at app bootstrap in `src/app/register-defaults.ts`:
 
 ```typescript
 DOMAIN_POLICY_FACTORIES = {
-  finance: createFinancePolicy,
   obsidian: createObsidianPolicy,
   configuration: createConfigurationPolicy,
 };
@@ -412,7 +411,7 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
 | `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/app/composition/resolve-agent-tools.ts` | Capability → tools + `read_skill` | Shared by generic and domain policies |
+| `src/app/composition/resolve-agent-tools.ts` | Capability → tools + `read_skill` | Shared by all policies via `resolveAgentTools()` |
 | `src/core/index.ts` | Documented kernel barrel | Unused by in-repo imports today; public API surface in FRAMEWORK.md |
 | `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
 
@@ -440,7 +439,7 @@ personal-assistant/
 │   │   ├── register-defaults.ts
 │   │   └── model-registry.ts
 │   ├── runtime-agents/                             # Domain tools & capability catalog
-│   │   ├── tool-bundles.ts
+│   │   ├── builtin-capabilities.ts                 # Builtin capability providers and deps
 │   │   ├── skill-attachments.ts
 │   │   └── policies/{finance,obsidian,configuration}/
 │   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts)

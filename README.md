@@ -82,7 +82,7 @@ Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom id
 | **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
 | **Obsidian policy** | Markdown vault read/write with multi-step tool loops |
 | **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
-| **Generic policy** | User-created runtime agents with allowlisted tool bundles |
+| **Generic policy** | User-created runtime agents with grantable capabilities |
 | **Skills** | Reusable step-by-step playbooks in flat `skills/` with a `module` attribute, injected into agent prompts |
 | **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
 
@@ -254,7 +254,7 @@ src/
   app/composition/          # Bootstrap agents, supervisor system wiring
     bootstrap-agents.ts     # CONFIGURATOR_SPEC — code-seeded configurator only
   runtime-agents/           # Domain tools and capability catalog (no app imports)
-    tool-bundles.ts         # Capability providers and bundle deps
+    builtin-capabilities.ts # Builtin capability providers and deps
     skill-attachments.ts    # Skill auto-attachment rules
     policies/               # finance / obsidian / configuration tool implementations
 

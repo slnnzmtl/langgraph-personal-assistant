@@ -54,13 +54,13 @@ export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   },
 ];
 
-export type RuntimeToolBundleId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
+export type BuiltinCapabilityId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
 
 const BUILTIN_DESCRIPTOR_BY_ID = new Map<string, CapabilityDescriptor>(
   BUILTIN_CAPABILITY_DESCRIPTORS.map((descriptor) => [descriptor.id, descriptor]),
 );
 
-const getBuiltinDescriptor = (id: RuntimeToolBundleId): CapabilityDescriptor => {
+const getBuiltinDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
   const descriptor = BUILTIN_DESCRIPTOR_BY_ID.get(id);
   if (!descriptor) {
     throw new Error(`Missing builtin capability descriptor: ${id}`);
@@ -69,7 +69,7 @@ const getBuiltinDescriptor = (id: RuntimeToolBundleId): CapabilityDescriptor => 
   return descriptor;
 };
 
-export type RuntimeToolBundleDeps = {
+export type CapabilityDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
@@ -81,11 +81,11 @@ export type RuntimeToolBundleDeps = {
   skillCatalog?: SkillCatalog;
 };
 
-export const createRuntimeToolBundleDeps = (
+export const createCapabilityDeps = (
   obsidianVaultPath: string,
   options: {
-    fileSender?: RuntimeToolBundleDeps["fileSender"];
-    supabaseSession?: RuntimeToolBundleDeps["supabaseSession"];
+    fileSender?: CapabilityDeps["fileSender"];
+    supabaseSession?: CapabilityDeps["supabaseSession"];
     cronTargetAgentIds?: readonly string[];
     cronJobRepository?: CronJobRepository;
     runtimeAgentRepository?: RuntimeAgentRepository;
@@ -93,7 +93,7 @@ export const createRuntimeToolBundleDeps = (
     capabilityCatalog?: CapabilityCatalog;
     skillCatalog?: SkillCatalog;
   } = {},
-): RuntimeToolBundleDeps => ({
+): CapabilityDeps => ({
   obsidianVaultPath,
   ...(options.fileSender ? { fileSender: options.fileSender } : {}),
   ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
@@ -105,13 +105,16 @@ export const createRuntimeToolBundleDeps = (
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
 });
 
-const systemConfigOptions = (deps: RuntimeToolBundleDeps, writeAccess: boolean) => ({
+const systemConfigOptions = (deps: CapabilityDeps, writeAccess: boolean) => ({
   writeAccess,
   ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
   ...(deps.capabilityCatalog ? { capabilityCatalog: deps.capabilityCatalog } : {}),
 });
 
-const createBuiltinCapabilityProviders = (): CapabilityProvider<RuntimeToolBundleDeps>[] => [
+const resolveSystemConfigCapability = (deps: CapabilityDeps, writeAccess: boolean): StructuredToolInterface[] =>
+  createSystemConfigDomainTools(deps, systemConfigOptions(deps, writeAccess));
+
+const createBuiltinCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] => [
   {
     descriptor: getBuiltinDescriptor("none"),
     resolveTools: () => [],
@@ -132,15 +135,15 @@ const createBuiltinCapabilityProviders = (): CapabilityProvider<RuntimeToolBundl
   },
   {
     descriptor: getBuiltinDescriptor("system-config"),
-    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
+    resolveTools: (deps) => resolveSystemConfigCapability(deps, true),
   },
   {
     descriptor: getBuiltinDescriptor("system-config-read"),
-    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, false)),
+    resolveTools: (deps) => resolveSystemConfigCapability(deps, false),
   },
   {
     descriptor: getBuiltinDescriptor("system-config-write"),
-    resolveTools: (deps) => createSystemConfigDomainTools(deps, systemConfigOptions(deps, true)),
+    resolveTools: (deps) => resolveSystemConfigCapability(deps, true),
   },
 ];
 
@@ -148,7 +151,7 @@ export const createDefaultCapabilityCatalog = (): CapabilityCatalog =>
   createCapabilityCatalog(createBuiltinCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
 
 export const toCapabilityAvailabilityContext = (
-  deps: RuntimeToolBundleDeps,
+  deps: CapabilityDeps,
 ): CapabilityAvailabilityContext => ({
   obsidianVaultPath: deps.obsidianVaultPath,
   supabaseAvailable: deps.supabaseSession !== undefined,
@@ -156,32 +159,40 @@ export const toCapabilityAvailabilityContext = (
     deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined,
 });
 
-export const getCapabilityCatalog = (deps: RuntimeToolBundleDeps): CapabilityCatalog =>
+export const getCapabilityCatalog = (deps: CapabilityDeps): CapabilityCatalog =>
   deps.capabilityCatalog ?? createDefaultCapabilityCatalog();
 
-export const listAvailableRuntimeToolBundles = (
-  deps: RuntimeToolBundleDeps,
+export const listAvailableCapabilities = (
+  deps: CapabilityDeps,
 ): CapabilityDescriptor[] =>
   getCapabilityCatalog(deps).listAvailable(toCapabilityAvailabilityContext(deps));
 
-export const validateRuntimeToolBundleIds = (
-  bundleIds: readonly string[],
-  deps: RuntimeToolBundleDeps,
+export const validateCapabilityIds = (
+  capabilityIds: readonly string[],
+  deps: CapabilityDeps,
 ): void => {
-  getCapabilityCatalog(deps).validateIds(bundleIds, toCapabilityAvailabilityContext(deps));
+  getCapabilityCatalog(deps).validateIds(capabilityIds, toCapabilityAvailabilityContext(deps));
 };
 
-export const resolveRuntimeToolBundles = (
-  bundleIds: readonly string[],
-  deps: RuntimeToolBundleDeps,
+export const validateGrantableCapabilityIds = (
+  capabilityIds: readonly string[],
+  deps: CapabilityDeps,
+): void => {
+  getCapabilityCatalog(deps).validateGrantableIds(capabilityIds, toCapabilityAvailabilityContext(deps));
+};
+
+export const resolveCapabilities = (
+  capabilityIds: readonly string[],
+  deps: CapabilityDeps,
 ): StructuredToolInterface[] =>
   getCapabilityCatalog(deps).resolveTools(
-    bundleIds,
+    capabilityIds,
     deps,
     toCapabilityAvailabilityContext(deps),
   );
 
-export const formatRuntimeToolBundleCatalog = (deps: RuntimeToolBundleDeps): string =>
+export const formatCapabilityCatalog = (deps: CapabilityDeps): string =>
   getCapabilityCatalog(deps).formatCatalog(toCapabilityAvailabilityContext(deps));
 
-export type RuntimeToolBundleCatalogEntry = CapabilityDescriptor;
+export const formatGrantableCapabilityCatalog = (deps: CapabilityDeps): string =>
+  getCapabilityCatalog(deps).formatGrantableCatalog(toCapabilityAvailabilityContext(deps));

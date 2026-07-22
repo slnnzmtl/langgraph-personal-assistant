@@ -40,6 +40,7 @@ export type CreateAgentPolicyConfig<
   TBundleDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 > = {
+  /** Selects optional LLM hooks; tools always come from capabilityIds. */
   executor: string;
   displayName?: string;
   requireShellFormatters?: boolean;

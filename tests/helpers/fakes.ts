@@ -15,7 +15,7 @@ import {
 export { getRuntimeAgentFixture } from "./runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, type RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
+import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import type { AgentStateUpdate } from "../../src/core/state.js";
 import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
 
@@ -170,7 +170,7 @@ export const createRuntimeAgentRepositoryFake = (
   };
 };
 
-export const defaultConfigurationBundleDeps: RuntimeToolBundleDeps = {
+export const defaultConfigurationCapabilityDeps: CapabilityDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
   cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
@@ -224,9 +224,9 @@ export const createRuntimeExecutionContextFake = (options?: {
   return createAppRuntimeExecutionContext({
     defaultModel: model,
     repository,
-    bundleDeps: {
-      obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationBundleDeps.obsidianVaultPath,
-      cronTargetAgentIds: defaultConfigurationBundleDeps.cronTargetAgentIds,
+    capabilityDeps: {
+      obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationCapabilityDeps.obsidianVaultPath,
+      cronTargetAgentIds: defaultConfigurationCapabilityDeps.cronTargetAgentIds,
       cronJobRepository,
       runtimeAgentRepository: repository,
     },

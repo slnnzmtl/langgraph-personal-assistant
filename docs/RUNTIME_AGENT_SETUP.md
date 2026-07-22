@@ -13,10 +13,10 @@ Creation goes through the **Configuration** agent — there is no separate UI or
    - “Add a new agent for coding help with no tools”
 2. The supervisor routes to `configuration`.
 3. Configuration follows the `runtime-agents` skill (`skills/runtime-agents.xml`):
-   - Calls `list_runtime_tool_bundles` when capability choice is unclear
+   - Calls `list_capabilities` when capability choice is unclear
    - Calls `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`
 4. The tool persists the agent and reminds you to restart before routing works.
-5. You get a field-per-line summary (`Agent ID`, `Name`, `Description`, `Tool Bundles`, `Max Steps`, `Enabled`, `Status`).
+5. You get a field-per-line summary (`Agent ID`, `Name`, `Description`, `Capabilities`, `Max Steps`, `Enabled`, `Status`).
 
 ### What chat create stores
 
@@ -36,7 +36,7 @@ Persistence path: `data/runtime-agents.json` (document version `1`).
 
 | Tool | Purpose |
 |---|---|
-| `list_runtime_tool_bundles` | Show allowlisted capabilities |
+| `list_capabilities` | Show grantable capabilities |
 | `create_runtime_agent` | Persist a new generic agent |
 | `list_runtime_agents` | Summaries (no full prompts) |
 | `preview_runtime_agent` | Full definition including prompt |
@@ -101,7 +101,7 @@ Chat create cannot register a new executor, policy hooks, or tool implementation
 
 1. Persist or seed a `RuntimeAgentDefinition`.
 2. Implement tools under `src/runtime-agents/policies/<domain>/`.
-3. Add a capability descriptor + provider in `src/runtime-agents/tool-bundles.ts`.
+3. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
 4. Add policy + hooks under `src/app/policies/`; register in `DOMAIN_POLICY_FACTORIES` in `src/app/register-defaults.ts`.
 5. Add a prompt under `prompts/` (optional `promptSourceKey`).
 6. Restart so `createAssistant()` wires the nodes.

@@ -1,10 +1,5 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-export type CapabilityRequirement =
-  | "vault"
-  | "supabase"
-  | "configurationRepos";
-
 export type CapabilityDescriptor = {
   id: string;
   description: string;
@@ -44,3 +39,6 @@ export const isCapabilityAvailable = (
 
   return true;
 };
+
+export const isCapabilityGrantable = (descriptor: CapabilityDescriptor): boolean =>
+  descriptor.configurable !== false;

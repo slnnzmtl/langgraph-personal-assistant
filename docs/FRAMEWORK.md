@@ -32,16 +32,20 @@ Boundary tests live in `tests/unit/framework-boundary.test.ts`.
 Import from `src/core/index.ts` when wiring within this monorepo:
 
 - `createAssistant` — compile the supervisor graph (requires a `policyRegistry`)
-- `createAgentPolicy`, `createPolicyRegistry` — register executors
+- `createAgentPolicy`, `createPolicyRegistry` — register executors (hook profiles)
 - `createRuntimeAgentRepository` — persist agent definitions
-- `createCapabilityCatalog` — validate and resolve tool bundles
+- `createCapabilityCatalog` — validate and resolve capabilities
 - Types: `RuntimeAgentDefinition`, `RuntimeAgentPolicy`, `SkillCatalog`, `CapabilityDescriptor`
 
 
 
-## Composition entry point
+## Composition entry points
 
-Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts` to wire this deployment:
+**Personal deployment:** `createSupervisorSystem()` in [`src/app/composition/create-supervisor-system.ts`](src/app/composition/create-supervisor-system.ts)
+
+**Pack bootstrap:** `bootstrapSupervisorSystem()` in [`src/app/composition/bootstrap-supervisor-system.ts`](src/app/composition/bootstrap-supervisor-system.ts) — pass capability catalog, seed agents, policy registry, and adapter wiring. Client packs reuse the same bootstrap with different providers.
+
+Personal pack wiring:
 
 1. Bootstrap built-in agents (`configuration` only)
 2. Build capability catalog + skill catalog
@@ -52,10 +56,10 @@ Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.
 
 ## Adding a capability
 
-1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/tool-bundles.ts` (or register a custom provider).
+1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/builtin-capabilities.ts` (or register a custom provider).
 2. Implement `CapabilityProvider.resolveTools`.
 3. Grant the capability ID on agent definitions (`capabilityIds`).
-4. Domain and generic agents resolve tools through the same catalog via `resolveAgentCapabilityTools()`.
+4. All agents resolve tools through the same catalog via `resolveAgentTools()`. The `executor` field selects optional LLM hooks only — not tools.
 
 
 
@@ -63,8 +67,8 @@ Use `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.
 
 The configuration executor can manage skills, cron jobs, and generic agents when granted `system-config`. Finer grants:
 
-- `system-config-read` — list/preview only
-- `system-config-write` — create/update/delete
+- `system-config-read` — list/preview only (grantable to other agents)
+- `system-config-write` — create/update/delete (reserved; not grantable via config API)
 
 Adding new executable integrations remains a deployment/code change; the configurator composes registered capabilities only.
 

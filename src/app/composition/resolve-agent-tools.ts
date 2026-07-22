@@ -3,8 +3,8 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import { resolveAgentCapabilityIds, resolveAgentSkillModule } from "../../core/types/agent.js";
 import { createReadSkillTool } from "../../tools/skill-management.js";
-import type { RuntimeToolBundleDeps } from "../../runtime-agents/tool-bundles.js";
-import { resolveRuntimeToolBundles } from "../../runtime-agents/tool-bundles.js";
+import type { CapabilityDeps } from "../../runtime-agents/builtin-capabilities.js";
+import { resolveCapabilities } from "../../runtime-agents/builtin-capabilities.js";
 
 const dedupeToolsByName = (tools: StructuredToolInterface[]): StructuredToolInterface[] => {
   const seen = new Set<string>();
@@ -22,20 +22,25 @@ const dedupeToolsByName = (tools: StructuredToolInterface[]): StructuredToolInte
   return result;
 };
 
-export const resolveAgentCapabilityTools = (
+export const resolveAgentTools = (
   definition: RuntimeAgentDefinition,
-  bundleDeps: RuntimeToolBundleDeps,
+  capabilityDeps: CapabilityDeps,
   options: {
     includeReadSkill?: boolean;
     skillCatalog?: Parameters<typeof createReadSkillTool>[2] extends infer T ? T extends { skillCatalog?: infer S } ? S : never : never;
   } = {},
 ): StructuredToolInterface[] => {
   const capabilityIds = resolveAgentCapabilityIds(definition);
-  const bundleTools = resolveRuntimeToolBundles(capabilityIds, bundleDeps);
+
+  if (capabilityIds.includes("none")) {
+    return [];
+  }
+
+  const capabilityTools = resolveCapabilities(capabilityIds, capabilityDeps);
   const includeReadSkill = options.includeReadSkill ?? true;
 
-  if (!includeReadSkill || capabilityIds.includes("none")) {
-    return bundleTools;
+  if (!includeReadSkill) {
+    return capabilityTools;
   }
 
   const skillModule = resolveAgentSkillModule(definition);
@@ -45,5 +50,5 @@ export const resolveAgentCapabilityTools = (
     options.skillCatalog ? { skillCatalog: options.skillCatalog } : {},
   );
 
-  return dedupeToolsByName([readSkill, ...bundleTools]);
+  return dedupeToolsByName([readSkill, ...capabilityTools]);
 };

@@ -5,15 +5,16 @@ import { isCronTargetRoute } from "../../../cron-triggers.js";
 import type { CronJobDefinition, CronJobRepository } from "../../../cron/types.js";
 import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
 import {
-  formatRuntimeToolBundleCatalog,
-  type RuntimeToolBundleDeps,
-  validateRuntimeToolBundleIds,
-} from "../../tool-bundles.js";
+  formatGrantableCapabilityCatalog,
+  type CapabilityDeps,
+  validateCapabilityIds,
+  validateGrantableCapabilityIds,
+} from "../../builtin-capabilities.js";
 import { resolveAgentCapabilityIds, type RuntimeAgentDefinition } from "../../../core/types/agent.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
 import {
   createDefaultCapabilityCatalog,
-} from "../../tool-bundles.js";
+} from "../../builtin-capabilities.js";
 import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
 import type { SkillCatalog } from "../../../core/skills/catalog.js";
 
@@ -185,7 +186,7 @@ export const createCronTools = (
 
 export const createRuntimeAgentTools = (
   repository: RuntimeAgentRepository,
-  bundleDeps: RuntimeToolBundleDeps,
+  capabilityDeps: CapabilityDeps,
   options: { writeAccess?: boolean; capabilityCatalog?: CapabilityCatalog } = {},
 ): StructuredToolInterface[] => {
   const capabilityCatalog = options.capabilityCatalog ?? createDefaultCapabilityCatalog();
@@ -231,11 +232,11 @@ export const createRuntimeAgentTools = (
     },
   );
 
-  const listRuntimeToolBundles = tool(
-    async () => formatRuntimeToolBundleCatalog(bundleDeps),
+  const listCapabilities = tool(
+    async () => formatGrantableCapabilityCatalog(capabilityDeps),
     {
-      name: "list_runtime_tool_bundles",
-      description: "List the allowlisted runtime tool bundles available in this deployment.",
+      name: "list_capabilities",
+      description: "List grantable capabilities available in this deployment.",
       schema: z.object({}),
     },
   );
@@ -243,7 +244,7 @@ export const createRuntimeAgentTools = (
   const readTools = [
     listRuntimeAgents,
     previewRuntimeAgent,
-    listRuntimeToolBundles,
+    listCapabilities,
   ];
 
   if (!options.writeAccess) {
@@ -253,7 +254,8 @@ export const createRuntimeAgentTools = (
   const createRuntimeAgent = tool(
     async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
       try {
-        validateRuntimeToolBundleIds(input.capabilityIds, bundleDeps);
+        validateGrantableCapabilityIds(input.capabilityIds, capabilityDeps);
+        validateCapabilityIds(input.capabilityIds, capabilityDeps);
         const agent = await repository.createAgent({
           name: input.name,
           description: input.description,
@@ -282,7 +284,8 @@ export const createRuntimeAgentTools = (
     async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
       try {
         if (input.capabilityIds) {
-          validateRuntimeToolBundleIds(input.capabilityIds, bundleDeps);
+          validateGrantableCapabilityIds(input.capabilityIds, capabilityDeps);
+          validateCapabilityIds(input.capabilityIds, capabilityDeps);
         }
 
         const agent = await repository.updateAgent(input.id, {
@@ -337,22 +340,22 @@ export const createRuntimeAgentTools = (
 };
 
 export const createSystemConfigDomainTools = (
-  bundleDeps: RuntimeToolBundleDeps,
+  capabilityDeps: CapabilityDeps,
   options: SystemConfigToolsOptions = {},
 ): StructuredToolInterface[] => {
-  if (!bundleDeps.cronJobRepository || !bundleDeps.runtimeAgentRepository) {
+  if (!capabilityDeps.cronJobRepository || !capabilityDeps.runtimeAgentRepository) {
     throw new Error("system-config capability requires cron and runtime agent repositories.");
   }
 
   const writeAccess = options.writeAccess ?? true;
   const cronTools = createCronTools(
-    bundleDeps.cronJobRepository,
-    bundleDeps.cronTargetAgentIds ?? [],
+    capabilityDeps.cronJobRepository,
+    capabilityDeps.cronTargetAgentIds ?? [],
     { writeAccess },
   );
   const runtimeAgentTools = createRuntimeAgentTools(
-    bundleDeps.runtimeAgentRepository,
-    bundleDeps,
+    capabilityDeps.runtimeAgentRepository,
+    capabilityDeps,
     {
       writeAccess,
       ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),

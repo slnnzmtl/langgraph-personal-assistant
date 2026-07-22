@@ -18,8 +18,8 @@ import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "../../src/core/message-trimming.js";
 import {
   createDefaultCapabilityCatalog,
-  createRuntimeToolBundleDeps,
-} from "../../src/runtime-agents/tool-bundles.js";
+  createCapabilityDeps,
+} from "../../src/runtime-agents/builtin-capabilities.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { FakeLLMConnector } from "./fakes.js";
@@ -71,7 +71,7 @@ export const createTestWorkflowGraph = ({
   const { loadPromptByKey, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
     skillCatalog,
   });
-  const bundleDeps = createRuntimeToolBundleDeps(obsidianVaultPath, {
+  const capabilityDeps = createCapabilityDeps(obsidianVaultPath, {
     capabilityCatalog: createDefaultCapabilityCatalog(),
     skillCatalog,
     cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
@@ -95,6 +95,6 @@ export const createTestWorkflowGraph = ({
     runtimeAgentRepository,
     loadPromptByKey,
     policyRegistry,
-    bundleDeps,
+    bundleDeps: capabilityDeps,
   });
 };

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   isCapabilityAvailable,
+  isCapabilityGrantable,
   type CapabilityAvailabilityContext,
   type CapabilityDescriptor,
   type CapabilityProvider,
@@ -11,7 +12,12 @@ import {
 export type CapabilityCatalog = {
   listDescriptors(): CapabilityDescriptor[];
   listAvailable(context: CapabilityAvailabilityContext): CapabilityDescriptor[];
+  listGrantable(context: CapabilityAvailabilityContext): CapabilityDescriptor[];
   validateIds(
+    ids: readonly string[],
+    context: CapabilityAvailabilityContext,
+  ): void;
+  validateGrantableIds(
     ids: readonly string[],
     context: CapabilityAvailabilityContext,
   ): void;
@@ -21,6 +27,7 @@ export type CapabilityCatalog = {
     context: CapabilityAvailabilityContext,
   ): StructuredToolInterface[];
   formatCatalog(context: CapabilityAvailabilityContext): string;
+  formatGrantableCatalog(context: CapabilityAvailabilityContext): string;
   createIdSchema(): z.ZodEnum<Record<string, string>>;
 };
 
@@ -34,10 +41,25 @@ export const createCapabilityCatalog = (
   const listAvailable = (context: CapabilityAvailabilityContext): CapabilityDescriptor[] =>
     descriptors.filter((descriptor) => isCapabilityAvailable(descriptor, context));
 
+  const listGrantable = (context: CapabilityAvailabilityContext): CapabilityDescriptor[] =>
+    listAvailable(context).filter((descriptor) => isCapabilityGrantable(descriptor));
+
+  const formatDescriptorList = (entries: CapabilityDescriptor[], emptyMessage: string): string => {
+    if (entries.length === 0) {
+      return emptyMessage;
+    }
+
+    return entries
+      .map((entry) => `- ${entry.id}: ${entry.description}`)
+      .join("\n");
+  };
+
   return {
     listDescriptors: () => [...descriptors],
 
     listAvailable,
+
+    listGrantable,
 
     validateIds(ids: readonly string[], context: CapabilityAvailabilityContext): void {
       const availableIds = new Set(listAvailable(context).map((entry) => entry.id));
@@ -49,6 +71,25 @@ export const createCapabilityCatalog = (
 
         if (!availableIds.has(id)) {
           throw new Error(`Capability is unavailable in this deployment: ${id}`);
+        }
+      }
+    },
+
+    validateGrantableIds(ids: readonly string[], context: CapabilityAvailabilityContext): void {
+      const grantableIds = new Set(listGrantable(context).map((entry) => entry.id));
+      const availableIds = new Set(listAvailable(context).map((entry) => entry.id));
+
+      for (const id of ids) {
+        if (!providerById.has(id)) {
+          throw new Error(`Unknown capability: ${id}`);
+        }
+
+        if (!availableIds.has(id)) {
+          throw new Error(`Capability is unavailable in this deployment: ${id}`);
+        }
+
+        if (!grantableIds.has(id)) {
+          throw new Error(`Capability cannot be granted to runtime agents: ${id}`);
         }
       }
     },
@@ -83,15 +124,17 @@ export const createCapabilityCatalog = (
     },
 
     formatCatalog(context: CapabilityAvailabilityContext): string {
-      const entries = listAvailable(context);
+      return formatDescriptorList(
+        listAvailable(context),
+        "No capabilities are available in this deployment.",
+      );
+    },
 
-      if (entries.length === 0) {
-        return "No capabilities are available in this deployment.";
-      }
-
-      return entries
-        .map((entry) => `- ${entry.id}: ${entry.description}`)
-        .join("\n");
+    formatGrantableCatalog(context: CapabilityAvailabilityContext): string {
+      return formatDescriptorList(
+        listGrantable(context),
+        "No grantable capabilities are available in this deployment.",
+      );
     },
 
     createIdSchema(): z.ZodEnum<Record<string, string>> {

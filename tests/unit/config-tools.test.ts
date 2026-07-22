@@ -182,7 +182,7 @@ describe("createConfigurationTools", () => {
         "create_runtime_agent",
         "update_runtime_agent",
         "delete_runtime_agent",
-        "list_runtime_tool_bundles",
+        "list_capabilities",
       ]),
     );
   });

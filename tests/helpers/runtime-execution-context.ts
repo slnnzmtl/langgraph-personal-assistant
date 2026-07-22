@@ -10,30 +10,30 @@ import {
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import { createRuntimeAgentExecutionContext as createCoreExecutionContext } from "../../src/core/execution/context.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
-import type { RuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
+import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
   repository?: RuntimeAgentRepository;
-  bundleDeps: RuntimeToolBundleDeps;
+  capabilityDeps: CapabilityDeps;
   executors?: Iterable<string>;
 };
 
 export const createAppRuntimeExecutionContext = (
   input: CreateAppRuntimeExecutionContextInput,
-): RuntimeAgentExecutionContext<RuntimeToolBundleDeps> => {
+): RuntimeAgentExecutionContext<CapabilityDeps> => {
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
   const executors = input.executors ?? deriveExecutors(runtimeAgents);
   const { loadPromptByKey, policyRegistry } = createAppExecutionKit(executors, {
     skillCatalog: createFilesystemSkillCatalog(),
   });
-  const cronTargetAgentIds = input.bundleDeps.cronTargetAgentIds
+  const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
-  return createCoreExecutionContext<RuntimeToolBundleDeps>({
+  return createCoreExecutionContext<CapabilityDeps>({
     models: Object.fromEntries(
       [...deriveModelKeys(runtimeAgents, defaultModelKey)].map((modelKey) => [
         modelKey,
@@ -43,7 +43,7 @@ export const createAppRuntimeExecutionContext = (
     defaultModelKey,
     repository: input.repository ?? createRuntimeAgentRepositoryFake(),
     bundleDeps: {
-      ...input.bundleDeps,
+      ...input.capabilityDeps,
       cronTargetAgentIds,
     },
     loadPromptByKey,

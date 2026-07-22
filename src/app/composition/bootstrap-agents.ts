@@ -3,7 +3,7 @@ import { loadSystemPromptByKey } from "../../prompts/load-system-prompt.js";
 import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import { isRuntimeAgentBuiltin, resolveAgentCapabilityIds } from "../../core/types/agent.js";
-import type { RuntimeToolBundleId } from "../../runtime-agents/tool-bundles.js";
+import type { BuiltinCapabilityId } from "../../runtime-agents/builtin-capabilities.js";
 
 export const CONFIGURATOR_AGENT_ID = "configuration" as const;
 
@@ -19,7 +19,7 @@ export type ConfiguratorSpec = {
   executor: typeof CONFIGURATOR_AGENT_ID;
   modelKey: typeof CONFIGURATOR_AGENT_ID;
   promptSourceKey: typeof CONFIGURATOR_AGENT_ID;
-  capabilityIds: RuntimeToolBundleId[];
+  capabilityIds: BuiltinCapabilityId[];
   maxSteps: number;
   configModelKey: AppModelConfigKey;
 };

@@ -9,10 +9,10 @@ import {
 import {
   BUILTIN_CAPABILITY_DESCRIPTORS,
   createDefaultCapabilityCatalog,
-  resolveRuntimeToolBundles,
-} from "../../src/runtime-agents/tool-bundles.js";
-import { createRuntimeToolBundleDeps } from "../../src/runtime-agents/tool-bundles.js";
-import { resolveAgentCapabilityTools } from "../../src/app/composition/resolve-agent-tools.js";
+  createCapabilityDeps,
+  resolveCapabilities,
+} from "../../src/runtime-agents/builtin-capabilities.js";
+import { resolveAgentTools } from "../../src/app/composition/resolve-agent-tools.js";
 import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
@@ -92,7 +92,7 @@ describe("framework boundaries", () => {
   });
 
   it("resolves finance tools for generic executor agents with finance-domain capability", () => {
-    const deps = createRuntimeToolBundleDeps("/tmp/vault", {
+    const deps = createCapabilityDeps("/tmp/vault", {
       supabaseSession: { executeSql: async () => [] } as never,
     });
 
@@ -112,10 +112,10 @@ describe("framework boundaries", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
     };
 
-    const unified = resolveAgentCapabilityTools(definition, deps).map((tool) => tool.name);
-    const bundleOnly = resolveRuntimeToolBundles(["finance-domain"], deps).map((tool) => tool.name);
+    const unified = resolveAgentTools(definition, deps).map((tool) => tool.name);
+    const capabilityOnly = resolveCapabilities(["finance-domain"], deps).map((tool) => tool.name);
 
-    expect(unified).toEqual(expect.arrayContaining(bundleOnly));
+    expect(unified).toEqual(expect.arrayContaining(capabilityOnly));
     expect(unified).toContain("read_skill");
   });
 
@@ -124,13 +124,13 @@ describe("framework boundaries", () => {
   });
 
   it("exposes read-only system configuration separately from write", () => {
-    const deps = createRuntimeToolBundleDeps("/tmp/vault", {
+    const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const readTools = resolveRuntimeToolBundles(["system-config-read"], deps).map((tool) => tool.name);
-    const writeTools = resolveRuntimeToolBundles(["system-config-write"], deps).map((tool) => tool.name);
+    const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
+    const writeTools = resolveCapabilities(["system-config-write"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
     expect(readTools).not.toContain("create_cron_job");

@@ -5,7 +5,7 @@ import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agent
 import type { RuntimeAgentRepository } from "../../src/core/agents/repository.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
 import { createReadSkillTool } from "../../src/tools/skill-management.js";
-import { createRuntimeAgentRepositoryFake, defaultConfigurationBundleDeps } from "./fakes.js";
+import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
 
 export const createCronRepositoryFake = (
   initialJobs: CronJobDefinition[] = [],
@@ -42,14 +42,14 @@ export const createConfigurationTools = (
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
   skillModule: string = CONFIGURATOR_AGENT_ID,
 ) => {
-  const bundleDeps = {
-    ...defaultConfigurationBundleDeps,
+  const capabilityDeps = {
+    ...defaultConfigurationCapabilityDeps,
     cronJobRepository: repository,
     runtimeAgentRepository,
   };
 
   return [
     createReadSkillTool(skillModule, "xml"),
-    ...createSystemConfigDomainTools(bundleDeps),
+    ...createSystemConfigDomainTools(capabilityDeps),
   ];
 };

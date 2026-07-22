@@ -6,7 +6,7 @@ import {
   loadSystemPromptByKey,
 } from "../prompts/load-system-prompt.js";
 import { appendConfiguredSkillAttachments } from "../runtime-agents/skill-attachments.js";
-import type { RuntimeToolBundleDeps } from "../runtime-agents/tool-bundles.js";
+import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
 import {
   createConfigurationPolicy,
   createObsidianPolicy,
@@ -14,7 +14,7 @@ import {
 import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
-import { resolveAgentCapabilityTools } from "./composition/resolve-agent-tools.js";
+import { resolveAgentTools } from "./composition/resolve-agent-tools.js";
 import { createRuntimeShellHooks } from "../core/execution/runtime-shell.js";
 
 export const createDefaultRuntimeShellFormatters = (
@@ -54,10 +54,10 @@ export const createAppExecutionKit = (
     }));
 
   const policyRegistry = createPolicyRegistry([
-    createAgentPolicy<RuntimeToolBundleDeps>({
+    createAgentPolicy<CapabilityDeps>({
       executor: "generic",
-      resolveTools: (definition, bundleDeps, resolveOptions) =>
-        resolveAgentCapabilityTools(definition, bundleDeps, resolveOptions ?? {}),
+      resolveTools: (definition, capabilityDeps, resolveOptions) =>
+        resolveAgentTools(definition, capabilityDeps, resolveOptions ?? {}),
       hooks: genericShellHooks,
       logLabel: "generic-runtime-agent",
       buildErrorMessage: (error, definition) =>

@@ -4,8 +4,8 @@ export {
 } from "./catalog.js";
 export {
   isCapabilityAvailable,
+  isCapabilityGrantable,
   type CapabilityAvailabilityContext,
   type CapabilityDescriptor,
   type CapabilityProvider,
-  type CapabilityRequirement,
 } from "./types.js";

@@ -56,9 +56,9 @@ const { loadPromptByKey, policyRegistry } = createAppExecutionKit(["generic"], {
 
 ```typescript
 import { createAssistant } from "../src/core/create-assistant.js";
-import { createRuntimeToolBundleDeps } from "../src/runtime-agents/tool-bundles.js";
+import { createCapabilityDeps } from "../src/runtime-agents/builtin-capabilities.js";
 
-const bundleDeps = createRuntimeToolBundleDeps("/path/to/vault", {
+const capabilityDeps = createCapabilityDeps("/path/to/vault", {
   capabilityCatalog: catalog,
   skillCatalog,
   cronJobRepository,
@@ -70,15 +70,33 @@ const graph = createAssistant({
   models: { generic: model },
   runtimeAgents,
   runtimeAgentRepository,
-  bundleDeps,
+  bundleDeps: capabilityDeps,
   loadPromptByKey,
   policyRegistry,
   loadSupervisorPrompt: () => "<supervisor prompt>",
 });
 ```
 
-## 5. Optional configuration agent
+## 5. Pack bootstrap (recommended)
+
+For a full deployment, use `bootstrapSupervisorSystem()` with your capability catalog, seed agents, and adapters:
+
+```typescript
+import { bootstrapSupervisorSystem } from "../src/app/composition/bootstrap-supervisor-system.js";
+
+const context = await bootstrapSupervisorSystem({
+  config,
+  capabilityCatalog: catalog,
+  seedAgents: async (repo) => [...],
+  buildSkillCatalog: (agents) => skillCatalog,
+  buildPolicyRegistry: (agents, skillCatalog) => createAppExecutionKit(["generic"], { skillCatalog }),
+  buildModels: (cfg, agents) => ({ generic: model }),
+  buildCapabilityDeps: (ctx) => createCapabilityDeps("/path/to/vault", { ... }),
+});
+```
+
+## 6. Optional configuration agent
 
 Enable the built-in configuration executor and grant `system-config` so an operator agent can attach approved capabilities, edit skills, and schedule cron jobs—without modifying source code.
 
-For production wiring, prefer `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts`.
+For this personal assistant, prefer `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts`.
