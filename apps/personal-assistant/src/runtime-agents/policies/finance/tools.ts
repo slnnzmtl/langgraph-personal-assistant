@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { SupabaseMcpSession } from "../../../mcp/supabase.js";
 import { normalizeToolOutput } from "../../../utils/exec-sql.js";
 import { serializeToolResult, truncateToolOutput } from "../../../tools/output.js";
-import { fetchWiseTransactions } from "../../../services/wise/index.js";
+import { fetchWiseTransactions } from "../../../services/wise.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
