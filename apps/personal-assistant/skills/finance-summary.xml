@@ -1,0 +1,26 @@
+<skill name="finance-summary" module="finance" description="Summarize financial data and generate reports.">
+
+<intent_routing>
+1. SUMMARY (summarize, report, financial overview):
+   - Determine the date range for the summary (e.g., "this month", "last quarter", "2025").
+   - Identify specific categories if requested.
+   - Call `exec_sql` to query the expense ledger for relevant data.
+   - Format the results into a human-readable summary or report.
+   - Present the summary to the user.
+
+2. HELP (help, what can you do):
+   - Explain the capabilities of the finance-summary skill.
+   - Provide examples of how to request a financial summary.
+</intent_routing>
+
+<tool_code>
+# Example SQL query for summarizing expenses by category for a given month
+# SELECT category, SUM(amount) FROM expenses WHERE date BETWEEN 'YYYY-MM-01' AND 'YYYY-MM-31' GROUP BY category;
+</tool_code>
+
+<prohibited_actions>
+- Do not modify any financial data. This skill is read-only.
+- Do not expose sensitive financial details without explicit user permission.
+</prohibited_actions>
+
+</skill>

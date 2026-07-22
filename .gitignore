@@ -10,3 +10,4 @@ test-results/*
 data/*
 cron-jobs.json
 obsidian-vault/*
+apps/personal-assistant/data/
