@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import { createSystemConfigDomainTools } from "../../src/runtime-agents/policies/configuration/tools.js";
+import { createSystemConfigDomainTools } from "../../src/runtime-agents/tools/configuration.js";
 import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agents.js";
 import type { RuntimeAgentRepository } from "@personal-assistant/supervisor-framework";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";

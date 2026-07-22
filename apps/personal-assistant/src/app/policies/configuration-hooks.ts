@@ -11,7 +11,7 @@ import {
 import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
 import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
 import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
-import { formatCronJobForDisplay } from "../../runtime-agents/policies/configuration/tools.js";
+import { formatCronJobForDisplay } from "../../runtime-agents/tools/configuration.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);

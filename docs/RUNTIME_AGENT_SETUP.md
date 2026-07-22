@@ -100,7 +100,7 @@ Definitions are hot on disk; **execution topology is compile-time**.
 Chat create cannot register a new executor, policy hooks, or tool implementations. For a new domain specialist:
 
 1. Persist or seed a `RuntimeAgentDefinition`.
-2. Implement tools under `src/runtime-agents/policies/<domain>/`.
+2. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
 3. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
 4. Add policy + hooks under `src/app/policies/`; register in `DOMAIN_POLICY_FACTORIES` in `src/app/register-defaults.ts`.
 5. Add a prompt under `prompts/` (optional `promptSourceKey`).

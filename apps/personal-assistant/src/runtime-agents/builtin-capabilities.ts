@@ -12,9 +12,12 @@ import {
 import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
-import { createSystemConfigDomainTools } from "./policies/configuration/tools.js";
-import { createFinanceDomainToolsFromSession } from "./policies/finance/tools.js";
-import { createObsidianVaultTools } from "./policies/obsidian/tools.js";
+
+import {
+  createSystemConfigDomainTools,
+  createFinanceDomainToolsFromSession,
+  createObsidianVaultTools,
+} from "./tools/index.js";
 
 export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {

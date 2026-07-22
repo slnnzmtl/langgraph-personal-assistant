@@ -264,5 +264,5 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/policies/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
+- **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/tools/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
 - **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works. Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).

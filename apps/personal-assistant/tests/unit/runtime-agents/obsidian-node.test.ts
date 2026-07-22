@@ -6,7 +6,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createObsidianVaultTools } from "../../../src/runtime-agents/policies/obsidian/tools.js";
+import { createObsidianVaultTools } from "../../../src/runtime-agents/tools/obsidian.js";
 import {
   applyFileWrite,
   listDirContents,
