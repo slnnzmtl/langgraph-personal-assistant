@@ -1,20 +1,54 @@
-# Graph composition walkthrough
+# Reusing the framework in another project
 
-This walkthrough shows how **this personal assistant** composes its supervisor graph. It requires this monorepo's app layer (`src/app/`) and domain runtime (`src/runtime-agents/`) — not a standalone package.
+This repo splits **kernel + pack SDK** from **this personal assistant**. Another project should depend on `@personal-assistant/supervisor-framework`, not on the personal app's Telegram, Gemini, finance, or Obsidian wiring.
 
-## 1. Define agents
 
-Persist agents in JSON or seed them at bootstrap:
+| Layer | Path | Reuse in another project? |
+|---|---|---|
+| Framework package | `packages/supervisor-framework/` | **Yes — import `@personal-assistant/supervisor-framework`** |
+| Personal app | `apps/personal-assistant/src/app/` | No — copy the pattern, not the code |
+| Domain tools | `apps/personal-assistant/src/runtime-agents/` | No — write your own providers |
+| Telegram / cron / services | `apps/personal-assistant/src/...` | No — your I/O stack |
+
+Architecture note: the framework is a **workspace package** in this monorepo (not yet published to npm). Sibling repos can depend via `workspace:*`, `file:`, or git path until publish.
+
+---
+
+
+
+## What you implement vs what the framework owns
+
+**Framework owns:** agent repository, policy registry API, supervisor routing, flat prepare / llm ⇄ tools / finalize loops, `bootstrapSupervisorSystem()`, `resolveAgentTools()`.
+
+**Your pack owns:**
+
+1. Agent definitions (JSON and/or seed)
+2. Capability catalog + tool factories
+3. LLM connector and chat models
+4. Policy registry (usually one `generic` executor)
+5. Cron repository factory (or a stub)
+6. Skill catalog (or an empty stub)
+7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
+
+---
+
+
+
+## Example: research bot pack (another project)
+
+Imagine a sibling repo (or package) that only needs a supervisor + one researcher agent with web search.
+
+### 1. Define agents
 
 ```typescript
-import type { RuntimeAgentDefinition } from "../src/core/types/agent.js";
+import type { RuntimeAgentDefinition } from "@personal-assistant/supervisor-framework";
 
 const researcher: RuntimeAgentDefinition = {
   id: "researcher",
   name: "Researcher",
   description: "Answer factual questions with web search.",
-  systemPrompt: "You are a concise research assistant.",
-  capabilityIds: ["none"],
+  systemPrompt: "You are a concise research assistant. Prefer short answers.",
+  capabilityIds: ["web-search"],
   executor: "generic",
   builtin: false,
   maxSteps: 6,
@@ -24,10 +58,26 @@ const researcher: RuntimeAgentDefinition = {
 };
 ```
 
-## 2. Register capabilities
+
+
+### 2. Register capabilities (your tools)
 
 ```typescript
-import { createCapabilityCatalog } from "../src/capabilities/index.js";
+import { createCapabilityCatalog } from "@personal-assistant/supervisor-framework";
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
+const webSearch = tool(
+  async ({ query }) => {
+    // your search implementation
+    return `Results for: ${query}`;
+  },
+  {
+    name: "web_search",
+    description: "Search the public web.",
+    schema: z.object({ query: z.string() }),
+  },
+);
 
 const catalog = createCapabilityCatalog([
   {
@@ -38,65 +88,135 @@ const catalog = createCapabilityCatalog([
     },
     resolveTools: () => [],
   },
-  // Add providers for vault, SQL, etc.
+  {
+    descriptor: {
+      id: "web-search",
+      description: "Search the public web.",
+      configurable: true,
+    },
+    resolveTools: () => [webSearch],
+  },
 ]);
 ```
 
-## 3. Compose policies
+
+
+### 3. Bootstrap with the framework only
 
 ```typescript
-import { createAppExecutionKit } from "../src/app/register-defaults.js";
-import { createFilesystemSkillCatalog } from "../src/integrations/skills/filesystem-skill-catalog.js";
+import {
+  bootstrapSupervisorSystem,
+  createAgentPolicy,
+  createPolicyRegistry,
+  resolveAgentTools,
+} from "@personal-assistant/supervisor-framework";
 
-const skillCatalog = createFilesystemSkillCatalog({ approvedModules: ["researcher"] });
-const { loadPromptByKey, policyRegistry } = createAppExecutionKit(["generic"], { skillCatalog });
+const context = await bootstrapSupervisorSystem({
+  config: {
+    runtimeAgentsFilePath: "data/runtime-agents.json",
+    cronJobsFilePath: "data/cron-jobs.json",
+    messageHistoryMaxTokens: 6000,
+  },
+  capabilityCatalog: catalog,
+  supervisorLlm: myLlmConnector,
+  loadSupervisorPrompt: () =>
+    "Route factual questions to researcher. Reply directly for greetings.",
+  seedAgents: async (repo) => {
+    const existing = await repo.listAgents();
+    if (existing.some((a) => a.id === researcher.id)) {
+      return existing;
+    }
+    await repo.createAgent(researcher);
+    return repo.listAgents();
+  },
+  buildPolicyRegistry: () => ({
+    loadPromptByKey: async (key) => `Prompt for ${key}`,
+    policyRegistry: createPolicyRegistry([
+      createAgentPolicy({
+        executor: "generic",
+        resolveTools: (definition, deps) =>
+          resolveAgentTools(definition, catalog, deps, {}),
+      }),
+    ]),
+  }),
+  buildModels: () => ({ generic: myChatModel }),
+  buildCapabilityDeps: () => ({}),
+});
+
+const graph = context.graph;
 ```
 
-## 4. Build the graph
+Cron, skills, and the file-backed agent repository use framework defaults when omitted.
+
+No Telegram, Gemini, Supabase, Wise, Obsidian, or personal `CapabilityDeps` required.
+
+### 4. Optional: wire your own I/O
 
 ```typescript
-import { createAssistant } from "../src/core/create-assistant.js";
-import { createCapabilityDeps } from "../src/runtime-agents/builtin-capabilities.js";
+// cli.ts — example entrypoint for the other project
+import { HumanMessage } from "@langchain/core/messages";
 
-const capabilityDeps = createCapabilityDeps("/path/to/vault", {
-  capabilityCatalog: catalog,
-  skillCatalog,
-  cronJobRepository,
-  runtimeAgentRepository,
-});
+const result = await graph.invoke(
+  { messages: [new HumanMessage(process.argv.slice(2).join(" ") || "hello")] },
+  { configurable: { thread_id: "local" } },
+);
+
+const last = result.messages.at(-1);
+console.log(typeof last?.content === "string" ? last.content : last?.content);
+```
+
+---
+
+
+
+## Personal pack (this monorepo only)
+
+This assistant wraps framework bootstrap with product wiring. **Do not copy this into another project** unless you want the same Telegram / Gemini / finance stack.
+
+```typescript
+import { createSupervisorSystem } from "../apps/personal-assistant/src/app/composition/create-supervisor-system.js";
+
+const { graph, cronJobRepository } = await createSupervisorSystem(config, { fileSender });
+```
+
+Personal policies use `createAppExecutionKit()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
+
+---
+
+
+
+## Advanced: call `createAssistant` directly
+
+Skip bootstrap when you already own repositories and want full control:
+
+```typescript
+import { createAssistant } from "@personal-assistant/supervisor-framework";
 
 const graph = createAssistant({
   supervisorLlm,
   models: { generic: model },
   runtimeAgents,
   runtimeAgentRepository,
-  capabilityDeps: capabilityDeps,
+  capabilityDeps: {},
   loadPromptByKey,
   policyRegistry,
   loadSupervisorPrompt: () => "<supervisor prompt>",
 });
 ```
 
-## 5. Pack bootstrap (recommended)
+Prefer `bootstrapSupervisorSystem()` for a second deployment — it standardizes seeding, cron targets, and policy wiring.
 
-For a full deployment, use `bootstrapSupervisorSystem()` with your capability catalog, seed agents, and adapters:
+---
 
-```typescript
-import { bootstrapSupervisorSystem } from "../src/app/composition/bootstrap-supervisor-system.js";
 
-const context = await bootstrapSupervisorSystem({
-  config,
-  capabilityCatalog: catalog,
-  seedAgents: async (repo) => [...],
-  buildSkillCatalog: (agents) => skillCatalog,
-  buildPolicyRegistry: (agents, skillCatalog) => createAppExecutionKit(["generic"], { skillCatalog }),
-  buildModels: (cfg, agents) => ({ generic: model }),
-  buildCapabilityDeps: (ctx) => createCapabilityDeps("/path/to/vault", { ... }),
-});
-```
 
-## 6. Optional configuration agent
+## Checklist for a second project
 
-Enable the built-in configuration executor and grant `system-config` so an operator agent can attach approved capabilities, edit skills, and schedule cron jobs—without modifying source code.
+1. Import from `@personal-assistant/supervisor-framework` (workspace package in this monorepo).
+2. Provide at least one enabled agent and a matching `executor` policy (usually `generic`).
+3. Put tools behind capability IDs; grant them via `capabilityIds` on agent definitions.
+4. Supply your own LLM connector / models; do not import `src/connectors/` unless you want Gemini.
+5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/app/` + `runtime-agents/`.
+6. Restart (or recompile the graph) after adding agents — routing nodes are fixed at `createAssistant()` time.
 
-For this personal assistant, prefer `createSupervisorSystem()` in `src/app/composition/create-supervisor-system.ts`.
+For layer boundaries and the personal pack entrypoint, see [docs/FRAMEWORK.md](../docs/FRAMEWORK.md), [docs/PACK_DEVELOPMENT.md](../docs/PACK_DEVELOPMENT.md), and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).

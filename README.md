@@ -4,7 +4,7 @@ A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.
 
 ## Architecture
 
-The codebase is split into an **execution kernel** (`src/core/`), an **app layer** (`src/app/`) for this assistant's policies and wiring, and **domain runtime** code (`src/runtime-agents/`) for tools, bundles, and defaults. The graph entry point is `createAssistant()` in `src/core/create-assistant.ts`; the Telegram app calls it via `createWorkflowGraph()` in `src/agent.ts`.
+The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. The graph entry point is `createAssistant()`; deployments compile it via `bootstrapSupervisorSystem()` (personal pack: `createSupervisorSystem()` in the app).
 
 ```mermaid
 graph TD
@@ -13,9 +13,13 @@ graph TD
 
     subgraph AppLayer [App layer]
         AppTS[app.ts bootstrap]
-        AgentTS[agent.ts createWorkflowGraph]
+        PersonalPack[createSupervisorSystem]
         AppKit[createAppExecutionKit]
         AppPolicies[finance / obsidian / configuration policies]
+    end
+
+    subgraph FrameworkLayer [Framework layer]
+        Bootstrap[bootstrapSupervisorSystem]
     end
 
     subgraph CoreKernel [Execution kernel]
@@ -28,7 +32,7 @@ graph TD
     end
 
     subgraph RootGraph [Root LangGraph]
-        Adapter --> AppTS --> AgentTS --> CreateAssistant
+        Adapter --> AppTS --> PersonalPack --> Bootstrap --> CreateAssistant
         CreateAssistant --> Supervisor
         Supervisor -->|agent id| Prepare
         Prepare --> Llm
@@ -59,10 +63,10 @@ graph TD
 
 | Layer | Path | Responsibility |
 |---|---|---|
-| **Execution kernel** | `src/core/` | LangGraph topology, supervisor routing, flat runtime-agent loops, policy registry API, agent repository, shared state |
-| **App layer** | `src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
-| **Domain runtime** | `src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
-| **Infrastructure** | `src/cron/`, `src/telegram/`, `src/tools/`, `src/services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
+| **Framework package** | `packages/supervisor-framework/` | Execution kernel + pack SDK (`bootstrapSupervisorSystem`, `createAssistant`, capabilities) |
+| **App layer** | `apps/personal-assistant/src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
+| **Domain runtime** | `apps/personal-assistant/src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
+| **Infrastructure** | `apps/personal-assistant/src/cron/`, `telegram/`, `tools/`, `services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
 
 Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
 
@@ -70,7 +74,7 @@ Each `createAssistant()` call builds an isolated **execution context** with its 
 
 1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or a runtime agent id.
 2. **Prepare** scopes recent parent messages into `agentMessages`; **llm ⇄ tools** runs the specialist loop; **finalize** merges the final reply back into parent `messages`.
-3. Domain behavior is injected through **hooks** in `src/app/policies/*-hooks.ts`. System prompts use static domain rules first; dynamic context (timestamps, vault trees, attached skills) is appended at the bottom for cache efficiency.
+3. Domain behavior is injected through **hooks** in `apps/personal-assistant/src/app/policies/*-hooks.ts`.
 4. Control returns to the supervisor until it chooses `FINISH`.
 
 Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent requires a **process restart** before routing works.
@@ -233,45 +237,32 @@ pnpm check              # TypeScript type check
 ## Project layout
 
 ```
-src/
-  core/                     # Execution kernel (LangGraph, supervisor, policies API)
-    create-assistant.ts     # createAssistant() — main graph API
-    state.ts                # AgentState, message trimming
-    supervisor/             # Supervisor node, routing schema, message sanitization
-    agents/                 # Dispatch, repository, prompt resolver
-    execution/              # Runtime LLM node, sub-agent graphs, execution context
-    policies/               # Policy registry, generic policy
-    types/                  # RuntimeAgentDefinition, policy types
+packages/
+  supervisor-framework/     # @personal-assistant/supervisor-framework — reusable pack SDK
+    src/core/                 # LangGraph kernel (internal; import via package barrel)
+    src/framework/              # bootstrapSupervisorSystem(), resolveAgentTools()
+    src/capabilities/         # Capability catalog types
+    src/index.ts              # Public exports
 
-  app/                      # This assistant's configuration
-    register-defaults.ts    # createAppExecutionKit() — policies + prompt resolver
-    policies/               # Domain policies, hooks, shared LLM node factories
+apps/
+  personal-assistant/         # This Telegram deployment
+    src/
+      app/                    # Policies, composition, createSupervisorSystem()
+      runtime-agents/         # Domain tools and builtin capability providers
+      cron/ telegram/ tools/ services/ connectors/ ...
+    prompts/ skills/ data/ sql/
+    tests/                    # App + integration unit tests, e2e
+    Dockerfile docker-compose.yml
 
-  config.ts                 # Environment config (models, vault path, API keys)
-  agent.ts                  # createWorkflowGraph() → createAssistant()
-  app.ts                    # Telegram + cron bootstrap
-
-  app/composition/          # Bootstrap agents, supervisor system wiring
-    bootstrap-agents.ts     # CONFIGURATOR_SPEC — code-seeded configurator only
-  runtime-agents/           # Domain tools and capability catalog (no app imports)
-    builtin-capabilities.ts # Builtin capability providers and deps
-    skill-attachments.ts    # Skill auto-attachment rules
-    policies/               # finance / obsidian / configuration tool implementations
-
-  cron/                     # Scheduler process (separate from Telegram bot)
-  telegram/                 # Telegram adapter and file sender
-  tools/                    # Shared tools (skills, routing, guarded tool nodes)
-  prompts/                  # Prompt and skill loading (load-system-prompt.ts)
-  services/                 # Obsidian vault, Wise, Supabase helpers
-
-prompts/                    # System prompt files (.xml / .md)
-skills/                     # Agent skill playbooks
-data/                       # Persisted cron jobs and runtime agents
-docs/                       # Architecture and design documentation (see docs/ARCHITECTURE.md)
-tests/                      # Unit and e2e tests
+docs/                         # Architecture and pack development guides
+examples/                     # Client-pack bootstrap walkthrough
 ```
+
+Run commands from the **repo root** (`pnpm dev`, `pnpm test`, `pnpm check`). Docker Compose lives under `apps/personal-assistant/` with build context at the repo root.
+
+See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling pack on `@personal-assistant/supervisor-framework`.
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add persisted agent spec + tools under `src/runtime-agents/policies/`, a policy + hooks under `src/app/policies/`, and register the policy factory in `DOMAIN_POLICY_FACTORIES` inside `src/app/register-defaults.ts`. Restart required.
+- **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/policies/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
 - **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works. Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).

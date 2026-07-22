@@ -14,7 +14,7 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 | **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
 | **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
 
-The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `src/core/` as an internal framework, not a separately reusable product, until a second deployment has concrete requirements that justify a package boundary.
+The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `packages/supervisor-framework/` as an internal framework package, not a separately published product, until a second deployment outside this monorepo justifies npm release.
 
 ### Design constraints
 
@@ -38,12 +38,15 @@ flowchart TB
         CRIDX[cron/index.ts]
     end
 
-    subgraph AppLayer["App Layer (src/app/, agent.ts)"]
+    subgraph AppLayer["App Layer (src/app/)"]
         WFC[createSupervisorSystem]
-        WFG[createWorkflowGraph]
         KIT[createAppExecutionKit]
         POL[Domain Policies + Hooks]
         MR[Model Registry]
+    end
+
+    subgraph FrameworkLayer["Framework (src/framework/)"]
+        BOOT[bootstrapSupervisorSystem]
     end
 
     subgraph Core["Core Framework (src/core/)"]
@@ -71,12 +74,12 @@ flowchart TB
         WISE[Wise API]
     end
 
-    TG --> IDX --> WFC --> WFG --> CA
+    TG --> IDX --> WFC --> BOOT --> CA
     CRIDX --> CRON
     CRON --> WFC
     CRON -->|graph.invoke| CA
     CRON -->|summary report| TG
-    WFG --> KIT --> CA
+    WFC --> KIT --> CA
     KIT --> POL
     CA --> SUP
     SUP -->|agent id| PREP
@@ -110,7 +113,7 @@ index.ts
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
             ├─ Runtime agent repository (data/runtime-agents.json)
             ├─ ensureBuiltinRuntimeAgents() — merge persisted + built-ins
-            ├─ createWorkflowGraph() → createAssistant()
+            ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
 ```
@@ -406,13 +409,14 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 
 | Path | Role | Why keep separate |
 |---|---|---|
-| `src/agent.ts` | App graph wiring (`createWorkflowGraph`) | Cron trigger resolver, prompt logging, supervisor prompt — between core and `createSupervisorSystem()` |
+| `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
+| `apps/personal-assistant/src/app/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
 | `src/app.ts` | Telegram process bootstrap | Sibling to `src/cron/index.ts`, not nested under `src/app/` |
 | `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
 | `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/app/composition/resolve-agent-tools.ts` | Capability → tools + `read_skill` | Shared by all policies via `resolveAgentTools()` |
-| `src/core/index.ts` | Documented kernel barrel | Unused by in-repo imports today; public API surface in FRAMEWORK.md |
+| `src/framework/index.ts` | Pack SDK barrel | Bootstrap + kernel re-exports for client packs |
+| `src/core/index.ts` | Documented kernel barrel | Kernel-only exports; framework barrel preferred for packs |
 | `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
 
 ---
@@ -420,45 +424,25 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 ## Directory Map
 
 ```
-personal-assistant/
-├── src/
-│   ├── index.ts, app.ts, agent.ts, config.ts, cron-triggers.ts  # Bootstrap & wiring
-│   ├── core/                                       # Execution kernel
-│   │   ├── index.ts                                # Documented public barrel
-│   │   ├── create-assistant.ts                     # Main graph API
-│   │   ├── state.ts, message-compaction.ts, message-trimming.ts
-│   │   ├── supervisor/                             # Routing, history, reply UX
-│   │   ├── agents/                                 # Graph bundles, repository
-│   │   ├── execution/                              # Runtime node, tool loop
-│   │   ├── policies/                               # Registry, generic policy
-│   │   ├── ports/                                  # LLM and prompt-logging ports
-│   │   └── types/                                  # Agent & policy schemas
-│   ├── app/                                        # Composition & domain hooks
-│   │   ├── composition/                            # bootstrap-agents, create-supervisor-system
-│   │   ├── policies/                               # Domain policies + LLM hooks
-│   │   ├── register-defaults.ts
-│   │   └── model-registry.ts
-│   ├── runtime-agents/                             # Domain tools & capability catalog
-│   │   ├── builtin-capabilities.ts                 # Builtin capability providers and deps
-│   │   ├── skill-attachments.ts
-│   │   └── policies/{finance,obsidian,configuration}/
-│   ├── cron/                                       # Scheduler subsystem (+ cron/index.ts)
-│   ├── telegram/                                   # I/O adapter + cron reporter
-│   ├── tools/                                      # Shared tools (skills, output)
-│   ├── prompts/                                    # Prompt & skill loading
-│   ├── services/                                   # Obsidian, Supabase, Wise
-│   ├── mcp/                                        # Supabase MCP + transport errors
-│   ├── connectors/                                 # Gemini connector
-│   ├── capabilities/                               # Capability catalog types
-│   ├── integrations/                               # Filesystem skill catalog
-│   └── utils/                                      # SQL, datetime helpers
-├── prompts/          # System prompt files
-├── skills/           # Agent playbooks
-├── data/             # Persisted cron jobs + runtime agents
-├── docs/             # Architecture and framework docs
-├── tests/unit/       # Vitest suites
-├── tests/e2e/        # Playwright workflow tests
-└── sql/              # Supabase setup scripts
+personal-assistant/                 # pnpm workspace root
+├── packages/
+│   └── supervisor-framework/       # @personal-assistant/supervisor-framework
+│       ├── src/core/               # Execution kernel
+│       ├── src/framework/          # bootstrapSupervisorSystem, resolveAgentTools
+│       ├── src/capabilities/
+│       └── tests/unit/             # Framework boundary + kernel tests
+├── apps/
+│   └── personal-assistant/
+│       ├── src/
+│       │   ├── index.ts, app.ts, config.ts, cron-triggers.ts
+│       │   ├── app/                # Composition & domain hooks
+│       │   ├── runtime-agents/     # Domain tools & capability catalog
+│       │   ├── cron/ telegram/ tools/ services/ mcp/ connectors/ ...
+│       ├── prompts/ skills/ data/ sql/
+│       ├── tests/unit/ tests/e2e/
+│       └── Dockerfile docker-compose.yml
+├── docs/ examples/
+└── pnpm-workspace.yaml
 ```
 
 ---

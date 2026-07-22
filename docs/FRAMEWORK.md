@@ -1,78 +1,61 @@
-# Execution Kernel
+# Execution Kernel & Framework
 
-`src/core/` holds the LangGraph execution kernel for this personal assistant. Product-specific domains (Obsidian, finance, configuration) compose the kernel from `src/app/` and `src/runtime-agents/`; they do not live inside core.
+The reusable supervisor bootstrap ships as the workspace package **`@personal-assistant/supervisor-framework`** (`packages/supervisor-framework/`). It contains the LangGraph execution kernel (`src/core/`), pack bootstrap (`src/framework/`), and capability catalog (`src/capabilities/`).
 
-## Layers
+Product-specific domains (Obsidian, finance, configuration) live in `apps/personal-assistant/` and must not be imported by the framework package.
 
+## Monorepo layers
 
-| Layer            | Path                   | Responsibility                                                                      |
-| ---------------- | ---------------------- | ----------------------------------------------------------------------------------- |
-| Core             | `src/core/`            | Agent definitions, graph execution, policies API, capability contracts, skill ports |
-| Capabilities     | `src/capabilities/`    | Declarative capability descriptors and catalog validation                           |
-| Composition      | `src/app/composition/` | Bootstrap agents, register capabilities, build the supervisor system                |
-| Integrations     | `src/integrations/`    | Concrete adapters (filesystem skills, vault, Supabase)                              |
-| Domain runtime   | `src/runtime-agents/`  | Capability providers and domain tool factories                                      |
-| Product policies | `src/app/policies/`    | Domain hooks and optional configuration feature                                     |
-
-
-
+| Layer | Path | Responsibility |
+|---|---|---|
+| Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
+| Personal app | `apps/personal-assistant/src/app/` | Composition, `createSupervisorSystem`, domain hooks |
+| Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
+| Integrations | `apps/personal-assistant/src/integrations/` | Filesystem skills, vault, Supabase adapters |
 
 ## Intentional boundaries
 
-- `src/app/` — composition, policies, hooks. Imports `src/runtime-agents/` for tools.
-- `src/runtime-agents/` — domain tools and capability catalog. Must **not** import `src/app/`.
-- `src/cron/` — scheduler infrastructure; separate process from Telegram (`src/app.ts`).
-- `src/agent.ts` — deployment graph wiring between core and supervisor bootstrap.
-- `src/core/index.ts` — documented kernel barrel; in-repo code may import modules directly.
+- `packages/supervisor-framework/src/core/` — execution kernel only. Must not import app or product integrations.
+- `packages/supervisor-framework/src/framework/` — orchestration only. May import `core` and `capabilities`.
+- `apps/personal-assistant/src/app/` — composition and policies. Imports `@personal-assistant/supervisor-framework` and `runtime-agents/`.
+- `apps/personal-assistant/src/runtime-agents/` — domain tools. Must **not** import `src/app/`.
 
-Boundary tests live in `tests/unit/framework-boundary.test.ts`.
+Boundary tests:
 
-## Core API (in-repo)
+- Framework: `packages/supervisor-framework/tests/unit/framework-boundary.test.ts`
+- App: `apps/personal-assistant/tests/unit/app-boundary.test.ts`
 
-Import from `src/core/index.ts` when wiring within this monorepo:
+## Framework API (client and personal packs)
 
-- `createAssistant` — compile the supervisor graph (requires a `policyRegistry`)
-- `createAgentPolicy`, `createPolicyRegistry` — register executors (hook profiles)
-- `createRuntimeAgentRepository` — persist agent definitions
-- `createCapabilityCatalog` — validate and resolve capabilities
-- Types: `RuntimeAgentDefinition`, `RuntimeAgentPolicy`, `SkillCatalog`, `CapabilityDescriptor`
+Import from `@personal-assistant/supervisor-framework`:
 
+- `bootstrapSupervisorSystem` — generic pack bootstrap
+- `resolveAgentTools` — catalog-based tool resolution
+- `createAssistant`, `createAgentPolicy`, `createPolicyRegistry` — graph and policy helpers
+- Defaults: `createFileRuntimeAgentRepository`, `createNoopCronJobRepository`, `createEmptySkillCatalog`
+- Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 
+Optional bootstrap hooks (omit for minimal packs):
+
+- `createRuntimeAgentRepository(config)` — defaults to file-backed JSON repo
+- `createCronJobRepository(...)` — defaults to in-memory no-op
+- `buildSkillCatalog(agents)` — defaults to empty catalog
+
+Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
 
 ## Composition entry points
 
-**Personal deployment:** `createSupervisorSystem()` in [`src/app/composition/create-supervisor-system.ts`](src/app/composition/create-supervisor-system.ts)
+**Personal deployment:** `createSupervisorSystem()` in the personal app composition layer.
 
-**Pack bootstrap:** `bootstrapSupervisorSystem()` in [`src/app/composition/bootstrap-supervisor-system.ts`](src/app/composition/bootstrap-supervisor-system.ts) — pass capability catalog, seed agents, policy registry, and adapter wiring. Client packs reuse the same bootstrap with different providers.
+**Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, policy registry, and optional cron/skills/repo hooks.
 
-Personal pack wiring:
+## Adding a capability (personal app)
 
-1. Bootstrap built-in agents (`configuration` only)
-2. Build capability catalog + skill catalog
-3. Register policies via `createAppExecutionKit()`
-4. Compile the LangGraph workflow
-
-
-
-## Adding a capability
-
-1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `src/runtime-agents/builtin-capabilities.ts` (or register a custom provider).
+1. Add a descriptor to `BUILTIN_CAPABILITY_DESCRIPTORS` in `apps/personal-assistant/src/runtime-agents/builtin-capabilities.ts`.
 2. Implement `CapabilityProvider.resolveTools`.
 3. Grant the capability ID on agent definitions (`capabilityIds`).
-4. All agents resolve tools through the same catalog via `resolveAgentTools()`. The `executor` field selects optional LLM hooks only — not tools.
-
-
-
-## Self-configuration (optional product feature)
-
-The configuration executor can manage skills, cron jobs, and generic agents when granted `system-config`. Finer grants:
-
-- `system-config-read` — list/preview only (grantable to other agents)
-
-Write access is reserved for the configurator via `system-config` (`configurable: false`).
-
-Adding new executable integrations remains a deployment/code change; the configurator composes registered capabilities only.
+4. Resolve tools through `resolveAgentTools()` (framework) or `createPersonalResolveTools()` (personal pack with `read_skill`).
 
 ## Graph composition walkthrough
 
-See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md) for how this assistant composes its graph (requires this monorepo's app layer).
+See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-system.md) and [docs/PACK_DEVELOPMENT.md](./PACK_DEVELOPMENT.md).

@@ -1,0 +1,41 @@
+{
+  "name": "personal-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm --filter @personal-assistant/supervisor-framework build && tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "pnpm test:unit",
+    "dev": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/index.ts",
+    "dev:scheduler": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/cron/index.ts",
+    "start": "node dist/index.js",
+    "start:scheduler": "node dist/cron/index.js",
+    "test": "pnpm test:unit && pnpm test:e2e",
+    "test:unit": "ENABLE_PROMPT_LOGS=false vitest run",
+    "test:e2e": "ENABLE_PROMPT_LOGS=false playwright test",
+    "test:e2e:ui": "ENABLE_PROMPT_LOGS=false playwright test --ui"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.1",
+    "@langchain/google-genai": "^2.2.0",
+    "@langchain/langgraph": "^1.4.7",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@personal-assistant/supervisor-framework": "workspace:*",
+    "dotenv": "^16.6.1",
+    "node-cron": "^4.6.0",
+    "telegraf": "^4.16.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "@types/node": "^24.0.13",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
