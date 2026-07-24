@@ -5,10 +5,17 @@ import { Telegraf, type Context } from "telegraf";
 import type { AppConfig } from "../config.js";
 import type { AgentState, CompiledSupervisorGraph } from "@personal-assistant/supervisor-framework";
 import type { IFileSender } from "./file-sender.js";
+import { fetchImageAsDataUrl } from "./image-content.js";
+import {
+  DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
+  MediaGroupBuffer,
+} from "./media-group-buffer.js";
 import { GraphRecursionError } from "@langchain/langgraph";
 
+export type ParseInboundResult = HumanMessage | "media-group-buffered" | null;
+
 export interface ITelegramAdapter {
-  parseInbound(ctx: Context): Promise<HumanMessage | null>;
+  parseInbound(ctx: Context): Promise<ParseInboundResult>;
   triggerWorkflow(message: HumanMessage, threadId: string): Promise<AgentState>;
   sendOutbound(ctx: Context, stateMessages: BaseMessage[]): Promise<void>;
   launch(): Promise<void>;
@@ -155,6 +162,7 @@ export class TelegramAdapter implements ITelegramAdapter {
   private readonly allowedTelegramUserId: string;
   private readonly processedUpdateIds = new Set<number>();
   private readonly threadQueues = new Map<string, Promise<void>>();
+  private readonly mediaGroupBuffer: MediaGroupBuffer;
 
   constructor(
     private readonly app: CompiledSupervisorGraph,
@@ -164,6 +172,10 @@ export class TelegramAdapter implements ITelegramAdapter {
   ) {
     this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
+    this.mediaGroupBuffer = new MediaGroupBuffer(
+      DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
+      async (ctx, message) => this.processInboundMessage(ctx, message),
+    );
   }
 
   /** Drop duplicate Telegram deliveries of the same update. */
@@ -202,7 +214,7 @@ export class TelegramAdapter implements ITelegramAdapter {
     return next;
   }
 
-  async parseInbound(ctx: Context): Promise<HumanMessage | null> {
+  async parseInbound(ctx: Context): Promise<ParseInboundResult> {
     if (ctx.from?.id.toString() !== this.allowedTelegramUserId) {
       console.warn(`Unauthorized access attempt from Telegram ID: ${ctx.from?.id}`);
       return null;
@@ -227,22 +239,16 @@ export class TelegramAdapter implements ITelegramAdapter {
       }
 
       const fileLink = await ctx.telegram.getFileLink(photo.file_id);
+      const imageDataUrl = await fetchImageAsDataUrl(fileLink.href);
       const caption = "caption" in ctx.message ? ctx.message.caption : undefined;
+      const mediaGroupId = "media_group_id" in ctx.message ? ctx.message.media_group_id : undefined;
 
-      logTelegramMessage("user", caption ?? "Process this image.");
-
-      return new HumanMessage({
-        content: [
-          {
-            type: "text",
-            text: caption ?? "Process this image.",
-          },
-          {
-            type: "image_url",
-            image_url: { url: fileLink.href },
-          },
-        ],
-      });
+      await this.mediaGroupBuffer.add(
+        ctx,
+        caption ? { imageDataUrl, caption } : { imageDataUrl },
+        mediaGroupId,
+      );
+      return "media-group-buffered";
     }
 
     return null;
@@ -285,19 +291,7 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
   }
 
-  async handleMessage(ctx: Context): Promise<void> {
-    const updateId = ctx.update.update_id;
-    if (!this.markUpdateProcessed(updateId)) {
-      console.warn(`Skipping duplicate Telegram update: ${updateId}`);
-      return;
-    }
-
-    const inboundMessage = await this.parseInbound(ctx);
-
-    if (!inboundMessage) {
-      return;
-    }
-
+  async processInboundMessage(ctx: Context, inboundMessage: HumanMessage): Promise<void> {
     const threadId = ctx.chat?.id?.toString();
 
     if (!threadId) {
@@ -309,6 +303,8 @@ export class TelegramAdapter implements ITelegramAdapter {
     if (chatId) {
       this.fileSender?.setCurrentChatId(chatId);
     }
+
+    logTelegramMessage("user", extractTelegramMessageText(inboundMessage.content));
 
     await this.runExclusiveForThread(threadId, async () => {
       try {
@@ -325,6 +321,22 @@ export class TelegramAdapter implements ITelegramAdapter {
         }
       }
     });
+  }
+
+  async handleMessage(ctx: Context): Promise<void> {
+    const updateId = ctx.update.update_id;
+    if (!this.markUpdateProcessed(updateId)) {
+      console.warn(`Skipping duplicate Telegram update: ${updateId}`);
+      return;
+    }
+
+    const inboundMessage = await this.parseInbound(ctx);
+
+    if (inboundMessage === null || inboundMessage === "media-group-buffered") {
+      return;
+    }
+
+    await this.processInboundMessage(ctx, inboundMessage);
   }
 
   async launch(): Promise<void> {

@@ -1,6 +1,6 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
-import type { IFileSender } from "../../../telegram/file-sender.js";
+import type { IFileSender } from "../../telegram/file-sender.js";
 import {
   RelativePathSchema,
   resolveVaultPath,
@@ -10,7 +10,7 @@ import {
   listDirContents,
   searchFiles,
   searchFilesByName,
-} from "../../../services/obsidian.js";
+} from "../../services/obsidian.js";
 
 const MarkdownContentSchema = z
   .string()

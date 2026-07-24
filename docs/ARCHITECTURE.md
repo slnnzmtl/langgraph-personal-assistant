@@ -220,7 +220,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
 
-Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/policies/<domain>/`.
+Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/tools/`.
 
 **Generic agents** (user-created via configuration) register through `createAppExecutionKit()` with the generic executor policy and compose tools from allowlisted **capabilities** rather than hard-coded domain tools.
 
@@ -351,7 +351,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/policies/<domain>/` contains domain tools, and the generic executor policy in `createAppExecutionKit()` resolves allowlisted capabilities for configurable agents.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/tools/` contains domain tools, and the generic executor policy in `createAppExecutionKit()` resolves allowlisted capabilities for configurable agents.
 
 ---
 
@@ -364,6 +364,7 @@ Flat `skills/` directory with XML playbooks (and optional `.md`):
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
+- `src/prompts/skills-loader.ts` — filesystem read/write/parse; `src/prompts/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
 Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime-agents`, `skill-management`.
 
@@ -517,7 +518,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 **Add a built-in domain agent:**
 
 1. Add spec to `CONFIGURATOR_SPEC` / bootstrap helpers in `app/composition/bootstrap-agents.ts` (code seeds the configurator only; domain agents are persisted)
-2. Implement tools under `runtime-agents/policies/<domain>/`
+2. Implement tools under `runtime-agents/tools/`
 3. Add policy + hooks under `app/policies/`
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
 5. Add prompt file under `prompts/`

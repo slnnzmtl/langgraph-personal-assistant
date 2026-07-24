@@ -1,8 +1,8 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import { isCronTargetRoute } from "../../../cron-triggers.js";
-import type { CronJobDefinition, CronJobRepository } from "../../../cron/types.js";
+import { isCronTargetRoute } from "../../cron-triggers.js";
+import type { CronJobDefinition, CronJobRepository } from "../../cron/types.js";
 import {
   resolveAgentCapabilityIds,
   type CapabilityCatalog,
@@ -16,8 +16,8 @@ import {
   type CapabilityDeps,
   validateCapabilityIds,
   validateGrantableCapabilityIds,
-} from "../../builtin-capabilities.js";
-import { createReadSkillTool, createSkillCrudTools } from "../../../tools/skill-management.js";
+} from "../builtin-capabilities.js";
+import { createReadSkillTool, createSkillCrudTools } from "../../tools/skill-management.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),

@@ -23,7 +23,7 @@ import {
 } from "../../runtime-agents/builtin-capabilities.js";
 import { setupSupabaseSession } from "../../services/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
-import { createFilesystemSkillCatalog } from "../../integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../prompts/skill-catalog.js";
 import { buildModelRegistry } from "../model-registry.js";
 import { createAppExecutionKit } from "../register-defaults.js";
 import {
@@ -100,7 +100,7 @@ export const createSupervisorSystem = async (
         supabaseAvailable: adapters.supabaseSession !== undefined,
       }),
     buildSkillCatalog: (agents) =>
-      createFilesystemSkillCatalog({
+      createSkillCatalog({
         approvedModules: [CONFIGURATOR_AGENT_ID, ...deriveSkillModules(agents)],
       }),
     buildPolicyRegistry: (agents, skillCatalog) =>

@@ -1,7 +1,6 @@
 import {
   createSkillFile,
   deleteSkillFile,
-  formatSkillForDisplay,
   formatSkillsForDisplay,
   formatSkillsForPrompt,
   listSkillModules,
@@ -9,25 +8,23 @@ import {
   loadSkillAttachmentRules,
   readFullSkill,
   readSkillContent,
-  serializeSkillFile,
   SKILLS_ROOT,
   updateSkillFile,
-} from "../../prompts/skills-loader.js";
+} from "./skills-loader.js";
 import type {
-  ListSkillsOptions,
   SkillAttachmentCatalog,
   SkillCatalog,
   SkillDisplayStatus,
   SkillMeta,
 } from "@personal-assistant/supervisor-framework";
 
-export type FilesystemSkillCatalogOptions = {
+export type SkillCatalogOptions = {
   skillsDir?: string;
   approvedModules?: readonly string[];
 };
 
-export const createFilesystemSkillCatalog = (
-  options: FilesystemSkillCatalogOptions = {},
+export const createSkillCatalog = (
+  options: SkillCatalogOptions = {},
 ): SkillCatalog & SkillAttachmentCatalog => {
   const skillsDir = options.skillsDir ?? SKILLS_ROOT;
   const resolveOptions = (module?: string) => ({
@@ -73,18 +70,3 @@ export const createFilesystemSkillCatalog = (
       loadSkillAttachmentRules(module, skillsDir),
   };
 };
-
-export const formatSkillPreview = (
-  catalog: SkillCatalog,
-  module: string,
-  name: string,
-): string => {
-  const skill = catalog.readFull(name, { module });
-  return serializeSkillFile(
-    { name: skill.name, description: skill.description, module: skill.module ?? module },
-    skill.body,
-    skill.fileName,
-  );
-};
-
-export { formatSkillForDisplay };

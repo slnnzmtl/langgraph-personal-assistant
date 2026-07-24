@@ -114,4 +114,34 @@ describe("compactConsumedToolResults", () => {
     expect(writeResult?.content).toBe(formatConsumedToolMarker("write_file"));
     expect(messages.at(-1)?.content).toBe("Saved your note.");
   });
+
+  it("keeps raw tool bodies when the only follow-up is an empty AI reply", () => {
+    const messages = reduceAgentMessages(
+      [
+        new HumanMessage("show routine"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            name: "read_file",
+            args: { relativePath: "routine/July/July 24 - Fri.md" },
+            id: "read-1",
+            type: "tool_call",
+          }],
+        }),
+        new ToolMessage({
+          tool_call_id: "read-1",
+          name: "read_file",
+          content: "## Summary\n- [ ] Gym",
+        }),
+      ],
+      new AIMessage({ content: "" }),
+    );
+
+    const readResult = messages.find(
+      (message) => message instanceof ToolMessage && message.tool_call_id === "read-1",
+    ) as ToolMessage | undefined;
+
+    expect(readResult?.content).toContain("## Summary");
+    expect(readResult?.content).not.toBe(formatConsumedToolMarker("read_file"));
+  });
 });

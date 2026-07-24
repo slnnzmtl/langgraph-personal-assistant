@@ -20,7 +20,7 @@ import {
   resolveRoutingDecision,
   tryCronRouteUpdate,
 } from "./helpers.js";
-import { findLatestHumanMessageText } from "./reply-helpers.js";
+import { findLatestSubstantiveHumanMessageText } from "./reply-helpers.js";
 
 export type CronTriggerResolver = {
   resolveCronTriggerRoute: (message: BaseMessage | undefined) => string | undefined;
@@ -42,7 +42,7 @@ export const createSupervisorNode = (
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
     const promptLogging = options.promptLogging ?? noopPromptLogging;
     const supervisorPromptText = options.loadSupervisorPrompt();
-    const latestUserText = findLatestHumanMessageText(state.messages);
+    const latestUserText = findLatestSubstantiveHumanMessageText(state.messages);
     const lastMessage = state.messages[state.messages.length - 1];
     const cronRoute = options.cronTriggerResolver?.resolveCronTriggerRoute(lastMessage);
 

@@ -18,9 +18,9 @@ import {
 } from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
-import { createFilesystemSkillCatalog } from "../../src/integrations/skills/filesystem-skill-catalog.js";
+import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
 
-const testSkillCatalog = createFilesystemSkillCatalog();
+const testSkillCatalog = createSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
 
 const resolveTestAgentSystemPrompt = (

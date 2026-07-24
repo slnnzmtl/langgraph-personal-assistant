@@ -6,7 +6,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createObsidianVaultTools } from "../../../src/runtime-agents/policies/obsidian/tools.js";
+import { createObsidianVaultTools } from "../../../src/runtime-agents/tools/obsidian.js";
 import {
   applyFileWrite,
   listDirContents,
@@ -14,7 +14,7 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import { mapObsidianSubAgentResult } from "../../../src/app/policies/obsidian-hooks.js";
+import { mapObsidianSubAgentResult, buildObsidianCompletionSummary } from "../../../src/app/policies/obsidian-hooks.js";
 import { createObsidianNode } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 import {
@@ -140,6 +140,75 @@ describe("mapObsidianSubAgentResult", () => {
 
     expect(result.messages[0]?.content).toBe("exceeded max steps");
   });
+
+  it("surfaces read_file content when the model returns a blank final reply", () => {
+    const result = mapObsidianSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("show me routine"),
+          new AIMessage({
+            content: "",
+            tool_calls: [{
+              name: "read_file",
+              args: { relativePath: "routine/July/July 24 - Fri.md" },
+              id: "read-1",
+              type: "tool_call",
+            }],
+          }),
+          new ToolMessage({
+            tool_call_id: "read-1",
+            content: "## Summary\n- [ ] Gym",
+          }),
+          new AIMessage({ content: "" }),
+        ],
+        stepCount: 2,
+      },
+      8,
+      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+    );
+
+    expect(result.messages[0]?.content).toContain("## Summary");
+    expect(result.messages[0]?.content).toContain("- [ ] Gym");
+  });
+});
+
+describe("buildObsidianCompletionSummary", () => {
+  it("resolves read_file by tool_call_id when ToolMessage.name is missing", () => {
+    const summary = buildObsidianCompletionSummary([
+      new AIMessage({
+        content: "",
+        tool_calls: [{
+          name: "read_file",
+          args: { relativePath: "People/Лерочка.md" },
+          id: "read-1",
+          type: "tool_call",
+        }],
+      }),
+      new ToolMessage({
+        tool_call_id: "read-1",
+        content: "Natal chart contents",
+      }),
+    ]);
+
+    expect(summary).toBe("Natal chart contents");
+  });
+
+  it("prefers the latest read_file body over an earlier write success", () => {
+    const summary = buildObsidianCompletionSummary([
+      new ToolMessage({
+        name: "write_file",
+        tool_call_id: "write-1",
+        content: "Success: saved note.",
+      }),
+      new ToolMessage({
+        name: "read_file",
+        tool_call_id: "read-1",
+        content: "## Today\n- [ ] Focus",
+      }),
+    ]);
+
+    expect(summary).toBe("## Today\n- [ ] Focus");
+  });
 });
 
 describe("obsidian node helpers", () => {
@@ -218,7 +287,20 @@ describe("obsidian node helpers", () => {
         summary: "Append note",
         content: "More content",
       }),
-    ).resolves.toContain("Success: Append note");
+    ).resolves.toContain("Error: Cannot append missing file: note.md");
+  });
+
+  it("rejects append operations on missing files", async () => {
+    const vaultRoot = await createTempVault();
+
+    await expect(
+      applyFileWrite(vaultRoot, {
+        relativePath: "missing/note.md",
+        operation: "append",
+        content: "More content",
+        summary: "Append note",
+      }),
+    ).rejects.toThrow("Cannot append missing file: missing/note.md");
   });
 
   it("reads markdown with plain contents for the model", async () => {
@@ -262,13 +344,13 @@ describe("createObsidianNode", () => {
 
     expect(prompt).toContain("Obsidian Vault Manager");
     expect(prompt).toContain("<role_and_rules>");
-    expect(prompt).toContain("<priority>");
-    expect(prompt).toContain("Paths: Relative only. No absolute paths or '..' traversal.");
+    expect(prompt).toContain("Paths: Use relative paths only. No absolute paths or '..' traversal.");
     expect(prompt).not.toContain("CURRENT DATETIME:");
     expect(prompt).toContain('<intent type="READ">');
     expect(prompt).toContain('<intent type="WRITE">');
     expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
-    expect(prompt).toContain("file deletion is not available");
+    expect(prompt).toContain("Reply with the full note contents from the tool result");
+    expect(prompt).toContain("file deletion operations are unsupported");
   });
 
   it("loads skill_usage guidance from prompts/obsidian.xml", () => {
@@ -276,7 +358,15 @@ describe("createObsidianNode", () => {
 
     expect(prompt).toContain("<skill_usage>");
     expect(prompt).toContain("read_skill(skill_name)");
-    expect(prompt).toContain("<skill_attachments>");
+  });
+
+  it("requires verbatim screenshot transcription without translation", () => {
+    const prompt = loadObsidianSystemPrompt();
+
+    expect(prompt).toContain('<intent type="PARSE_SCREENSHOT">');
+    expect(prompt).toContain("<ocr_transcription_standard>");
+    expect(prompt).toContain("Preserve original source language verbatim (no auto-translation)");
+    expect(prompt).toContain("Do not summarize, paraphrase, or omit raw information");
   });
 
   it("fails clearly when the model does not support tool calling", async () => {

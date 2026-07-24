@@ -72,7 +72,10 @@ export const applyFileWrite = async (
   try {
     existingContent = await readTextFile(vaultRoot, relativePath);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`Cannot append missing file: ${relativePath}`);
+    }
+    throw error;
   }
 
   const normalizedExisting = existingContent.replace(/\s*$/, "");

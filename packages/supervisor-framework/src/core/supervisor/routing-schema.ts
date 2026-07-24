@@ -94,7 +94,9 @@ export const buildSupervisorRoutingSchema = (
       prompt: z
         .string()
         .transform(normalizeDelegationPrompt)
-        .describe("Self-contained task for this specialist. Required and must be non-empty."),
+        .describe(
+          "Self-contained task for this specialist. Required and must be non-empty. Preserve the user's operation (replace, overwrite, append, create) and any named note path.",
+        ),
     })
     : z.object({
       agentId: z.string(),
@@ -108,7 +110,7 @@ export const buildSupervisorRoutingSchema = (
       .optional()
       .transform(normalizeDelegationPrompt)
       .describe(
-        "Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted.",
+        "Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. Preserve replace vs append intent and any explicit note path from the user.",
       ),
     queue: agentRouteNames.length > 0
       ? z

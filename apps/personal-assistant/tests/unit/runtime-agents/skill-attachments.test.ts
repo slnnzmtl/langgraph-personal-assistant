@@ -32,6 +32,9 @@ describe("matchesSkillAttachmentRule", () => {
     "read my fitness log",
     "add a task to the project note",
     "sync expenses",
+    "show me routine",
+    "show routine",
+    "read routine",
   ])("does not match routine attachment rules for %j", (text) => {
     expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });
@@ -228,5 +231,19 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toContain('<attached_skill name="expense-view">');
     expect(prompt).toContain('<attached_skill name="expense-ledger-schema">');
     expect(prompt).toContain("public.expense");
+  });
+
+  it("appends skill-bootstrap for configuration skill create requests", () => {
+    const definition = getRuntimeAgentFixture("configuration");
+    const prompt = appendConfiguredSkillAttachments(
+      "Base prompt",
+      definition,
+      [new HumanMessage("Create a new skill for the finance agent named finance-summary.")],
+    );
+
+    expect(prompt).toContain("Base prompt");
+    expect(prompt).toContain('<attached_skill name="skill-bootstrap">');
+    expect(prompt).toContain("Never ask the user for description or content");
+    expect(prompt).toContain("list_skills(module)");
   });
 });

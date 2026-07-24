@@ -1,0 +1,90 @@
+<skill name="skill-bootstrap" module="configuration" description="Bootstrap a new agent skill — gather context, draft name/description/body, then create after confirmation.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>create a skill,create skill,create a new skill,new skill,add skill,bootstrap skill,draft a skill,help me write a skill,author a skill</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<when_attached>
+- Follow this playbook immediately for the current request.
+- Never ask the user for description or content before running `<enrich_with_tools>` and `<generate_draft>`.
+- Use provided name/module as draft defaults; infer the rest from context and tool results.
+</when_attached>
+
+<skill_bootstrap_intent_routing>
+1. BOOTSTRAP (bootstrap, help me write a skill, create a new skill, add a skill, draft a skill):
+   - Follow the steps below in order.
+   - Never call `create_skill` until the user explicitly confirms the draft.
+   - If the user already supplies a complete name, description, and full body, skip to `skill-management` CREATE instead.
+
+2. REVISE (change, update draft, tweak, add attachment):
+   - Update the draft from feedback.
+   - Re-present the draft for confirmation.
+   - Do not call write tools until confirmed.
+</skill_bootstrap_intent_routing>
+
+<collect_input>
+Gather from the user request and conversation history:
+- Goal: what workflow or task the skill should teach an agent to perform.
+- Target module: `finance`, `obsidian`, `configuration`, or an agent id that maps to one of these.
+- Triggers: phrases, cron job names, or routing cues that should auto-attach the skill.
+- Steps: ordered actions, tool calls, templates, constraints, and prohibited behavior.
+- Ask only for missing critical fields. Do not block drafting when enough context exists to produce a useful first draft.
+</collect_input>
+
+<enrich_with_tools>
+Use available tools to fill gaps before drafting. Skip calls that are not needed.
+
+1. Resolve the owning agent and module:
+   - Call `list_runtime_agents` when the target agent or module is unclear.
+   - Call `preview_runtime_agent(id)` when capability or prompt context is needed.
+
+2. Resolve available tools for the target agent:
+   - Call `list_capabilities` when the skill must reference specific agent tools.
+   - Match capability ids to the target agent's configured capabilities.
+
+3. Avoid duplication and learn existing patterns:
+   - Call `list_skills(module)` for the target module.
+   - Call `preview_skill(module, name)` on the closest existing skill to mirror structure, intent routing, and attachment style.
+</enrich_with_tools>
+
+<generate_draft>
+Produce all of the following:
+
+1. `name`: concise kebab-case identifier; must not collide with an existing skill in the target module.
+2. `description`: one catalog-facing line specific enough for routing and skill selection.
+3. `content`: skill body only — do not include the root `<skill>` tag; `create_skill` sets `name`, `module`, and `description` on the root element.
+
+Body guidelines:
+- Use numbered intent routing or ordered step sections like existing skills.
+- Name tools explicitly when the agent should call them.
+- Include `<skill_attachments>` only when trigger phrases or cron names are known.
+- Include templates, path rules, prohibited actions, and output expectations when relevant.
+- Keep the body concise and operational; avoid prose essays.
+</generate_draft>
+
+<present_draft>
+Return the draft using the skill output template fields plus the body:
+
+Module: [module]
+Skill Name: [name]
+Description: [description]
+Status: Draft
+
+Then show the drafted body content for review.
+Ask the user to confirm, revise, or cancel.
+</present_draft>
+
+<on_confirm>
+When the user explicitly confirms:
+- Call `create_skill(module, name, description, content)`.
+- Report using the skill output template with `Status: Created`.
+</on_confirm>
+
+<on_cancel>
+When the user cancels:
+- Do not call write tools.
+- Acknowledge cancellation without persisting anything.
+</on_cancel>
+
+</skill>

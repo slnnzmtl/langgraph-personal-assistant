@@ -10,6 +10,10 @@ import type { ILLMConnector } from "../ports/llm-connector.js";
 import { extractMessageTextContent } from "../messages/message-content.js";
 import { defaultReplyUxConfig, type ReplyUxConfig } from "./reply-ux.js";
 
+/** Keep in sync with apps/personal-assistant/src/telegram/media-group-buffer.ts CAPTIONLESS_PHOTO_TEXT */
+export const CAPTIONLESS_PHOTO_BOILERPLATE =
+  "Continue the previous vault edit with this image. Do not create a new note unless the user explicitly asked for one.";
+
 export const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -19,6 +23,22 @@ export const findLatestHumanMessageText = (messages: BaseMessage[]): string => {
   }
 
   return "";
+};
+
+export const findLatestSubstantiveHumanMessageText = (messages: BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!(message instanceof HumanMessage || message?._getType() === "human")) {
+      continue;
+    }
+
+    const text = extractMessageTextContent(message.content).trim();
+    if (text.length > 0 && text !== CAPTIONLESS_PHOTO_BOILERPLATE) {
+      return text;
+    }
+  }
+
+  return findLatestHumanMessageText(messages);
 };
 
 export const findLatestAiReplySinceLastHuman = (messages: BaseMessage[]): string => {

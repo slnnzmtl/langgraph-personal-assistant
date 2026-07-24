@@ -9,13 +9,38 @@ export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "- A tool error is not a user-facing completion. Never claim a write succeeded unless a successful tool payload proves it.",
 ].join("\n");
 
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent, extractNonTextContentParts } from "../messages/message-content.js";
 
 /** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
 export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
 
 const isHumanMessage = (message: BaseMessage): boolean =>
   message instanceof HumanMessage || message._getType() === "human";
+
+export const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[] => {
+  let lastHumanIndex = -1;
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message && isHumanMessage(message)) {
+      lastHumanIndex = index;
+      break;
+    }
+  }
+
+  if (lastHumanIndex === -1) {
+    return messages;
+  }
+
+  return messages.map((message, index) => {
+    if (!isHumanMessage(message) || index === lastHumanIndex) {
+      return message;
+    }
+
+    const text = extractMessageTextContent(message.content).trim();
+    return text.length > 0 ? new HumanMessage(text) : message;
+  });
+};
 
 /**
  * Keep recent conversational context for the runtime agent: the last N human
@@ -40,7 +65,7 @@ export const scopeSubAgentMessages = (
   }
 
   const startIndex = humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!;
-  return messages.slice(startIndex);
+  return stripStaleNonTextFromOlderHumans(messages.slice(startIndex));
 };
 
 export const applyDelegationPrompt = (
@@ -66,8 +91,17 @@ export const applyDelegationPrompt = (
     return [new HumanMessage(trimmed), ...messages];
   }
 
+  const previousHumanMessage = messages[lastHumanIndex];
+  const preservedParts = previousHumanMessage
+    ? extractNonTextContentParts(previousHumanMessage.content)
+    : [];
   const nextMessages = [...messages];
-  nextMessages[lastHumanIndex] = new HumanMessage(trimmed);
+  nextMessages[lastHumanIndex] = preservedParts.length > 0
+    ? new HumanMessage([
+      { type: "text", text: trimmed },
+      ...preservedParts,
+    ])
+    : new HumanMessage(trimmed);
   return nextMessages;
 };
 

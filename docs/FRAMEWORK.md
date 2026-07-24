@@ -11,7 +11,7 @@ Product-specific domains (Obsidian, finance, configuration) live in `apps/person
 | Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
 | Personal app | `apps/personal-assistant/src/app/` | Composition, `createSupervisorSystem`, domain hooks |
 | Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
-| Integrations | `apps/personal-assistant/src/integrations/` | Filesystem skills, vault, Supabase adapters |
+| Prompts & skills | `apps/personal-assistant/src/prompts/` | System prompts, skill filesystem I/O, `SkillCatalog` adapter |
 
 ## Intentional boundaries
 
