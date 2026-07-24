@@ -51,4 +51,22 @@ describe("empty sub-agent handoff", () => {
       toolContext: "exec_sql: []",
     });
   });
+
+  it("ignores consumed tool markers when formatting handoff context", () => {
+    const context = formatRecentToolResultsForHandoff([
+      new ToolMessage({
+        tool_call_id: "read-1",
+        name: "read_file",
+        content: "[consumed: read_file]",
+      }),
+      new ToolMessage({
+        tool_call_id: "read-2",
+        name: "read_file",
+        content: "## Summary\n- [ ] Gym",
+      }),
+    ]);
+
+    expect(context).toContain("## Summary");
+    expect(context).not.toContain("[consumed:");
+  });
 });

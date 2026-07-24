@@ -1,5 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
+import { isConsumedToolMarker } from "../message-compaction.js";
 import { extractMessageTextContent } from "../messages/message-content.js";
 
 const MAX_TOOL_CONTEXT_CHARS = 2_000;
@@ -31,7 +32,7 @@ export const formatRecentToolResultsForHandoff = (messages: BaseMessage[]): stri
 
     const name = message.name?.trim() || "tool";
     const body = extractMessageTextContent(message.content).trim();
-    if (body.length === 0) {
+    if (body.length === 0 || isConsumedToolMarker(body)) {
       continue;
     }
 

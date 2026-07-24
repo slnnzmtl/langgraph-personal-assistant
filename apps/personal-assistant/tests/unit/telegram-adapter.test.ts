@@ -171,6 +171,14 @@ describe("TelegramAdapter", () => {
   it("normalizes text and photo inbound messages", async () => {
     const adapter = createAdapter();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const imageBytes = Buffer.from("fake-image-bytes");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(imageBytes, {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      })),
+    );
 
     const textMessage = await adapter.parseInbound({
       from: { id: 42 },
@@ -182,6 +190,7 @@ describe("TelegramAdapter", () => {
 
     const photoMessage = await adapter.parseInbound({
       from: { id: 42 },
+      chat: { id: 42 },
       message: {
         photo: [{ file_id: "file-1" }],
         caption: "receipt",
@@ -191,12 +200,61 @@ describe("TelegramAdapter", () => {
       },
     } as never);
 
-    expect(photoMessage).toBeInstanceOf(HumanMessage);
-    expect(photoMessage?.content).toEqual([
-      { type: "text", text: "receipt" },
-      { type: "image_url", image_url: { url: "https://example.com/receipt.jpg" } },
-    ]);
-    expect(logSpy).toHaveBeenCalled();
+    expect(photoMessage).toBe("media-group-buffered");
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith("user: hello");
+  });
+
+  it("buffers captionless single photos until debounce flush", async () => {
+    const adapter = createAdapter();
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const imageBytes = Buffer.from("fake-image-bytes");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(imageBytes, {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      })),
+    );
+
+    const photoMessage = await adapter.parseInbound({
+      from: { id: 42 },
+      chat: { id: 42 },
+      message: {
+        photo: [{ file_id: "file-1" }],
+      },
+      telegram: {
+        getFileLink: vi.fn(async () => new URL("https://example.com/receipt.jpg")),
+      },
+    } as never);
+
+    expect(photoMessage).toBe("media-group-buffered");
+  });
+
+  it("buffers media group photos instead of returning an immediate message", async () => {
+    const adapter = createAdapter();
+    const imageBytes = Buffer.from("fake-image-bytes");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(imageBytes, {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      })),
+    );
+
+    const result = await adapter.parseInbound({
+      from: { id: 42 },
+      chat: { id: 42 },
+      message: {
+        photo: [{ file_id: "file-1" }],
+        media_group_id: "album-1",
+      },
+      telegram: {
+        getFileLink: vi.fn(async () => new URL("https://example.com/receipt.jpg")),
+      },
+    } as never);
+
+    expect(result).toBe("media-group-buffered");
   });
 
   it("sends plain-text replies for AI messages via telegram API", async () => {

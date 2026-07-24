@@ -72,6 +72,62 @@ describe("applyDelegationPrompt", () => {
     expect(result).toHaveLength(2);
     expect(String(result[0]?.content)).toBe("Show today's plan.");
   });
+
+  it("preserves non-text parts when replacing the latest human message", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage("where is the note?"),
+      new AIMessage("Checking."),
+      new HumanMessage([
+        { type: "text", text: "show me today's plan and yesterday expenses" },
+        imagePart,
+      ]),
+    ];
+
+    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
+
+    expect(result).toHaveLength(3);
+    expect(result.at(-1)?.content).toEqual([
+      { type: "text", text: "Show yesterday's expenses." },
+      imagePart,
+    ]);
+  });
+});
+
+describe("stripStaleNonTextFromOlderHumans", () => {
+  it("removes image parts from older human turns but keeps the latest multimodal human", () => {
+    const olderImage = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,old" },
+    };
+    const latestImage = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,new" },
+    };
+    const messages = [
+      new HumanMessage([
+        { type: "text", text: "first screenshot" },
+        olderImage,
+      ]),
+      new AIMessage("Updated note."),
+      new HumanMessage([
+        { type: "text", text: "second screenshot" },
+        latestImage,
+      ]),
+    ];
+
+    expect(scopeSubAgentMessages(messages)).toEqual([
+      new HumanMessage("first screenshot"),
+      new AIMessage("Updated note."),
+      new HumanMessage([
+        { type: "text", text: "second screenshot" },
+        latestImage,
+      ]),
+    ]);
+  });
 });
 
 describe("buildRuntimeAgentPromptMessages", () => {

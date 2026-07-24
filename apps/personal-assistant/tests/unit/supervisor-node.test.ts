@@ -43,6 +43,14 @@ describe("createSupervisorNode", () => {
     expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
   });
 
+  it("tells the supervisor not to translate screenshot OCR in delegation prompts", () => {
+    const prompt = loadSupervisorSystemPrompt();
+
+    expect(prompt).toContain("<delegation_rules>");
+    expect(prompt).toContain("do not translate, summarize, or rewrite OCR text");
+    expect(prompt).toContain("transcribe verbatim in the original language");
+  });
+
   it("includes the current datetime in the shared system prompt", async () => {
     const currentInstant = new Date("2026-07-05T12:34:56.000Z");
     vi.useFakeTimers();

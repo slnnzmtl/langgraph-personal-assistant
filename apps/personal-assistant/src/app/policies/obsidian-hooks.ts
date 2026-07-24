@@ -15,7 +15,49 @@ import {
 import { formatObsidianRoutineHint } from "../../prompts/load-system-prompt.js";
 import { getAttachedSkillNames } from "../../runtime-agents/skill-attachments.js";
 
-export const buildObsidianCompletionSummary = (messages: BaseMessage[]): string => {
+export const OBSIDIAN_COMPLETION_FALLBACK = "Completed the Obsidian task.";
+
+const isConsumableToolBody = (content: string): boolean => {
+  const trimmed = content.trim();
+  return trimmed.length > 0
+    && !trimmed.startsWith("[consumed:")
+    && !trimmed.startsWith("Error:");
+};
+
+const resolveToolName = (
+  messages: BaseMessage[],
+  toolMessage: ToolMessage,
+  toolIndex: number,
+): string => {
+  const explicitName = toolMessage.name?.trim();
+  if (explicitName) {
+    return explicitName;
+  }
+
+  for (let index = toolIndex - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!(message instanceof AIMessage) || !message.tool_calls?.length) {
+      continue;
+    }
+
+    const match = message.tool_calls.find((toolCall) => toolCall.id === toolMessage.tool_call_id);
+    if (match?.name) {
+      return match.name;
+    }
+  }
+
+  return "";
+};
+
+/**
+ * Prefer the latest useful tool payload when the model returns a blank final reply.
+ * Reads win over writes/searches so "show me X" can still surface note content.
+ */
+export const buildObsidianCompletionSummary = (messages: BaseMessage[]): string | undefined => {
+  let latestSuccess: string | undefined;
+  let latestRead: string | undefined;
+  let latestSearchOrList: string | undefined;
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!(message instanceof ToolMessage)) {
@@ -23,16 +65,38 @@ export const buildObsidianCompletionSummary = (messages: BaseMessage[]): string 
     }
 
     const content = extractMessageTextContent(message.content).trim();
-    if (content.startsWith("Success:")) {
-      return content.replace(/^Success:\s*/i, "").trim() || "Completed the Obsidian task.";
+    if (!isConsumableToolBody(content)) {
+      continue;
     }
 
-    if (message.name === "read_file" && content.length > 0) {
-      return content;
+    const toolName = resolveToolName(messages, message, index);
+
+    if (content.startsWith("Success:")) {
+      latestSuccess ??= content.replace(/^Success:\s*/i, "").trim() || undefined;
+      continue;
+    }
+
+    if (toolName === "read_file") {
+      latestRead ??= content;
+      continue;
+    }
+
+    if (
+      toolName === "search_files"
+      || toolName === "search_files_by_name"
+      || toolName === "list_files"
+    ) {
+      if (
+        content === "No files matched your search."
+        || content === "No files or directories found."
+      ) {
+        continue;
+      }
+      latestSearchOrList ??= content;
     }
   }
 
-  return "Completed the Obsidian task.";
+  return latestRead ?? latestSuccess ?? latestSearchOrList;
 };
 
 const hasSuccessfulObsidianWrite = (messages: BaseMessage[]): boolean =>
@@ -47,7 +111,8 @@ const hasSuccessfulObsidianWrite = (messages: BaseMessage[]): boolean =>
 const hasCompletedObsidianReply = (message: BaseMessage | undefined): message is AIMessage =>
   message instanceof AIMessage
   && !(message.tool_calls?.length)
-  && extractMessageTextContent(message.content).trim().length > 0;
+  && extractMessageTextContent(message.content).trim().length > 0
+  && extractMessageTextContent(message.content).trim() !== OBSIDIAN_COMPLETION_FALLBACK;
 
 export const mapObsidianSubAgentResult = (
   result: SubAgentState,
@@ -60,19 +125,22 @@ export const mapObsidianSubAgentResult = (
     return { messages: [lastMessage] };
   }
 
+  const summary = buildObsidianCompletionSummary(result.agentMessages);
+
   if (hasSuccessfulObsidianWrite(result.agentMessages)) {
-    return {
-      messages: [new AIMessage(buildObsidianCompletionSummary(result.agentMessages))],
-    };
+    return { messages: [new AIMessage(summary ?? OBSIDIAN_COMPLETION_FALLBACK)] };
+  }
+
+  if (summary) {
+    return { messages: [new AIMessage(summary)] };
   }
 
   if (result.stepCount >= maxSteps) {
     return onMaxStepsExceeded();
   }
 
-  return {
-    messages: [new AIMessage(buildObsidianCompletionSummary(result.agentMessages))],
-  };
+  // Empty handoff — empty_reply / post-handoff can use toolContext when available.
+  return { messages: [new AIMessage({ content: "" })] };
 };
 
 export const selectObsidianToolsForTurn = (
@@ -124,10 +192,17 @@ export const createObsidianNodeHooks = (
 
       const hasToolResults = ctx.state.agentMessages.some((message) => message instanceof ToolMessage);
       if (!hasToolResults) {
-        return new AIMessage("Completed the Obsidian task.");
+        // No tools yet — keep a non-empty placeholder so the turn can finalize.
+        return new AIMessage(OBSIDIAN_COMPLETION_FALLBACK);
       }
 
-      return new AIMessage(buildObsidianCompletionSummary(ctx.state.agentMessages));
+      const summary = buildObsidianCompletionSummary(ctx.state.agentMessages);
+      if (summary) {
+        return new AIMessage(summary);
+      }
+
+      // Leave empty so the runtime can retry recovery while tool bodies are still raw.
+      return new AIMessage({ content: "" });
     },
   };
 };

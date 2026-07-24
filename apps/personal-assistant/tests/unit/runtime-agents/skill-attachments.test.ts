@@ -32,6 +32,9 @@ describe("matchesSkillAttachmentRule", () => {
     "read my fitness log",
     "add a task to the project note",
     "sync expenses",
+    "show me routine",
+    "show routine",
+    "read routine",
   ])("does not match routine attachment rules for %j", (text) => {
     expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });
