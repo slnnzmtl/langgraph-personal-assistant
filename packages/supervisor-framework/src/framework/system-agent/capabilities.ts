@@ -9,7 +9,7 @@ import {
 import {
   SYSTEM_CONFIG_CAPABILITY_ID,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
-} from "./constants.js";
+} from "./definition.js";
 import { createSystemConfigTools } from "./tools/system-config-tools.js";
 import type { SystemConfigDeps, SystemConfigToolsOptions } from "./types.js";
 

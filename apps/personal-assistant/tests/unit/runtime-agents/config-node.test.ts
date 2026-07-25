@@ -20,11 +20,9 @@ const defaultCronJobs = [
 ];
 
 describe("createConfigurationNode", () => {
-  it("lists cron jobs directly without invoking the llm or runtime scheduler", async () => {
+  it("invokes the llm for cron list requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run for list requests");
-    });
+    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here are your cron jobs." }));
     const runtimeCron = {
       addJob: vi.fn(),
       removeJob: vi.fn(),
@@ -33,8 +31,8 @@ describe("createConfigurationNode", () => {
 
     const node = createConfigurationNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
       createConfigurationTools(repository),
       {
@@ -50,22 +48,19 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toContain("Job name: sync-wise-transactions");
-    expect(result.agentMessages?.[0]?.content).toContain("Schedule: 0 7 * * *");
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Here are your cron jobs.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
     expect(runtimeCron.addJob).not.toHaveBeenCalled();
   });
 
-  it("lists configuration skills directly without invoking the llm", async () => {
+  it("invokes the llm for configuration skill catalog requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run for configuration skill catalog requests");
-    });
+    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed configuration skills." }));
 
     const node = createConfigurationNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
       createConfigurationTools(repository),
       {
@@ -80,11 +75,8 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toContain("Module: configuration");
-    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: cron");
-    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: skill-management");
-    expect(result.agentMessages?.[0]?.content).toContain("Status: Listed");
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Listed configuration skills.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("delegates cross-owner skill list requests to the model", async () => {
@@ -166,17 +158,15 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns preview_skill tool output directly without invoking the llm again", async () => {
+  it("invokes the llm after preview_skill tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run after read-only skill tool results");
-    });
+    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here is the skill preview summary." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
     const node = createConfigurationNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
       createConfigurationTools(repository),
       {
@@ -209,21 +199,19 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toBe(skillContent);
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Here is the skill preview summary.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns list_skills tool output directly without invoking the llm again", async () => {
+  it("invokes the llm after list_skills tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run after read-only skill tool results");
-    });
+    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed finance skills." }));
     const listContent = "sync-expenses: Sync Wise transactions";
 
     const node = createConfigurationNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
       createConfigurationTools(repository),
       {
@@ -256,8 +244,8 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toBe(listContent);
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Listed finance skills.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("continues to the model after list_skills during skill bootstrap enrichment", async () => {

@@ -98,9 +98,7 @@ export const createConfigurationNode = (
   tools,
   {
     ...createSystemAgentNodeHooks({
-      repository: options.repository,
       ...(options.onCronMutated ? { onCronMutated: options.onCronMutated } : {}),
-      skillCatalog: testSkillCatalog,
       shellFormatters: testShellFormatters,
     }),
     logLabel: "configuration-system-prompt",

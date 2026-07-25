@@ -72,7 +72,8 @@ export type SupervisorPackBootstrap<
   TAdapters extends Record<string, unknown> = Record<string, never>,
 > = {
   config: TConfig;
-  capabilityCatalog: CapabilityCatalog;
+  /** Pre-built catalog when capabilityProviders is not supplied (e.g. minimal test packs). */
+  capabilityCatalog?: CapabilityCatalog;
   supervisorLlm: ILLMConnector;
   loadSupervisorPrompt: () => string;
   createRuntimeAgentRepository?: (config: TConfig) => RuntimeAgentRepository;
@@ -95,6 +96,7 @@ export type SupervisorPackBootstrap<
   };
   /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
   systemAgent?: SystemAgentOptions | false;
+  /** Primary catalog source; merged with system-config capabilities when systemAgent is enabled. */
   capabilityProviders?: CapabilityProvider<Record<string, unknown>>[];
   resolveRuntimeAgentTools?: (
     catalog: CapabilityCatalog,

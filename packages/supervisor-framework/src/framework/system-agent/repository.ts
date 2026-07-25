@@ -1,8 +1,7 @@
 import { toRuntimeAgentId } from "../../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
-import { createSystemAgentDefinition, isSystemAgentId } from "./definition.js";
-import { SYSTEM_AGENT_ID } from "./constants.js";
+import { createSystemAgentDefinition, isSystemAgentId, SYSTEM_AGENT_ID } from "./definition.js";
 import type { SystemAgentOptions } from "./types.js";
 
 const withoutSystemAgent = (agents: RuntimeAgentDefinition[]): RuntimeAgentDefinition[] =>

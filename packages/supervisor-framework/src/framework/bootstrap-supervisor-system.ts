@@ -55,9 +55,13 @@ export const bootstrapSupervisorSystem = async <
     createNoopCronJobRepository();
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
-  const capabilityCatalog = systemAgentEnabled && pack.capabilityProviders
-    ? mergeCapabilityCatalogs(pack.capabilityProviders, true)
+  const capabilityCatalog = pack.capabilityProviders
+    ? mergeCapabilityCatalogs(pack.capabilityProviders, systemAgentEnabled)
     : pack.capabilityCatalog;
+
+  if (!capabilityCatalog) {
+    throw new Error("SupervisorPackBootstrap requires capabilityProviders or capabilityCatalog.");
+  }
 
   const bootstrapContext = {
     config: pack.config,
@@ -87,7 +91,6 @@ export const bootstrapSupervisorSystem = async <
           capabilityCatalog,
           resolveTools: resolveTools as SystemAgentPolicyOptions["resolveTools"],
           systemAgent: pack.systemAgent as SystemAgentOptions,
-          skillCatalog,
           ...(shellFormatters ? { shellFormatters } : {}),
         }),
       ]

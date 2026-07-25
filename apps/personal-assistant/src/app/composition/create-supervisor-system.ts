@@ -7,7 +7,6 @@ import {
   type CompiledSupervisorGraph,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import { createDefaultCapabilityCatalog } from "../../runtime-agents/builtin-capabilities.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,
@@ -29,7 +28,6 @@ export const createSupervisorSystem = async (
   config: AppConfig,
   options: SupervisorSystemOptions = {},
 ): Promise<SupervisorSystemContext> => {
-  const capabilityCatalog = createDefaultCapabilityCatalog();
   const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
 
   const result = await bootstrapSupervisorSystem(
@@ -37,7 +35,6 @@ export const createSupervisorSystem = async (
       config,
       options,
       supervisorLlm: supervisorConnector,
-      capabilityCatalog,
     }),
   );
 

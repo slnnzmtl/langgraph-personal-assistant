@@ -7,6 +7,7 @@ import type { RuntimeCronService } from "../../cron/types.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
 import {
   createRuntimeAgentRepository,
+  createCapabilityCatalog,
   deriveExecutors,
   deriveModelKeys,
   deriveSkillModules,
@@ -91,27 +92,25 @@ export type BuildPersonalSupervisorPackInput = {
   config: AppConfig;
   options?: SupervisorSystemOptions;
   supervisorLlm: ILLMConnector;
-  capabilityCatalog: CapabilityCatalog;
 };
 
 export const buildPersonalSupervisorPack = ({
   config,
   options = {},
   supervisorLlm,
-  capabilityCatalog,
 }: BuildPersonalSupervisorPackInput): SupervisorPackBootstrap<
   AppConfig,
   CapabilityDeps,
   PersonalAdapters
 > => {
+  const personalCapabilityProviders = createPersonalCapabilityProviders() as never;
   const cronMutationContext: {
     repository?: CronJobRepository;
   } = {};
 
   return {
     config,
-    capabilityCatalog,
-    capabilityProviders: createPersonalCapabilityProviders() as never,
+    capabilityProviders: personalCapabilityProviders,
     supervisorLlm,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
     systemAgent: {
@@ -141,7 +140,8 @@ export const buildPersonalSupervisorPack = ({
       }),
     buildSkillCatalog: buildPersonalSkillCatalog,
     buildPolicyRegistry: (agents, skillCatalog) => {
-      const kit = createAppExecutionKit(deriveExecutors(agents), { skillCatalog, capabilityCatalog });
+      const domainCapabilityCatalog = createCapabilityCatalog(personalCapabilityProviders);
+      const kit = createAppExecutionKit(deriveExecutors(agents), { skillCatalog, capabilityCatalog: domainCapabilityCatalog });
 
       return {
         loadPromptByKey: kit.loadPromptByKey,

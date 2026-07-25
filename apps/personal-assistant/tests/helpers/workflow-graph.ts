@@ -85,7 +85,6 @@ export const createTestWorkflowGraph = ({
         prompt: () => loadSystemPromptByKey("configuration"),
         modelKey: "configuration",
       },
-      skillCatalog,
       shellFormatters,
     }),
   ]);
