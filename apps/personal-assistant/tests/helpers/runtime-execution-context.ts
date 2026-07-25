@@ -11,7 +11,6 @@ import {
   type RuntimeAgentExecutionContext,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
@@ -49,7 +48,6 @@ export const createAppRuntimeExecutionContext = (
       capabilityCatalog,
       resolveTools,
       systemAgent: {
-        prompt: () => loadSystemPromptByKey("configuration"),
         modelKey: "configuration",
       },
       skillCatalog,

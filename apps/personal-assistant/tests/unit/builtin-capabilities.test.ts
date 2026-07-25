@@ -5,7 +5,6 @@ import {
   deriveCronTargetAgentIds,
   mergeCapabilityCatalogs,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
@@ -22,7 +21,6 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 describe("builtin capabilities", () => {
   it("seeds the configuration agent with the system-config capability", () => {
     const configuration = createSystemAgentDefinition({
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
     });
 

@@ -7,7 +7,6 @@ import {
   RuntimeAgentsDocumentSchema,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");
 
@@ -28,7 +27,6 @@ export const buildLocalModuleAgents = (): RuntimeAgentDefinition[] =>
 
 export const buildTestRuntimeAgents = (): RuntimeAgentDefinition[] => [
   createSystemAgentDefinition({
-    prompt: () => loadSystemPromptByKey("configuration"),
     modelKey: "configuration",
   }),
   ...buildLocalModuleAgents(),

@@ -20,7 +20,7 @@
    - The tool sets the root `<skill module="...">` attribute from the module argument.
 
 4. EDIT (edit, update, change, rewrite):
-   - Call `read_skill_for_edit(module, name)` first.
+   - Call `preview_skill(module, name)` first.
    - Then call `edit_skill(module, name, description, content)` with the full replacement description and body.
 
 5. DELETE (remove, delete):

@@ -1,8 +1,6 @@
 import type { AppConfig } from "../../config.js";
 import path from "node:path";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
-import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
-import type { CronJobRepository } from "../../cron/types.js";
 import type { RuntimeCronService } from "../../cron/types.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
 import {
@@ -19,7 +17,6 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey } from "../../agents/load-system-prompt.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { loadSupervisorSystemPrompt } from "../../agents/load-system-prompt.js";
@@ -104,9 +101,6 @@ export const buildPersonalSupervisorPack = ({
   PersonalAdapters
 > => {
   const personalCapabilityProviders = createPersonalCapabilityProviders() as never;
-  const cronMutationContext: {
-    repository?: CronJobRepository;
-  } = {};
 
   return {
     config,
@@ -114,13 +108,7 @@ export const buildPersonalSupervisorPack = ({
     supervisorLlm,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
     systemAgent: {
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
-      onCronMutated: async () => {
-        if (cronMutationContext.repository && options.runtimeCron) {
-          await reconcileRuntimeCron(cronMutationContext.repository, options.runtimeCron);
-        }
-      },
     },
     resolveRuntimeAgentTools: (catalog, skillCatalog) => (definition, deps, resolveOptions) =>
       createPersonalResolveTools(catalog)(definition, deps, { ...resolveOptions, skillCatalog }),
@@ -151,10 +139,8 @@ export const buildPersonalSupervisorPack = ({
     },
     buildModels: (appConfig, agents) =>
       buildModelRegistry(appConfig, deriveModelKeys(agents, "generic")),
-    buildCapabilityDeps: (context) => {
-      cronMutationContext.repository = context.cronJobRepository as CronJobRepository;
-
-      return buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
+    buildCapabilityDeps: (context) =>
+      buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
         cronTargetAgentIds: context.cronTargetAgentIds,
         cronJobRepository: context.cronJobRepository as ReturnType<
           typeof createCronJobRepositoryForConfig
@@ -167,8 +153,7 @@ export const buildPersonalSupervisorPack = ({
           ? { supabaseSession: context.adapters.supabaseSession }
           : {}),
         ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
-      });
-    },
+      }),
     buildGraphHooks: (context) => ({
       promptLogging: logSystemPromptInvocation,
       ...buildPersonalCronGraphHooks(context.cronTargetAgentIds),

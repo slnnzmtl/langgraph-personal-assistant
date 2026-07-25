@@ -15,6 +15,7 @@ export {
   wrapRepositoryWithSystemAgent,
   mergeCapabilityCatalogs,
   createSystemConfigTools,
+  createSkillCrudTools,
   createSystemAgentPolicy,
   createSystemAgentNodeHooks,
   buildSkillModuleOwnerPattern,

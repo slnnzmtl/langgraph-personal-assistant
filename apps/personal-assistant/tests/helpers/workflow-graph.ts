@@ -11,7 +11,7 @@ import {
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey, loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
 import {
@@ -82,7 +82,6 @@ export const createTestWorkflowGraph = ({
       capabilityCatalog,
       resolveTools,
       systemAgent: {
-        prompt: () => loadSystemPromptByKey("configuration"),
         modelKey: "configuration",
       },
       shellFormatters,

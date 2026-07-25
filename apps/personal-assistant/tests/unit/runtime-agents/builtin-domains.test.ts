@@ -9,7 +9,6 @@ import {
   applyLocalModuleAvailability,
   resolveBuiltinModelName,
 } from "../../../src/app/composition/bootstrap-agents.js";
-import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
 import { listSkillModules } from "../../../src/runtime-agents/skills/skills-loader.js";
 import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
 import type { AppConfig } from "../../../src/config.js";
@@ -22,7 +21,6 @@ describe("system admin agent manifest", () => {
 
   it("builds the system admin runtime agent from framework options", () => {
     const agent = createSystemAgentDefinition({
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
     });
 

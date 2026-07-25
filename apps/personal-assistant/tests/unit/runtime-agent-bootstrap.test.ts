@@ -10,7 +10,6 @@ import {
   wrapRepositoryWithSystemAgent,
 } from "@personal-assistant/supervisor-framework";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
-import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];
@@ -25,7 +24,6 @@ const createWrappedRepository = async () => {
   const repository = wrapRepositoryWithSystemAgent(
     createRuntimeAgentRepository(rootDir, "data/runtime-agents.json"),
     {
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
     },
   );
@@ -72,7 +70,6 @@ describe("wrapRepositoryWithSystemAgent", () => {
     const rawRepository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
 
     await rawRepository.saveAgents([createSystemAgentDefinition({
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
     })]);
 
@@ -86,7 +83,6 @@ describe("wrapRepositoryWithSystemAgent", () => {
 
     await rawRepository.saveAgents([
       createSystemAgentDefinition({
-        prompt: () => loadSystemPromptByKey("configuration"),
         modelKey: "configuration",
       }),
       {

@@ -10,7 +10,6 @@ import {
   mergeCapabilityCatalogs,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import {
   createCapabilityDeps,
@@ -119,7 +118,6 @@ describe("app boundaries", () => {
 
   it("seeds only the configuration built-in from code", () => {
     const agent = createSystemAgentDefinition({
-      prompt: () => loadSystemPromptByKey("configuration"),
       modelKey: "configuration",
     });
 

@@ -1,6 +1,7 @@
 import { AIMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import { configurationReposAvailable } from "../../capabilities/index.js";
 import type { CapabilityCatalog } from "../../capabilities/index.js";
 import {
   createAgentPolicy,
@@ -18,30 +19,13 @@ import type { RuntimeAgentExecutionContext } from "../../core/execution/context.
 import { SYSTEM_AGENT_DISPLAY_NAME, SYSTEM_AGENT_ID } from "./definition.js";
 import type { SystemAgentOptions, SystemConfigDeps } from "./types.js";
 
-const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);
-
-const shouldReconcileCron = (messages: readonly { name?: string }[]): boolean =>
-  messages.some((message) => message.name && MUTATING_CRON_TOOLS.has(message.name));
-
-type SystemAgentHooksOptions = {
-  onCronMutated?: () => Promise<void>;
-  shellFormatters: RuntimeShellFormatters;
-};
-
 export const createSystemAgentNodeHooks = (
-  options: SystemAgentHooksOptions,
+  shellFormatters: RuntimeShellFormatters,
 ): RuntimeAgentNodeHooks => {
-  const baseHooks = createRuntimeShellHooks(options.shellFormatters);
+  const baseHooks = createRuntimeShellHooks(shellFormatters);
 
   return {
     ...baseHooks,
-    beforeTurn: async (ctx) => {
-      if (shouldReconcileCron(ctx.state.agentMessages) && options.onCronMutated) {
-        await options.onCronMutated();
-      }
-
-      return null;
-    },
     processResponse: (ctx, response) => {
       const sanitized = sanitizeResponseToolCalls(response, ctx.allowedToolNames);
       const responseText = extractMessageTextContent(sanitized.content).trim();
@@ -67,32 +51,17 @@ export type SystemAgentPolicyOptions = AgentPolicyToolkitOptions & {
 };
 
 export const createSystemAgentPolicy = (options: SystemAgentPolicyOptions) =>
-  createAgentPolicy<
-    SystemConfigDeps,
-    { onCronMutated?: () => Promise<void> }
-  >({
+  createAgentPolicy<SystemConfigDeps>({
     executor: SYSTEM_AGENT_ID,
     displayName: SYSTEM_AGENT_DISPLAY_NAME,
-    resolveDeps: (context: RuntimeAgentExecutionContext<SystemConfigDeps>) => {
-      if (!context.capabilityDeps.cronJobRepository) {
-        return null;
-      }
-
-      return options.systemAgent.onCronMutated
-        ? { onCronMutated: options.systemAgent.onCronMutated }
-        : {};
-    },
-    unavailableMessage: () => "Configuration is unavailable because cron job storage is not configured.",
+    resolveDeps: (context: RuntimeAgentExecutionContext<SystemConfigDeps>) =>
+      configurationReposAvailable(context.capabilityDeps) ? {} : null,
+    unavailableMessage: () =>
+      "Configuration is unavailable because cron and runtime agent storage are not configured.",
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
       options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
-    createHooks: () =>
-      createSystemAgentNodeHooks({
-        ...(options.systemAgent.onCronMutated
-          ? { onCronMutated: options.systemAgent.onCronMutated }
-          : {}),
-        shellFormatters: options.shellFormatters!,
-      }),
+    createHooks: () => createSystemAgentNodeHooks(options.shellFormatters!),
     logLabel: "configuration-system-prompt",
     buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+      `Unable to update configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
   }, options);

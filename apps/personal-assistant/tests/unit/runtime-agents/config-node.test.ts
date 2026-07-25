@@ -292,7 +292,7 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
+  it("continues to the model after preview_skill so edit flows can proceed", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
@@ -316,7 +316,7 @@ describe("createConfigurationNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_skill_for_edit",
+              name: "preview_skill",
               args: { module: "finance", name: "sync-expenses" },
               id: "read-1",
               type: "tool_call",
@@ -324,7 +324,7 @@ describe("createConfigurationNode", () => {
           ],
         }),
         new ToolMessage({
-          name: "read_skill_for_edit",
+          name: "preview_skill",
           tool_call_id: "read-1",
           content: skillContent,
         }),

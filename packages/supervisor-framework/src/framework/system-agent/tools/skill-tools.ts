@@ -8,13 +8,8 @@ const ListSkillsToolSchema = z.object({
 });
 
 const PreviewSkillToolSchema = z.object({
-  module: z.string().min(1).describe("The skill module to preview"),
-  name: z.string().describe("The name of the skill to preview"),
-});
-
-const ReadSkillForEditToolSchema = z.object({
-  module: z.string().min(1).describe("The skill module to read from"),
-  name: z.string().describe("The name of the skill to read"),
+  module: z.string().min(1).describe("The skill module to preview or edit"),
+  name: z.string().describe("The name of the skill to preview or edit"),
 });
 
 const CreateSkillToolSchema = z.object({
@@ -95,31 +90,15 @@ export const createSkillCrudTools = (
     {
       name: "preview_skill",
       description:
-        "Preview a skill file for display to the user. Use for show/read/view requests. Does not execute the skill.",
+        "Load the full skill file for preview or before editing. Use for show/read/view requests and as the first step before edit_skill.",
       schema: PreviewSkillToolSchema,
     },
   );
 
-  const readSkillForEditTool = tool(
-    async (input: z.infer<typeof ReadSkillForEditToolSchema>) => {
-      try {
-        assertKnownModule(input.module, skillCatalog);
-        return formatSkillPreview(skillCatalog, input.module, input.name);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return `Error: ${message}`;
-      }
-    },
-    {
-      name: "read_skill_for_edit",
-      description: "Load the full skill file for a named module and skill before editing it.",
-      schema: ReadSkillForEditToolSchema,
-    },
-  );
+  const readTools = [listSkillsTool, previewSkillTool];
 
-  const readTools = [listSkillsTool, previewSkillTool, readSkillForEditTool];
-
-  if (!options.writeAccess) {
+  const writeAccess = options.writeAccess ?? true;
+  if (!writeAccess) {
     return readTools;
   }
 

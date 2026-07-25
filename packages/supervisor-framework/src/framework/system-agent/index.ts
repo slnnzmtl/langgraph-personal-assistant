@@ -22,6 +22,7 @@ export {
 } from "./capabilities.js";
 
 export { createSystemConfigTools } from "./tools/system-config-tools.js";
+export { createSkillCrudTools } from "./tools/skill-tools.js";
 
 export { buildSkillModuleOwnerPattern } from "./skill-patterns.js";
 

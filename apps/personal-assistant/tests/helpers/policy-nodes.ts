@@ -85,7 +85,6 @@ type ConfigurationNodeOptions = {
   repository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
   definition: RuntimeAgentDefinition;
-  onCronMutated?: () => Promise<void>;
 };
 
 export const createConfigurationNode = (
@@ -97,10 +96,7 @@ export const createConfigurationNode = (
   resolveTestAgentSystemPrompt(options.definition),
   tools,
   {
-    ...createSystemAgentNodeHooks({
-      ...(options.onCronMutated ? { onCronMutated: options.onCronMutated } : {}),
-      shellFormatters: testShellFormatters,
-    }),
+    ...createSystemAgentNodeHooks(testShellFormatters),
     logLabel: "configuration-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,

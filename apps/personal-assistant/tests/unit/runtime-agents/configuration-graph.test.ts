@@ -16,7 +16,6 @@ import {
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import { mergeCapabilityCatalogs } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityProviders } from "../../../src/runtime-agents/builtin-capabilities.js";
-import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
 
 const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
@@ -71,7 +70,6 @@ describe("configuration subgraph", () => {
       capabilityCatalog,
       resolveTools,
       systemAgent: {
-        prompt: () => loadSystemPromptByKey("configuration"),
         modelKey: "configuration",
       },
       skillCatalog: createSkillCatalog(),

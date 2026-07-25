@@ -16,7 +16,6 @@ describe("createConfigurationTools", () => {
         "read_skill",
         "list_skills",
         "preview_skill",
-        "read_skill_for_edit",
         "create_skill",
         "edit_skill",
         "delete_skill",

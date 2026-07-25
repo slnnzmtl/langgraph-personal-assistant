@@ -20,10 +20,8 @@ export type SystemConfigDeps = {
 };
 
 export type SystemAgentOptions = {
-  prompt: () => string;
   modelKey?: string;
   maxSteps?: number;
-  onCronMutated?: () => Promise<void>;
 };
 
 export type SystemConfigToolsOptions = {

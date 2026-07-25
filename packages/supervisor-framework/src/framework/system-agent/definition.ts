@@ -12,11 +12,14 @@ export const SYSTEM_CONFIG_CAPABILITY_ID = "system-config" as const;
 
 export const SYSTEM_CONFIG_READ_CAPABILITY_ID = "system-config-read" as const;
 
+const SYSTEM_AGENT_BOOTSTRAP_PROMPT =
+  "Runtime prompt is loaded from agents/configuration.xml via promptSourceKey.";
+
 export const isSystemAgentId = (id: string): id is typeof SYSTEM_AGENT_ID =>
   id === SYSTEM_AGENT_ID;
 
 export const createSystemAgentDefinition = (
-  options: SystemAgentOptions,
+  options: SystemAgentOptions = {},
 ): RuntimeAgentDefinition => {
   const modelKey = options.modelKey ?? SYSTEM_AGENT_ID;
 
@@ -24,7 +27,7 @@ export const createSystemAgentDefinition = (
     id: SYSTEM_AGENT_ID,
     name: SYSTEM_AGENT_DISPLAY_NAME,
     description: "Manage cron jobs, agent skills, and reusable runtime sub-agents.",
-    systemPrompt: options.prompt(),
+    systemPrompt: SYSTEM_AGENT_BOOTSTRAP_PROMPT,
     promptSourceKey: SYSTEM_AGENT_ID,
     capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
     executor: SYSTEM_AGENT_ID,
