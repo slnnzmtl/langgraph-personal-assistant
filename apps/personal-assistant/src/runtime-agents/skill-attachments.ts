@@ -8,7 +8,7 @@ import {
   type SkillAttachmentRule,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
-import { loadSkillAttachmentRules, readSkillContent } from "../prompts/skills-loader.js";
+import { loadSkillAttachmentRules, readSkillContent } from "./skills/skills-loader.js";
 import { resolveActiveSkillFromHistory } from "../tools/skill-history.js";
 
 const FINANCE_MODULE = "finance";

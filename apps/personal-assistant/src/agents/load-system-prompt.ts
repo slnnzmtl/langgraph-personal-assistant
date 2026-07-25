@@ -1,0 +1,120 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { formatCurrentTime, toUtcDayRange } from "../utils/datetime.js";
+
+export const AGENTS_ROOT = path.resolve(process.cwd(), "agents");
+
+const shiftDateByDays = (date: Date, days: number): Date =>
+  new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+
+export const formatSystemMetadata = (
+  date: Date = new Date(),
+  options?: { runtimeAgent?: string },
+): string => {
+  const currentDatetime = formatCurrentTime(date);
+  const today = toUtcDayRange(date);
+  const yesterday = toUtcDayRange(shiftDateByDays(date, -1));
+  const lines = [
+    "<system_metadata>",
+    `CURRENT DATETIME: ${currentDatetime}`,
+    `TODAY    → since: ${today.since}, until: ${today.until}`,
+    `YESTERDAY → since: ${yesterday.since}, until: ${yesterday.until}`,
+  ];
+
+  if (options?.runtimeAgent) {
+    lines.push(`RUNTIME_AGENT: ${options.runtimeAgent}`);
+  }
+
+  lines.push("</system_metadata>");
+  return lines.join("\n");
+};
+
+export const appendDynamicSections = (
+  staticPrompt: string,
+  ...sections: string[]
+): string => {
+  const dynamic = sections
+    .map((section) => section.trim())
+    .filter((section) => section.length > 0)
+    .join("\n\n");
+
+  if (dynamic.length === 0) {
+    return staticPrompt.trim();
+  }
+
+  return `${staticPrompt.trim()}\n\n${dynamic}`;
+};
+
+export const appendSystemMetadata = (
+  content: string,
+  date: Date = new Date(),
+  options?: { runtimeAgent?: string },
+): string => appendDynamicSections(content, formatSystemMetadata(date, options));
+
+const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string => {
+  if (path.isAbsolute(key) && existsSync(key)) {
+    return key;
+  }
+
+  const candidates = [
+    path.join(AGENTS_ROOT, `${key}.${fileType}`),
+    ...(fileType === "md" ? [path.join(AGENTS_ROOT, `${key}.xml`)] : []),
+    ...(fileType === "xml" ? [path.join(AGENTS_ROOT, `${key}.md`)] : []),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    `Prompt not found: "${key}" (${fileType}). Tried:\n${candidates.map((candidate) => `  - ${candidate}`).join("\n")}`,
+  );
+};
+
+const readPromptFile = (filePath: string): string => {
+  const content = readFileSync(filePath, "utf8").trim();
+  if (content.length === 0) {
+    throw new Error(`System prompt file is empty: ${filePath}`);
+  }
+  return content;
+};
+
+/**
+ * Load raw agent prompt content by key from `agents/{key}.{md|xml}`.
+ */
+export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string => {
+  const filePath = resolvePromptPath(key, fileType);
+  return readPromptFile(filePath);
+};
+
+export const loadSystemPromptByKey = (key: string): string => loadPrompt(key, "xml");
+
+export const loadSupervisorSystemPrompt = (): string =>
+  appendSystemMetadata(loadPrompt("supervisor", "xml"));
+
+export const loadObsidianSystemPrompt = (): string => loadSystemPromptByKey("obsidian");
+
+export const loadFinanceSystemPrompt = (): string => loadSystemPromptByKey("finance");
+
+export const loadConfigurationSystemPrompt = (): string => loadSystemPromptByKey("configuration");
+
+export const createPromptLoader = (
+  key: string,
+  options?: {
+    hotReload?: boolean;
+    fileType?: "md" | "xml";
+  },
+): (() => string) => {
+  let cachedPrompt: string | undefined;
+
+  return (): string => {
+    if (options?.hotReload) {
+      return loadPrompt(key, options.fileType ?? "md");
+    }
+
+    cachedPrompt ??= loadPrompt(key, options?.fileType ?? "md");
+    return cachedPrompt;
+  };
+};

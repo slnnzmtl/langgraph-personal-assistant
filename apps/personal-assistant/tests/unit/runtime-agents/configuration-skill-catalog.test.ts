@@ -8,7 +8,7 @@ import {
   isSkillPreviewDisplayIntent,
   shouldShortCircuitReadOnlySkillTool,
 } from "../../../src/app/policies/configuration-hooks.js";
-import { createSkillCatalog } from "../../../src/prompts/skill-catalog.js";
+import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import { CONFIGURATOR_AGENT_ID } from "../../../src/app/composition/bootstrap-agents.js";
 
 const skillCatalog = createSkillCatalog({

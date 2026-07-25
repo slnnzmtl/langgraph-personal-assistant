@@ -13,7 +13,7 @@ import {
   getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
 
-import { createSkillCatalog } from "../../../src/prompts/skill-catalog.js";
+import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import { createDefaultCapabilityCatalog } from "../../../src/runtime-agents/builtin-capabilities.js";
 
 const capabilityCatalog = createDefaultCapabilityCatalog();

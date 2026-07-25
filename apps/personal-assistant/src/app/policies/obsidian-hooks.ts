@@ -12,8 +12,27 @@ import {
   type RuntimeShellFormatters,
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
-import { formatObsidianRoutineHint } from "../../prompts/load-system-prompt.js";
+import { getZonedDateDetails } from "../../utils/datetime.js";
 import { getAttachedSkillNames } from "../../runtime-agents/skill-attachments.js";
+
+const formatRoutineFilePath = (date: Date): string => {
+  const { monthName, dayNumber, weekday } = getZonedDateDetails(date);
+  return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
+};
+
+const shiftDateByDays = (date: Date, days: number): Date =>
+  new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+
+export const formatObsidianRoutineHint = (date: Date = new Date()): string => {
+  const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
+  const todayPath = formatRoutineFilePath(date);
+
+  return [
+    "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
+    `Yesterday: ${yesterdayPath}`,
+    `Today: ${todayPath}`,
+  ].join("\n");
+};
 
 export const OBSIDIAN_COMPLETION_FALLBACK = "Completed the Obsidian task.";
 

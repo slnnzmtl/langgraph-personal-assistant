@@ -17,8 +17,8 @@ import {
   selectObsidianToolsForTurn,
 } from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
-import { loadSystemPromptByKey } from "../../src/prompts/load-system-prompt.js";
-import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
+import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 
 const testSkillCatalog = createSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);

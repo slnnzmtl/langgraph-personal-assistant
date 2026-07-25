@@ -1,5 +1,5 @@
 import type { AppConfig } from "../../config.js";
-import { loadSystemPromptByKey } from "../../prompts/load-system-prompt.js";
+import { loadSystemPromptByKey } from "../../agents/load-system-prompt.js";
 import {
   isRuntimeAgentBuiltin,
   resolveAgentCapabilityIds,

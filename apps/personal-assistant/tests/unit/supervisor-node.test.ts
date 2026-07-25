@@ -5,7 +5,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
 import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
 import { trimMessagesToTokenBudgetSync } from "@personal-assistant/supervisor-framework";
@@ -43,12 +43,12 @@ describe("createSupervisorNode", () => {
     expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
   });
 
-  it("tells the supervisor not to translate screenshot OCR in delegation prompts", () => {
+  it("tells the supervisor not to transcribe screenshot images in delegation prompts", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("<delegation_rules>");
-    expect(prompt).toContain("do not translate, summarize, or rewrite OCR text");
-    expect(prompt).toContain("transcribe verbatim in the original language");
+    expect(prompt).toContain("DO NOT summarize, describe, or transcribe attached images yourself");
+    expect(prompt).toContain("pass the raw image context directly to the specialist");
   });
 
   it("includes the current datetime in the shared system prompt", async () => {

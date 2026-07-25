@@ -9,7 +9,7 @@ import {
   buildSkillModuleOwnerPattern,
   resolveBuiltinModelName,
 } from "../../../src/app/composition/bootstrap-agents.js";
-import { listSkillModules } from "../../../src/prompts/skills-loader.js";
+import { listSkillModules } from "../../../src/runtime-agents/skills/skills-loader.js";
 import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
 import type { AppConfig } from "../../../src/config.js";
 

@@ -181,14 +181,14 @@ The `module` attribute (`finance`, `obsidian`, or `configuration`) controls whic
 
 ## System prompts
 
-Prompt sources of truth live under `prompts/`:
+Prompt sources of truth live under `agents/`:
 
 | Agent | File |
 |---|---|
-| Supervisor | `prompts/supervisor.xml` |
-| Obsidian | `prompts/obsidian.xml` |
-| Finance | `prompts/finance.xml` |
-| Configuration | `prompts/configuration.md` |
+| Supervisor | `agents/supervisor.xml` |
+| Obsidian | `agents/obsidian.xml` |
+| Finance | `agents/finance.xml` |
+| Configuration | `agents/configuration.xml` |
 
 Prompts are read from disk on each invocation, so edits take effect without restarting the process during local development.
 

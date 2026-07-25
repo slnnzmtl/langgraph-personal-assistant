@@ -12,7 +12,7 @@ import {
   readSkillContent,
   serializeSkillFile,
   updateSkillFile,
-} from "../prompts/skills-loader.js";
+} from "../runtime-agents/skills/skills-loader.js";
 import type { SkillCatalog } from "@personal-assistant/supervisor-framework";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
 import { truncateToolOutput } from "./output.js";

@@ -11,7 +11,7 @@ import {
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createDefaultCapabilityCatalog, type CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {

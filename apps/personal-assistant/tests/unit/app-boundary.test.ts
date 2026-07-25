@@ -21,6 +21,7 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
+const AGENTS_ROOT = path.join(appRoot, "src/agents");
 
 const collectSourceFiles = (dir: string): string[] => {
   const entries = readdirSync(dir);
@@ -63,6 +64,10 @@ describe("app boundaries", () => {
       "app/policies/",
       "app/register-defaults",
     ]);
+  });
+
+  it("keeps agents free of runtime-agents imports", () => {
+    assertNoForbiddenImports(AGENTS_ROOT, ["runtime-agents/"]);
   });
 
   it("rejects unavailable capability grants", () => {

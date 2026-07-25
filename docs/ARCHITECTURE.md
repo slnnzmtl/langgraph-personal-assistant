@@ -364,7 +364,7 @@ Flat `skills/` directory with XML playbooks (and optional `.md`):
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
-- `src/prompts/skills-loader.ts` — filesystem read/write/parse; `src/prompts/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
+- `src/runtime-agents/skills/skills-loader.ts` — filesystem read/write/parse; `src/runtime-agents/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
 Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime-agents`, `skill-management`.
 
@@ -374,10 +374,10 @@ Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime
 
 | Agent | Source | Format |
 |---|---|---|
-| Supervisor | `prompts/supervisor.xml` | XML |
-| Finance | `prompts/finance.xml` | XML |
-| Obsidian | `prompts/obsidian.xml` | XML |
-| Configuration | `prompts/configuration.xml` | XML |
+| Supervisor | `agents/supervisor.xml` | XML |
+| Finance | `agents/finance.xml` | XML |
+| Obsidian | `agents/obsidian.xml` | XML |
+| Configuration | `agents/configuration.xml` | XML |
 
 Prompts are **read from disk on each invocation** (hot-reload in dev). For built-ins with `promptSourceKey`, the persisted `systemPrompt` is a bootstrap snapshot and the prompt file is the runtime source of truth. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
 
@@ -439,7 +439,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── app/                # Composition & domain hooks
 │       │   ├── runtime-agents/     # Domain tools & capability catalog
 │       │   ├── cron/ telegram/ tools/ services/ mcp/ connectors/ ...
-│       ├── prompts/ skills/ data/ sql/
+│       ├── agents/ skills/ data/ sql/
 │       ├── tests/unit/ tests/e2e/
 │       └── Dockerfile docker-compose.yml
 ├── docs/ examples/
@@ -521,7 +521,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 2. Implement tools under `runtime-agents/tools/`
 3. Add policy + hooks under `app/policies/`
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
-5. Add prompt file under `prompts/`
+5. Add prompt file under `agents/`
 6. Restart the process so `createAssistant()` recompiles graph nodes for the new agent
 
 **Add a custom runtime agent at runtime:**

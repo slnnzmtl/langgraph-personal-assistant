@@ -14,7 +14,7 @@ import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
@@ -22,7 +22,7 @@ import {
   createDefaultCapabilityCatalog,
   createCapabilityDeps,
 } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { FakeLLMConnector } from "./fakes.js";
 

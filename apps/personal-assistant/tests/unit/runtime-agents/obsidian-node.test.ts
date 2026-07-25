@@ -14,13 +14,13 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary } from "../../../src/app/policies/obsidian-hooks.js";
+import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/app/policies/obsidian-hooks.js";
 import { createObsidianNode } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
   loadObsidianSystemPrompt,
-} from "../../../src/prompts/load-system-prompt.js";
+} from "../../../src/agents/load-system-prompt.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");
@@ -338,8 +338,23 @@ describe("obsidian node helpers", () => {
   });
 });
 
+describe("formatObsidianRoutineHint", () => {
+  it("includes yesterday and today routine paths", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+
+    const hint = formatObsidianRoutineHint(new Date());
+
+    expect(hint).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
+    expect(hint).toContain("Yesterday: routine/July/July 9 - Thu.md");
+    expect(hint).toContain("Today: routine/July/July 10 - Fri.md");
+
+    vi.useRealTimers();
+  });
+});
+
 describe("createObsidianNode", () => {
-  it("loads the Obsidian system prompt from prompts/obsidian.xml", () => {
+  it("loads the Obsidian system prompt from agents/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
     expect(prompt).toContain("Obsidian Vault Manager");
@@ -353,7 +368,7 @@ describe("createObsidianNode", () => {
     expect(prompt).toContain("file deletion operations are unsupported");
   });
 
-  it("loads skill_usage guidance from prompts/obsidian.xml", () => {
+  it("loads skill_usage guidance from agents/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
     expect(prompt).toContain("<skill_usage>");

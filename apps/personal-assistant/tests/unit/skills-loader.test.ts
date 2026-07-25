@@ -20,7 +20,7 @@ import {
   formatSkillFile,
   formatXmlSkillFile,
   serializeSkillFile,
-} from "../../src/prompts/skills-loader";
+} from "../../src/runtime-agents/skills/skills-loader.js";
 
 describe("skills-loader", () => {
   let tempDir: string;
@@ -250,6 +250,13 @@ A`
   });
 
   describe("readSkillContent", () => {
+    it("reads bundled expense-view skill content from the workspace skills directory", () => {
+      const content = readSkillContent("expense-view");
+
+      expect(content.length).toBeGreaterThan(0);
+      expect(content).toContain("<view_intent>");
+    });
+
     it("should read skill content by frontmatter name", () => {
       const skillsDir = path.join(tempDir, "read-test");
       mkdirSync(skillsDir, { recursive: true });

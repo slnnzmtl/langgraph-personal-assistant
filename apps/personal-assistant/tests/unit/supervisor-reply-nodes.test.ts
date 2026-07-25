@@ -8,7 +8,7 @@ import { createEmptyReplyNode } from "@personal-assistant/supervisor-framework";
 import { createFailureReplyNode } from "@personal-assistant/supervisor-framework";
 import { createPostHandoffFinishNode } from "@personal-assistant/supervisor-framework";
 import { FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import { firstStateUpdateMessage } from "../helpers/fakes.js";
 
 const emptyHandoff = (

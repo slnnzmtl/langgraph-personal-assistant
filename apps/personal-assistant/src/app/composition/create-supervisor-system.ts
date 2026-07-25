@@ -15,7 +15,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../agents/load-system-prompt.js";
 import {
   createDefaultCapabilityCatalog,
   createCapabilityDeps,
@@ -23,7 +23,7 @@ import {
 } from "../../runtime-agents/builtin-capabilities.js";
 import { setupSupabaseSession } from "../../services/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
-import { createSkillCatalog } from "../../prompts/skill-catalog.js";
+import { createSkillCatalog } from "../../runtime-agents/skills/skill-catalog.js";
 import { buildModelRegistry } from "../model-registry.js";
 import { createAppExecutionKit } from "../register-defaults.js";
 import {
