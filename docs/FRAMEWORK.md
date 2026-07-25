@@ -33,7 +33,7 @@ Import from `@personal-assistant/supervisor-framework`:
 - `bootstrapSupervisorSystem` — generic pack bootstrap
 - `resolveAgentTools` — catalog-based tool resolution
 - `createAssistant`, `createAgentPolicy`, `createPolicyRegistry` — graph and policy helpers
-- Defaults: `createFileRuntimeAgentRepository`, `createNoopCronJobRepository`, `createEmptySkillCatalog`
+- Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
 - Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 
 Optional bootstrap hooks (omit for minimal packs):

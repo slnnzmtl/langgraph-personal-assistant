@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { deriveCronTargetAgentIds } from "@personal-assistant/supervisor-framework";
 import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
-import { deriveCronTargetAgentIds } from "../../src/app/composition/create-supervisor-system.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createCapabilityDeps,

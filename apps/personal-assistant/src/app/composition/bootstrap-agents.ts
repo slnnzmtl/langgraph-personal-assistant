@@ -1,14 +1,16 @@
 import type { AppConfig } from "../../config.js";
 import { loadSystemPromptByKey } from "../../agents/load-system-prompt.js";
 import {
-  isRuntimeAgentBuiltin,
   resolveAgentCapabilityIds,
+  toRuntimeAgentId,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import type { BuiltinCapabilityId } from "../../runtime-agents/builtin-capabilities.js";
 
 export const CONFIGURATOR_AGENT_ID = "configuration" as const;
+
+const CONFIGURATOR_AGENT_EPOCH = "1970-01-01T00:00:00.000Z";
 
 type AppModelConfigKey = keyof Pick<
   AppConfig,
@@ -42,78 +44,104 @@ export const CONFIGURATOR_SPEC: ConfiguratorSpec = {
 /** Core agent ids bootstrapped from code (configurator only). */
 export const BUILTIN_AGENT_IDS = [CONFIGURATOR_AGENT_ID] as readonly string[];
 
-const buildTimestamp = (): string => new Date().toISOString();
-
-export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => {
-  const timestamp = buildTimestamp();
+export const buildConfiguratorAgent = (): RuntimeAgentDefinition => {
   const spec = CONFIGURATOR_SPEC;
 
-  return [
-    {
-      id: spec.id,
-      name: spec.name,
-      description: spec.description,
-      systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
-      promptSourceKey: spec.promptSourceKey,
-      capabilityIds: spec.capabilityIds,
-      executor: spec.executor,
-      modelKey: spec.modelKey,
-      builtin: true,
-      maxSteps: spec.maxSteps,
-      enabled: true,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    },
-  ];
-};
-
-const mergeConfiguratorAgent = (
-  defaultAgent: RuntimeAgentDefinition,
-  persistedAgents: RuntimeAgentDefinition[],
-): RuntimeAgentDefinition => {
-  const persisted = persistedAgents.find((agent) => agent.id === CONFIGURATOR_AGENT_ID);
-
-  if (!persisted || !isRuntimeAgentBuiltin(defaultAgent)) {
-    return defaultAgent;
-  }
-
   return {
-    ...defaultAgent,
-    description: persisted.description,
-    maxSteps: Math.max(defaultAgent.maxSteps, persisted.maxSteps),
-    enabled: persisted.enabled,
-    updatedAt: persisted.updatedAt,
-    modelKey: defaultAgent.modelKey,
-    promptSourceKey: defaultAgent.promptSourceKey ?? defaultAgent.id,
-    executor: defaultAgent.executor,
-    capabilityIds: defaultAgent.capabilityIds,
+    id: spec.id,
+    name: spec.name,
+    description: spec.description,
+    systemPrompt: loadSystemPromptByKey(spec.promptSourceKey),
+    promptSourceKey: spec.promptSourceKey,
+    capabilityIds: spec.capabilityIds,
+    executor: spec.executor,
+    modelKey: spec.modelKey,
+    builtin: true,
+    maxSteps: spec.maxSteps,
+    enabled: true,
+    createdAt: CONFIGURATOR_AGENT_EPOCH,
+    updatedAt: CONFIGURATOR_AGENT_EPOCH,
   };
 };
 
-export const ensureBuiltinRuntimeAgents = async (
-  repository: RuntimeAgentRepository,
-): Promise<RuntimeAgentDefinition[]> => {
-  const configurator = buildDefaultRuntimeAgents()[0]!;
-  const persistedAgents = await repository.loadAgents();
-  const localAgents = persistedAgents.filter((agent) => agent.id !== CONFIGURATOR_AGENT_ID);
-  const mergedConfigurator = mergeConfiguratorAgent(configurator, persistedAgents);
-  const mergedAgents = [...localAgents, mergedConfigurator].sort((left, right) =>
+export const buildDefaultRuntimeAgents = (): RuntimeAgentDefinition[] => [buildConfiguratorAgent()];
+
+export const isConfiguratorAgentId = (id: string): id is typeof CONFIGURATOR_AGENT_ID =>
+  id === CONFIGURATOR_AGENT_ID;
+
+export const stripConfiguratorFromAgents = (
+  agents: RuntimeAgentDefinition[],
+): RuntimeAgentDefinition[] => agents.filter((agent) => agent.id !== CONFIGURATOR_AGENT_ID);
+
+export const withConfiguratorAgent = (
+  persistedAgents: RuntimeAgentDefinition[],
+  configurator: RuntimeAgentDefinition = buildConfiguratorAgent(),
+): RuntimeAgentDefinition[] =>
+  [...stripConfiguratorFromAgents(persistedAgents), configurator].sort((left, right) =>
     left.id.localeCompare(right.id),
   );
 
-  const persistedById = new Map(persistedAgents.map((agent) => [agent.id, agent]));
-  const changed = mergedAgents.length !== persistedAgents.length
-    || mergedAgents.some((agent) => {
-      const persisted = persistedById.get(agent.id);
-      return !persisted || JSON.stringify(persisted) !== JSON.stringify(agent);
-    });
-
-  if (changed) {
-    await repository.saveAgents(mergedAgents);
-  }
-
-  return mergedAgents;
+export type ConfiguratorAwareRuntimeAgentRepository = RuntimeAgentRepository & {
+  purgeLegacyConfigurator(): Promise<void>;
 };
+
+export const createConfiguratorAwareRuntimeAgentRepository = (
+  repository: RuntimeAgentRepository,
+): ConfiguratorAwareRuntimeAgentRepository => ({
+  async loadAgents() {
+    const persisted = await repository.loadAgents();
+    return withConfiguratorAgent(stripConfiguratorFromAgents(persisted));
+  },
+
+  async getAgent(id) {
+    if (isConfiguratorAgentId(id)) {
+      return buildConfiguratorAgent();
+    }
+
+    return repository.getAgent(id);
+  },
+
+  async saveAgents(agents) {
+    return repository.saveAgents(stripConfiguratorFromAgents(agents));
+  },
+
+  async createAgent(input) {
+    const id = toRuntimeAgentId(input.name);
+    if (isConfiguratorAgentId(id)) {
+      throw new Error(`Cannot create runtime agent with reserved id: ${CONFIGURATOR_AGENT_ID}`);
+    }
+
+    return repository.createAgent(input);
+  },
+
+  async updateAgent(id, input) {
+    if (isConfiguratorAgentId(id)) {
+      throw new Error(`Cannot update built-in runtime agent: ${CONFIGURATOR_AGENT_ID}`);
+    }
+
+    return repository.updateAgent(id, input);
+  },
+
+  async deleteAgent(id) {
+    if (isConfiguratorAgentId(id)) {
+      throw new Error(`Cannot delete built-in runtime agent: ${CONFIGURATOR_AGENT_ID}`);
+    }
+
+    return repository.deleteAgent(id);
+  },
+
+  async purgeLegacyConfigurator() {
+    const persisted = await repository.loadAgents();
+    const localAgents = stripConfiguratorFromAgents(persisted);
+
+    if (localAgents.length !== persisted.length) {
+      await repository.saveAgents(localAgents);
+    }
+  },
+});
+
+/** @deprecated Use createConfiguratorAwareRuntimeAgentRepository */
+export const wrapRuntimeAgentRepositoryWithConfigurator = createConfiguratorAwareRuntimeAgentRepository;
 
 const resolveModelConfigKey = (modelKey: string): AppModelConfigKey | undefined => {
   const candidate = `${modelKey}Model`;

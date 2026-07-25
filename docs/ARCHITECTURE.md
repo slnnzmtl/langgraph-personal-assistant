@@ -111,8 +111,8 @@ index.ts
        └─ createSupervisorSystem()
             ├─ GeminiConnector (supervisor model)
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
-            ├─ Runtime agent repository (data/runtime-agents.json)
-            ├─ ensureBuiltinRuntimeAgents() — merge persisted + built-ins
+            ├─ Runtime agent repository (data/runtime-agents.json, user agents only)
+            ├─ purgeLegacyConfigurator() + inject virtual configuration agent
             ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
@@ -134,7 +134,7 @@ Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with sy
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
-Each process compiles its own graph instance at startup from the enabled runtime agents loaded from `data/runtime-agents.json`. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
+Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
 
 **Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON but does not add new graph nodes until the process restarts.
 
@@ -319,7 +319,7 @@ RuntimeAgentDefinitionSchema = z.object({
 
 ### Code-seeded and persisted agents
 
-Only the **configuration** agent is seeded from code at bootstrap. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
+The **configuration** agent is virtual: defined in code, injected at bootstrap, and never written to `data/runtime-agents.json`. Legacy `configuration` rows are purged once at seed time. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
 | ID | Executor | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
