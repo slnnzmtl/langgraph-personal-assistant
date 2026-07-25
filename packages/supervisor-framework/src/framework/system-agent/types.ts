@@ -24,7 +24,6 @@ export type SystemAgentOptions = {
   modelKey?: string;
   maxSteps?: number;
   onCronMutated?: () => Promise<void>;
-  validateCronTargetRoute?: (route: string, allowedRoutes: readonly string[]) => boolean;
 };
 
 export type SystemConfigToolsOptions = {

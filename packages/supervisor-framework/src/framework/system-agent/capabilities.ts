@@ -56,11 +56,6 @@ export const createSystemConfigCapabilityProviders = <
   },
 ];
 
-export const createSystemConfigCapabilityCatalog = <
-  TDeps extends SystemConfigDeps,
->(): CapabilityCatalog =>
-  createCapabilityCatalog(createSystemConfigCapabilityProviders<TDeps>() as CapabilityProvider<Record<string, unknown>>[]);
-
 export const mergeCapabilityCatalogs = (
   baseProviders: CapabilityProvider<Record<string, unknown>>[],
   includeSystemConfig = true,
@@ -69,8 +64,3 @@ export const mergeCapabilityCatalogs = (
     ...baseProviders,
     ...(includeSystemConfig ? createSystemConfigCapabilityProviders() : []),
   ]);
-
-export const toSystemConfigAvailabilityContext = (deps: SystemConfigDeps) => ({
-  configurationReposAvailable:
-    deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined,
-});

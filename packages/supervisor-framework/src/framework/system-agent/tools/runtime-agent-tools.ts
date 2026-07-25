@@ -7,7 +7,10 @@ import {
 } from "../../../core/types/agent.js";
 import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
-import type { CapabilityAvailabilityContext } from "../../../capabilities/types.js";
+import {
+  configurationReposAvailable,
+  type CapabilityAvailabilityContext,
+} from "../../../capabilities/types.js";
 import type { SystemConfigDeps } from "../types.js";
 
 const CreateRuntimeAgentToolSchema = z.object({
@@ -57,8 +60,7 @@ export const formatRuntimeAgentPreview = (agent: RuntimeAgentDefinition): string
   [formatRuntimeAgentSummary(agent), `System Prompt:\n${agent.systemPrompt}`].join("\n\n");
 
 const toAvailabilityContext = (deps: SystemConfigDeps): CapabilityAvailabilityContext => ({
-  configurationReposAvailable:
-    deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined,
+  configurationReposAvailable: configurationReposAvailable(deps),
 });
 
 export const createRuntimeAgentTools = (

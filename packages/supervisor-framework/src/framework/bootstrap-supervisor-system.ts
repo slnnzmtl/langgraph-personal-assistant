@@ -11,7 +11,6 @@ import { resolveAgentTools } from "./resolve-agent-tools.js";
 import {
   createSystemAgentPolicy,
   mergeCapabilityCatalogs,
-  seedSystemAgent,
   type SystemAgentPolicyOptions,
   type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
@@ -45,7 +44,7 @@ export const bootstrapSupervisorSystem = async <
     : baseRuntimeAgentRepository;
 
   if (systemAgentEnabled) {
-    await seedSystemAgent(runtimeAgentRepository as SystemAgentRepository);
+    await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
   }
 
   const runtimeAgents = await pack.seedAgents(runtimeAgentRepository, { adapters });

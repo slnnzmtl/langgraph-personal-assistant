@@ -16,6 +16,12 @@ export type CapabilityAvailabilityContext = {
   configurationReposAvailable?: boolean;
 };
 
+export const configurationReposAvailable = (deps: {
+  cronJobRepository?: unknown;
+  runtimeAgentRepository?: unknown;
+}): boolean =>
+  deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined;
+
 export type CapabilityProvider<TDeps = Record<string, unknown>> = {
   descriptor: CapabilityDescriptor;
   resolveTools: (deps: TDeps) => StructuredToolInterface[];

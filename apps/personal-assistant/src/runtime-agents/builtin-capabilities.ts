@@ -1,6 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import {
+  configurationReposAvailable,
   createCapabilityCatalog,
   type CapabilityAvailabilityContext,
   type CapabilityCatalog,
@@ -121,8 +122,7 @@ export const toCapabilityAvailabilityContext = (
 ): CapabilityAvailabilityContext => ({
   obsidianVaultPath: deps.obsidianVaultPath,
   supabaseAvailable: deps.supabaseSession !== undefined,
-  configurationReposAvailable:
-    deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined,
+  configurationReposAvailable: configurationReposAvailable(deps),
 });
 
 export const getCapabilityCatalog = (deps: CapabilityDeps): CapabilityCatalog =>

@@ -12,7 +12,6 @@ export {
 
 export {
   wrapRepositoryWithSystemAgent,
-  seedSystemAgent,
   type SystemAgentRepository,
 } from "./repository.js";
 
@@ -26,9 +25,7 @@ export type {
 export {
   SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS,
   createSystemConfigCapabilityProviders,
-  createSystemConfigCapabilityCatalog,
   mergeCapabilityCatalogs,
-  toSystemConfigAvailabilityContext,
 } from "./capabilities.js";
 
 export { createSystemConfigTools } from "./tools/system-config-tools.js";

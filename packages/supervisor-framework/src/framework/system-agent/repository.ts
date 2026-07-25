@@ -79,7 +79,3 @@ export const wrapRepositoryWithSystemAgent = (
     },
   };
 };
-
-export const seedSystemAgent = async (repository: SystemAgentRepository): Promise<void> => {
-  await repository.purgeLegacySystemAgent();
-};

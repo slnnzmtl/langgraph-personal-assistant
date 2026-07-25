@@ -16,7 +16,6 @@ export {
   createSystemAgentDefinition,
   isSystemAgentId,
   wrapRepositoryWithSystemAgent,
-  seedSystemAgent,
   mergeCapabilityCatalogs,
   createSystemConfigTools,
   createSystemAgentPolicy,
@@ -94,6 +93,7 @@ export {
 } from "./core/skills/catalog.js";
 export {
   createCapabilityCatalog,
+  configurationReposAvailable,
   isCapabilityAvailable,
   isCapabilityGrantable,
   type CapabilityCatalog,
