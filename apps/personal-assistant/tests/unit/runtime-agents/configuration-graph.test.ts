@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
+import { createSystemAgentPolicy } from "@personal-assistant/supervisor-framework";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
@@ -14,9 +14,11 @@ import {
 } from "../../helpers/fakes.js";
 
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import { createDefaultCapabilityCatalog } from "../../../src/runtime-agents/builtin-capabilities.js";
+import { mergeCapabilityCatalogs } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityProviders } from "../../../src/runtime-agents/builtin-capabilities.js";
+import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
 
-const capabilityCatalog = createDefaultCapabilityCatalog();
+const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
 const configurationShellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
 
@@ -64,10 +66,15 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const bundle = createConfigurationPolicy({
+    const bundle = createSystemAgentPolicy({
       shellFormatters: configurationShellFormatters,
       capabilityCatalog,
       resolveTools,
+      systemAgent: {
+        prompt: () => loadSystemPromptByKey("configuration"),
+        modelKey: "configuration",
+      },
+      skillCatalog: createSkillCatalog(),
     })
       .createGraphBundle(context, configurationDefinition);
     const prepared = bundle.prepare({

@@ -14,12 +14,11 @@ import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 
 import {
-  createSystemConfigDomainTools,
   createFinanceDomainToolsFromSession,
   createObsidianVaultTools,
 } from "./tools/index.js";
 
-export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
+export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
     id: "none",
     description: "Prompt-only agent with no tools.",
@@ -37,28 +36,16 @@ export const BUILTIN_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
     requiresSupabase: true,
     configurable: true,
   },
-  {
-    id: "system-config",
-    description: "Manage cron jobs, runtime agents, and skill definitions (read and write).",
-    requiresConfigurationRepos: true,
-    configurable: false,
-  },
-  {
-    id: "system-config-read",
-    description: "List cron jobs, runtime agents, skills, and available capabilities.",
-    requiresConfigurationRepos: true,
-    configurable: true,
-  },
 ];
 
-export type BuiltinCapabilityId = (typeof BUILTIN_CAPABILITY_DESCRIPTORS)[number]["id"];
+export type BuiltinCapabilityId = (typeof PERSONAL_CAPABILITY_DESCRIPTORS)[number]["id"];
 
-const BUILTIN_DESCRIPTOR_BY_ID = new Map<string, CapabilityDescriptor>(
-  BUILTIN_CAPABILITY_DESCRIPTORS.map((descriptor) => [descriptor.id, descriptor]),
+const DESCRIPTOR_BY_ID = new Map<string, CapabilityDescriptor>(
+  PERSONAL_CAPABILITY_DESCRIPTORS.map((descriptor) => [descriptor.id, descriptor]),
 );
 
-const getBuiltinDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
-  const descriptor = BUILTIN_DESCRIPTOR_BY_ID.get(id);
+const getDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
+  const descriptor = DESCRIPTOR_BY_ID.get(id);
   if (!descriptor) {
     throw new Error(`Missing builtin capability descriptor: ${id}`);
   }
@@ -102,26 +89,17 @@ export const createCapabilityDeps = (
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
 });
 
-const systemConfigOptions = (deps: CapabilityDeps, writeAccess: boolean) => ({
-  writeAccess,
-  ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
-  ...(deps.capabilityCatalog ? { capabilityCatalog: deps.capabilityCatalog } : {}),
-});
-
-const resolveSystemConfigCapability = (deps: CapabilityDeps, writeAccess: boolean): StructuredToolInterface[] =>
-  createSystemConfigDomainTools(deps, systemConfigOptions(deps, writeAccess));
-
-const createBuiltinCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] => [
+const createPersonalCapabilityProviderList = (): CapabilityProvider<CapabilityDeps>[] => [
   {
-    descriptor: getBuiltinDescriptor("none"),
+    descriptor: getDescriptor("none"),
     resolveTools: () => [],
   },
   {
-    descriptor: getBuiltinDescriptor("obsidian-vault"),
+    descriptor: getDescriptor("obsidian-vault"),
     resolveTools: (deps) => createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender),
   },
   {
-    descriptor: getBuiltinDescriptor("finance-domain"),
+    descriptor: getDescriptor("finance-domain"),
     resolveTools: (deps) => {
       if (!deps.supabaseSession) {
         throw new Error("finance-domain capability requires a configured Supabase session.");
@@ -130,18 +108,13 @@ const createBuiltinCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[
       return createFinanceDomainToolsFromSession(deps.supabaseSession);
     },
   },
-  {
-    descriptor: getBuiltinDescriptor("system-config"),
-    resolveTools: (deps) => resolveSystemConfigCapability(deps, true),
-  },
-  {
-    descriptor: getBuiltinDescriptor("system-config-read"),
-    resolveTools: (deps) => resolveSystemConfigCapability(deps, false),
-  },
 ];
 
+export const createPersonalCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] =>
+  createPersonalCapabilityProviderList();
+
 export const createDefaultCapabilityCatalog = (): CapabilityCatalog =>
-  createCapabilityCatalog(createBuiltinCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
+  createCapabilityCatalog(createPersonalCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
 
 export const toCapabilityAvailabilityContext = (
   deps: CapabilityDeps,

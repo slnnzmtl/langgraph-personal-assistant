@@ -9,7 +9,6 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { CapabilityDeps } from "../../runtime-agents/builtin-capabilities.js";
 import type { PersonalResolveTools } from "../composition/personal-resolve-tools.js";
-import { createConfigurationNodeHooks } from "./configuration-hooks.js";
 import {
   createObsidianNodeHooks,
   mapObsidianSubAgentResult,
@@ -45,35 +44,4 @@ export const createObsidianPolicy = (options: DomainPolicyOptions) =>
           ),
         ],
       })),
-  }, options);
-
-export const createConfigurationPolicy = (options: DomainPolicyOptions) =>
-  createAgentPolicy<
-    CapabilityDeps,
-    { repository: NonNullable<CapabilityDeps["cronJobRepository"]>; runtimeCron?: CapabilityDeps["runtimeCron"] }
-  >({
-    executor: "configuration",
-    displayName: "Configuration",
-    resolveDeps: (context: RuntimeAgentExecutionContext<CapabilityDeps>) => {
-      const { cronJobRepository, runtimeCron } = context.capabilityDeps;
-
-      if (!cronJobRepository) {
-        return null;
-      }
-
-      return { repository: cronJobRepository, runtimeCron };
-    },
-    unavailableMessage: () => "Configuration is unavailable because cron job storage is not configured.",
-    resolveTools: (definition, capabilityDeps, resolveOptions) =>
-      options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
-    createHooks: (deps, policyOptions) =>
-      createConfigurationNodeHooks({
-        repository: deps.repository,
-        ...(deps.runtimeCron ? { runtimeCron: deps.runtimeCron } : {}),
-        ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
-        shellFormatters: policyOptions.shellFormatters!,
-      }),
-    logLabel: "configuration-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
   }, options);

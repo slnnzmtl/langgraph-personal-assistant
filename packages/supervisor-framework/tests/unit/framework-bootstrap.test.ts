@@ -52,13 +52,13 @@ describe("framework bootstrap", () => {
       seedAgents: async () => [researcher],
       buildPolicyRegistry: () => ({
         loadPromptByKey: async () => "prompt",
-        policyRegistry: createPolicyRegistry([
+        policies: [
           createAgentPolicy({
             executor: "generic",
             resolveTools: (definition, deps) =>
               resolveAgentTools(definition, catalog, deps, {}),
           }),
-        ]),
+        ],
       }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),

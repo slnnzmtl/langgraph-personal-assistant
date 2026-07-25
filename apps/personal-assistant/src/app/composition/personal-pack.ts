@@ -1,6 +1,8 @@
 import type { AppConfig } from "../../config.js";
 import path from "node:path";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
+import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
+import type { CronJobRepository } from "../../cron/types.js";
 import type { RuntimeCronService } from "../../cron/types.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
 import {
@@ -8,19 +10,21 @@ import {
   deriveExecutors,
   deriveModelKeys,
   deriveSkillModules,
+  SYSTEM_AGENT_ID,
   type CapabilityCatalog,
   type ILLMConnector,
   type RuntimeAgentDefinition,
-  type RuntimeAgentRepository,
   type SkillCatalog,
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
+import { loadSystemPromptByKey } from "../../agents/load-system-prompt.js";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { loadSupervisorSystemPrompt } from "../../agents/load-system-prompt.js";
 import {
   createCapabilityDeps,
+  createPersonalCapabilityProviders,
   type CapabilityDeps,
 } from "../../runtime-agents/builtin-capabilities.js";
 import { setupSupabaseSession } from "../../services/supabase.js";
@@ -28,12 +32,8 @@ import type { IFileSender } from "../../telegram/file-sender.js";
 import { createSkillCatalog } from "../../runtime-agents/skills/skill-catalog.js";
 import { buildModelRegistry } from "../model-registry.js";
 import { createAppExecutionKit } from "../register-defaults.js";
-import {
-  applyLocalModuleAvailability,
-  CONFIGURATOR_AGENT_ID,
-  createConfiguratorAwareRuntimeAgentRepository,
-  type ConfiguratorAwareRuntimeAgentRepository,
-} from "./bootstrap-agents.js";
+import { applyLocalModuleAvailability } from "./bootstrap-agents.js";
+import { createPersonalResolveTools } from "./personal-resolve-tools.js";
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
@@ -44,7 +44,7 @@ type PersonalAdapters = { supabaseSession?: SupabaseMcpSession | undefined };
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
   createSkillCatalog({
-    approvedModules: [CONFIGURATOR_AGENT_ID, ...deriveSkillModules(agents)],
+    approvedModules: [SYSTEM_AGENT_ID, ...deriveSkillModules(agents)],
   });
 
 export const buildPersonalCronGraphHooks = (
@@ -68,7 +68,7 @@ export const buildPersonalCapabilityDeps = (
     capabilityCatalog: CapabilityCatalog;
     skillCatalog: SkillCatalog;
     cronJobRepository?: ReturnType<typeof createCronJobRepositoryForConfig>;
-    runtimeAgentRepository?: RuntimeAgentRepository;
+    runtimeAgentRepository?: ReturnType<typeof createRuntimeAgentRepository>;
     supabaseSession?: SupabaseMcpSession;
     fileSender?: IFileSender;
     runtimeCron?: RuntimeCronService;
@@ -103,53 +103,75 @@ export const buildPersonalSupervisorPack = ({
   AppConfig,
   CapabilityDeps,
   PersonalAdapters
-> => ({
-  config,
-  capabilityCatalog,
-  supervisorLlm,
-  loadSupervisorPrompt: loadSupervisorSystemPrompt,
-  createRuntimeAgentRepository: (appConfig) =>
-    createConfiguratorAwareRuntimeAgentRepository(
+> => {
+  const cronMutationContext: {
+    repository?: CronJobRepository;
+  } = {};
+
+  return {
+    config,
+    capabilityCatalog,
+    capabilityProviders: createPersonalCapabilityProviders() as never,
+    supervisorLlm,
+    loadSupervisorPrompt: loadSupervisorSystemPrompt,
+    systemAgent: {
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+      onCronMutated: async () => {
+        if (cronMutationContext.repository && options.runtimeCron) {
+          await reconcileRuntimeCron(cronMutationContext.repository, options.runtimeCron);
+        }
+      },
+    },
+    resolveRuntimeAgentTools: (catalog, skillCatalog) => (definition, deps, resolveOptions) =>
+      createPersonalResolveTools(catalog)(definition, deps, { ...resolveOptions, skillCatalog }),
+    createRuntimeAgentRepository: (appConfig) =>
       createRuntimeAgentRepository(
         process.cwd(),
         path.relative(process.cwd(), appConfig.runtimeAgentsFilePath),
       ),
-    ),
-  createCronJobRepository: (cronJobsFilePath, targetAgentIds) =>
-    createCronJobRepositoryForConfig(cronJobsFilePath, targetAgentIds),
-  setupAdapters: async (appConfig) => ({
-    supabaseSession: await setupSupabaseSession(appConfig),
-  }),
-  seedAgents: async (repository, { adapters }) => {
-    const configuratorRepository = repository as ConfiguratorAwareRuntimeAgentRepository;
-    await configuratorRepository.purgeLegacyConfigurator();
-
-    return applyLocalModuleAvailability(await repository.loadAgents(), {
-      supabaseAvailable: adapters.supabaseSession !== undefined,
-    });
-  },
-  buildSkillCatalog: buildPersonalSkillCatalog,
-  buildPolicyRegistry: (agents, skillCatalog) =>
-    createAppExecutionKit(deriveExecutors(agents), { skillCatalog, capabilityCatalog }),
-  buildModels: (appConfig, agents) =>
-    buildModelRegistry(appConfig, deriveModelKeys(agents, "generic")),
-  buildCapabilityDeps: (context) =>
-    buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
-      cronTargetAgentIds: context.cronTargetAgentIds,
-      cronJobRepository: context.cronJobRepository as ReturnType<
-        typeof createCronJobRepositoryForConfig
-      >,
-      runtimeAgentRepository: context.runtimeAgentRepository,
-      capabilityCatalog: context.capabilityCatalog,
-      skillCatalog: context.skillCatalog,
-      ...(options.fileSender ? { fileSender: options.fileSender } : {}),
-      ...(context.adapters.supabaseSession
-        ? { supabaseSession: context.adapters.supabaseSession }
-        : {}),
-      ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+    createCronJobRepository: (cronJobsFilePath, targetAgentIds) =>
+      createCronJobRepositoryForConfig(cronJobsFilePath, targetAgentIds),
+    setupAdapters: async (appConfig) => ({
+      supabaseSession: await setupSupabaseSession(appConfig),
     }),
-  buildGraphHooks: (context) => ({
-    promptLogging: logSystemPromptInvocation,
-    ...buildPersonalCronGraphHooks(context.cronTargetAgentIds),
-  }),
-});
+    seedAgents: async (repository, { adapters }) =>
+      applyLocalModuleAvailability(await repository.loadAgents(), {
+        supabaseAvailable: adapters.supabaseSession !== undefined,
+      }),
+    buildSkillCatalog: buildPersonalSkillCatalog,
+    buildPolicyRegistry: (agents, skillCatalog) => {
+      const kit = createAppExecutionKit(deriveExecutors(agents), { skillCatalog, capabilityCatalog });
+
+      return {
+        loadPromptByKey: kit.loadPromptByKey,
+        policies: kit.policies,
+        shellFormatters: kit.shellFormatters,
+      };
+    },
+    buildModels: (appConfig, agents) =>
+      buildModelRegistry(appConfig, deriveModelKeys(agents, "generic")),
+    buildCapabilityDeps: (context) => {
+      cronMutationContext.repository = context.cronJobRepository as CronJobRepository;
+
+      return buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
+        cronTargetAgentIds: context.cronTargetAgentIds,
+        cronJobRepository: context.cronJobRepository as ReturnType<
+          typeof createCronJobRepositoryForConfig
+        >,
+        runtimeAgentRepository: context.runtimeAgentRepository,
+        capabilityCatalog: context.capabilityCatalog,
+        skillCatalog: context.skillCatalog,
+        ...(options.fileSender ? { fileSender: options.fileSender } : {}),
+        ...(context.adapters.supabaseSession
+          ? { supabaseSession: context.adapters.supabaseSession }
+          : {}),
+        ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+      });
+    },
+    buildGraphHooks: (context) => ({
+      promptLogging: logSystemPromptInvocation,
+      ...buildPersonalCronGraphHooks(context.cronTargetAgentIds),
+    }),
+  };
+};

@@ -3,11 +3,11 @@ import { GeminiConnector } from "../../connectors/llm-connector.js";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
 import {
   bootstrapSupervisorSystem,
+  buildSkillModuleOwnerPattern,
   type CompiledSupervisorGraph,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
 import { createDefaultCapabilityCatalog } from "../../runtime-agents/builtin-capabilities.js";
-import { buildSkillModuleOwnerPattern } from "./bootstrap-agents.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,

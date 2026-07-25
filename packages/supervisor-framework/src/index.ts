@@ -8,7 +8,31 @@ export {
 export { resolveAgentTools } from "./framework/resolve-agent-tools.js";
 export { createEmptySkillCatalog } from "./framework/defaults/empty-skill-catalog.js";
 export { createNoopCronJobRepository } from "./framework/defaults/noop-cron-job-repository.js";
-export { createFileRuntimeAgentRepository } from "./framework/defaults/file-runtime-agent-repository.js";
+export {
+  SYSTEM_AGENT_ID,
+  SYSTEM_AGENT_EPOCH,
+  SYSTEM_CONFIG_CAPABILITY_ID,
+  SYSTEM_CONFIG_READ_CAPABILITY_ID,
+  createSystemAgentDefinition,
+  isSystemAgentId,
+  wrapRepositoryWithSystemAgent,
+  seedSystemAgent,
+  mergeCapabilityCatalogs,
+  createSystemConfigTools,
+  createSystemAgentPolicy,
+  createSystemAgentNodeHooks,
+  buildSkillModuleOwnerPattern,
+  formatSystemAgentSkillCatalog,
+  isSystemAgentSkillCatalogRequest,
+  isSkillMutatingIntent,
+  isSkillListDisplayIntent,
+  isSkillPreviewDisplayIntent,
+  shouldShortCircuitReadOnlySkillTool,
+  type SystemAgentOptions,
+  type SystemAgentRepository,
+  type SystemConfigDeps,
+  type SystemAgentPolicyOptions,
+} from "./framework/system-agent/index.js";
 export type {
   SupervisorPaths,
   SupervisorGraphHooks,

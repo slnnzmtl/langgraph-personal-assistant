@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveCronTargetAgentIds } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import {
+  createSystemAgentDefinition,
+  deriveCronTargetAgentIds,
+  mergeCapabilityCatalogs,
+} from "@personal-assistant/supervisor-framework";
+import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
+  createPersonalCapabilityProviders,
   listAvailableCapabilities,
   resolveCapabilities,
   validateGrantableCapabilityIds,
@@ -15,16 +21,25 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 describe("builtin capabilities", () => {
   it("seeds the configuration agent with the system-config capability", () => {
-    const configuration = buildDefaultRuntimeAgents().find((agent) => agent.id === "configuration");
+    const configuration = createSystemAgentDefinition({
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+    });
 
-    expect(configuration?.capabilityIds).toEqual(["system-config"]);
+    expect(configuration.capabilityIds).toEqual(["system-config"]);
   });
 
   it("resolves system-config tools when repositories are available", () => {
+    const catalog = mergeCapabilityCatalogs(
+      createPersonalCapabilityProviders() as never,
+      true,
+    );
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       cronTargetAgentIds: deriveCronTargetAgentIds(buildTestRuntimeAgents()),
+      capabilityCatalog: catalog,
+      skillCatalog: createSkillCatalog({ approvedModules: ["configuration", "finance", "obsidian"] }),
     });
 
     const tools = resolveCapabilities(["system-config"], deps);
@@ -44,11 +59,12 @@ describe("builtin capabilities", () => {
     );
   });
 
-  it("omits system-config from the catalog when repositories are unavailable", () => {
+  it("omits system-config from the domain catalog when repositories are unavailable", () => {
     const withoutRepos = createCapabilityDeps("/tmp/vault");
     const withRepos = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+      capabilityCatalog: mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true),
     });
 
     expect(listAvailableCapabilities(withoutRepos).map((entry) => entry.id)).not.toContain("system-config");
@@ -59,6 +75,7 @@ describe("builtin capabilities", () => {
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+      capabilityCatalog: mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true),
     });
 
     expect(() => validateGrantableCapabilityIds(["system-config"], deps)).toThrow(

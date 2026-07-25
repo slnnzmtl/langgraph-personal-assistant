@@ -1,11 +1,7 @@
 export {
-    createSystemConfigDomainTools,
-} from "./configuration.js";
-
-export {
-    createFinanceDomainToolsFromSession,
+  createFinanceDomainToolsFromSession,
 } from "./finance.js";
 
 export {
-    createObsidianVaultTools,
+  createObsidianVaultTools,
 } from "./obsidian.js";

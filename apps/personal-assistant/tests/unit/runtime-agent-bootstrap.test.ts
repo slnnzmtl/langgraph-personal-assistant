@@ -5,11 +5,12 @@ import { access, mkdtemp, rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  applyLocalModuleAvailability,
-  buildConfiguratorAgent,
-  createConfiguratorAwareRuntimeAgentRepository,
-} from "../../src/app/composition/bootstrap-agents.js";
-import { createRuntimeAgentRepository } from "@personal-assistant/supervisor-framework";
+  createSystemAgentDefinition,
+  createRuntimeAgentRepository,
+  wrapRepositoryWithSystemAgent,
+} from "@personal-assistant/supervisor-framework";
+import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
+import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];
@@ -21,14 +22,18 @@ afterEach(async () => {
 const createWrappedRepository = async () => {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), "pa-runtime-bootstrap-"));
   tempPaths.push(rootDir);
-  const repository = createConfiguratorAwareRuntimeAgentRepository(
+  const repository = wrapRepositoryWithSystemAgent(
     createRuntimeAgentRepository(rootDir, "data/runtime-agents.json"),
+    {
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+    },
   );
 
   return { rootDir, repository };
 };
 
-describe("createConfiguratorAwareRuntimeAgentRepository", () => {
+describe("wrapRepositoryWithSystemAgent", () => {
   it("returns the code-seeded configuration agent when the store is empty", async () => {
     const { repository } = await createWrappedRepository();
 
@@ -62,11 +67,14 @@ describe("createConfiguratorAwareRuntimeAgentRepository", () => {
     expect(agents.find((agent) => agent.id === "obsidian")?.executor).toBe("obsidian");
   });
 
-  it("does not purge legacy configuration rows until purgeLegacyConfigurator runs", async () => {
+  it("does not purge legacy configuration rows until purgeLegacySystemAgent runs", async () => {
     const { rootDir, repository } = await createWrappedRepository();
     const rawRepository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
 
-    await rawRepository.saveAgents([buildConfiguratorAgent()]);
+    await rawRepository.saveAgents([createSystemAgentDefinition({
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+    })]);
 
     await repository.loadAgents();
     expect((await rawRepository.loadAgents()).map((agent) => agent.id)).toEqual(["configuration"]);
@@ -77,7 +85,10 @@ describe("createConfiguratorAwareRuntimeAgentRepository", () => {
     const rawRepository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
 
     await rawRepository.saveAgents([
-      buildConfiguratorAgent(),
+      createSystemAgentDefinition({
+        prompt: () => loadSystemPromptByKey("configuration"),
+        modelKey: "configuration",
+      }),
       {
         id: "obsidian",
         name: "Obsidian",
@@ -93,7 +104,7 @@ describe("createConfiguratorAwareRuntimeAgentRepository", () => {
       },
     ]);
 
-    await repository.purgeLegacyConfigurator();
+    await repository.purgeLegacySystemAgent();
     const agents = await repository.loadAgents();
     const configuration = agents.find((agent) => agent.id === "configuration");
     const obsidian = agents.find((agent) => agent.id === "obsidian");

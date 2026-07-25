@@ -1,15 +1,19 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { CapabilityCatalog } from "../capabilities/index.js";
+import type { StructuredToolInterface } from "@langchain/core/tools";
+
+import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
 import type { createAssistant, AssistantConfig } from "../core/create-assistant.js";
 import type { ILLMConnector } from "../core/ports/llm-connector.js";
 import type { PromptLoggingHook } from "../core/ports/prompt-logging.js";
-import type { PolicyRegistry } from "../core/policies/registry.js";
+import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 import type { ReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
+import type { RuntimeShellFormatters } from "../core/system-context.js";
+import type { SystemAgentOptions } from "./system-agent/types.js";
 
 /** Minimal cron repository contract for pack bootstrap (duck-types cron impl). */
 export type CronJobRepository = {
@@ -84,7 +88,22 @@ export type SupervisorPackBootstrap<
   buildPolicyRegistry: (
     agents: RuntimeAgentDefinition[],
     skillCatalog: SkillCatalog,
-  ) => { loadPromptByKey: LoadPromptByKey; policyRegistry: PolicyRegistry };
+  ) => {
+    loadPromptByKey: LoadPromptByKey;
+    policies: RuntimeAgentPolicy[];
+    shellFormatters?: RuntimeShellFormatters;
+  };
+  /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
+  systemAgent?: SystemAgentOptions | false;
+  capabilityProviders?: CapabilityProvider<Record<string, unknown>>[];
+  resolveRuntimeAgentTools?: (
+    catalog: CapabilityCatalog,
+    skillCatalog: SkillCatalog,
+  ) => (
+    definition: RuntimeAgentDefinition,
+    capabilityDeps: TDeps,
+    resolveOptions?: Record<string, unknown>,
+  ) => StructuredToolInterface[];
   buildModels: (config: TConfig, agents: RuntimeAgentDefinition[]) => Record<string, BaseChatModel>;
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,

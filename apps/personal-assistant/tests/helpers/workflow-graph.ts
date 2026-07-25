@@ -1,17 +1,17 @@
 import {
   createAssistant,
+  createPolicyRegistry,
+  createSystemAgentPolicy,
   deriveCronTargetAgentIds,
   deriveExecutors,
   deriveModelKeys,
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
+  mergeCapabilityCatalogs,
   type CompiledSupervisorGraph,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
-import type { CronJobRepository } from "../../src/cron/types.js";
-import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSystemPromptByKey, loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
 import {
@@ -20,7 +20,11 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/app/composition/personal-pack.js";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
-import { createDefaultCapabilityCatalog } from "../../src/runtime-agents/builtin-capabilities.js";
+import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
+import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
+import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import type { CronJobRepository } from "../../src/cron/types.js";
+import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createRuntimeAgentRepositoryFake, FakeLLMConnector } from "./fakes.js";
 
@@ -65,12 +69,26 @@ export const createTestWorkflowGraph = ({
     ]),
   );
 
-  const capabilityCatalog = createDefaultCapabilityCatalog();
+  const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
-  const { loadPromptByKey, policyRegistry } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
+  const resolveTools = createPersonalResolveTools(capabilityCatalog);
+  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
     skillCatalog,
     capabilityCatalog,
   });
+  const policyRegistry = createPolicyRegistry([
+    ...policies,
+    createSystemAgentPolicy({
+      capabilityCatalog,
+      resolveTools,
+      systemAgent: {
+        prompt: () => loadSystemPromptByKey("configuration"),
+        modelKey: "configuration",
+      },
+      skillCatalog,
+      shellFormatters,
+    }),
+  ]);
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const resolvedRuntimeAgentRepository =
     runtimeAgentRepository ?? createRuntimeAgentRepositoryFake(runtimeAgents);

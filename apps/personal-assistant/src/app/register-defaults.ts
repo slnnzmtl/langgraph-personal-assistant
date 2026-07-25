@@ -1,6 +1,5 @@
 import {
   createAgentPolicy,
-  createPolicyRegistry,
   createRuntimeShellHooks,
   resolveAgentSkillModule,
   type CapabilityCatalog,
@@ -20,7 +19,6 @@ import {
 } from "../runtime-agents/skills/prompt-enrichment.js";
 import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
 import {
-  createConfigurationPolicy,
   createObsidianPolicy,
   type DomainPolicyOptions,
 } from "./policies/index.js";
@@ -58,7 +56,6 @@ export const DOMAIN_POLICY_FACTORIES: Record<
   (options: DomainPolicyOptions) => RuntimeAgentPolicy
 > = {
   obsidian: createObsidianPolicy,
-  configuration: createConfigurationPolicy,
 };
 
 export const DEPLOYMENT_EXECUTOR_IDS = Object.keys(DOMAIN_POLICY_FACTORIES);
@@ -74,7 +71,7 @@ export const createAppExecutionKit = (
   options: AppExecutionKitOptions,
 ) => {
   const executorSet = new Set(executors);
-  const shellFormatters = createDefaultRuntimeShellFormatters(options.skillCatalog);
+  const shellFormatters = options.shellFormatters ?? createDefaultRuntimeShellFormatters(options.skillCatalog);
   const genericShellHooks = createRuntimeShellHooks(shellFormatters);
   const resolveTools = createPersonalResolveTools(options.capabilityCatalog);
 
@@ -89,7 +86,7 @@ export const createAppExecutionKit = (
     .filter(([executor]) => executorSet.has(executor))
     .map(([, factory]) => factory(domainPolicyOptions));
 
-  const policyRegistry = createPolicyRegistry([
+  const policies: RuntimeAgentPolicy[] = [
     createAgentPolicy<CapabilityDeps>({
       executor: "generic",
       resolveTools: (definition, capabilityDeps, resolveOptions) =>
@@ -103,7 +100,7 @@ export const createAppExecutionKit = (
       shellFormatters,
     }),
     ...domainPolicies,
-  ]);
+  ];
 
-  return { loadPromptByKey: loadSystemPromptByKey, policyRegistry, shellFormatters };
+  return { loadPromptByKey: loadSystemPromptByKey, policies, shellFormatters };
 };

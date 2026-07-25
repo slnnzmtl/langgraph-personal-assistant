@@ -1,31 +1,34 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  BUILTIN_AGENT_IDS,
-  CONFIGURATOR_AGENT_ID,
-  CONFIGURATOR_SPEC,
-  applyLocalModuleAvailability,
-  buildDefaultRuntimeAgents,
+  createSystemAgentDefinition,
+  SYSTEM_AGENT_ID,
   buildSkillModuleOwnerPattern,
+} from "@personal-assistant/supervisor-framework";
+import {
+  applyLocalModuleAvailability,
   resolveBuiltinModelName,
 } from "../../../src/app/composition/bootstrap-agents.js";
+import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
 import { listSkillModules } from "../../../src/runtime-agents/skills/skills-loader.js";
 import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
 import type { AppConfig } from "../../../src/config.js";
 
-describe("configurator manifest", () => {
-  it("defines only the core configuration agent as built-in", () => {
-    expect(BUILTIN_AGENT_IDS).toEqual([CONFIGURATOR_AGENT_ID]);
-    expect(CONFIGURATOR_SPEC.id).toBe(CONFIGURATOR_AGENT_ID);
+describe("system admin agent manifest", () => {
+  it("defines the configuration system agent id for skill module continuity", () => {
+    expect(SYSTEM_AGENT_ID).toBe("configuration");
     expect(listSkillModules()).toEqual(expect.arrayContaining(["finance", "obsidian", "configuration"]));
   });
 
-  it("builds the configurator runtime agent from the manifest", () => {
-    const agents = buildDefaultRuntimeAgents();
+  it("builds the system admin runtime agent from framework options", () => {
+    const agent = createSystemAgentDefinition({
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+    });
 
-    expect(agents).toHaveLength(1);
-    expect(agents[0]?.id).toBe(CONFIGURATOR_AGENT_ID);
-    expect(agents.every((agent) => agent.builtin === true)).toBe(true);
+    expect(agent.id).toBe("configuration");
+    expect(agent.builtin).toBe(true);
+    expect(agent.capabilityIds).toEqual(["system-config"]);
   });
 
   it("builds a skill module owner pattern from discovered modules", () => {

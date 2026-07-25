@@ -112,7 +112,7 @@ index.ts
             ├─ GeminiConnector (supervisor model)
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
             ├─ Runtime agent repository (data/runtime-agents.json, user agents only)
-            ├─ purgeLegacyConfigurator() + inject virtual configuration agent
+            ├─ seedSystemAgent() purge + inject virtual system admin agent (framework)
             ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
@@ -319,7 +319,7 @@ RuntimeAgentDefinitionSchema = z.object({
 
 ### Code-seeded and persisted agents
 
-The **configuration** agent is virtual: defined in code, injected at bootstrap, and never written to `data/runtime-agents.json`. Legacy `configuration` rows are purged once at seed time. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
+The **configuration** system admin agent is virtual: defined via the framework `systemAgent` pack option, injected at bootstrap, and never written to `data/runtime-agents.json`. Legacy `configuration` rows are purged once at seed time. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
 | ID | Executor | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
@@ -333,12 +333,11 @@ Custom agents use `executor: "generic"` and select from the grantable capability
 
 ## Policy Registry Pattern
 
-Policies are registered at app bootstrap in `src/app/register-defaults.ts`:
+Policies are registered at app bootstrap. Domain policies (Obsidian) live in `src/app/policies/`. The **configuration** system admin policy is registered by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
 
 ```typescript
 DOMAIN_POLICY_FACTORIES = {
   obsidian: createObsidianPolicy,
-  configuration: createConfigurationPolicy,
 };
 ```
 
@@ -517,7 +516,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a built-in domain agent:**
 
-1. Add spec to `CONFIGURATOR_SPEC` / bootstrap helpers in `app/composition/bootstrap-agents.ts` (code seeds the configurator only; domain agents are persisted)
+1. Enable the framework system admin via `systemAgent` on the personal pack (`personal-pack.ts`). Domain agents remain persisted in JSON.
 2. Implement tools under `runtime-agents/tools/`
 3. Add policy + hooks under `app/policies/`
 4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`

@@ -1,17 +1,17 @@
 import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import {
-  createRuntimeShellHooks,
-  extractMessageTextContent,
   sanitizeResponseToolCalls,
   type RuntimeAgentNodeHooks,
-  type RuntimeShellFormatters,
-  type SkillCatalog,
-} from "@personal-assistant/supervisor-framework";
-import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
-import { reconcileRuntimeCron } from "../../cron/reconcile-runtime-cron.js";
-import { CONFIGURATOR_AGENT_ID, buildSkillModuleOwnerPattern } from "../composition/bootstrap-agents.js";
-import { formatCronJobForDisplay } from "../../runtime-agents/tools/configuration.js";
+} from "../../../core/execution/runtime-node.js";
+import { createRuntimeShellHooks } from "../../../core/execution/runtime-shell.js";
+import { extractMessageTextContent } from "../../../core/messages/message-content.js";
+import type { RuntimeShellFormatters } from "../../../core/system-context.js";
+import type { SkillCatalog } from "../../../core/skills/catalog.js";
+import type { CronJobRepository } from "../../types.js";
+import { SYSTEM_AGENT_ID } from "../constants.js";
+import { formatCronJobForDisplay } from "../tools/cron-tools.js";
+import type { SystemCronJob } from "../types.js";
 
 const READ_ONLY_SKILL_TOOLS = new Set(["preview_skill", "list_skills"]);
 const MUTATING_CRON_TOOLS = new Set(["create_cron_job", "delete_cron_job"]);
@@ -51,17 +51,6 @@ export const isSkillPreviewDisplayIntent = (text: string): boolean => {
   );
 };
 
-const getTriggerUserText = (messages: readonly BaseMessage[]): string => {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message instanceof HumanMessage) {
-      return extractMessageTextContent(message.content).trim();
-    }
-  }
-
-  return "";
-};
-
 export const shouldShortCircuitReadOnlySkillTool = (
   toolName: string,
   triggerUserText: string,
@@ -81,11 +70,15 @@ export const shouldShortCircuitReadOnlySkillTool = (
   return false;
 };
 
-type ConfigurationHooksOptions = {
-  repository: CronJobRepository;
-  runtimeCron?: RuntimeCronService;
-  skillCatalog?: SkillCatalog | undefined;
-  shellFormatters: RuntimeShellFormatters;
+const getTriggerUserText = (messages: readonly BaseMessage[]): string => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message instanceof HumanMessage) {
+      return extractMessageTextContent(message.content).trim();
+    }
+  }
+
+  return "";
 };
 
 const isCronJobListRequest = (text: string): boolean => {
@@ -93,10 +86,20 @@ const isCronJobListRequest = (text: string): boolean => {
   return /\b(list|show|view|inspect|what|which)\b/.test(normalized) && /\bcron jobs?\b/.test(normalized);
 };
 
+export const buildSkillModuleOwnerPattern = (modules: readonly string[]): RegExp => {
+  const owners = modules.map((owner) => owner.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+  if (owners.length === 0) {
+    return /(?!)/;
+  }
+
+  return new RegExp(`\\b(${owners.join("|")})\\b`);
+};
+
 const mentionsSkillOwner = (text: string, modules: readonly string[]): boolean =>
   buildSkillModuleOwnerPattern(modules).test(text);
 
-export const isConfigurationSkillCatalogRequest = (
+export const isSystemAgentSkillCatalogRequest = (
   text: string,
   modules: readonly string[],
 ): boolean => {
@@ -116,9 +119,9 @@ export const isConfigurationSkillCatalogRequest = (
   );
 };
 
-export const formatConfigurationSkillCatalog = (skillCatalog: SkillCatalog): string => {
-  const skills = skillCatalog.listSkills({ module: CONFIGURATOR_AGENT_ID });
-  return skillCatalog.formatForDisplay(CONFIGURATOR_AGENT_ID, skills, "Listed");
+export const formatSystemAgentSkillCatalog = (skillCatalog: SkillCatalog): string => {
+  const skills = skillCatalog.listSkills({ module: SYSTEM_AGENT_ID });
+  return skillCatalog.formatForDisplay(SYSTEM_AGENT_ID, skills, "Listed");
 };
 
 const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): string | undefined => {
@@ -133,10 +136,17 @@ const getReadOnlySkillToolResult = (latestMessage: ToolMessage | undefined): str
 const shouldReconcileCron = (messages: readonly { name?: string }[]): boolean =>
   messages.some((message) => message.name && MUTATING_CRON_TOOLS.has(message.name));
 
-export const createConfigurationNodeHooks = (
-  options: ConfigurationHooksOptions,
+export type SystemAgentHooksOptions = {
+  repository: CronJobRepository;
+  onCronMutated?: () => Promise<void>;
+  skillCatalog?: SkillCatalog | undefined;
+  shellFormatters: RuntimeShellFormatters;
+};
+
+export const createSystemAgentNodeHooks = (
+  options: SystemAgentHooksOptions,
 ): RuntimeAgentNodeHooks => {
-  const skillModules = options.skillCatalog?.listModules() ?? [CONFIGURATOR_AGENT_ID];
+  const skillModules = options.skillCatalog?.listModules() ?? [SYSTEM_AGENT_ID];
   const baseHooks = createRuntimeShellHooks(options.shellFormatters);
 
   return {
@@ -150,7 +160,7 @@ export const createConfigurationNodeHooks = (
         && latestMessageText
         && isCronJobListRequest(latestMessageText)
       ) {
-        const jobs = await options.repository.loadJobs();
+        const jobs = (await options.repository.loadJobs()) as SystemCronJob[];
         const content = jobs.length > 0
           ? jobs.map(formatCronJobForDisplay).join("\n\n")
           : "No cron jobs configured.";
@@ -162,13 +172,13 @@ export const createConfigurationNodeHooks = (
         latestMessage instanceof HumanMessage
         && latestMessageText
         && options.skillCatalog
-        && isConfigurationSkillCatalogRequest(latestMessageText, skillModules)
+        && isSystemAgentSkillCatalogRequest(latestMessageText, skillModules)
       ) {
-        return { agentMessages: [new AIMessage(formatConfigurationSkillCatalog(options.skillCatalog))] };
+        return { agentMessages: [new AIMessage(formatSystemAgentSkillCatalog(options.skillCatalog))] };
       }
 
-      if (shouldReconcileCron(ctx.state.agentMessages)) {
-        await reconcileRuntimeCron(options.repository, options.runtimeCron);
+      if (shouldReconcileCron(ctx.state.agentMessages) && options.onCronMutated) {
+        await options.onCronMutated();
       }
 
       const readOnlySkillToolResult = getReadOnlySkillToolResult(

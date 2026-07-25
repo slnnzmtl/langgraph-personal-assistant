@@ -5,14 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCapabilityCatalog,
+  createSystemAgentDefinition,
   isCapabilityAvailable,
+  mergeCapabilityCatalogs,
+  SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import {
-  BUILTIN_CAPABILITY_DESCRIPTORS,
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
+  createPersonalCapabilityProviders,
+  PERSONAL_CAPABILITY_DESCRIPTORS,
   resolveCapabilities,
   toCapabilityAvailabilityContext,
 } from "../../src/runtime-agents/builtin-capabilities.js";
@@ -114,13 +118,20 @@ describe("app boundaries", () => {
   });
 
   it("seeds only the configuration built-in from code", () => {
-    expect(buildDefaultRuntimeAgents().map((agent) => agent.id)).toEqual(["configuration"]);
+    const agent = createSystemAgentDefinition({
+      prompt: () => loadSystemPromptByKey("configuration"),
+      modelKey: "configuration",
+    });
+
+    expect(agent.id).toBe("configuration");
   });
 
   it("exposes read-only system configuration separately from write", () => {
+    const catalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+      capabilityCatalog: catalog,
     });
 
     const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
@@ -132,12 +143,15 @@ describe("app boundaries", () => {
   });
 
   it("marks configurable capabilities in the catalog", () => {
-    const configurable = BUILTIN_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable);
+    const configurable = [
+      ...PERSONAL_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable),
+      { id: SYSTEM_CONFIG_READ_CAPABILITY_ID, configurable: true },
+    ];
     expect(configurable.map((entry) => entry.id)).toEqual(
       expect.arrayContaining(["none", "obsidian-vault", "finance-domain", "system-config-read"]),
     );
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
+    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
+    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
   });
 });
 

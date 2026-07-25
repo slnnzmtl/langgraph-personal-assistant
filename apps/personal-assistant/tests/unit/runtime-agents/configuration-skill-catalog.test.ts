@@ -1,41 +1,41 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  formatConfigurationSkillCatalog,
-  isConfigurationSkillCatalogRequest,
+  formatSystemAgentSkillCatalog,
+  isSystemAgentSkillCatalogRequest,
   isSkillListDisplayIntent,
   isSkillMutatingIntent,
   isSkillPreviewDisplayIntent,
   shouldShortCircuitReadOnlySkillTool,
-} from "../../../src/app/policies/configuration-hooks.js";
+  SYSTEM_AGENT_ID,
+} from "@personal-assistant/supervisor-framework";
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import { CONFIGURATOR_AGENT_ID } from "../../../src/app/composition/bootstrap-agents.js";
 
 const skillCatalog = createSkillCatalog({
-  approvedModules: [CONFIGURATOR_AGENT_ID, "finance", "obsidian"],
+  approvedModules: [SYSTEM_AGENT_ID, "finance", "obsidian"],
 });
 const skillModules = skillCatalog.listModules();
 
-describe("isConfigurationSkillCatalogRequest", () => {
+describe("isSystemAgentSkillCatalogRequest", () => {
   it("matches requests for this agent's skill catalog", () => {
-    expect(isConfigurationSkillCatalogRequest("list available skills", skillModules)).toBe(true);
-    expect(isConfigurationSkillCatalogRequest("what skills do you have", skillModules)).toBe(true);
-    expect(isConfigurationSkillCatalogRequest("show skills", skillModules)).toBe(true);
+    expect(isSystemAgentSkillCatalogRequest("list available skills", skillModules)).toBe(true);
+    expect(isSystemAgentSkillCatalogRequest("what skills do you have", skillModules)).toBe(true);
+    expect(isSystemAgentSkillCatalogRequest("show skills", skillModules)).toBe(true);
   });
 
   it("does not match cross-owner skill listing", () => {
-    expect(isConfigurationSkillCatalogRequest("list finance skills", skillModules)).toBe(false);
-    expect(isConfigurationSkillCatalogRequest("list skills for obsidian", skillModules)).toBe(false);
+    expect(isSystemAgentSkillCatalogRequest("list finance skills", skillModules)).toBe(false);
+    expect(isSystemAgentSkillCatalogRequest("list skills for obsidian", skillModules)).toBe(false);
   });
 
   it("does not match cron listing", () => {
-    expect(isConfigurationSkillCatalogRequest("list cron jobs", skillModules)).toBe(false);
+    expect(isSystemAgentSkillCatalogRequest("list cron jobs", skillModules)).toBe(false);
   });
 });
 
-describe("formatConfigurationSkillCatalog", () => {
+describe("formatSystemAgentSkillCatalog", () => {
   it("formats configuration skills using the skill_output_template", () => {
-    const catalog = formatConfigurationSkillCatalog(skillCatalog);
+    const catalog = formatSystemAgentSkillCatalog(skillCatalog);
 
     expect(catalog).toContain("Module: configuration");
     expect(catalog).toContain("Skill Name: cron");

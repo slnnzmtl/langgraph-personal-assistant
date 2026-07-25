@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
+  createSystemAgentDefinition,
   isRuntimeAgentBuiltin,
   RuntimeAgentsDocumentSchema,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");
 
@@ -26,7 +27,10 @@ export const buildLocalModuleAgents = (): RuntimeAgentDefinition[] =>
   loadLocalModuleAgentsFromFixture();
 
 export const buildTestRuntimeAgents = (): RuntimeAgentDefinition[] => [
-  ...buildDefaultRuntimeAgents(),
+  createSystemAgentDefinition({
+    prompt: () => loadSystemPromptByKey("configuration"),
+    modelKey: "configuration",
+  }),
   ...buildLocalModuleAgents(),
 ];
 

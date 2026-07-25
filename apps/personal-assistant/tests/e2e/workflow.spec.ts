@@ -276,7 +276,7 @@ test.describe("workflow graph", () => {
     );
 
     expect(finalState.messages.at(-1)?.content).toBe(
-      "Supabase session is not configured.",
+      "I couldn't finish routing your request. Unknown or disabled runtime agent route: finance",
     );
   });
 

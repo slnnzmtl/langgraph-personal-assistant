@@ -3,6 +3,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import {
   createRuntimeAgentNode,
   createRuntimeShellHooks,
+  createSystemAgentNodeHooks,
   withResolvedAgentSystemPrompt,
   type RuntimeAgentDefinition,
   type RuntimeAgentNodeConfig,
@@ -11,7 +12,6 @@ import {
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
-import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
 import {
   createObsidianNodeHooks,
   selectObsidianToolsForTurn,
@@ -85,6 +85,7 @@ type ConfigurationNodeOptions = {
   repository: CronJobRepository;
   runtimeCron?: RuntimeCronService;
   definition: RuntimeAgentDefinition;
+  onCronMutated?: () => Promise<void>;
 };
 
 export const createConfigurationNode = (
@@ -96,9 +97,9 @@ export const createConfigurationNode = (
   resolveTestAgentSystemPrompt(options.definition),
   tools,
   {
-    ...createConfigurationNodeHooks({
+    ...createSystemAgentNodeHooks({
       repository: options.repository,
-      ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+      ...(options.onCronMutated ? { onCronMutated: options.onCronMutated } : {}),
       skillCatalog: testSkillCatalog,
       shellFormatters: testShellFormatters,
     }),
