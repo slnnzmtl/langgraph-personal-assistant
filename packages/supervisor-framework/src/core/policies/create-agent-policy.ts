@@ -63,6 +63,12 @@ export type CreateAgentPolicyConfig<
     result: SubAgentState,
     config: { maxSteps: number; name: string },
   ) => AgentStateUpdate;
+  resolveMapResult?: (
+    definition: RuntimeAgentDefinition,
+  ) => ((
+    result: SubAgentState,
+    config: { maxSteps: number; name: string },
+  ) => AgentStateUpdate) | undefined;
 };
 
 const createAgentLlmNode = (
@@ -121,6 +127,10 @@ export const createAgentPolicy = <
       ...(config.selectToolsForTurn ? { selectToolsForTurn: config.selectToolsForTurn } : {}),
     };
 
+    const mapResult = config.resolveMapResult?.(definition)
+      ?? config.mapResult
+      ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig));
+
     return createSubAgentGraphBundle({
       name: config.displayName ?? definition.name,
       maxSteps: definition.maxSteps,
@@ -131,7 +141,7 @@ export const createAgentPolicy = <
         }),
       createLlmNode: (agentDeps, agentTools) =>
         createAgentLlmNode(agentDeps.model, agentDeps.definition, agentTools, nodeConfig),
-      mapResult: config.mapResult ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig)),
+      mapResult,
     });
   },
 });

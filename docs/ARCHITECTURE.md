@@ -325,20 +325,18 @@ The **configuration** system admin agent is virtual: defined via the framework `
 |---|---|---|---|---|
 | `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
 | `finance` | `generic` | 10 | `finance-domain` | Supabase MCP |
-| `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
+| `obsidian` | `generic` | 12 | `obsidian-vault` | Vault path |
 
-Custom agents use `executor: "generic"` and select from the grantable capability catalog (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Domain executors select optional LLM hooks; tools always come from `capabilityIds`.
+All persisted specialists use `executor: "generic"`. Tools and optional LLM hooks come from grantable **capabilities** (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Agents with `obsidian-vault` inherit Obsidian vault UX (directory tree, routine hints, blank-reply recovery) via app-local hooks composed on the generic policy shell.
 
 ---
 
 ## Policy Registry Pattern
 
-Policies are registered at app bootstrap. Domain policies (Obsidian) live in `src/app/policies/`. The **configuration** system admin policy is registered by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
+Policies are registered at app bootstrap. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery) live in `src/app/policies/` and compose onto the **generic** executor policy when matching capabilities are granted. The **configuration** system admin policy is registered by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
 
 ```typescript
-DOMAIN_POLICY_FACTORIES = {
-  obsidian: createObsidianPolicy,
-};
+DOMAIN_POLICY_FACTORIES = {}; // reserved — generic + capabilities is the default path
 ```
 
 Each policy implements:
@@ -350,7 +348,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. Domain policies differ mainly in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. The ownership boundary is intentional: `src/app/policies/` contains policy bundles and hooks, `src/runtime-agents/tools/` contains domain tools, and the generic executor policy in `createAppExecutionKit()` resolves allowlisted capabilities for configurable agents.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/tools/`; hook composition lives in `src/app/policies/`.
 
 ---
 

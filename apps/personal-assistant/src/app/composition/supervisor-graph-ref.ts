@@ -11,7 +11,6 @@ import type { GeminiConnector } from "../../connectors/llm-connector.js";
 
 export type SupervisorGraphRef = {
   getGraph(): CompiledSupervisorGraph;
-  getCronTargetAgentIds(): readonly string[];
   recompile(): Promise<boolean>;
 };
 
@@ -39,7 +38,6 @@ export const createSupervisorGraphRef = async (
 
   const graphRef: SupervisorGraphRef = {
     getGraph: () => bootstrap.graph,
-    getCronTargetAgentIds: () => bootstrap.cronTargetAgentIds,
     async recompile() {
       const runtimeAgentRepository = bootstrap.capabilityDeps.runtimeAgentRepository;
       if (!runtimeAgentRepository) {

@@ -176,23 +176,28 @@ export const selectObsidianToolsForTurn = (
 export const createObsidianNodeHooks = (
   vaultRoot: string,
   shellFormatters: RuntimeShellFormatters,
+  baseHooks: RuntimeAgentNodeHooks = createRuntimeShellHooks(shellFormatters),
+): RuntimeAgentNodeHooks => composeObsidianCapabilityHooks(vaultRoot, shellFormatters, baseHooks);
+
+export const composeObsidianCapabilityHooks = (
+  vaultRoot: string,
+  shellFormatters: RuntimeShellFormatters,
+  baseHooks: RuntimeAgentNodeHooks,
 ): RuntimeAgentNodeHooks => {
-  const baseHooks = createRuntimeShellHooks(shellFormatters);
+  const appendSections = shellFormatters.appendDynamicSections
+    ?? ((staticPrompt: string, ...sections: string[]) =>
+      [staticPrompt, ...sections.filter((section) => section.trim().length > 0)].join("\n\n"));
 
   return {
-    beforeTurn: async () => {
+    beforeTurn: async (ctx) => {
       await mkdir(vaultRoot, { recursive: true });
-      return null;
+      return (await baseHooks.beforeTurn?.(ctx)) ?? null;
     },
     buildSystemPrompt: async (ctx) => {
-      const vaultDirectoryTree = await buildDirectoryTree(vaultRoot);
       const basePrompt = baseHooks.buildSystemPrompt
         ? await baseHooks.buildSystemPrompt(ctx)
         : ctx.basePrompt.trim();
-
-      const appendSections = shellFormatters.appendDynamicSections
-        ?? ((staticPrompt: string, ...sections: string[]) =>
-          [staticPrompt, ...sections.filter((section) => section.trim().length > 0)].join("\n\n"));
+      const vaultDirectoryTree = await buildDirectoryTree(vaultRoot);
 
       return appendSections(
         basePrompt,
