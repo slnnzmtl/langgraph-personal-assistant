@@ -64,7 +64,7 @@ graph TD
 | Layer | Path | Responsibility |
 |---|---|---|
 | **Framework package** | `packages/supervisor-framework/` | Execution kernel + pack SDK (`bootstrapSupervisorSystem`, `createAssistant`, capabilities) |
-| **App layer** | `apps/personal-assistant/src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
+| **App layer** | `apps/personal-assistant/src/app/` | Capability catalog, app-local capability behaviors, prompt wiring, `createAppExecutionKit()` |
 | **Domain runtime** | `apps/personal-assistant/src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
 | **Infrastructure** | `apps/personal-assistant/src/cron/`, `telegram/`, `tools/`, `services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
 
@@ -265,4 +265,4 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 ### Extending the assistant
 
 - **New specialist (default):** create via the configuration agent with a prompt, optional skills, and grantable `capabilityIds`. Routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
-- **New tool domain (rare):** add a capability descriptor + provider in `builtin-capabilities.ts`, implement tools under `runtime-agents/tools/`, and compose any needed LLM hooks as app-local capability behavior on the generic policy in `src/app/policies/`. Reserve `DOMAIN_POLICY_FACTORIES` only when behavior cannot be expressed that way.
+- **New tool domain (rare):** add a capability descriptor + provider in `builtin-capabilities.ts`, implement tools under `runtime-agents/tools/`, and compose any needed LLM hooks as app-local capability behavior in `src/app/policies/` (see `generic-runtime-policy.ts` for the Obsidian pattern).

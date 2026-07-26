@@ -46,24 +46,13 @@ export const createDefaultRuntimeShellFormatters = (
   };
 };
 
-/** Reserved for future built-in executors that cannot be expressed as generic + capabilities. */
-export const DOMAIN_POLICY_FACTORIES: Record<
-  string,
-  (options: never) => RuntimeAgentPolicy
-> = {};
-
-export const DEPLOYMENT_EXECUTOR_IDS = Object.keys(DOMAIN_POLICY_FACTORIES);
-
 export type AppExecutionKitOptions = {
   capabilityCatalog: CapabilityCatalog;
   skillCatalog?: SkillCatalog | undefined;
   shellFormatters?: RuntimeShellFormatters;
 };
 
-export const createAppExecutionKit = (
-  _executors: Iterable<string> = DEPLOYMENT_EXECUTOR_IDS,
-  options: AppExecutionKitOptions,
-) => {
+export const createAppExecutionKit = (options: AppExecutionKitOptions) => {
   const shellFormatters = options.shellFormatters ?? createDefaultRuntimeShellFormatters(options.skillCatalog);
   const genericShellHooks = createRuntimeShellHooks(shellFormatters);
   const resolveTools = createPersonalResolveTools(options.capabilityCatalog);

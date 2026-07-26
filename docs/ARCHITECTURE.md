@@ -220,9 +220,9 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
 
-Policies differ in **deps**, **tool factories**, and **LLM node hooks** — the loop topology is shared. Domain hooks live in `src/app/policies/*-hooks.ts`; tools in `src/runtime-agents/tools/`.
+Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/app/policies/`; tools in `src/runtime-agents/tools/`.
 
-**Generic agents** (user-created via configuration) register through `createAppExecutionKit()` with the generic executor policy and compose tools from allowlisted **capabilities** rather than hard-coded domain tools.
+**Runtime agents** register through `createAppExecutionKit()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
 ---
 
@@ -244,7 +244,7 @@ Key abstractions:
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
 | `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
 | `createCompiledSubAgentGraph` | `tests/helpers/compiled-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
-| Domain hooks | `app/policies/*-hooks.ts` | Per-domain prompt enrichment, tool restrictions, result mapping |
+| Domain hooks | `app/policies/` | App-local capability behaviors (prompt enrichment, tool restrictions, result mapping) |
 
 Tool execution uses `ToolNode.run()` (not `invoke()`) to avoid an extra Runnable boundary inside the parent graph node.
 
@@ -333,11 +333,7 @@ All persisted specialists use `executor: "generic"`. Tools and optional LLM hook
 
 ## Policy Registry Pattern
 
-Policies are registered at app bootstrap. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery) live in `src/app/policies/` and compose onto the **generic** executor policy when matching capabilities are granted. The **configuration** system admin policy is registered by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
-
-```typescript
-DOMAIN_POLICY_FACTORIES = {}; // reserved — generic + capabilities is the default path
-```
+At bootstrap the app pack registers one **generic** runtime policy via `createAppExecutionKit()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery) live in `src/app/policies/` and compose when matching capabilities are granted. The **configuration** system admin policy is registered separately by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
 
 Each policy implements:
 

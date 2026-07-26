@@ -179,7 +179,7 @@ import { createSupervisorSystem } from "../apps/personal-assistant/src/app/compo
 const { graph, cronJobRepository } = await createSupervisorSystem(config, { fileSender });
 ```
 
-Personal policies use `createAppExecutionKit()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
+The pack wires capabilities and optional app-local behaviors via `createAppExecutionKit()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
 
 ---
 

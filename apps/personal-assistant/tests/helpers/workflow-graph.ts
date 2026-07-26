@@ -3,7 +3,6 @@ import {
   createPolicyRegistry,
   createSystemAgentPolicy,
   deriveCronTargetAgentIds,
-  deriveExecutors,
   deriveModelKeys,
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   mergeCapabilityCatalogs,
@@ -72,7 +71,7 @@ export const createTestWorkflowGraph = ({
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
   const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit(deriveExecutors(runtimeAgents), {
+  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit({
     skillCatalog,
     capabilityCatalog,
   });

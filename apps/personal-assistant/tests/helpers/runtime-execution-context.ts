@@ -5,7 +5,6 @@ import {
   createRuntimeAgentExecutionContext as createCoreExecutionContext,
   createSystemAgentPolicy,
   deriveCronTargetAgentIds,
-  deriveExecutors,
   deriveModelKeys,
   mergeCapabilityCatalogs,
   type RuntimeAgentExecutionContext,
@@ -26,7 +25,6 @@ export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
   repository?: RuntimeAgentRepository;
   capabilityDeps: CapabilityDeps;
-  executors?: Iterable<string>;
 };
 
 export const createAppRuntimeExecutionContext = (
@@ -34,11 +32,10 @@ export const createAppRuntimeExecutionContext = (
 ): RuntimeAgentExecutionContext<CapabilityDeps> => {
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
-  const executors = input.executors ?? deriveExecutors(runtimeAgents);
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = createSkillCatalog();
   const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit(executors, {
+  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit({
     skillCatalog,
     capabilityCatalog: createDefaultCapabilityCatalog(),
   });

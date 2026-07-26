@@ -106,8 +106,6 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 5. Add a prompt under `agents/` (optional `promptSourceKey`).
 6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).
 
-Register in `DOMAIN_POLICY_FACTORIES` only when hooks cannot live as app-local capability behavior on generic.
-
 See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
 
 ---

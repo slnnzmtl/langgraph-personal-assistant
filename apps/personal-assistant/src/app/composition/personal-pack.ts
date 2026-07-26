@@ -6,7 +6,6 @@ import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-trig
 import {
   createRuntimeAgentRepository,
   createCapabilityCatalog,
-  deriveExecutors,
   deriveModelKeys,
   deriveSkillModules,
   SYSTEM_AGENT_ID,
@@ -129,7 +128,7 @@ export const buildPersonalSupervisorPack = ({
     buildSkillCatalog: buildPersonalSkillCatalog,
     buildPolicyRegistry: (agents, skillCatalog) => {
       const domainCapabilityCatalog = createCapabilityCatalog(personalCapabilityProviders);
-      const kit = createAppExecutionKit(deriveExecutors(agents), { skillCatalog, capabilityCatalog: domainCapabilityCatalog });
+      const kit = createAppExecutionKit({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
 
       return {
         loadPromptByKey: kit.loadPromptByKey,
