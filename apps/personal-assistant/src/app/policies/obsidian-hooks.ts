@@ -7,6 +7,8 @@ import {
   buildDirectoryTree,
   createRuntimeShellHooks,
   extractMessageTextContent,
+  hasCompletedAgentReply,
+  processBlankToolLoopResponse,
   type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
   type RuntimeShellFormatters,
@@ -128,10 +130,7 @@ const hasSuccessfulObsidianWrite = (messages: BaseMessage[]): boolean =>
   });
 
 const hasCompletedObsidianReply = (message: BaseMessage | undefined): message is AIMessage =>
-  message instanceof AIMessage
-  && !(message.tool_calls?.length)
-  && extractMessageTextContent(message.content).trim().length > 0
-  && extractMessageTextContent(message.content).trim() !== OBSIDIAN_COMPLETION_FALLBACK;
+  hasCompletedAgentReply(message, OBSIDIAN_COMPLETION_FALLBACK);
 
 export const mapObsidianSubAgentResult = (
   result: SubAgentState,
@@ -201,27 +200,10 @@ export const createObsidianNodeHooks = (
         formatObsidianRoutineHint(),
       );
     },
-    processResponse: (ctx, response) => {
-      const responseText = extractMessageTextContent(response.content).trim();
-      const toolCalls = response.tool_calls ?? [];
-
-      if (toolCalls.length > 0 || responseText.length > 0) {
-        return response;
-      }
-
-      const hasToolResults = ctx.state.agentMessages.some((message) => message instanceof ToolMessage);
-      if (!hasToolResults) {
-        // No tools yet — keep a non-empty placeholder so the turn can finalize.
-        return new AIMessage(OBSIDIAN_COMPLETION_FALLBACK);
-      }
-
-      const summary = buildObsidianCompletionSummary(ctx.state.agentMessages);
-      if (summary) {
-        return new AIMessage(summary);
-      }
-
-      // Leave empty so the runtime can retry recovery while tool bodies are still raw.
-      return new AIMessage({ content: "" });
-    },
+    processResponse: (ctx, response) =>
+      processBlankToolLoopResponse(ctx, response, {
+        completionFallback: OBSIDIAN_COMPLETION_FALLBACK,
+        buildSummary: buildObsidianCompletionSummary,
+      }),
   };
 };

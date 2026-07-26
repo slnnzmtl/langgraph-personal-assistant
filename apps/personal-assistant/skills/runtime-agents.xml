@@ -15,7 +15,8 @@
    - Call `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`.
    - Use a concise kebab-case-friendly name and a routing description the supervisor can match later.
    - Only choose capability ids from the grantable catalog (`list_capabilities`).
-   - After create or enable, tell the user that the bot and scheduler processes must be restarted before the new agent can receive routed requests.
+   - After create or enable, tell the user the bot and scheduler pick up routing changes automatically within a few seconds (soft graph recompile).
+   - If the user will schedule cron jobs for the new agent id, note that the scheduler process may need a restart before cron targeting accepts the new id.
    - Configure skill auto-attachment triggers in each skill file's `<skill_attachments>` block with `module` on the root `<skill>` tag.
 
 4. UPDATE (edit, update, change, rewrite, enable, disable):

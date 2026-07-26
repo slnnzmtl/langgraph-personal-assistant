@@ -22,7 +22,7 @@ export const SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   },
   {
     id: SYSTEM_CONFIG_READ_CAPABILITY_ID,
-    description: "List cron jobs, runtime agents, skills, and available capabilities.",
+    description: "List cron jobs, runtime agent summaries, skills, and available capabilities (no full agent prompts).",
     requiresConfigurationRepos: true,
     configurable: true,
   },

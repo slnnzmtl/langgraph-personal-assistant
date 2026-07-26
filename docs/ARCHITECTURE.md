@@ -136,7 +136,7 @@ Startup and file-watcher reconciliation both register jobs through `RuntimeCronS
 
 Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
 
-**Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON but does not add new graph nodes until the process restarts.
+**Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` and recompile graph nodes automatically when the fingerprint changes (enabled agents, capabilities, step limits). A process restart is still required when adding a new **built-in domain** executor with custom policy hooks.
 
 Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
 
@@ -525,7 +525,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a custom runtime agent at runtime:**
 
-Use the configuration agent in Telegram — creates a `generic` executor agent with selected capabilities, persisted to `data/runtime-agents.json`. **Restart required** before the new agent appears as routable graph nodes.
+Use the configuration agent in Telegram — creates a `generic` executor agent with selected capabilities, persisted to `data/runtime-agents.json`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart. Cron jobs targeting a brand-new agent id may require a scheduler restart until cron-target allowlist refresh is implemented.
 
 ---
 

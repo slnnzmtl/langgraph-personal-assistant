@@ -4,6 +4,7 @@ export {
   deriveExecutors,
   deriveSkillModules,
   deriveCronTargetAgentIds,
+  deriveRuntimeAgentGraphFingerprint,
 } from "./framework/derive-agents.js";
 export { resolveAgentTools } from "./framework/resolve-agent-tools.js";
 export { createEmptySkillCatalog } from "./framework/defaults/empty-skill-catalog.js";
@@ -18,6 +19,9 @@ export {
   createSkillCrudTools,
   createSystemAgentPolicy,
   createSystemAgentNodeHooks,
+  CONFIGURATION_COMPLETION_FALLBACK,
+  buildConfigurationCompletionSummary,
+  mapConfigurationSubAgentResult,
   buildSkillModuleOwnerPattern,
   type SystemAgentOptions,
   type SystemAgentRepository,
@@ -143,6 +147,13 @@ export {
   type RuntimeAgentExecutionContext,
 } from "./core/execution/context.js";
 export { createRuntimeShellHooks } from "./core/execution/runtime-shell.js";
+export {
+  buildLatestToolCompletionSummary,
+  defaultConsumableToolBody,
+  hasCompletedAgentReply,
+  processBlankToolLoopResponse,
+  type ToolBodyPredicate,
+} from "./core/execution/tool-completion-summary.js";
 export type { RuntimeShellFormatters } from "./core/system-context.js";
 export type { SubAgentState, SubAgentStateUpdate } from "./core/execution/sub-agent-state.js";
 export { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "./core/execution/sub-agent-messages.js";

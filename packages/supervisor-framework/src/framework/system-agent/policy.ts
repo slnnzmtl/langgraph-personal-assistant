@@ -1,4 +1,4 @@
-import { AIMessage } from "@langchain/core/messages";
+import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import { configurationReposAvailable } from "../../capabilities/index.js";
@@ -8,16 +8,56 @@ import {
   type AgentPolicyToolkitOptions,
 } from "../../core/policies/create-agent-policy.js";
 import {
+  createMaxStepsExceededUpdate,
+} from "../../core/execution/create-sub-agent.js";
+import type { SubAgentState } from "../../core/execution/sub-agent-state.js";
+import {
   sanitizeResponseToolCalls,
   type RuntimeAgentNodeHooks,
 } from "../../core/execution/runtime-node.js";
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
-import { extractMessageTextContent } from "../../core/messages/message-content.js";
+import {
+  buildLatestToolCompletionSummary,
+  defaultConsumableToolBody,
+  hasCompletedAgentReply,
+  processBlankToolLoopResponse,
+} from "../../core/execution/tool-completion-summary.js";
+import type { AgentStateUpdate } from "../../core/state.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import { SYSTEM_AGENT_DISPLAY_NAME, SYSTEM_AGENT_ID } from "./definition.js";
 import type { SystemAgentOptions, SystemConfigDeps } from "./types.js";
+
+export const CONFIGURATION_COMPLETION_FALLBACK = "Completed the configuration task.";
+
+export const buildConfigurationCompletionSummary = (
+  messages: BaseMessage[],
+): string | undefined =>
+  buildLatestToolCompletionSummary(messages, defaultConsumableToolBody);
+
+export const mapConfigurationSubAgentResult = (
+  result: SubAgentState,
+  maxSteps: number,
+  name: string,
+): AgentStateUpdate => {
+  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
+
+  if (hasCompletedAgentReply(lastMessage, CONFIGURATION_COMPLETION_FALLBACK)) {
+    return { messages: [lastMessage] };
+  }
+
+  const summary = buildConfigurationCompletionSummary(result.agentMessages);
+  if (summary) {
+    return { messages: [new AIMessage(summary)] };
+  }
+
+  if (result.stepCount >= maxSteps) {
+    return createMaxStepsExceededUpdate(name, maxSteps);
+  }
+
+  return { messages: [new AIMessage({ content: "" })] };
+};
 
 export const createSystemAgentNodeHooks = (
   shellFormatters: RuntimeShellFormatters,
@@ -28,14 +68,10 @@ export const createSystemAgentNodeHooks = (
     ...baseHooks,
     processResponse: (ctx, response) => {
       const sanitized = sanitizeResponseToolCalls(response, ctx.allowedToolNames);
-      const responseText = extractMessageTextContent(sanitized.content).trim();
-      const toolCalls = sanitized.tool_calls ?? [];
-
-      if (toolCalls.length > 0 || responseText.length > 0) {
-        return sanitized;
-      }
-
-      return new AIMessage("Completed the configuration task.");
+      return processBlankToolLoopResponse(ctx, sanitized, {
+        completionFallback: CONFIGURATION_COMPLETION_FALLBACK,
+        buildSummary: buildConfigurationCompletionSummary,
+      });
     },
   };
 };
@@ -64,4 +100,6 @@ export const createSystemAgentPolicy = (options: SystemAgentPolicyOptions) =>
     logLabel: "configuration-system-prompt",
     buildErrorMessage: (error) =>
       `Unable to update configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+    mapResult: (result, { maxSteps, name }) =>
+      mapConfigurationSubAgentResult(result, maxSteps, name),
   }, options);

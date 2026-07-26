@@ -41,7 +41,7 @@ const bot = {
   telegram: {},
 } as unknown as Telegraf<Context>;
 
-const createAdapter = () => new TelegramAdapter(app as never, config, bot);
+const createAdapter = () => new TelegramAdapter({ getGraph: () => app as never }, config, bot);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -432,7 +432,7 @@ describe("TelegramAdapter", () => {
       setCurrentChatId: vi.fn(),
       sendFile: vi.fn(async () => undefined),
     };
-    const adapter = new TelegramAdapter(app as never, config, bot, mockFileSender);
+    const adapter = new TelegramAdapter({ getGraph: () => app as never }, config, bot, mockFileSender);
     const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 

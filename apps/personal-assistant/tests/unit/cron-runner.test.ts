@@ -20,7 +20,7 @@ const deferred = <T>() => {
 describe("createCronRunner", () => {
   it("creates a unique thread id for each scheduled run", async () => {
     const invoke = vi.fn().mockResolvedValue({ messages: [new AIMessage("Completed")] });
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
@@ -37,7 +37,7 @@ describe("createCronRunner", () => {
 
   it("sends a synthetic human message with the scheduled trigger content", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
@@ -51,7 +51,7 @@ describe("createCronRunner", () => {
 
   it("includes cron payload text in the llm input without changing the trigger line", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
     await runner.run({
       jobName: "finance-sync",
@@ -69,7 +69,7 @@ describe("createCronRunner", () => {
   it("skips overlapping runs for the same job while a prior run is still active", async () => {
     const inFlight = deferred<void>();
     const invoke = vi.fn().mockReturnValue(inFlight.promise);
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
 
     const firstRun = runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await Promise.resolve();
@@ -88,7 +88,7 @@ describe("createCronRunner", () => {
     const error = new Error("graph failed");
     const invoke = vi.fn().mockRejectedValue(error);
     const onError = vi.fn();
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError });
 
     await expect(
       runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger }),
@@ -113,7 +113,7 @@ describe("createCronRunner", () => {
       onError: vi.fn(async () => undefined),
     };
     const summaryModel = { invoke: vi.fn().mockResolvedValue(new AIMessage("Model summary")) };
-    const runner = createCronRunner({ graph: { invoke }, summaryModel: summaryModel as never, onError: vi.fn(), reporter });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: summaryModel as never, onError: vi.fn(), reporter });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
@@ -147,7 +147,7 @@ describe("createCronRunner", () => {
       .mockReturnValueOnce(inFlight.promise)
       .mockResolvedValueOnce({ messages: [new AIMessage("Completed")] });
     const runner = createCronRunner({
-      graph: { invoke },
+      getGraph: () => ({ invoke }),
       summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never,
       onError: vi.fn(),
     });
@@ -179,7 +179,7 @@ describe("cron summary context", () => {
       ],
     });
     const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("The routine note was updated."));
-    const runner = createCronRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
 
     await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 
@@ -199,7 +199,7 @@ describe("cron summary ordering", () => {
       .mockResolvedValueOnce({ messages: [new AIMessage({ content: "", tool_calls: [{ name: "read_markdown_file", args: {}, id: "1" }] })] })
       .mockResolvedValueOnce({ messages: [new AIMessage("Completed note update")] });
     const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("Updated the routine note."));
-    const runner = createCronRunner({ graph: { invoke: graphInvoke }, summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
 
     await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 

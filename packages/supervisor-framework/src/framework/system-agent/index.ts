@@ -27,6 +27,9 @@ export { createSkillCrudTools } from "./tools/skill-tools.js";
 export { buildSkillModuleOwnerPattern } from "./skill-patterns.js";
 
 export {
+  CONFIGURATION_COMPLETION_FALLBACK,
+  buildConfigurationCompletionSummary,
+  mapConfigurationSubAgentResult,
   createSystemAgentNodeHooks,
   createSystemAgentPolicy,
   type SystemAgentPolicyOptions,

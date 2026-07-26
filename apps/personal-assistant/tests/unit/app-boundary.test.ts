@@ -136,8 +136,11 @@ describe("app boundaries", () => {
     const writeTools = resolveCapabilities(["system-config"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
+    expect(readTools).toContain("list_runtime_agents");
+    expect(readTools).not.toContain("preview_runtime_agent");
     expect(readTools).not.toContain("create_cron_job");
     expect(writeTools).toContain("create_cron_job");
+    expect(writeTools).toContain("preview_runtime_agent");
   });
 
   it("marks configurable capabilities in the catalog", () => {

@@ -203,7 +203,7 @@ describe("createConfigurationTools", () => {
     });
 
     expect(created).toContain("daily-summary");
-    expect(created).toContain("Restart the bot and scheduler processes");
+    expect(created).toContain("pick up routing changes automatically");
 
     const listed = await listTool!.invoke({});
     expect(listed).toContain("Agent ID: daily-summary");

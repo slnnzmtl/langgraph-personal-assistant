@@ -12,6 +12,10 @@ import {
 } from "./media-group-buffer.js";
 import { GraphRecursionError } from "@langchain/langgraph";
 
+export type WorkflowGraphSource = {
+  getGraph(): CompiledSupervisorGraph;
+};
+
 export type ParseInboundResult = HumanMessage | "media-group-buffered" | null;
 
 export interface ITelegramAdapter {
@@ -165,7 +169,7 @@ export class TelegramAdapter implements ITelegramAdapter {
   private readonly mediaGroupBuffer: MediaGroupBuffer;
 
   constructor(
-    private readonly app: CompiledSupervisorGraph,
+    private readonly graphSource: WorkflowGraphSource,
     config: AppConfig,
     bot: Telegraf<Context>,
     private readonly fileSender?: IFileSender,
@@ -255,7 +259,7 @@ export class TelegramAdapter implements ITelegramAdapter {
   }
 
   async triggerWorkflow(message: HumanMessage, threadId: string): Promise<AgentState> {
-    return this.app.invoke(
+    return this.graphSource.getGraph().invoke(
       { messages: [message] },
       { configurable: { thread_id: threadId } },
     );

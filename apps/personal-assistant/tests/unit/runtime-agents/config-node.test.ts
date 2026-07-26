@@ -1,6 +1,11 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  buildConfigurationCompletionSummary,
+  CONFIGURATION_COMPLETION_FALLBACK,
+  mapConfigurationSubAgentResult,
+} from "@personal-assistant/supervisor-framework";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
@@ -335,5 +340,145 @@ describe("createConfigurationNode", () => {
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
     expect(result.agentMessages?.[0]?.content).toBe("Ready to edit.");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to a non-empty completion when the model returns blank text with no tools", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const invokeSpy = vi.fn(async () => new AIMessage(""));
+
+    const node = createConfigurationNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      createConfigurationTools(repository),
+      {
+        repository: repository as never,
+        definition: configurationDefinition,
+      },
+    );
+
+    const result = await node({
+      agentMessages: [new HumanMessage("list cron jobs")],
+      stepCount: 0,
+    });
+
+    expect(result.agentMessages?.[0]?.content).toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("summarizes list_cron_jobs results when the model returns a blank final response", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const cronListing = [
+      "Job name: sync-wise-transactions",
+      "Schedule: 0 7 * * *",
+      "Target route: finance",
+    ].join("\n");
+    const invokeSpy = vi.fn(async () => new AIMessage(""));
+
+    const node = createConfigurationNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      createConfigurationTools(repository),
+      {
+        repository: repository as never,
+        definition: configurationDefinition,
+      },
+    );
+
+    const result = await node({
+      agentMessages: [
+        new HumanMessage("list all cron jobs"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "list_cron_jobs",
+              args: {},
+              id: "list-1",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          name: "list_cron_jobs",
+          tool_call_id: "list-1",
+          content: cronListing,
+        }),
+      ],
+      stepCount: 1,
+    });
+
+    expect(result.agentMessages?.[0]?.content).toContain("Job name: sync-wise-transactions");
+    expect(result.agentMessages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildConfigurationCompletionSummary", () => {
+  it("returns the latest consumable tool body", () => {
+    const summary = buildConfigurationCompletionSummary([
+      new ToolMessage({
+        name: "list_skills",
+        tool_call_id: "list-1",
+        content: "cron: Manage cron jobs",
+      }),
+      new ToolMessage({
+        name: "list_cron_jobs",
+        tool_call_id: "list-2",
+        content: "Job name: daily-note\nSchedule: 0 6 * * *",
+      }),
+    ]);
+
+    expect(summary).toContain("Job name: daily-note");
+  });
+
+  it("ignores consumed markers and error bodies", () => {
+    const summary = buildConfigurationCompletionSummary([
+      new ToolMessage({
+        name: "read_skill",
+        tool_call_id: "read-1",
+        content: "[consumed: read_skill]",
+      }),
+      new ToolMessage({
+        name: "create_cron_job",
+        tool_call_id: "create-1",
+        content: "Error: job already exists",
+      }),
+      new ToolMessage({
+        name: "list_cron_jobs",
+        tool_call_id: "list-1",
+        content: "Job name: finance-sync",
+      }),
+    ]);
+
+    expect(summary).toBe("Job name: finance-sync");
+  });
+});
+
+describe("mapConfigurationSubAgentResult", () => {
+  it("salvages tool output when the last reply is the generic fallback", () => {
+    const cronListing = "Job name: finance-sync\nSchedule: 59 23 * * *";
+
+    const result = mapConfigurationSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("list cron jobs"),
+          new ToolMessage({
+            name: "list_cron_jobs",
+            tool_call_id: "list-1",
+            content: cronListing,
+          }),
+          new AIMessage(CONFIGURATION_COMPLETION_FALLBACK),
+        ],
+        stepCount: 2,
+      },
+      10,
+      "Configuration",
+    );
+
+    expect(result.messages?.[0]?.content).toBe(cronListing);
   });
 });

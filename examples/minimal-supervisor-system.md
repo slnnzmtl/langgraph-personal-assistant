@@ -217,6 +217,6 @@ Prefer `bootstrapSupervisorSystem()` for a second deployment — it standardizes
 3. Put tools behind capability IDs; grant them via `capabilityIds` on agent definitions.
 4. Supply your own LLM connector / models; do not import `src/connectors/` unless you want Gemini.
 5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/app/` + `runtime-agents/`.
-6. Restart (or recompile the graph) after adding agents — routing nodes are fixed at `createAssistant()` time.
+6. After adding agents, wait for soft graph recompile (file watcher, ~seconds) or restart the process — routing nodes are fixed until the next compile.
 
 For layer boundaries and the personal pack entrypoint, see [docs/FRAMEWORK.md](../docs/FRAMEWORK.md), [docs/PACK_DEVELOPMENT.md](../docs/PACK_DEVELOPMENT.md), and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).

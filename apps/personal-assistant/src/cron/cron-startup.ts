@@ -17,7 +17,7 @@ type GraphInvoker = {
 };
 
 export type StartCronOptions = {
-  graph: GraphInvoker;
+  getGraph: () => GraphInvoker;
   summaryModel: BaseChatModel;
   config: AppConfig;
   lazyCron: LazyCronService;
@@ -28,7 +28,7 @@ export type StartCronOptions = {
 };
 
 export const startCron = async (options: StartCronOptions): Promise<void> => {
-  const { graph, summaryModel, config, lazyCron, cronJobRepository, telegram } = options;
+  const { getGraph, summaryModel, config, lazyCron, cronJobRepository, telegram } = options;
 
   const onJobError = (error: unknown, context: CronJobRun): void => {
     console.error(`[Cron] Job failed: ${context.jobName}`, error);
@@ -40,7 +40,7 @@ export const startCron = async (options: StartCronOptions): Promise<void> => {
   });
 
   const cronRunner = createCronRunner({
-    graph,
+    getGraph,
     summaryModel,
     onError: onJobError,
     reporter: cronReporter,

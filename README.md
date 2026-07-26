@@ -77,7 +77,7 @@ Each `createAssistant()` call builds an isolated **execution context** with its 
 3. Domain behavior is injected through **hooks** in `apps/personal-assistant/src/app/policies/*-hooks.ts`.
 4. Control returns to the supervisor until it chooses `FINISH`.
 
-Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent requires a **process restart** before routing works.
+Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent is picked up automatically when the bot and scheduler recompile their graphs from `data/runtime-agents.json` (usually within a few seconds).
 
 | Component | Role |
 |---|---|
@@ -265,4 +265,4 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 ### Extending the assistant
 
 - **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/tools/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
-- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works. Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
+- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).

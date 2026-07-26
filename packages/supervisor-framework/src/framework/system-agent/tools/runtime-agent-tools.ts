@@ -38,15 +38,15 @@ const RuntimeAgentIdToolSchema = z.object({
 
 const ListRuntimeAgentsToolSchema = z.object({});
 
-export const RUNTIME_AGENT_RESTART_REQUIRED_NOTE =
-  "Restart the bot and scheduler processes before this agent can receive routed requests.";
+export const RUNTIME_AGENT_RELOAD_NOTE =
+  "The bot and scheduler will pick up routing changes automatically within a few seconds.";
 
 export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string => {
   const lines = [
     `Agent ID: ${agent.id}`,
     `Name: ${agent.name}`,
     `Description: ${agent.description}`,
-    `Executor: ${agent.executor}`,
+    ...(agent.executor !== "generic" ? [`Executor: ${agent.executor}`] : []),
     `Capabilities: ${resolveAgentCapabilityIds(agent).join(", ")}`,
     `Max Steps: ${agent.maxSteps}`,
     `Enabled: ${agent.enabled ? "true" : "false"}`,
@@ -125,7 +125,7 @@ export const createRuntimeAgentTools = (
     },
   );
 
-  const readTools = [listRuntimeAgents, previewRuntimeAgent, listCapabilities];
+  const readTools = [listRuntimeAgents, listCapabilities];
 
   if (!options.writeAccess) {
     return readTools;
@@ -145,7 +145,7 @@ export const createRuntimeAgentTools = (
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
 
-        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}\n\n${RUNTIME_AGENT_RESTART_REQUIRED_NOTE}`;
+        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}\n\n${RUNTIME_AGENT_RELOAD_NOTE}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -178,9 +178,9 @@ export const createRuntimeAgentTools = (
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
 
-        const restartNote = agent.enabled ? `\n\n${RUNTIME_AGENT_RESTART_REQUIRED_NOTE}` : "";
+        const reloadNote = agent.enabled ? `\n\n${RUNTIME_AGENT_RELOAD_NOTE}` : "";
 
-        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${restartNote}`;
+        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${reloadNote}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -213,5 +213,5 @@ export const createRuntimeAgentTools = (
     },
   );
 
-  return [...readTools, createRuntimeAgent, updateRuntimeAgent, deleteRuntimeAgent];
+  return [...readTools, previewRuntimeAgent, createRuntimeAgent, updateRuntimeAgent, deleteRuntimeAgent];
 };
