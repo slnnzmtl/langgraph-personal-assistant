@@ -145,3 +145,6 @@ export const createAgentPolicy = <
     });
   },
 });
+
+/** Alias for the default runtime agent loop builder (prepare → llm ⇄ tools → finalize). */
+export const createRuntimeAgentBundle = createAgentPolicy;

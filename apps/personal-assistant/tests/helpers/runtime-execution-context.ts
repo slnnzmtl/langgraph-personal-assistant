@@ -35,12 +35,12 @@ export const createAppRuntimeExecutionContext = (
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = createSkillCatalog();
   const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit({
+  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = createAppExecutionKit({
     skillCatalog,
     capabilityCatalog: createDefaultCapabilityCatalog(),
   });
   const policyRegistry = createPolicyRegistry([
-    ...policies,
+    runtimeAgentPolicy,
     createSystemAgentPolicy({
       capabilityCatalog,
       resolveTools,

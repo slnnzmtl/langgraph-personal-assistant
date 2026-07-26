@@ -2,7 +2,7 @@ import {
   createRuntimeShellHooks,
   resolveAgentSkillModule,
   type CapabilityCatalog,
-  type RuntimeAgentPolicy,
+  type RuntimeExecutionKit,
   type RuntimeShellFormatters,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
@@ -17,7 +17,7 @@ import {
   appendRuntimeExecutionModel,
 } from "../runtime-agents/skills/prompt-enrichment.js";
 import { createPersonalResolveTools } from "./composition/personal-resolve-tools.js";
-import { createGenericRuntimeAgentPolicy } from "./policies/generic-runtime-policy.js";
+import { createDefaultRuntimeAgentPolicy } from "./policies/generic-runtime-policy.js";
 
 export const createDefaultRuntimeShellFormatters = (
   skillCatalog?: SkillCatalog,
@@ -46,13 +46,14 @@ export const createDefaultRuntimeShellFormatters = (
   };
 };
 
-export type AppExecutionKitOptions = {
+export type AppRuntimeExecutionOptions = {
   capabilityCatalog: CapabilityCatalog;
   skillCatalog?: SkillCatalog | undefined;
   shellFormatters?: RuntimeShellFormatters;
 };
 
-export const createAppExecutionKit = (options: AppExecutionKitOptions) => {
+/** Builds the personal pack default runtime execution kit (one generic policy + shell formatters). */
+export const buildAppRuntimeExecution = (options: AppRuntimeExecutionOptions): RuntimeExecutionKit => {
   const shellFormatters = options.shellFormatters ?? createDefaultRuntimeShellFormatters(options.skillCatalog);
   const genericShellHooks = createRuntimeShellHooks(shellFormatters);
   const resolveTools = createPersonalResolveTools(options.capabilityCatalog);
@@ -64,9 +65,12 @@ export const createAppExecutionKit = (options: AppExecutionKitOptions) => {
     shellFormatters,
   };
 
-  const policies: RuntimeAgentPolicy[] = [
-    createGenericRuntimeAgentPolicy(genericShellHooks, policyOptions),
-  ];
-
-  return { loadPromptByKey: loadSystemPromptByKey, policies, shellFormatters };
+  return {
+    loadPromptByKey: loadSystemPromptByKey,
+    runtimeAgentPolicy: createDefaultRuntimeAgentPolicy(genericShellHooks, policyOptions),
+    shellFormatters,
+  };
 };
+
+/** @deprecated Use buildAppRuntimeExecution */
+export const createAppExecutionKit = buildAppRuntimeExecution;

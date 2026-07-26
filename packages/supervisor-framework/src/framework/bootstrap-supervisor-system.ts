@@ -77,7 +77,8 @@ export const bootstrapSupervisorSystem = async <
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
   const defaultModelKey = "generic";
   const models = pack.buildModels(pack.config, runtimeAgents);
-  const { loadPromptByKey, policies, shellFormatters } = pack.buildPolicyRegistry(runtimeAgents, skillCatalog);
+  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } =
+    pack.buildRuntimeExecution(runtimeAgents, skillCatalog);
 
   const resolveTools =
     pack.resolveRuntimeAgentTools?.(capabilityCatalog, skillCatalog)
@@ -86,7 +87,7 @@ export const bootstrapSupervisorSystem = async <
 
   const allPolicies = systemAgentEnabled
     ? [
-        ...policies,
+        runtimeAgentPolicy,
         createSystemAgentPolicy({
           capabilityCatalog,
           resolveTools: resolveTools as SystemAgentPolicyOptions["resolveTools"],
@@ -94,7 +95,7 @@ export const bootstrapSupervisorSystem = async <
           ...(shellFormatters ? { shellFormatters } : {}),
         }),
       ]
-    : policies;
+    : [runtimeAgentPolicy];
 
   const policyRegistry = createPolicyRegistry(allPolicies);
 

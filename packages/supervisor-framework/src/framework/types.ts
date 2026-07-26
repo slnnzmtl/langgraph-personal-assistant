@@ -66,6 +66,12 @@ export type SupervisorSystemContext<
   capabilityDeps: TDeps;
 };
 
+export type RuntimeExecutionKit = {
+  loadPromptByKey: LoadPromptByKey;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
+  shellFormatters?: RuntimeShellFormatters;
+};
+
 export type SupervisorPackBootstrap<
   TConfig extends SupervisorPaths,
   TDeps extends Record<string, unknown>,
@@ -86,14 +92,10 @@ export type SupervisorPackBootstrap<
     context: { adapters: TAdapters },
   ) => Promise<RuntimeAgentDefinition[]>;
   buildSkillCatalog?: (agents: RuntimeAgentDefinition[]) => SkillCatalog;
-  buildPolicyRegistry: (
+  buildRuntimeExecution: (
     agents: RuntimeAgentDefinition[],
     skillCatalog: SkillCatalog,
-  ) => {
-    loadPromptByKey: LoadPromptByKey;
-    policies: RuntimeAgentPolicy[];
-    shellFormatters?: RuntimeShellFormatters;
-  };
+  ) => RuntimeExecutionKit;
   /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
   systemAgent?: SystemAgentOptions | false;
   /** Primary catalog source; merged with system-config capabilities when systemAgent is enabled. */

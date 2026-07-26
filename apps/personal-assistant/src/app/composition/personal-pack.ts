@@ -126,15 +126,9 @@ export const buildPersonalSupervisorPack = ({
         supabaseAvailable: adapters.supabaseSession !== undefined,
       }),
     buildSkillCatalog: buildPersonalSkillCatalog,
-    buildPolicyRegistry: (agents, skillCatalog) => {
+    buildRuntimeExecution: (_agents, skillCatalog) => {
       const domainCapabilityCatalog = createCapabilityCatalog(personalCapabilityProviders);
-      const kit = createAppExecutionKit({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
-
-      return {
-        loadPromptByKey: kit.loadPromptByKey,
-        policies: kit.policies,
-        shellFormatters: kit.shellFormatters,
-      };
+      return createAppExecutionKit({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
     },
     buildModels: (appConfig, agents) =>
       buildModelRegistry(appConfig, deriveModelKeys(agents, "generic")),

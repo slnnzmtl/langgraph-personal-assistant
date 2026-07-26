@@ -18,14 +18,14 @@ Architecture note: the framework is a **workspace package** in this monorepo (no
 
 ## What you implement vs what the framework owns
 
-**Framework owns:** agent repository, policy registry API, supervisor routing, flat prepare / llm ⇄ tools / finalize loops, `bootstrapSupervisorSystem()`, `resolveAgentTools()`.
+**Framework owns:** agent repository, runtime execution kit API, supervisor routing, flat prepare / llm ⇄ tools / finalize loops, `bootstrapSupervisorSystem()`, `resolveAgentTools()`.
 
 **Your pack owns:**
 
 1. Agent definitions (JSON and/or seed)
 2. Capability catalog + tool factories
 3. LLM connector and chat models
-4. Policy registry (usually one `generic` executor)
+4. Default runtime policy (usually one `generic` executor via `buildRuntimeExecution`)
 5. Cron repository factory (or a stub)
 6. Skill catalog (or an empty stub)
 7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
@@ -107,7 +107,6 @@ const catalog = createCapabilityCatalog([
 import {
   bootstrapSupervisorSystem,
   createAgentPolicy,
-  createPolicyRegistry,
   resolveAgentTools,
 } from "@personal-assistant/supervisor-framework";
 
@@ -129,15 +128,13 @@ const context = await bootstrapSupervisorSystem({
     await repo.createAgent(researcher);
     return repo.listAgents();
   },
-  buildPolicyRegistry: () => ({
+  buildRuntimeExecution: () => ({
     loadPromptByKey: async (key) => `Prompt for ${key}`,
-    policyRegistry: createPolicyRegistry([
-      createAgentPolicy({
-        executor: "generic",
-        resolveTools: (definition, deps) =>
-          resolveAgentTools(definition, catalog, deps, {}),
-      }),
-    ]),
+    runtimeAgentPolicy: createAgentPolicy({
+      executor: "generic",
+      resolveTools: (definition, deps) =>
+        resolveAgentTools(definition, catalog, deps, {}),
+    }),
   }),
   buildModels: () => ({ generic: myChatModel }),
   buildCapabilityDeps: () => ({}),
@@ -213,7 +210,7 @@ Prefer `bootstrapSupervisorSystem()` for a second deployment — it standardizes
 ## Checklist for a second project
 
 1. Import from `@personal-assistant/supervisor-framework` (workspace package in this monorepo).
-2. Provide at least one enabled agent and a matching `executor` policy (usually `generic`).
+2. Provide at least one enabled agent. Product agents use the pack's default `runtimeAgentPolicy` (usually `generic`); only the virtual system agent uses `configuration`.
 3. Put tools behind capability IDs; grant them via `capabilityIds` on agent definitions.
 4. Supply your own LLM connector / models; do not import `src/connectors/` unless you want Gemini.
 5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/app/` + `runtime-agents/`.

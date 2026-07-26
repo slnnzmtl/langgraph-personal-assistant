@@ -50,15 +50,13 @@ describe("framework bootstrap", () => {
       supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
-      buildPolicyRegistry: () => ({
+      buildRuntimeExecution: () => ({
         loadPromptByKey: async () => "prompt",
-        policies: [
-          createAgentPolicy({
-            executor: "generic",
-            resolveTools: (definition, deps) =>
-              resolveAgentTools(definition, catalog, deps, {}),
-          }),
-        ],
+        runtimeAgentPolicy: createAgentPolicy({
+          executor: "generic",
+          resolveTools: (definition, deps) =>
+            resolveAgentTools(definition, catalog, deps, {}),
+        }),
       }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),

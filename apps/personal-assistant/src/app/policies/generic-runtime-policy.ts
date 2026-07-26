@@ -22,14 +22,18 @@ export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault";
 export const hasObsidianVaultCapability = (definition: RuntimeAgentDefinition): boolean =>
   resolveAgentCapabilityIds(definition).includes(OBSIDIAN_VAULT_CAPABILITY_ID);
 
-export type GenericRuntimePolicyOptions = AgentPolicyToolkitOptions & {
+export type DefaultRuntimePolicyOptions = AgentPolicyToolkitOptions & {
   capabilityCatalog: CapabilityCatalog;
   resolveTools: PersonalResolveTools;
 };
 
-export const createGenericRuntimeAgentPolicy = (
+/**
+ * Default runtime policy: shared shell hooks + app-local capability behaviors
+ * (e.g. obsidian-vault vault context and blank-reply recovery).
+ */
+export const createDefaultRuntimeAgentPolicy = (
   shellHooks: RuntimeAgentNodeHooks,
-  options: GenericRuntimePolicyOptions,
+  options: DefaultRuntimePolicyOptions,
 ): RuntimeAgentPolicy =>
   createAgentPolicy<CapabilityDeps>({
     executor: "generic",
@@ -76,3 +80,6 @@ export const createGenericRuntimeAgentPolicy = (
         ? `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`
         : `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
   }, options);
+
+/** @deprecated Use createDefaultRuntimeAgentPolicy */
+export const createGenericRuntimeAgentPolicy = createDefaultRuntimeAgentPolicy;

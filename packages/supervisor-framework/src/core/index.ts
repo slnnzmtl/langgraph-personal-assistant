@@ -10,10 +10,16 @@ export {
 } from "./agents/resolve-system-prompt.js";
 export {
   createAgentPolicy,
+  createRuntimeAgentBundle,
   type AgentPolicyCapabilityDeps,
   type AgentPolicyToolkitOptions,
   type CreateAgentPolicyConfig,
 } from "./policies/create-agent-policy.js";
+export {
+  DEFAULT_RUNTIME_EXECUTOR,
+  SYSTEM_AGENT_EXECUTOR,
+  resolveRuntimeAgentPolicyExecutor,
+} from "./policies/resolve-runtime-agent-policy.js";
 export { createPolicyRegistry, type PolicyRegistry } from "./policies/registry.js";
 export {
   createRuntimeAgentNode,

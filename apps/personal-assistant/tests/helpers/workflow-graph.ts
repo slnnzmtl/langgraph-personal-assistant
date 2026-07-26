@@ -71,12 +71,12 @@ export const createTestWorkflowGraph = ({
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
   const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, policies, shellFormatters } = createAppExecutionKit({
+  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = createAppExecutionKit({
     skillCatalog,
     capabilityCatalog,
   });
   const policyRegistry = createPolicyRegistry([
-    ...policies,
+    runtimeAgentPolicy,
     createSystemAgentPolicy({
       capabilityCatalog,
       resolveTools,

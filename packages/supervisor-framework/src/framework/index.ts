@@ -14,15 +14,22 @@ export type {
   SupervisorSystemContext,
   CompiledSupervisorGraph,
   CronJobRepository,
+  RuntimeExecutionKit,
 } from "./types.js";
 
 export { createAssistant, type AssistantConfig } from "../core/create-assistant.js";
 export {
   createAgentPolicy,
+  createRuntimeAgentBundle,
   type AgentPolicyCapabilityDeps,
   type AgentPolicyToolkitOptions,
   type CreateAgentPolicyConfig,
 } from "../core/policies/create-agent-policy.js";
+export {
+  DEFAULT_RUNTIME_EXECUTOR,
+  SYSTEM_AGENT_EXECUTOR,
+  resolveRuntimeAgentPolicyExecutor,
+} from "../core/policies/resolve-runtime-agent-policy.js";
 export { createPolicyRegistry, type PolicyRegistry } from "../core/policies/registry.js";
 export {
   createRuntimeAgentRepository,
