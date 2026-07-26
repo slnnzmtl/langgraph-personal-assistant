@@ -74,7 +74,7 @@ Each `createAssistant()` call builds an isolated **execution context** with its 
 
 1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or a runtime agent id.
 2. **Prepare** scopes recent parent messages into `agentMessages`; **llm ⇄ tools** runs the specialist loop; **finalize** merges the final reply back into parent `messages`.
-3. Domain behavior is injected through **hooks** in `apps/personal-assistant/src/app/policies/*-hooks.ts`.
+3. Capability-specific behavior is composed in `apps/personal-assistant/src/app/policies/` when an agent grants a capability that needs LLM hooks (e.g. `obsidian-vault`).
 4. Control returns to the supervisor until it chooses `FINISH`.
 
 Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent is picked up automatically when the bot and scheduler recompile their graphs from `data/runtime-agents.json` (usually within a few seconds).
@@ -83,10 +83,10 @@ Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom id
 |---|---|
 | **Supervisor** | Intent routing via structured JSON output (`FINISH` or a wired runtime agent id) |
 | **Runtime agent loop** | Flat prepare / llm ⇄ tools / finalize nodes per enabled agent |
-| **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
-| **Obsidian policy** | Markdown vault read/write with multi-step tool loops |
-| **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
-| **Generic policy** | User-created runtime agents with grantable capabilities |
+| **Finance agent** | `generic` + `finance-domain` — expense tracking, Wise sync, SQL via Supabase MCP |
+| **Obsidian agent** | `generic` + `obsidian-vault` — markdown vault read/write with multi-step tool loops |
+| **Configuration agent** | Virtual system admin — cron jobs, runtime-agent CRUD, skill CRUD |
+| **Custom agents** | `generic` + grantable capabilities (prompt, skills, tools from catalog) |
 | **Skills** | Reusable step-by-step playbooks in flat `skills/` with a `module` attribute, injected into agent prompts |
 | **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
 
@@ -264,5 +264,5 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/tools/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
-- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
+- **New specialist (default):** create via the configuration agent with a prompt, optional skills, and grantable `capabilityIds`. Routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
+- **New tool domain (rare):** add a capability descriptor + provider in `builtin-capabilities.ts`, implement tools under `runtime-agents/tools/`, and compose any needed LLM hooks as app-local capability behavior on the generic policy in `src/app/policies/`. Reserve `DOMAIN_POLICY_FACTORIES` only when behavior cannot be expressed that way.

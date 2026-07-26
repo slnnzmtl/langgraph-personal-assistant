@@ -95,16 +95,18 @@ Definitions are hot on disk; **execution topology recompiles when the graph fing
 
 ---
 
-## Beyond chat: custom domain agents
+## Beyond chat: new tool domains (rare)
 
-Chat create cannot register a new executor, policy hooks, or tool implementations. For a new domain specialist:
+Most specialists are created via chat (`generic` + grantable capabilities). Use this path only when you need **new tools** or capability-specific LLM hooks that are not already in the catalog.
 
-1. Persist or seed a `RuntimeAgentDefinition`.
-2. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
-3. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
-4. Add policy + hooks under `src/app/policies/`; register in `DOMAIN_POLICY_FACTORIES` in `src/app/register-defaults.ts`.
-5. Add a prompt under `prompts/` (optional `promptSourceKey`).
-6. Restart the bot and scheduler once so `createAssistant()` wires the nodes and the scheduler cron allowlist includes the new id.
+1. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
+2. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
+3. If the domain needs LLM hooks (vault context, blank-reply recovery, etc.), add app-local capability behavior under `src/app/policies/` and wire it onto the generic policy when that capability is granted — see `generic-runtime-policy.ts` for the Obsidian pattern.
+4. Seed or persist a `RuntimeAgentDefinition` with `executor: "generic"` and the new `capabilityIds`.
+5. Add a prompt under `agents/` (optional `promptSourceKey`).
+6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).
+
+Register in `DOMAIN_POLICY_FACTORIES` only when hooks cannot live as app-local capability behavior on generic.
 
 See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
 

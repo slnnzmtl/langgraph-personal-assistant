@@ -512,16 +512,15 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 ## Extension Guide (Quick Reference)
 
-**Add a built-in domain agent:**
+**Add a new tool domain (rare — most agents use chat create):**
 
-1. Enable the framework system admin via `systemAgent` on the personal pack (`personal-pack.ts`). Domain agents remain persisted in JSON.
-2. Implement tools under `runtime-agents/tools/`
-3. Add policy + hooks under `app/policies/`
-4. Register factory in `DOMAIN_POLICY_FACTORIES` in `register-defaults.ts`
-5. Add prompt file under `agents/`
-6. Restart the process so `createAssistant()` recompiles graph nodes for the new agent
+1. Implement tools under `runtime-agents/tools/`
+2. Add capability descriptor + provider in `runtime-agents/builtin-capabilities.ts`
+3. Compose LLM hook deltas under `app/policies/` and wire onto generic when the capability is granted (see `generic-runtime-policy.ts`)
+4. Seed a persisted agent row: `executor: "generic"`, matching `capabilityIds`, prompt under `agents/`
+5. Restart scheduler once if cron jobs will target the new agent id
 
-**Add a custom runtime agent at runtime:**
+**Add a custom runtime agent at runtime (default):**
 
 Use the configuration agent in Telegram — creates a `generic` executor agent with selected capabilities, persisted to `data/runtime-agents.json`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart. Cron jobs targeting a brand-new agent id may require a scheduler restart until cron-target allowlist refresh is implemented.
 
