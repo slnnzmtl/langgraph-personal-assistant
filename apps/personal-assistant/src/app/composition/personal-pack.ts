@@ -5,10 +5,10 @@ import type { RuntimeCronService } from "../../cron/types.js";
 import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
 import {
   createRuntimeAgentRepository,
-  createCapabilityCatalog,
   deriveModelKeys,
   deriveSkillModules,
   DEFAULT_PRODUCT_EXECUTOR,
+  mergeCapabilityCatalogs,
   SYSTEM_AGENT_ID,
   type CapabilityCatalog,
   type ILLMConnector,
@@ -125,8 +125,8 @@ export const buildPersonalSupervisorPack = ({
       }),
     buildSkillCatalog: buildPersonalSkillCatalog,
     buildRuntimeExecution: (_agents, skillCatalog) => {
-      const domainCapabilityCatalog = createCapabilityCatalog(personalCapabilityProviders);
-      return buildAppRuntimeExecution({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
+      const capabilityCatalog = mergeCapabilityCatalogs(personalCapabilityProviders, true);
+      return buildAppRuntimeExecution({ skillCatalog, capabilityCatalog });
     },
     buildModels: (appConfig, agents) =>
       buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_PRODUCT_EXECUTOR)),
