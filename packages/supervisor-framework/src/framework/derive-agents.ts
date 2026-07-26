@@ -1,5 +1,6 @@
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import { resolveAgentCapabilityIds, resolveAgentModelKey } from "../core/types/agent.js";
+import { resolveRuntimeAgentPolicyExecutor } from "../core/policies/resolve-runtime-agent-policy.js";
 
 export const deriveModelKeys = (
   agents: RuntimeAgentDefinition[],
@@ -15,7 +16,7 @@ export const deriveModelKeys = (
 };
 
 export const deriveExecutors = (agents: RuntimeAgentDefinition[]): Set<string> =>
-  new Set(agents.map((agent) => agent.executor ?? "generic"));
+  new Set(agents.map((agent) => resolveRuntimeAgentPolicyExecutor(agent)));
 
 export const deriveSkillModules = (agents: RuntimeAgentDefinition[]): string[] =>
   [...new Set(agents.map((agent) => agent.promptSourceKey ?? agent.id))];
@@ -23,13 +24,14 @@ export const deriveSkillModules = (agents: RuntimeAgentDefinition[]): string[] =
 export const deriveCronTargetAgentIds = (agents: RuntimeAgentDefinition[]): string[] =>
   agents.filter((agent) => agent.enabled).map((agent) => agent.id);
 
-/** Fingerprint of graph wiring inputs: enabled agents, executors, steps, and capabilities. */
+/** Fingerprint of graph wiring inputs: enabled agents, model keys, steps, and capabilities. */
 export const deriveRuntimeAgentGraphFingerprint = (agents: RuntimeAgentDefinition[]): string =>
   agents
     .filter((agent) => agent.enabled)
     .map((agent) => {
       const capabilities = resolveAgentCapabilityIds(agent).slice().sort().join("+");
-      return `${agent.id}:${agent.executor ?? "generic"}:${agent.maxSteps}:${capabilities}`;
+      const modelKey = resolveAgentModelKey(agent);
+      return `${agent.id}:${modelKey}:${agent.maxSteps}:${capabilities}`;
     })
     .sort()
     .join("|");

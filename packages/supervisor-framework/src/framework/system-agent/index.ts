@@ -27,6 +27,13 @@ export { createSkillCrudTools } from "./tools/skill-tools.js";
 export { buildSkillModuleOwnerPattern } from "./skill-patterns.js";
 
 export {
+  hasSystemConfigWriteCapability,
+  resolveSystemConfigDeps,
+  SYSTEM_CONFIG_CAPABILITY_ID,
+  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
+} from "./system-config-hooks.js";
+
+export {
   CONFIGURATION_COMPLETION_FALLBACK,
   buildConfigurationCompletionSummary,
   mapConfigurationSubAgentResult,

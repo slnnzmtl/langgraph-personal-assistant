@@ -1,7 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import { configurationReposAvailable } from "../../capabilities/index.js";
 import type { CapabilityCatalog } from "../../capabilities/index.js";
 import {
   createAgentPolicy,
@@ -25,8 +24,11 @@ import {
 import type { AgentStateUpdate } from "../../core/state.js";
 import type { RuntimeShellFormatters } from "../../core/system-context.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
-import type { RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import { SYSTEM_AGENT_DISPLAY_NAME, SYSTEM_AGENT_ID } from "./definition.js";
+import {
+  resolveSystemConfigDeps,
+  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
+} from "./system-config-hooks.js";
 import type { SystemAgentOptions, SystemConfigDeps } from "./types.js";
 
 export const CONFIGURATION_COMPLETION_FALLBACK = "Completed the configuration task.";
@@ -86,14 +88,13 @@ export type SystemAgentPolicyOptions = AgentPolicyToolkitOptions & {
   systemAgent: SystemAgentOptions;
 };
 
+/** @deprecated Configuration behavior is composed on the default runtime policy (executor: generic). */
 export const createSystemAgentPolicy = (options: SystemAgentPolicyOptions) =>
   createAgentPolicy<SystemConfigDeps>({
     executor: SYSTEM_AGENT_ID,
     displayName: SYSTEM_AGENT_DISPLAY_NAME,
-    resolveDeps: (context: RuntimeAgentExecutionContext<SystemConfigDeps>) =>
-      configurationReposAvailable(context.capabilityDeps) ? {} : null,
-    unavailableMessage: () =>
-      "Configuration is unavailable because cron and runtime agent storage are not configured.",
+    resolveDeps: resolveSystemConfigDeps,
+    unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
       options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
     createHooks: () => createSystemAgentNodeHooks(options.shellFormatters!),

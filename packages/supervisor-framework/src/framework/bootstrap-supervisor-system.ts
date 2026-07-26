@@ -7,11 +7,8 @@ import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
 import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
-import { resolveAgentTools } from "./resolve-agent-tools.js";
 import {
-  createSystemAgentPolicy,
   mergeCapabilityCatalogs,
-  type SystemAgentPolicyOptions,
   type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
@@ -77,27 +74,10 @@ export const bootstrapSupervisorSystem = async <
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
   const defaultModelKey = "generic";
   const models = pack.buildModels(pack.config, runtimeAgents);
-  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } =
+  const { loadPromptByKey, runtimeAgentPolicy } =
     pack.buildRuntimeExecution(runtimeAgents, skillCatalog);
 
-  const resolveTools =
-    pack.resolveRuntimeAgentTools?.(capabilityCatalog, skillCatalog)
-    ?? ((definition, deps, resolveOptions) =>
-      resolveAgentTools(definition, capabilityCatalog, deps, {}, resolveOptions));
-
-  const allPolicies = systemAgentEnabled
-    ? [
-        runtimeAgentPolicy,
-        createSystemAgentPolicy({
-          capabilityCatalog,
-          resolveTools: resolveTools as SystemAgentPolicyOptions["resolveTools"],
-          systemAgent: pack.systemAgent as SystemAgentOptions,
-          ...(shellFormatters ? { shellFormatters } : {}),
-        }),
-      ]
-    : [runtimeAgentPolicy];
-
-  const policyRegistry = createPolicyRegistry(allPolicies);
+  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
 
   const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
   const messageHistoryMaxTokens =

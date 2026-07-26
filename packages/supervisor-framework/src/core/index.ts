@@ -34,6 +34,8 @@ export type { PolicyContext } from "./types/policy-context.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,
+  CONFIGURATION_AGENT_ID,
+  DEFAULT_PRODUCT_EXECUTOR,
   RuntimeAgentDefinitionSchema,
   CreateRuntimeAgentInputSchema,
   UpdateRuntimeAgentInputSchema,

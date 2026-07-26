@@ -136,7 +136,7 @@ Startup and file-watcher reconciliation both register jobs through `RuntimeCronS
 
 Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
 
-**Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` and recompile graph nodes automatically when the fingerprint changes (enabled agents, capabilities, step limits). A process restart is still required when adding a new **built-in domain** executor with custom policy hooks.
+**Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` and recompile graph nodes automatically when the fingerprint changes (enabled agents, model keys, capabilities, step limits).
 
 Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
 
@@ -327,13 +327,13 @@ The **configuration** system admin agent is virtual: defined via the framework `
 | `finance` | `generic` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `generic` | 12 | `obsidian-vault` | Vault path |
 
-All persisted specialists use `executor: "generic"`. Tools and optional LLM hooks come from grantable **capabilities** (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Agents with `obsidian-vault` inherit Obsidian vault UX (directory tree, routine hints, blank-reply recovery) via app-local hooks composed on the generic policy shell.
+All persisted specialists use `executor: "generic"` and optionally `modelKey` for dedicated chat models. Tools and optional LLM hooks come from grantable **capabilities** (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Agents with `obsidian-vault` inherit Obsidian vault UX (directory tree, routine hints, blank-reply recovery) via app-local hooks composed on the generic policy shell.
 
 ---
 
 ## Policy Registry Pattern
 
-At bootstrap the app pack registers one **generic** runtime policy via `createAppExecutionKit()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery) live in `src/app/policies/` and compose when matching capabilities are granted. The **configuration** system admin policy is registered separately by `bootstrapSupervisorSystem()` when the pack sets `systemAgent`.
+At bootstrap the app pack registers one **default** runtime policy via `createAppExecutionKit()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery; configuration unavailable-gate and completion summaries) live in `src/app/policies/` (and framework `system-config-hooks`) and compose when matching capabilities are granted. `bootstrapSupervisorSystem()` no longer registers a second policy when `systemAgent` is enabled — the virtual configuration agent uses the same builder.
 
 Each policy implements:
 

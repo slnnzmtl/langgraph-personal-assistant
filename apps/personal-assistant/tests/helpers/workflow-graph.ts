@@ -1,7 +1,6 @@
 import {
   createAssistant,
   createPolicyRegistry,
-  createSystemAgentPolicy,
   deriveCronTargetAgentIds,
   deriveModelKeys,
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
@@ -75,17 +74,7 @@ export const createTestWorkflowGraph = ({
     skillCatalog,
     capabilityCatalog,
   });
-  const policyRegistry = createPolicyRegistry([
-    runtimeAgentPolicy,
-    createSystemAgentPolicy({
-      capabilityCatalog,
-      resolveTools,
-      systemAgent: {
-        modelKey: "configuration",
-      },
-      shellFormatters,
-    }),
-  ]);
+  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const resolvedRuntimeAgentRepository =
     runtimeAgentRepository ?? createRuntimeAgentRepositoryFake(runtimeAgents);

@@ -2,6 +2,11 @@ import { AIMessage } from "@langchain/core/messages";
 
 import {
   createAgentPolicy,
+  createSystemAgentNodeHooks,
+  mapConfigurationSubAgentResult,
+  resolveSystemConfigDeps,
+  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
+  hasSystemConfigWriteCapability,
   resolveAgentCapabilityIds,
   type AgentPolicyToolkitOptions,
   type RuntimeAgentDefinition,
@@ -37,9 +42,19 @@ export const createDefaultRuntimeAgentPolicy = (
 ): RuntimeAgentPolicy =>
   createAgentPolicy<CapabilityDeps>({
     executor: "generic",
+    resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
+    unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
       options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
     createHooks: (deps, policyOptions) => {
+      if (hasSystemConfigWriteCapability(deps.definition)) {
+        if (!policyOptions.shellFormatters) {
+          throw new Error("System configuration hooks require runtime shell formatters.");
+        }
+
+        return createSystemAgentNodeHooks(policyOptions.shellFormatters);
+      }
+
       if (!hasObsidianVaultCapability(deps.definition)) {
         return shellHooks;
       }
@@ -63,22 +78,37 @@ export const createDefaultRuntimeAgentPolicy = (
       hasObsidianVaultCapability(ctx.definition)
         ? selectObsidianToolsForTurn(ctx, tools)
         : tools,
-    resolveMapResult: (definition) =>
-      hasObsidianVaultCapability(definition)
-        ? (result, { maxSteps }) =>
+    resolveMapResult: (definition) => {
+      if (hasSystemConfigWriteCapability(definition)) {
+        return (result, { maxSteps, name }) =>
+          mapConfigurationSubAgentResult(result, maxSteps, name);
+      }
+
+      if (hasObsidianVaultCapability(definition)) {
+        return (result, { maxSteps }) =>
           mapObsidianSubAgentResult(result, maxSteps, () => ({
             messages: [
               new AIMessage(
                 `Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`,
               ),
             ],
-          }))
-        : undefined,
-    logLabel: "generic-runtime-agent",
-    buildErrorMessage: (error, definition) =>
-      hasObsidianVaultCapability(definition)
-        ? `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`
-        : `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
+          }));
+      }
+
+      return undefined;
+    },
+    logLabel: "runtime-agent",
+    buildErrorMessage: (error, definition) => {
+      if (hasSystemConfigWriteCapability(definition)) {
+        return `Unable to update configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`;
+      }
+
+      if (hasObsidianVaultCapability(definition)) {
+        return `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`;
+      }
+
+      return `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`;
+    },
   }, options);
 
 /** @deprecated Use createDefaultRuntimeAgentPolicy */

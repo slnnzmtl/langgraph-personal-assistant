@@ -16,7 +16,7 @@ Creation goes through the **Configuration** agent — there is no separate UI or
    - Calls `list_capabilities` when capability choice is unclear
    - Calls `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`
 4. The tool persists the agent and notes that routing picks up automatically within a few seconds.
-5. You get a field-per-line summary (`Agent ID`, `Name`, `Description`, `Capabilities`, `Max Steps`, `Enabled`, `Status`). Chat-created agents omit `Executor` (always `generic`).
+5. You get a field-per-line summary (`Agent ID`, `Name`, `Description`, optional `Model`, `Capabilities`, `Max Steps`, `Enabled`, `Status`). Chat-created agents use the default model unless you seed a custom `modelKey`.
 
 ### What chat create stores
 
@@ -25,7 +25,8 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 | `id` | Slug from `name` (e.g. `Daily Summary` → `daily-summary`) |
 | `name`, `description`, `systemPrompt` | Tool args |
 | `capabilityIds` | Allowlisted catalog only |
-| `executor` | Always `"generic"` for chat-created agents |
+| `executor` | Always `"generic"` internally for product agents (legacy values are normalized on load) |
+| `modelKey` | Optional; selects which registered chat model to use (built-in specialists use domain keys like `finance` / `obsidian`) |
 | `builtin` | Always `false` |
 | `maxSteps` | Optional, default `8` (1–20) |
 | `enabled` | Optional, default `true` |

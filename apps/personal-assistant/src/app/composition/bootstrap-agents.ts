@@ -9,26 +9,40 @@ import { OBSIDIAN_VAULT_CAPABILITY_ID } from "../policies/generic-runtime-policy
 /** @deprecated Use SYSTEM_AGENT_ID from @personal-assistant/supervisor-framework */
 export const CONFIGURATOR_AGENT_ID = SYSTEM_AGENT_ID;
 
-const LEGACY_CAPABILITY_EXECUTORS: Record<string, string> = {
+const LEGACY_DOMAIN_EXECUTORS: Record<string, string> = {
   obsidian: OBSIDIAN_VAULT_CAPABILITY_ID,
+  finance: "finance-domain",
 };
 
-/** Map legacy domain executors to generic when the matching capability is already granted. */
+const KNOWN_LEGACY_MODEL_KEYS = new Set(["finance", "obsidian"]);
+
+/** Coerce legacy domain executors to generic and preserve model selection via modelKey. */
 export const normalizeLegacyExecutors = (
   agents: RuntimeAgentDefinition[],
 ): RuntimeAgentDefinition[] =>
   agents.map((agent) => {
+    if (agent.id === SYSTEM_AGENT_ID) {
+      return agent;
+    }
+
     const executor = agent.executor ?? "generic";
     if (executor === "generic") {
       return agent;
     }
 
-    const capabilityId = LEGACY_CAPABILITY_EXECUTORS[executor];
-    if (capabilityId && resolveAgentCapabilityIds(agent).includes(capabilityId)) {
-      return { ...agent, executor: "generic" };
+    const capabilityId = LEGACY_DOMAIN_EXECUTORS[executor];
+    const hasMatchingCapability =
+      capabilityId !== undefined && resolveAgentCapabilityIds(agent).includes(capabilityId);
+
+    if (hasMatchingCapability || KNOWN_LEGACY_MODEL_KEYS.has(executor)) {
+      return {
+        ...agent,
+        executor: "generic",
+        modelKey: agent.modelKey ?? executor,
+      };
     }
 
-    return agent;
+    return { ...agent, executor: "generic" };
   });
 
 type AppModelConfigKey = keyof Pick<

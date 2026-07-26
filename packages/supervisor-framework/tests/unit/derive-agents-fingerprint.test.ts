@@ -40,6 +40,13 @@ describe("deriveRuntimeAgentGraphFingerprint", () => {
     expect(base).not.toBe(newSteps);
   });
 
+  it("changes when model key changes", () => {
+    const base = deriveRuntimeAgentGraphFingerprint([agent()]);
+    const newModelKey = deriveRuntimeAgentGraphFingerprint([agent({ modelKey: "finance" })]);
+
+    expect(base).not.toBe(newModelKey);
+  });
+
   it("ignores disabled agents", () => {
     const enabledOnly = deriveRuntimeAgentGraphFingerprint([agent()]);
     const withDisabled = deriveRuntimeAgentGraphFingerprint([

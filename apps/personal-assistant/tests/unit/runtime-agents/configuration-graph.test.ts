@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { createSystemAgentPolicy } from "@personal-assistant/supervisor-framework";
+import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/generic-runtime-policy.js";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
 import { createConfigurationNode } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
@@ -14,12 +14,11 @@ import {
 } from "../../helpers/fakes.js";
 
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import { mergeCapabilityCatalogs } from "@personal-assistant/supervisor-framework";
+import { mergeCapabilityCatalogs, createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityProviders } from "../../../src/runtime-agents/builtin-capabilities.js";
 
 const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
-const configurationShellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");
 
@@ -65,16 +64,15 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const bundle = createSystemAgentPolicy({
-      shellFormatters: configurationShellFormatters,
+    const shellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
+    const shellHooks = createRuntimeShellHooks(shellFormatters);
+    const policy = createDefaultRuntimeAgentPolicy(shellHooks, {
+      shellFormatters,
       capabilityCatalog,
       resolveTools,
-      systemAgent: {
-        modelKey: "configuration",
-      },
       skillCatalog: createSkillCatalog(),
-    })
-      .createGraphBundle(context, configurationDefinition);
+    });
+    const bundle = policy.createGraphBundle(context, configurationDefinition);
     const prepared = bundle.prepare({
       messages: [new HumanMessage("set up a cron job for daily notes")],
       context: {},

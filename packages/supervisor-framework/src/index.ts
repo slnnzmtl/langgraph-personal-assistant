@@ -18,6 +18,9 @@ export {
   createSystemConfigTools,
   createSkillCrudTools,
   createSystemAgentPolicy,
+  hasSystemConfigWriteCapability,
+  resolveSystemConfigDeps,
+  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
   createSystemAgentNodeHooks,
   CONFIGURATION_COMPLETION_FALLBACK,
   buildConfigurationCompletionSummary,
@@ -67,6 +70,8 @@ export type { PolicyContext } from "./core/types/policy-context.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,
+  CONFIGURATION_AGENT_ID,
+  DEFAULT_PRODUCT_EXECUTOR,
   RuntimeAgentDefinitionSchema,
   CreateRuntimeAgentInputSchema,
   UpdateRuntimeAgentInputSchema,

@@ -97,6 +97,22 @@ describe("createRuntimeAgentRepository", () => {
     expect(agents.map((agent) => agent.id).sort()).toEqual(["agent-one", "agent-two"]);
   });
 
+  it("rejects non-generic executor updates for product agents", async () => {
+    const rootDir = await createTempRoot();
+    const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
+
+    const created = await repository.createAgent({
+      name: "Daily Summary",
+      description: "Summarize the user's day.",
+      systemPrompt: "You summarize days.",
+      capabilityIds: ["none"],
+    });
+
+    await expect(
+      repository.updateAgent(created.id, { executor: "finance" }),
+    ).rejects.toThrow(/generic executor/i);
+  });
+
   it("rejects invalid persisted runtime agent data", async () => {
     const rootDir = await createTempRoot();
     const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");

@@ -44,17 +44,29 @@ describe("normalizeLegacyExecutors", () => {
     expect(normalized?.executor).toBe("generic");
   });
 
-  it("leaves unrelated executors unchanged", () => {
+  it("coerces unknown legacy executors to generic without inferring modelKey", () => {
     const agent: RuntimeAgentDefinition = {
       ...buildLocalModuleAgents()[0]!,
       id: "custom",
       executor: "custom-domain",
       capabilityIds: ["none"],
+      modelKey: undefined,
     };
 
     const [normalized] = normalizeLegacyExecutors([agent]);
 
-    expect(normalized?.executor).toBe("custom-domain");
+    expect(normalized?.executor).toBe("generic");
+    expect(normalized?.modelKey).toBeUndefined();
+  });
+
+  it("maps legacy finance executor to generic and preserves modelKey", () => {
+    const finance = buildLocalModuleAgents().find((agent) => agent.id === "finance")!;
+    const legacyAgent: RuntimeAgentDefinition = { ...finance, executor: "finance", modelKey: undefined };
+
+    const [normalized] = normalizeLegacyExecutors([legacyAgent]);
+
+    expect(normalized?.executor).toBe("generic");
+    expect(normalized?.modelKey).toBe("finance");
   });
 });
 

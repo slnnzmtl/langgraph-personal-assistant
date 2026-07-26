@@ -46,7 +46,7 @@ export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string
     `Agent ID: ${agent.id}`,
     `Name: ${agent.name}`,
     `Description: ${agent.description}`,
-    ...(agent.executor !== "generic" ? [`Executor: ${agent.executor}`] : []),
+    ...(agent.modelKey ? [`Model: ${agent.modelKey}`] : []),
     `Capabilities: ${resolveAgentCapabilityIds(agent).join(", ")}`,
     `Max Steps: ${agent.maxSteps}`,
     `Enabled: ${agent.enabled ? "true" : "false"}`,

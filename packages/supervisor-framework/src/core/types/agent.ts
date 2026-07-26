@@ -4,6 +4,15 @@ export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
 export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
+/** Virtual system admin agent id — the only non-generic runtime identity. */
+export const CONFIGURATION_AGENT_ID = "configuration" as const;
+
+/** Executor persisted on all product (non-configuration) runtime agents. */
+export const DEFAULT_PRODUCT_EXECUTOR = "generic" as const;
+
+/** Legacy executor values that implied a dedicated model before generic migration. */
+const LEGACY_MODEL_EXECUTOR_KEYS = new Set(["finance", "obsidian"]);
+
 const CapabilityIdListSchema = z.array(z.string().min(1)).min(1);
 
 export type RuntimeAgentDefinition = {
@@ -40,11 +49,28 @@ const RuntimeAgentDefinitionBaseSchema = z.object({
 
 export const normalizeRuntimeAgentDefinition = (
   input: z.infer<typeof RuntimeAgentDefinitionBaseSchema>,
-): RuntimeAgentDefinition => ({
-  ...input,
-  executor: input.executor ?? "generic",
-  ...(input.modelKey ? { modelKey: input.modelKey } : {}),
-});
+): RuntimeAgentDefinition => {
+  const isConfiguration = input.id === CONFIGURATION_AGENT_ID;
+  const rawExecutor = input.executor ?? DEFAULT_PRODUCT_EXECUTOR;
+  let modelKey = input.modelKey;
+
+  if (
+    !isConfiguration
+    && !modelKey
+    && rawExecutor !== DEFAULT_PRODUCT_EXECUTOR
+    && LEGACY_MODEL_EXECUTOR_KEYS.has(rawExecutor)
+  ) {
+    modelKey = rawExecutor;
+  }
+
+  const executor = isConfiguration ? CONFIGURATION_AGENT_ID : DEFAULT_PRODUCT_EXECUTOR;
+
+  return {
+    ...input,
+    executor,
+    ...(modelKey ? { modelKey } : {}),
+  };
+};
 
 export const parseRuntimeAgentDefinition = (input: unknown): RuntimeAgentDefinition =>
   normalizeRuntimeAgentDefinition(RuntimeAgentDefinitionBaseSchema.parse(input));
@@ -126,8 +152,8 @@ export const toRuntimeAgentId = (name: string): string =>
 
 export const resolveAgentModelKey = (
   definition: RuntimeAgentDefinition,
-  defaultModelKey = "generic",
-): string => definition.modelKey ?? definition.executor ?? defaultModelKey;
+  defaultModelKey: string = DEFAULT_PRODUCT_EXECUTOR,
+): string => definition.modelKey ?? defaultModelKey;
 
 export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boolean =>
   definition.builtin === true;

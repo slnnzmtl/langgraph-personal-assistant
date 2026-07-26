@@ -3,7 +3,6 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import {
   createPolicyRegistry,
   createRuntimeAgentExecutionContext as createCoreExecutionContext,
-  createSystemAgentPolicy,
   deriveCronTargetAgentIds,
   deriveModelKeys,
   mergeCapabilityCatalogs,
@@ -11,7 +10,6 @@ import {
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { createAppExecutionKit } from "../../src/app/register-defaults.js";
-import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   createDefaultCapabilityCatalog,
@@ -34,23 +32,11 @@ export const createAppRuntimeExecutionContext = (
   const defaultModelKey = "generic";
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = createSkillCatalog();
-  const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = createAppExecutionKit({
+  const { loadPromptByKey, runtimeAgentPolicy } = createAppExecutionKit({
     skillCatalog,
     capabilityCatalog: createDefaultCapabilityCatalog(),
   });
-  const policyRegistry = createPolicyRegistry([
-    runtimeAgentPolicy,
-    createSystemAgentPolicy({
-      capabilityCatalog,
-      resolveTools,
-      systemAgent: {
-        modelKey: "configuration",
-      },
-      skillCatalog,
-      shellFormatters,
-    }),
-  ]);
+  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
