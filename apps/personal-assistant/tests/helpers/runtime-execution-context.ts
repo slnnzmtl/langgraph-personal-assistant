@@ -1,7 +1,6 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import {
-  createPolicyRegistry,
   createRuntimeAgentExecutionContext as createCoreExecutionContext,
   deriveCronTargetAgentIds,
   deriveModelKeys,
@@ -9,7 +8,7 @@ import {
   type RuntimeAgentExecutionContext,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { createAppExecutionKit } from "../../src/app/register-defaults.js";
+import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   createDefaultCapabilityCatalog,
@@ -32,11 +31,10 @@ export const createAppRuntimeExecutionContext = (
   const defaultModelKey = "generic";
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = createSkillCatalog();
-  const { loadPromptByKey, runtimeAgentPolicy } = createAppExecutionKit({
+  const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog: createDefaultCapabilityCatalog(),
   });
-  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
@@ -55,6 +53,6 @@ export const createAppRuntimeExecutionContext = (
       capabilityCatalog,
     },
     loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy,
   });
 };

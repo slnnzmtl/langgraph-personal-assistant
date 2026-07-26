@@ -9,7 +9,7 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { loadSkillAttachmentRules, readSkillContent } from "./skills/skills-loader.js";
-import { resolveActiveSkillFromHistory } from "../tools/skill-history.js";
+import { resolveActiveSkillFromHistory } from "./skills/skill-history.js";
 
 const FINANCE_MODULE = "finance";
 const FINANCE_SCHEMA_SKILL = "expense-ledger-schema";

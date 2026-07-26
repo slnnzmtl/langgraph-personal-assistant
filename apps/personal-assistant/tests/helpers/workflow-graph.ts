@@ -1,6 +1,5 @@
 import {
   createAssistant,
-  createPolicyRegistry,
   deriveCronTargetAgentIds,
   deriveModelKeys,
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
@@ -17,7 +16,7 @@ import {
   buildPersonalCronGraphHooks,
   buildPersonalSkillCatalog,
 } from "../../src/app/composition/personal-pack.js";
-import { createAppExecutionKit } from "../../src/app/register-defaults.js";
+import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
@@ -70,11 +69,10 @@ export const createTestWorkflowGraph = ({
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
   const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = createAppExecutionKit({
+  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog,
   });
-  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const resolvedRuntimeAgentRepository =
     runtimeAgentRepository ?? createRuntimeAgentRepositoryFake(runtimeAgents);
@@ -99,7 +97,7 @@ export const createTestWorkflowGraph = ({
     runtimeAgentRepository: resolvedRuntimeAgentRepository,
     capabilityDeps,
     loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy,
     loadSupervisorPrompt: loadSupervisorSystemPrompt,
     cronTriggerResolver,
     messageHistoryMaxTokens,

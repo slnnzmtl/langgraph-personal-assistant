@@ -52,6 +52,33 @@ describe("wrapRepositoryWithSystemAgent", () => {
     await expect(access(filePath)).rejects.toThrow();
   });
 
+  it("normalizes legacy executors when loading persisted agents", async () => {
+    const { repository } = await createWrappedRepository();
+    const rawRepository = repository as ReturnType<typeof createRuntimeAgentRepository>;
+
+    await rawRepository.saveAgents([
+      {
+        id: "obsidian",
+        name: "Obsidian",
+        description: "Vault agent",
+        systemPrompt: "Obsidian prompt",
+        capabilityIds: ["obsidian-vault"],
+        executor: "obsidian",
+        builtin: false,
+        maxSteps: 8,
+        enabled: true,
+        createdAt: "2026-07-15T00:00:00.000Z",
+        updatedAt: "2026-07-15T00:00:00.000Z",
+      },
+    ]);
+
+    const agents = await repository.loadAgents();
+    const obsidian = agents.find((agent) => agent.id === "obsidian");
+
+    expect(obsidian?.executor).toBe("generic");
+    expect(obsidian?.modelKey).toBe("obsidian");
+  });
+
   it("preserves local module agents from persistence", async () => {
     const { repository } = await createWrappedRepository();
 

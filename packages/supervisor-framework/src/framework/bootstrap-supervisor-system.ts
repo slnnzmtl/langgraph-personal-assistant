@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
-import { createPolicyRegistry } from "../core/policies/registry.js";
+import { DEFAULT_PRODUCT_EXECUTOR } from "../core/types/agent.js";
 import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
 import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
@@ -12,7 +12,7 @@ import {
   type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
-import type { SystemAgentOptions } from "./system-agent/types.js";
+import type { SystemAgentOptions } from "./system-agent/definition.js";
 import type {
   SupervisorPackBootstrap,
   SupervisorPaths,
@@ -72,12 +72,10 @@ export const bootstrapSupervisorSystem = async <
   };
 
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
-  const defaultModelKey = "generic";
+  const defaultModelKey = DEFAULT_PRODUCT_EXECUTOR;
   const models = pack.buildModels(pack.config, runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } =
     pack.buildRuntimeExecution(runtimeAgents, skillCatalog);
-
-  const policyRegistry = createPolicyRegistry([runtimeAgentPolicy]);
 
   const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
   const messageHistoryMaxTokens =
@@ -91,7 +89,7 @@ export const bootstrapSupervisorSystem = async <
     runtimeAgentRepository,
     capabilityDeps,
     loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy,
     loadSupervisorPrompt: pack.loadSupervisorPrompt,
     replyUx: graphHooks.replyUx ?? defaultReplyUxConfig,
     ...(graphHooks.promptLogging ? { promptLogging: graphHooks.promptLogging } : {}),

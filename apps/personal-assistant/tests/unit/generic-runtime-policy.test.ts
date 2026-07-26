@@ -3,17 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   createCapabilityCatalog,
   createRuntimeShellHooks,
-  type RuntimeAgentDefinition,
+  normalizeRuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 import {
   applyLocalModuleAvailability,
-  normalizeLegacyExecutors,
 } from "../../src/app/composition/bootstrap-agents.js";
 import {
   createDefaultRuntimeShellFormatters,
 } from "../../src/app/register-defaults.js";
 import {
-  createGenericRuntimeAgentPolicy,
+  createDefaultRuntimeAgentPolicy,
   hasObsidianVaultCapability,
 } from "../../src/app/policies/generic-runtime-policy.js";
 import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
@@ -34,65 +33,41 @@ describe("hasObsidianVaultCapability", () => {
   });
 });
 
-describe("normalizeLegacyExecutors", () => {
-  it("maps legacy obsidian executor to generic when obsidian-vault is granted", () => {
-    const obsidian = buildLocalModuleAgents().find((agent) => agent.id === "obsidian")!;
-    const legacyAgent: RuntimeAgentDefinition = { ...obsidian, executor: "obsidian" };
-
-    const [normalized] = normalizeLegacyExecutors([legacyAgent]);
-
-    expect(normalized?.executor).toBe("generic");
-  });
-
-  it("coerces unknown legacy executors to generic without inferring modelKey", () => {
-    const agent: RuntimeAgentDefinition = {
-      ...buildLocalModuleAgents()[0]!,
-      id: "custom",
-      executor: "custom-domain",
-      capabilityIds: ["none"],
-      modelKey: undefined,
-    };
-
-    const [normalized] = normalizeLegacyExecutors([agent]);
-
-    expect(normalized?.executor).toBe("generic");
-    expect(normalized?.modelKey).toBeUndefined();
-  });
-
-  it("maps legacy finance executor to generic and preserves modelKey", () => {
-    const finance = buildLocalModuleAgents().find((agent) => agent.id === "finance")!;
-    const legacyAgent: RuntimeAgentDefinition = { ...finance, executor: "finance", modelKey: undefined };
-
-    const [normalized] = normalizeLegacyExecutors([legacyAgent]);
-
-    expect(normalized?.executor).toBe("generic");
-    expect(normalized?.modelKey).toBe("finance");
-  });
-});
-
-describe("createGenericRuntimeAgentPolicy", () => {
-  it("registers a single generic executor policy", () => {
+describe("createDefaultRuntimeAgentPolicy", () => {
+  it("creates a runtime agent policy with graph bundle factory", () => {
     const catalog = createCapabilityCatalog(createPersonalCapabilityProviders() as never);
     const shellFormatters = createDefaultRuntimeShellFormatters();
     const shellHooks = createRuntimeShellHooks(shellFormatters);
-    const policy = createGenericRuntimeAgentPolicy(shellHooks, {
+    const policy = createDefaultRuntimeAgentPolicy(shellHooks, {
       capabilityCatalog: catalog,
       resolveTools: createPersonalResolveTools(catalog),
       shellFormatters,
     });
 
-    expect(policy.executor).toBe("generic");
+    expect(typeof policy.createGraphBundle).toBe("function");
   });
 });
 
 describe("applyLocalModuleAvailability", () => {
-  it("normalizes legacy obsidian executors before availability checks", () => {
+  it("disables finance agents when Supabase is unavailable", () => {
+    const finance = buildLocalModuleAgents().find((agent) => agent.id === "finance")!;
+
+    const [updated] = applyLocalModuleAvailability([finance], { supabaseAvailable: false });
+
+    expect(updated?.enabled).toBe(false);
+  });
+
+  it("leaves agents enabled when Supabase is available", () => {
     const obsidian = buildLocalModuleAgents().find((agent) => agent.id === "obsidian")!;
-    const legacyAgent: RuntimeAgentDefinition = { ...obsidian, executor: "obsidian" };
+    const legacyInput = {
+      ...obsidian,
+      executor: "obsidian",
+    };
+    const normalized = normalizeRuntimeAgentDefinition(legacyInput);
 
-    const [normalized] = applyLocalModuleAvailability([legacyAgent], { supabaseAvailable: true });
+    const [updated] = applyLocalModuleAvailability([normalized], { supabaseAvailable: true });
 
-    expect(normalized?.executor).toBe("generic");
-    expect(normalized?.enabled).toBe(true);
+    expect(updated?.executor).toBe("generic");
+    expect(updated?.enabled).toBe(true);
   });
 });

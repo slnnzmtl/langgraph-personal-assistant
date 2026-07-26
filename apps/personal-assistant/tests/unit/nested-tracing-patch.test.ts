@@ -172,17 +172,14 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
       ],
       {
         loadPromptByKey: (key) => key,
-        policyRegistry: {
-          get: () => ({
-            executor: "generic",
-            createGraphBundle: () => ({
-              name: "Finance",
-              maxSteps: 4,
-              prepare: () => ({ agentMessages: [], stepCount: 0 }),
-              llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
-              toolsNode: async () => ({}),
-              finalize: () => ({ messages: [new AIMessage("done")] }),
-            }),
+        runtimeAgentPolicy: {
+          createGraphBundle: () => ({
+            name: "Finance",
+            maxSteps: 4,
+            prepare: () => ({ agentMessages: [], stepCount: 0 }),
+            llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
+            toolsNode: async () => ({}),
+            finalize: () => ({ messages: [new AIMessage("done")] }),
           }),
         },
       } as never,

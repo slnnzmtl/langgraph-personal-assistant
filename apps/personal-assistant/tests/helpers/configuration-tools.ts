@@ -9,7 +9,7 @@ import {
 import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
-import { createReadSkillTool } from "../../src/tools/skill-management.js";
+import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
 
 const defaultConfigurationCatalog = mergeCapabilityCatalogs(

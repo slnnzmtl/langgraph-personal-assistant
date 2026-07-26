@@ -41,7 +41,6 @@ export const createDefaultRuntimeAgentPolicy = (
   options: DefaultRuntimePolicyOptions,
 ): RuntimeAgentPolicy =>
   createAgentPolicy<CapabilityDeps>({
-    executor: "generic",
     resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
     unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
@@ -110,6 +109,3 @@ export const createDefaultRuntimeAgentPolicy = (
       return `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`;
     },
   }, options);
-
-/** @deprecated Use createDefaultRuntimeAgentPolicy */
-export const createGenericRuntimeAgentPolicy = createDefaultRuntimeAgentPolicy;

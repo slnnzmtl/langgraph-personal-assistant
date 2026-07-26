@@ -11,7 +11,6 @@ import {
   type SubAgentStateUpdate,
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
-import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
 import {
   createObsidianNodeHooks,
   selectObsidianToolsForTurn,
@@ -27,78 +26,61 @@ const resolveTestAgentSystemPrompt = (
   definition: Parameters<typeof withResolvedAgentSystemPrompt>[0],
 ) => withResolvedAgentSystemPrompt(definition, loadSystemPromptByKey);
 
-type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
-
-type ModelConnector = { getModel(): BaseChatModel };
-
-const isModelConnector = (source: ModelSource): source is ModelConnector =>
-  typeof (source as ModelConnector).getModel === "function";
+export type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
 
 const resolveModel = (source: ModelSource): BaseChatModel =>
-  isModelConnector(source) ? source.getModel() : source;
+  typeof (source as { getModel?: () => BaseChatModel }).getModel === "function"
+    ? (source as { getModel: () => BaseChatModel }).getModel()
+    : source;
 
-const createTestDomainLlmNode = (
-  model: BaseChatModel,
+export const createTestRuntimeAgentNode = (
+  model: ModelSource,
   definition: RuntimeAgentDefinition,
   tools: SubAgentToolSource | undefined,
   config: RuntimeAgentNodeConfig,
 ) =>
-  createRuntimeAgentNode(model, definition, tools, config) as (
-    state: SubAgentState,
-  ) => Promise<SubAgentStateUpdate>;
+  createRuntimeAgentNode(
+    resolveModel(model),
+    resolveTestAgentSystemPrompt(definition),
+    tools,
+    config,
+  ) as (state: SubAgentState) => Promise<SubAgentStateUpdate>;
 
 export const createFinanceNode = (
   model: ModelSource,
   definition: RuntimeAgentDefinition,
   tools?: SubAgentToolSource,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(definition),
-  tools,
-  {
-    ...createRuntimeShellHooks(testShellFormatters),
-    logLabel: "finance-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
-  },
-);
+) => createTestRuntimeAgentNode(model, definition, tools, {
+  ...createRuntimeShellHooks(testShellFormatters),
+  logLabel: "finance-system-prompt",
+  buildErrorMessage: (error) =>
+    `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
+});
 
 export const createObsidianNode = (
   model: ModelSource,
   vaultRoot: string,
   definition: RuntimeAgentDefinition,
   prebuiltTools?: SubAgentToolSource,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(definition),
-  prebuiltTools,
-  {
-    ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
-    logLabel: "obsidian-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
-    selectToolsForTurn: selectObsidianToolsForTurn,
-  },
-);
-
-type ConfigurationNodeOptions = {
-  repository: CronJobRepository;
-  runtimeCron?: RuntimeCronService;
-  definition: RuntimeAgentDefinition;
-};
+) => createTestRuntimeAgentNode(model, definition, prebuiltTools, {
+  ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
+  logLabel: "obsidian-system-prompt",
+  buildErrorMessage: (error) =>
+    `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
+  selectToolsForTurn: selectObsidianToolsForTurn,
+});
 
 export const createConfigurationNode = (
   model: ModelSource,
   tools: SubAgentToolSource,
-  options: ConfigurationNodeOptions,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(options.definition),
-  tools,
-  {
-    ...createSystemAgentNodeHooks(testShellFormatters),
-    logLabel: "configuration-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+  options: {
+    definition: RuntimeAgentDefinition;
+    repository?: unknown;
+    runtimeCron?: unknown;
   },
-);
+) => createTestRuntimeAgentNode(model, options.definition, tools, {
+  ...createSystemAgentNodeHooks(testShellFormatters),
+  logLabel: "configuration-system-prompt",
+  buildErrorMessage: (error) =>
+    `Unable to update configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
+});

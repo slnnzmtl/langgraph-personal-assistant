@@ -2,7 +2,7 @@ import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import type { CronJobRepository } from "../../types.js";
-import type { SystemConfigToolsOptions, SystemCronJob } from "../types.js";
+import type { SystemConfigToolsOptions, SystemCronJob } from "../definition.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),

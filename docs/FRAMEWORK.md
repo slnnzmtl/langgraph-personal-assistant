@@ -32,7 +32,7 @@ Import from `@personal-assistant/supervisor-framework`:
 
 - `bootstrapSupervisorSystem` — generic pack bootstrap
 - `resolveAgentTools` — catalog-based tool resolution
-- `createAssistant`, `createAgentPolicy`, `createPolicyRegistry` — graph and policy helpers
+- `createAssistant`, `createAgentPolicy` — graph and policy helpers
 - Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
 - Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 - System admin (opt-in): `systemAgent` pack option, `wrapRepositoryWithSystemAgent`, `mergeCapabilityCatalogs`, `hasSystemConfigWriteCapability` / `resolveSystemConfigDeps`, `SYSTEM_AGENT_ID` (`"configuration"`)
@@ -42,9 +42,9 @@ Optional bootstrap hooks (omit for minimal packs):
 - `createRuntimeAgentRepository(config)` — defaults to file-backed JSON repo
 - `createCronJobRepository(...)` — defaults to in-memory no-op
 - `buildSkillCatalog(agents)` — defaults to empty catalog
-- `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap, legacy purge, merged `system-config` capabilities, and executor policy
+- `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap, legacy purge, and merged `system-config` capabilities
 - `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
-- `resolveRuntimeAgentTools` — pack-specific tool resolver (e.g. `read_skill` attachment)
+- `buildRuntimeExecution` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters (personal pack uses `buildAppRuntimeExecution()`)
 
 Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
 

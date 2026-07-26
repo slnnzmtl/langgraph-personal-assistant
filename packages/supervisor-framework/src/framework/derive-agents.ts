@@ -1,10 +1,9 @@
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
-import { resolveAgentCapabilityIds, resolveAgentModelKey } from "../core/types/agent.js";
-import { resolveRuntimeAgentPolicyExecutor } from "../core/policies/resolve-runtime-agent-policy.js";
+import { DEFAULT_PRODUCT_EXECUTOR, resolveAgentCapabilityIds, resolveAgentModelKey } from "../core/types/agent.js";
 
 export const deriveModelKeys = (
   agents: RuntimeAgentDefinition[],
-  defaultModelKey = "generic",
+  defaultModelKey = DEFAULT_PRODUCT_EXECUTOR,
 ): Set<string> => {
   const keys = new Set<string>([defaultModelKey]);
 
@@ -14,9 +13,6 @@ export const deriveModelKeys = (
 
   return keys;
 };
-
-export const deriveExecutors = (agents: RuntimeAgentDefinition[]): Set<string> =>
-  new Set(agents.map((agent) => resolveRuntimeAgentPolicyExecutor(agent)));
 
 export const deriveSkillModules = (agents: RuntimeAgentDefinition[]): string[] =>
   [...new Set(agents.map((agent) => agent.promptSourceKey ?? agent.id))];

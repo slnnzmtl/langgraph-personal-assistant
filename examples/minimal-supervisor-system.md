@@ -176,7 +176,7 @@ import { createSupervisorSystem } from "../apps/personal-assistant/src/app/compo
 const { graph, cronJobRepository } = await createSupervisorSystem(config, { fileSender });
 ```
 
-The pack wires capabilities and optional app-local behaviors via `createAppExecutionKit()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
+The pack wires capabilities and optional app-local behaviors via `buildAppRuntimeExecution()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
 
 ---
 
@@ -196,7 +196,7 @@ const graph = createAssistant({
   runtimeAgentRepository,
   capabilityDeps: {},
   loadPromptByKey,
-  policyRegistry,
+  runtimeAgentPolicy,
   loadSupervisorPrompt: () => "<supervisor prompt>",
 });
 ```

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   hasSystemConfigWriteCapability,
   SYSTEM_CONFIG_CAPABILITY_ID,
-} from "../../src/framework/system-agent/system-config-hooks.js";
+} from "../../src/framework/system-agent/definition.js";
 import { isSystemAgentId } from "../../src/framework/system-agent/definition.js";
 import type { RuntimeAgentDefinition } from "../../src/core/types/agent.js";
 

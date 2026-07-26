@@ -1,7 +1,5 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { StructuredToolInterface } from "@langchain/core/tools";
-
 import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
@@ -13,7 +11,7 @@ import type { ReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
-import type { SystemAgentOptions } from "./system-agent/types.js";
+import type { SystemAgentOptions } from "./system-agent/definition.js";
 
 /** Minimal cron repository contract for pack bootstrap (duck-types cron impl). */
 export type CronJobRepository = {
@@ -100,14 +98,6 @@ export type SupervisorPackBootstrap<
   systemAgent?: SystemAgentOptions | false;
   /** Primary catalog source; merged with system-config capabilities when systemAgent is enabled. */
   capabilityProviders?: CapabilityProvider<Record<string, unknown>>[];
-  resolveRuntimeAgentTools?: (
-    catalog: CapabilityCatalog,
-    skillCatalog: SkillCatalog,
-  ) => (
-    definition: RuntimeAgentDefinition,
-    capabilityDeps: TDeps,
-    resolveOptions?: Record<string, unknown>,
-  ) => StructuredToolInterface[];
   buildModels: (config: TConfig, agents: RuntimeAgentDefinition[]) => Record<string, BaseChatModel>;
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,

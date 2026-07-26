@@ -9,9 +9,12 @@ import {
 import {
   SYSTEM_CONFIG_CAPABILITY_ID,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
+  type SystemConfigDeps,
+  type SystemConfigToolsOptions,
 } from "./definition.js";
-import { createSystemConfigTools } from "./tools/system-config-tools.js";
-import type { SystemConfigDeps, SystemConfigToolsOptions } from "./types.js";
+import { createCronTools } from "./tools/cron-tools.js";
+import { createRuntimeAgentTools } from "./tools/runtime-agent-tools.js";
+import { createSkillCrudTools } from "./tools/skill-tools.js";
 
 export const SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
@@ -27,6 +30,35 @@ export const SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
     configurable: true,
   },
 ];
+
+export const createSystemConfigTools = (
+  deps: SystemConfigDeps,
+  options: SystemConfigToolsOptions = {},
+): StructuredToolInterface[] => {
+  if (!deps.cronJobRepository || !deps.runtimeAgentRepository) {
+    throw new Error("system-config capability requires cron and runtime agent repositories.");
+  }
+
+  const writeAccess = options.writeAccess ?? true;
+  const capabilityCatalog = options.capabilityCatalog ?? deps.capabilityCatalog;
+  const skillCatalog = options.skillCatalog ?? deps.skillCatalog;
+  const cronTools = createCronTools(deps.cronJobRepository, {
+    writeAccess,
+    cronTargetAgentIds: options.cronTargetAgentIds ?? deps.cronTargetAgentIds ?? [],
+    ...(options.validateCronTargetRoute ? { validateCronTargetRoute: options.validateCronTargetRoute } : {}),
+  });
+
+  const runtimeAgentTools = createRuntimeAgentTools(deps.runtimeAgentRepository, deps, {
+    writeAccess,
+    ...(capabilityCatalog ? { capabilityCatalog } : {}),
+  });
+
+  const skillManagementTools = skillCatalog
+    ? createSkillCrudTools({ skillCatalog, writeAccess })
+    : [];
+
+  return [...cronTools, ...skillManagementTools, ...runtimeAgentTools];
+};
 
 const resolveSystemConfigTools = (
   deps: SystemConfigDeps,

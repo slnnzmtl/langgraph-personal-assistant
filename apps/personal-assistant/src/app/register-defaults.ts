@@ -71,6 +71,3 @@ export const buildAppRuntimeExecution = (options: AppRuntimeExecutionOptions): R
     shellFormatters,
   };
 };
-
-/** @deprecated Use buildAppRuntimeExecution */
-export const createAppExecutionKit = buildAppRuntimeExecution;

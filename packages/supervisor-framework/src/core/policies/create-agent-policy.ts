@@ -40,8 +40,6 @@ export type CreateAgentPolicyConfig<
   TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 > = {
-  /** Selects optional LLM hooks; tools always come from capabilityIds. */
-  executor: string;
   displayName?: string;
   requireShellFormatters?: boolean;
   resolveDeps?: (context: RuntimeAgentExecutionContext<TCapabilityDeps>, definition: RuntimeAgentDefinition) => TExtra | null;
@@ -88,12 +86,12 @@ export const createAgentPolicy = <
   config: CreateAgentPolicyConfig<TCapabilityDeps, TExtra>,
   options: AgentPolicyToolkitOptions = {},
 ): RuntimeAgentPolicy => ({
-  executor: config.executor,
   createGraphBundle: (context, definition) => {
     const policyContext = context as RuntimeAgentExecutionContext<TCapabilityDeps>;
+    const policyLabel = config.displayName ?? definition.name;
     const needsHooks = config.createHooks !== undefined;
     if (config.requireShellFormatters !== false && needsHooks && !options.shellFormatters) {
-      throw new Error(`createAgentPolicy(${config.executor}) requires runtime shell formatters.`);
+      throw new Error(`createAgentPolicy(${policyLabel}) requires runtime shell formatters.`);
     }
 
     const resolvedExtra = config.resolveDeps?.(policyContext, definition) ?? ({} as TExtra);

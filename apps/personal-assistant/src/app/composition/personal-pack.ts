@@ -8,6 +8,7 @@ import {
   createCapabilityCatalog,
   deriveModelKeys,
   deriveSkillModules,
+  DEFAULT_PRODUCT_EXECUTOR,
   SYSTEM_AGENT_ID,
   type CapabilityCatalog,
   type ILLMConnector,
@@ -28,9 +29,8 @@ import { setupSupabaseSession } from "../../services/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
 import { createSkillCatalog } from "../../runtime-agents/skills/skill-catalog.js";
 import { buildModelRegistry } from "../model-registry.js";
-import { createAppExecutionKit } from "../register-defaults.js";
+import { buildAppRuntimeExecution } from "../register-defaults.js";
 import { applyLocalModuleAvailability } from "./bootstrap-agents.js";
-import { createPersonalResolveTools } from "./personal-resolve-tools.js";
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
@@ -109,8 +109,6 @@ export const buildPersonalSupervisorPack = ({
     systemAgent: {
       modelKey: "configuration",
     },
-    resolveRuntimeAgentTools: (catalog, skillCatalog) => (definition, deps, resolveOptions) =>
-      createPersonalResolveTools(catalog)(definition, deps, { ...resolveOptions, skillCatalog }),
     createRuntimeAgentRepository: (appConfig) =>
       createRuntimeAgentRepository(
         process.cwd(),
@@ -128,10 +126,10 @@ export const buildPersonalSupervisorPack = ({
     buildSkillCatalog: buildPersonalSkillCatalog,
     buildRuntimeExecution: (_agents, skillCatalog) => {
       const domainCapabilityCatalog = createCapabilityCatalog(personalCapabilityProviders);
-      return createAppExecutionKit({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
+      return buildAppRuntimeExecution({ skillCatalog, capabilityCatalog: domainCapabilityCatalog });
     },
     buildModels: (appConfig, agents) =>
-      buildModelRegistry(appConfig, deriveModelKeys(agents, "generic")),
+      buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_PRODUCT_EXECUTOR)),
     buildCapabilityDeps: (context) =>
       buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
         cronTargetAgentIds: context.cronTargetAgentIds,

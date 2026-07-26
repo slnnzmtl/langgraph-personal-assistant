@@ -13,7 +13,7 @@ import {
 import type { LoadPromptByKey } from "./agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "./agents/repository.js";
 import { createRuntimeAgentExecutionContext } from "./execution/context.js";
-import type { PolicyRegistry } from "./policies/registry.js";
+import type { RuntimeAgentPolicy } from "./types/policy.js";
 import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
 import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
@@ -39,7 +39,7 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
   capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
-  policyRegistry: PolicyRegistry;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
   replyUx?: ReplyUxConfig;
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
@@ -51,7 +51,6 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
 export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>(
   config: AssistantConfig<TCapabilityDeps>,
 ) => {
-  const policyRegistry = config.policyRegistry;
   const replyUx = config.replyUx ?? defaultReplyUxConfig;
 
   const memory = config.checkpointer ?? new MemorySaver();
@@ -61,7 +60,7 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     repository: config.runtimeAgentRepository,
     capabilityDeps: config.capabilityDeps,
     loadPromptByKey: config.loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy: config.runtimeAgentPolicy,
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
   });
 

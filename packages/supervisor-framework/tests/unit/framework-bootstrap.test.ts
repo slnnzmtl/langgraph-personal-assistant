@@ -7,7 +7,6 @@ import {
   createAssistant,
   createCapabilityCatalog,
   createEmptySkillCatalog,
-  createPolicyRegistry,
   createRuntimeAgentRepository,
   resolveAgentTools,
   type RuntimeAgentDefinition,
@@ -85,13 +84,10 @@ describe("framework bootstrap", () => {
       capabilityDeps: {},
       loadPromptByKey: async () => "prompt",
       loadSupervisorPrompt: () => "Supervise requests.",
-      policyRegistry: createPolicyRegistry([
-        createAgentPolicy({
-          executor: "generic",
-          resolveTools: (definition, deps) =>
-            resolveAgentTools(definition, catalog, deps, {}),
-        }),
-      ]),
+      runtimeAgentPolicy: createAgentPolicy({
+        resolveTools: (definition, deps) =>
+          resolveAgentTools(definition, catalog, deps, {}),
+      }),
     });
 
     expect(graph.invoke).toBeTypeOf("function");

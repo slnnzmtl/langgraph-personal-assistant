@@ -1,7 +1,6 @@
 export { bootstrapSupervisorSystem } from "./framework/bootstrap-supervisor-system.js";
 export {
   deriveModelKeys,
-  deriveExecutors,
   deriveSkillModules,
   deriveCronTargetAgentIds,
   deriveRuntimeAgentGraphFingerprint,
@@ -17,7 +16,6 @@ export {
   mergeCapabilityCatalogs,
   createSystemConfigTools,
   createSkillCrudTools,
-  createSystemAgentPolicy,
   hasSystemConfigWriteCapability,
   resolveSystemConfigDeps,
   SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
@@ -25,11 +23,14 @@ export {
   CONFIGURATION_COMPLETION_FALLBACK,
   buildConfigurationCompletionSummary,
   mapConfigurationSubAgentResult,
-  buildSkillModuleOwnerPattern,
-  type SystemAgentOptions,
-  type SystemAgentRepository,
-  type SystemConfigDeps,
-  type SystemAgentPolicyOptions,
+} from "./framework/system-agent/index.js";
+export { buildSkillModuleOwnerPattern } from "./core/skills/skill-patterns.js";
+export type {
+  SystemAgentOptions,
+  SystemAgentRepository,
+  SystemConfigDeps,
+  SystemConfigToolsOptions,
+  SystemCronJob,
 } from "./framework/system-agent/index.js";
 export type {
   SupervisorPaths,
@@ -51,12 +52,6 @@ export {
   type CreateAgentPolicyConfig,
 } from "./core/policies/create-agent-policy.js";
 export {
-  DEFAULT_RUNTIME_EXECUTOR,
-  SYSTEM_AGENT_EXECUTOR,
-  resolveRuntimeAgentPolicyExecutor,
-} from "./core/policies/resolve-runtime-agent-policy.js";
-export { createPolicyRegistry, type PolicyRegistry } from "./core/policies/registry.js";
-export {
   createRuntimeAgentRepository,
   type RuntimeAgentRepository,
 } from "./core/agents/repository.js";
@@ -70,7 +65,6 @@ export type { PolicyContext } from "./core/types/policy-context.js";
 export {
   RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,
-  CONFIGURATION_AGENT_ID,
   DEFAULT_PRODUCT_EXECUTOR,
   RuntimeAgentDefinitionSchema,
   CreateRuntimeAgentInputSchema,

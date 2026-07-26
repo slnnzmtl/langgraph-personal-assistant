@@ -1,4 +1,4 @@
-import { truncateToolOutput } from "./output.js";
+import { truncateToolOutput } from "../tools/output.js";
 
 export type SkillActionDefinition = {
 	label: string;

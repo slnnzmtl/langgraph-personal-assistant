@@ -11,7 +11,7 @@ import {
   configurationReposAvailable,
   type CapabilityAvailabilityContext,
 } from "../../../capabilities/types.js";
-import type { SystemConfigDeps } from "../types.js";
+import type { SystemConfigDeps } from "../definition.js";
 
 const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),

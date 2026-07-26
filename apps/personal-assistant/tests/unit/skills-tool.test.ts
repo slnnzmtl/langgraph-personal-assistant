@@ -6,8 +6,8 @@ import { createSkillCrudTools } from "@personal-assistant/supervisor-framework";
 import {
   createSkillActionRegistry,
   registerSkillActions,
-} from "../../src/tools/skill-actions.js";
-import { createReadSkillTool } from "../../src/tools/skill-management.js";
+} from "../../src/runtime-agents/skills/skill-actions.js";
+import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 
 const createTempSkillsRoot = (): string => mkdtempSync(path.join(process.cwd(), "test-skill-tools-"));

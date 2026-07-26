@@ -40,7 +40,7 @@ flowchart TB
 
     subgraph AppLayer["App Layer (src/app/)"]
         WFC[createSupervisorSystem]
-        KIT[createAppExecutionKit]
+        KIT[buildAppRuntimeExecution]
         POL[Domain Policies + Hooks]
         MR[Model Registry]
     end
@@ -112,7 +112,7 @@ index.ts
             ├─ GeminiConnector (supervisor model)
             ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
             ├─ Runtime agent repository (data/runtime-agents.json, user agents only)
-            ├─ seedSystemAgent() purge + inject virtual system admin agent (framework)
+            ├─ purgeLegacySystemAgent() + inject virtual system admin agent (framework)
             ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
@@ -222,7 +222,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 
 Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/app/policies/`; tools in `src/runtime-agents/tools/`.
 
-**Runtime agents** register through `createAppExecutionKit()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
+**Runtime agents** register through `buildAppRuntimeExecution()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
 ---
 
@@ -331,15 +331,14 @@ All persisted specialists use `executor: "generic"` and optionally `modelKey` fo
 
 ---
 
-## Policy Registry Pattern
+## Runtime Policy Pattern
 
-At bootstrap the app pack registers one **default** runtime policy via `createAppExecutionKit()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery; configuration unavailable-gate and completion summaries) live in `src/app/policies/` (and framework `system-config-hooks`) and compose when matching capabilities are granted. `bootstrapSupervisorSystem()` no longer registers a second policy when `systemAgent` is enabled — the virtual configuration agent uses the same builder.
+At bootstrap the app pack registers one **default** runtime policy via `buildAppRuntimeExecution()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery; configuration unavailable-gate and completion summaries) live in `src/app/policies/` (and framework system-agent definition hooks) and compose when matching capabilities are granted. `bootstrapSupervisorSystem()` passes a single `runtimeAgentPolicy` to `createAssistant()` — the virtual configuration agent uses the same builder.
 
 Each policy implements:
 
 ```typescript
 type RuntimeAgentPolicy = {
-  readonly executor: string;
   createGraphBundle: (context, definition) => RuntimeAgentGraphBundle;
 };
 ```
@@ -409,8 +408,6 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
 | `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/framework/index.ts` | Pack SDK barrel | Bootstrap + kernel re-exports for client packs |
-| `src/core/index.ts` | Documented kernel barrel | Kernel-only exports; framework barrel preferred for packs |
 | `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
 
 ---

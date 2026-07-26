@@ -14,7 +14,7 @@ graph TD
     subgraph AppLayer [App layer]
         AppTS[app.ts bootstrap]
         PersonalPack[createSupervisorSystem]
-        AppKit[createAppExecutionKit]
+        AppKit[buildAppRuntimeExecution]
         AppPolicies[finance / obsidian / configuration policies]
     end
 
@@ -64,11 +64,11 @@ graph TD
 | Layer | Path | Responsibility |
 |---|---|---|
 | **Framework package** | `packages/supervisor-framework/` | Execution kernel + pack SDK (`bootstrapSupervisorSystem`, `createAssistant`, capabilities) |
-| **App layer** | `apps/personal-assistant/src/app/` | Capability catalog, app-local capability behaviors, prompt wiring, `createAppExecutionKit()` |
+| **App layer** | `apps/personal-assistant/src/app/` | Capability catalog, app-local capability behaviors, prompt wiring, `buildAppRuntimeExecution()` |
 | **Domain runtime** | `apps/personal-assistant/src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
-| **Infrastructure** | `apps/personal-assistant/src/cron/`, `telegram/`, `tools/`, `services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
+| **Infrastructure** | `apps/personal-assistant/src/cron/`, `telegram/`, `services/` | Scheduler, Telegram I/O, external integrations |
 
-Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
+Each `createAssistant()` call builds an isolated **execution context** with its own `runtimeAgentPolicy` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
 
 ### Runtime flow
 
