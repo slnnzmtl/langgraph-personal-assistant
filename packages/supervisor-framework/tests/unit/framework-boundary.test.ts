@@ -61,6 +61,13 @@ describe("framework boundaries", () => {
       "apps/personal-assistant",
     ]);
   });
+
+  it("keeps runtime agent watcher free of app and Telegram imports", () => {
+    const watcherFile = path.join(FRAMEWORK_ROOT, "runtime-agent-watcher.ts");
+    const content = readFileSync(watcherFile, "utf8");
+    expect(content.includes("telegraf"), `${watcherFile} must not import telegraf`).toBe(false);
+    expect(content.includes("apps/personal-assistant"), `${watcherFile} must not import app code`).toBe(false);
+  });
 });
 
 describe("capability catalog", () => {

@@ -1,16 +1,16 @@
 import { Telegraf } from "telegraf";
 
 import { createSupervisorSystem } from "../composition/create-supervisor-system.js";
-import { watchRuntimeAgentDefinitions } from "../composition/runtime-agent-watcher.js";
-import type { RuntimeAgentWatcher } from "../composition/runtime-agent-watcher.js";
-import type { AppConfig } from "../config.js";
-import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.js";
 import {
   watchCronJobDefinitions,
+  watchRuntimeAgentDefinitions,
   type CronJobRepository,
   type CronJobWatcher,
+  type RuntimeAgentWatcher,
   type RuntimeCronService,
 } from "@personal-assistant/supervisor-framework";
+import type { AppConfig } from "../config.js";
+import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.js";
 import type { GeminiConnector } from "../models/gemini-connector.js";
 
 export type SchedulerApp = {

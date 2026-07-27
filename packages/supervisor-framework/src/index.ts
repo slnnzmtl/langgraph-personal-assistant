@@ -76,6 +76,19 @@ export type {
   CronExecutionReporter,
 } from "./framework/cron/index.js";
 
+// --- Framework: runtime agent watcher ---
+export { watchRuntimeAgentDefinitions } from "./framework/runtime-agent-watcher.js";
+export type {
+  RuntimeAgentGraphRecompiler,
+  RuntimeAgentWatcher,
+} from "./framework/runtime-agent-watcher.js";
+
+// --- Framework: optional prompt logging ---
+export { createFilePromptLogger } from "./framework/logging/file-prompt-logger.js";
+export { noopPromptLogging } from "./core/ports/prompt-logging.js";
+export type { FilePromptLoggerOptions } from "./framework/logging/file-prompt-logger.js";
+export type { PromptLoggingHook } from "./core/ports/prompt-logging.js";
+
 // --- Kernel: graph compile (advanced / tests; bootstrap wraps this) ---
 export { createAssistant, type AssistantConfig } from "./core/create-assistant.js";
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   createCronJobRepositoryForConfig,
   createCronTriggerResolver,
+  createFilePromptLogger,
   createSkillCatalog,
   createRuntimeAgentRepository,
   deriveModelKeys,
@@ -21,7 +22,6 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
-import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import { loadSupervisorSystemPrompt } from "../load-system-prompt.js";
 import {
@@ -144,7 +144,9 @@ export const buildPersonalSupervisorPack = ({
       runtimeCron: options.runtimeCron,
     }),
   buildGraphHooks: (context) => ({
-    promptLogging: logSystemPromptInvocation,
+    promptLogging: createFilePromptLogger({
+      enabled: () => process.env.ENABLE_PROMPT_LOGS !== "false",
+    }),
     ...buildPersonalCronGraphHooks(context.cronTargetAgentIds),
   }),
 });

@@ -14,6 +14,8 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 | Agent prompts | `apps/personal-assistant/src/load-system-prompt.ts` + content `agents/` | System prompt loading and metadata helpers |
 | Skills runtime | `packages/supervisor-framework/src/core/skills/` | Skill filesystem I/O, `SkillCatalog`, prompt enrichment, attachments |
 | Cron runtime | `packages/supervisor-framework/src/framework/cron/` | Job definitions, JSON persistence, trigger protocol, scheduler service, graph runner |
+| Runtime agent watcher | `packages/supervisor-framework/src/framework/runtime-agent-watcher.ts` | Debounced hot-reload when `runtime-agents.json` changes |
+| Prompt logging | `packages/supervisor-framework/src/framework/logging/file-prompt-logger.ts` | Optional file-backed `PromptLoggingHook` adapter |
 
 ## Intentional boundaries
 
