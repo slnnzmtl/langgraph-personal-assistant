@@ -13,7 +13,7 @@ import {
   findLatestHumanMessageText,
   isRoutingJson,
 } from "./reply-helpers.js";
-import { defaultReplyUxConfig, type ReplyUxConfig } from "./reply-ux.js";
+import { defaultReplyUxConfig, DEFAULT_GENERIC_COMPLETION_FALLBACKS, type ReplyUxConfig } from "./reply-ux.js";
 
 export const createEmptyReplyNode = (
   llmConnector: ILLMConnector,
@@ -91,8 +91,9 @@ export const createPostHandoffFinishNode = (
     const agentName = handoff?.agentName ?? "runtime agent";
     const latestUserRequest = findLatestHumanMessageText(state.messages);
     const existingReply = findLatestAiReplySinceLastHuman(state.messages);
+    const genericFallbacks = replyUx.genericCompletionFallbacks ?? DEFAULT_GENERIC_COMPLETION_FALLBACKS;
 
-    if (existingReply.length > 0) {
+    if (existingReply.length > 0 && !genericFallbacks.has(existingReply)) {
       return {
         next: FINISH_ROUTE,
         lastHandoff: null,

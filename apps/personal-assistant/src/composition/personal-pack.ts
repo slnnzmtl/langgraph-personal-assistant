@@ -24,7 +24,8 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import { setupSupabaseSession } from "../integrations/supabase.js";
-import { loadSupervisorSystemPrompt } from "../prompts/load.js";
+import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
+import { createDataAgentPromptStore } from "../prompts/agent-prompt-store.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
@@ -51,6 +52,7 @@ type PersonalCapabilityDepsOptions = {
   supabaseSession?: SupabaseMcpSession | undefined;
   fileSender?: IFileSender | undefined;
   runtimeCron?: RuntimeCronService | undefined;
+  loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
 };
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
@@ -88,6 +90,7 @@ export const buildPersonalCapabilityDeps = (
     ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
     ...(options.fileSender ? { fileSender: options.fileSender } : {}),
     ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
+    ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
   });
 
 export type BuildPersonalSupervisorPackInput = {
@@ -118,6 +121,7 @@ export const buildPersonalSupervisorPack = ({
     createRuntimeAgentRepository(
       process.cwd(),
       path.relative(process.cwd(), appConfig.runtimeAgentsFilePath),
+      createDataAgentPromptStore(),
     ),
   createCronJobRepository: createCronJobRepositoryForConfig,
   setupAdapters: async (appConfig) => ({
@@ -142,6 +146,7 @@ export const buildPersonalSupervisorPack = ({
       fileSender: options.fileSender,
       supabaseSession: context.adapters.supabaseSession,
       runtimeCron: options.runtimeCron,
+      loadPromptByKey: loadSystemPromptByKey,
     }),
   buildGraphHooks: (context) => ({
     promptLogging: createFilePromptLogger({

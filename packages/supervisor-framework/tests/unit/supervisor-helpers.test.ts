@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import {
   buildPostHandoffReplanHint,
+  detectCompletionState,
   isAffirmativeFollowUp,
   isBlockedRepeatRoute,
   isExplicitRetryRequest,
 } from "../../src/core/supervisor/helpers.js";
+import { POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
 
 const completeHandoff = (agentId: string): RuntimeAgentHandoff => ({
   kind: "runtime-agent-handoff",
@@ -92,5 +95,58 @@ describe("supervisor replan helpers", () => {
       { next: "finance", prompt: "Retry the sync.", reply: undefined },
       "retry finance sync",
     )).toBe(false);
+  });
+
+  it("routes to post_handoff_finish when configuration returns in the same turn", () => {
+    expect(detectCompletionState({
+      messages: [new HumanMessage("list agents"), new AIMessage("Agent ID: finance")],
+      agentMessages: [],
+      stepCount: 0,
+      next: undefined,
+      executionQueue: [],
+      delegationPrompt: null,
+      context: {},
+      lastHandoff: completeHandoff("configuration"),
+      handoffStatus: undefined,
+      routingFailureContext: null,
+    })).toEqual({
+      next: POST_HANDOFF_FINISH_ROUTE,
+      routingFailureContext: null,
+      lastHandoff: completeHandoff("configuration"),
+    });
+  });
+
+  it("returns null when a non-configuration specialist returns in the same turn", () => {
+    expect(detectCompletionState({
+      messages: [new HumanMessage("sync expenses"), new AIMessage("Synced 5 transactions.")],
+      agentMessages: [],
+      stepCount: 0,
+      next: undefined,
+      executionQueue: [],
+      delegationPrompt: null,
+      context: {},
+      lastHandoff: completeHandoff("finance"),
+      handoffStatus: undefined,
+      routingFailureContext: null,
+    })).toBeNull();
+  });
+
+  it("returns null when the user sends a new message after a complete handoff", () => {
+    expect(detectCompletionState({
+      messages: [
+        new HumanMessage("list agents"),
+        new AIMessage("Agent ID: finance"),
+        new HumanMessage("thanks"),
+      ],
+      agentMessages: [],
+      stepCount: 0,
+      next: undefined,
+      executionQueue: [],
+      delegationPrompt: null,
+      context: {},
+      lastHandoff: completeHandoff("configuration"),
+      handoffStatus: undefined,
+      routingFailureContext: null,
+    })).toBeNull();
   });
 });

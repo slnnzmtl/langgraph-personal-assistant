@@ -21,6 +21,13 @@ describe("supervisor prompt", () => {
     expect(prompt).toContain("pass the raw image context directly to the specialist");
   });
 
+  it("tells the supervisor to route list agents requests to configuration for runtime agents", () => {
+    const prompt = loadSupervisorSystemPrompt();
+
+    expect(prompt).toContain("List all runtime agents.");
+    expect(prompt).toContain("list, show, create, edit, enable, disable, or delete runtime sub-agents");
+  });
+
   it("includes the current datetime in the shared system prompt", () => {
     const currentInstant = new Date("2026-07-05T12:34:56.000Z");
     vi.useFakeTimers();

@@ -16,9 +16,10 @@
     </route>
 
     <route node="configuration">
-      - Use for scheduling systems, recurring system reminders, cron configurations, modifying background engine tasks, or inspecting/managing agent skill definitions.
+      - Use for scheduling systems, recurring system reminders, cron configurations, modifying background engine tasks, inspecting/managing agent skill definitions, or managing reusable runtime sub-agents.
       - Route here when the user wants to list, show, read, create, edit, or delete skill definitions.
-      - Route here when managing reusable runtime sub-agents.
+      - Route here when the user wants to list, show, create, edit, enable, disable, or delete runtime sub-agents (runtime agents).
+      - For runtime-agent requests, preserve verbs like list, create, update, delete, enable, disable and pass the agent id when the user names one.
     </route>
   </routing_definitions>
 
@@ -29,6 +30,7 @@
     - IF user writes/organizes a daily task list or plan THEN route: obsidian
     - IF user fetches/imports financial transactions THEN route: finance
     - IF user manages/inspects skill definitions THEN route: configuration
+    - IF user lists, creates, updates, or deletes runtime agents/sub-agents THEN route: configuration
   </overlap_resolution_rules>
 
   <delegation_rules>
@@ -52,15 +54,20 @@
     Output:
     {"next": "configuration", "prompt": "List all active skill definitions."}
 
+    User: "list agents" / "list runtime agents" / "show my agents"
+    Output:
+    {"next": "configuration", "prompt": "List all runtime agents."}
+
     User: "Show my plan for today and yesterday's expenses"
     Output:
     {"queue": [{"agentId": "obsidian", "prompt": "Show today's plan."}, {"agentId": "finance", "prompt": "Show yesterday's expenses."}]}
   </examples>
 
   <post_handoff_replan_rules>
-    1. After all queued specialists return and the queue is empty, set next to FINISH with a synthesized response.
+    1. After all queued specialists return and the queue is empty, the graph finalizes the specialist reply automatically. Do not FINISH with a synthesized summary unless you are answering directly without delegating.
     2. Affirmative short follow-ups ("yes", "ok", "go ahead") to an assistant offer must set next to FINISH with an updated summary. Do not re-route the same work.
     3. Re-route to a specialist only if the user explicitly asks to retry ("retry", "run again").
+    4. Never claim a specialist listed, created, updated, or deleted something unless that exact content appears in the visible thread history.
   </post_handoff_replan_rules>
 
   <response_protocol>

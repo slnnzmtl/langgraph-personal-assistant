@@ -394,6 +394,53 @@ describe("configuration runtime node hooks", () => {
     expect(result.agentMessages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
+
+  it("summarizes list_runtime_agents results when the model returns a blank final response", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const agentListing = [
+      "Agent ID: finance",
+      "Name: Finance",
+      "Enabled: true",
+    ].join("\n");
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
+
+    const node = createTestRuntimeAgentNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      configurationDefinition,
+      createConfigurationTools(repository),
+      configurationRuntimeNodeConfig(),
+    );
+
+    const result = await node({
+      agentMessages: [
+        new HumanMessage("list all runtime agents"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "list_runtime_agents",
+              args: {},
+              id: "list-1",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          name: "list_runtime_agents",
+          tool_call_id: "list-1",
+          content: agentListing,
+        }),
+      ],
+      stepCount: 1,
+    });
+
+    expect(result.agentMessages?.[0]?.content).toContain("Agent ID: finance");
+    expect(result.agentMessages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("buildConfigurationCompletionSummary", () => {
@@ -459,5 +506,44 @@ describe("mapConfigurationSubAgentResult", () => {
     );
 
     expect(result.messages?.[0]?.content).toBe(cronListing);
+  });
+
+  it("preserves the completion fallback instead of emitting an empty handoff", () => {
+    const result = mapConfigurationSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("list agents"),
+          new AIMessage(CONFIGURATION_COMPLETION_FALLBACK),
+        ],
+        stepCount: 1,
+      },
+      10,
+      "Configuration",
+    );
+
+    expect(result.messages?.[0]?.content).toBe(CONFIGURATION_COMPLETION_FALLBACK);
+  });
+
+  it("surfaces tool errors when the model returns a blank final response", () => {
+    const errorBody = "Error: Invalid runtime agent data in persistence file";
+
+    const result = mapConfigurationSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("list agents"),
+          new ToolMessage({
+            name: "list_runtime_agents",
+            tool_call_id: "list-1",
+            content: errorBody,
+          }),
+          new AIMessage({ content: "" }),
+        ],
+        stepCount: 2,
+      },
+      10,
+      "Configuration",
+    );
+
+    expect(result.messages?.[0]?.content).toBe(errorBody);
   });
 });

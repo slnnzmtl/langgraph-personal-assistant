@@ -103,6 +103,8 @@ export {
   createRuntimeAgentRepository,
   type RuntimeAgentRepository,
 } from "./core/agents/repository.js";
+export type { RuntimeAgentPromptStore } from "./core/ports/runtime-agent-prompt-store.js";
+export { formatDataAgentPromptBootstrap } from "./core/agents/agent-prompt-bootstrap.js";
 export {
   withResolvedAgentSystemPrompt,
   type LoadPromptByKey,

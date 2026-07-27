@@ -9,6 +9,7 @@ import {
   type RuntimeAgentNodeHooks,
 } from "../../core/execution/runtime-node.js";
 import { createRuntimeShellHooks } from "../../core/execution/runtime-shell.js";
+import { extractMessageTextContent } from "../../core/message-content.js";
 import {
   buildLatestToolCompletionSummary,
   defaultConsumableToolBody,
@@ -25,6 +26,21 @@ export const buildConfigurationCompletionSummary = (
 ): string | undefined =>
   buildLatestToolCompletionSummary(messages, defaultConsumableToolBody);
 
+export const buildConfigurationErrorSummary = (
+  messages: BaseMessage[],
+): string | undefined =>
+  buildLatestToolCompletionSummary(messages, (content) => content.trim().startsWith("Error:"));
+
+export const buildConfigurationSalvageSummary = (
+  messages: BaseMessage[],
+): string | undefined =>
+  buildConfigurationCompletionSummary(messages) ?? buildConfigurationErrorSummary(messages);
+
+const isConfigurationCompletionFallback = (message: BaseMessage | undefined): message is AIMessage =>
+  message instanceof AIMessage
+  && !(message.tool_calls?.length)
+  && extractMessageTextContent(message.content).trim() === CONFIGURATION_COMPLETION_FALLBACK;
+
 export const mapConfigurationSubAgentResult = (
   result: SubAgentState,
   maxSteps: number,
@@ -36,13 +52,17 @@ export const mapConfigurationSubAgentResult = (
     return { messages: [lastMessage] };
   }
 
-  const summary = buildConfigurationCompletionSummary(result.agentMessages);
+  const summary = buildConfigurationSalvageSummary(result.agentMessages);
   if (summary) {
     return { messages: [new AIMessage(summary)] };
   }
 
   if (result.stepCount >= maxSteps) {
     return createMaxStepsExceededUpdate(name, maxSteps);
+  }
+
+  if (isConfigurationCompletionFallback(lastMessage)) {
+    return { messages: [lastMessage] };
   }
 
   return { messages: [new AIMessage({ content: "" })] };
@@ -59,7 +79,7 @@ export const createSystemAgentNodeHooks = (
       const sanitized = sanitizeResponseToolCalls(response, ctx.allowedToolNames);
       return processBlankToolLoopResponse(ctx, sanitized, {
         completionFallback: CONFIGURATION_COMPLETION_FALLBACK,
-        buildSummary: buildConfigurationCompletionSummary,
+        buildSummary: buildConfigurationSalvageSummary,
       });
     },
   };

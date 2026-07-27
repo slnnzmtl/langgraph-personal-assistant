@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { fileExists, readTextFile, resolveSafePath } from "../persistence/file-system.js";
 import { withSerializedFileWrite } from "../persistence/json-store.js";
+import type { RuntimeAgentPromptStore } from "../ports/runtime-agent-prompt-store.js";
 import {
   RUNTIME_AGENT_SCHEMA_VERSION,
   parseCreateRuntimeAgentInput,
@@ -15,6 +16,7 @@ import {
   type RuntimeAgentDefinition,
   type UpdateRuntimeAgentInput,
 } from "../types/agent.js";
+import { formatDataAgentPromptBootstrap } from "./agent-prompt-bootstrap.js";
 
 export type RuntimeAgentRepository = {
   loadAgents(): Promise<RuntimeAgentDefinition[]>;
@@ -23,6 +25,7 @@ export type RuntimeAgentRepository = {
   createAgent(input: CreateRuntimeAgentInput): Promise<RuntimeAgentDefinition>;
   updateAgent(id: string, input: UpdateRuntimeAgentInput): Promise<RuntimeAgentDefinition>;
   deleteAgent(id: string): Promise<RuntimeAgentDefinition>;
+  describePromptLocation?(id: string): string | undefined;
 };
 
 const parseDocument = (rawContent: string): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => {
@@ -67,13 +70,39 @@ const validateUniqueAgentId = (agents: RuntimeAgentDefinition[], id: string): vo
   }
 };
 
+const isDataManagedAgent = (agent: RuntimeAgentDefinition): boolean =>
+  agent.promptSourceKey === agent.id
+  && agent.systemPrompt.includes("data/agent-prompts/");
+
+const canPersistPromptToStore = (
+  agent: RuntimeAgentDefinition,
+  promptStore: RuntimeAgentPromptStore | undefined,
+): boolean =>
+  promptStore !== undefined && (!agent.promptSourceKey || isDataManagedAgent(agent));
+
 export const createRuntimeAgentRepository = (
   rootDir: string,
   relativePath: string,
+  promptStore?: RuntimeAgentPromptStore,
 ): RuntimeAgentRepository => {
   const fileKey = resolveSafePath(rootDir, relativePath);
 
-  return {
+  const persistPromptUpdate = async (
+    id: string,
+    promptContent: string,
+  ): Promise<Pick<RuntimeAgentDefinition, "systemPrompt" | "promptSourceKey">> => {
+    if (!promptStore) {
+      return { systemPrompt: promptContent.trim() };
+    }
+
+    await promptStore.write(id, promptContent.trim());
+    return {
+      promptSourceKey: id,
+      systemPrompt: formatDataAgentPromptBootstrap(id),
+    };
+  };
+
+  const repository: RuntimeAgentRepository = {
     async loadAgents(): Promise<RuntimeAgentDefinition[]> {
       if (!(await fileExists(rootDir, relativePath))) {
         return [];
@@ -116,11 +145,15 @@ export const createRuntimeAgentRepository = (
         validateUniqueAgentId(agents, id);
 
         const timestamp = new Date().toISOString();
+        const promptFields = promptStore
+          ? await persistPromptUpdate(id, parsed.systemPrompt)
+          : { systemPrompt: parsed.systemPrompt.trim() };
+
         const nextAgent = parseRuntimeAgentDefinition({
           id,
           name: parsed.name.trim(),
           description: parsed.description.trim(),
-          systemPrompt: parsed.systemPrompt.trim(),
+          ...promptFields,
           capabilityIds: parsed.capabilityIds,
           ...(parsed.modelKey ? { modelKey: parsed.modelKey } : {}),
           maxSteps: parsed.maxSteps ?? 8,
@@ -155,11 +188,22 @@ export const createRuntimeAgentRepository = (
           throw new Error(`Cannot change system prompt for built-in runtime agent: ${id}`);
         }
 
+        let promptFields: Partial<Pick<RuntimeAgentDefinition, "systemPrompt" | "promptSourceKey">> = {};
+        if (parsed.systemPrompt !== undefined && !builtin) {
+          if (canPersistPromptToStore(current, promptStore)) {
+            promptFields = await persistPromptUpdate(id, parsed.systemPrompt);
+          } else if (current.promptSourceKey) {
+            throw new Error(`Cannot change system prompt for file-backed runtime agent: ${id}`);
+          } else {
+            promptFields = { systemPrompt: parsed.systemPrompt.trim() };
+          }
+        }
+
         const updated = parseRuntimeAgentDefinition({
           ...current,
           ...(parsed.name !== undefined ? { name: parsed.name.trim() } : {}),
           ...(parsed.description !== undefined ? { description: parsed.description.trim() } : {}),
-          ...(parsed.systemPrompt !== undefined && !builtin ? { systemPrompt: parsed.systemPrompt.trim() } : {}),
+          ...promptFields,
           ...(parsed.capabilityIds !== undefined && !builtin
             ? { capabilityIds: parsed.capabilityIds }
             : {}),
@@ -189,9 +233,19 @@ export const createRuntimeAgentRepository = (
           throw new Error(`Cannot delete built-in runtime agent: ${id}`);
         }
 
+        if (promptStore && isDataManagedAgent(found)) {
+          await promptStore.delete(id);
+        }
+
         await writeDocumentAtomically(rootDir, relativePath, agents.filter((agent) => agent.id !== id));
         return found;
       });
     },
   };
+
+  if (promptStore) {
+    repository.describePromptLocation = (id: string) => promptStore.describeLocation(id);
+  }
+
+  return repository;
 };

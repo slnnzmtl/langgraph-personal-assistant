@@ -8,6 +8,7 @@ import { createEmptyReplyNode } from "../../src/index.js";
 import { createFailureReplyNode } from "../../src/index.js";
 import { createPostHandoffFinishNode } from "../../src/index.js";
 import { FINISH_ROUTE } from "../../src/index.js";
+import { CONFIGURATION_COMPLETION_FALLBACK } from "../../src/framework/system-agent/policy.js";
 import { asAgentState, firstStateUpdateMessage, loadTestSupervisorPrompt } from "../helpers/supervisor-node-fixtures.js";
 
 const emptyHandoff = (
@@ -161,6 +162,40 @@ describe("supervisor reply nodes", () => {
     expect(result.next).toBe(FINISH_ROUTE);
     expect(result.messages).toBeUndefined();
     expect(modelInvoke).not.toHaveBeenCalled();
+  });
+
+  it("post_handoff_finish ignores generic completion fallbacks and uses tool context", async () => {
+    const modelInvoke = vi.fn(async () => new AIMessage(""));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: (async () => ({ next: "configuration" })) as never,
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const postHandoffFinishNode = createPostHandoffFinishNode(connector);
+    const toolContext = "list_runtime_agents: Agent ID: finance\nName: Finance";
+
+    const result = await postHandoffFinishNode(asAgentState({
+      messages: [
+        new HumanMessage("list agents"),
+        new AIMessage(CONFIGURATION_COMPLETION_FALLBACK),
+      ],
+      lastHandoff: {
+        kind: "runtime-agent-handoff",
+        agentId: "configuration",
+        agentName: "Configuration",
+        status: "ok",
+        toolContext,
+      },
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(firstStateUpdateMessage(result)?.content).toContain("Agent ID: finance");
+    expect(modelInvoke).toHaveBeenCalledOnce();
   });
 
   it("post_handoff_finish falls back to tool context when the model returns empty", async () => {

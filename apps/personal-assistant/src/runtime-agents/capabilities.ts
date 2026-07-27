@@ -11,6 +11,7 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository, RuntimeCronService } from "@personal-assistant/supervisor-framework";
+import type { LoadPromptByKey } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import type { IFileSender } from "../ports/file-sender.js";
 
@@ -69,6 +70,7 @@ export type PersonalSystemDeps = {
   runtimeCron?: RuntimeCronService;
   capabilityCatalog?: CapabilityCatalog;
   skillCatalog?: SkillCatalog;
+  loadPromptByKey?: LoadPromptByKey;
 };
 
 export type PersonalCapabilityDeps = PersonalDomainDeps & PersonalSystemDeps;
@@ -84,6 +86,7 @@ export const createCapabilityDeps = (
     runtimeCron?: PersonalSystemDeps["runtimeCron"];
     capabilityCatalog?: PersonalSystemDeps["capabilityCatalog"];
     skillCatalog?: PersonalSystemDeps["skillCatalog"];
+    loadPromptByKey?: PersonalSystemDeps["loadPromptByKey"];
   } = {},
 ): PersonalCapabilityDeps => ({
   obsidianVaultPath,
@@ -95,6 +98,7 @@ export const createCapabilityDeps = (
   ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
   ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
+  ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
 });
 
 

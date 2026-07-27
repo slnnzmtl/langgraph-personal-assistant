@@ -49,6 +49,8 @@ export const createSystemConfigTools = (
   const runtimeAgentTools = createRuntimeAgentTools(deps.runtimeAgentRepository, deps, {
     writeAccess,
     ...(capabilityCatalog ? { capabilityCatalog } : {}),
+    ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
+    ...(deps.loadPromptByKey ? { loadPromptByKey: deps.loadPromptByKey } : {}),
   });
 
   const skillManagementTools = skillCatalog

@@ -448,6 +448,40 @@ describe("createSupervisorNode", () => {
     expect(routingInvoke).not.toHaveBeenCalled();
   });
 
+  it("routes to post_handoff_finish after a specialist returns in the same turn", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "FINISH",
+      reply: "I have listed the available agents and their descriptions.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("unused"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("list agents"),
+        new AIMessage("Agent ID: finance\nName: Finance"),
+      ],
+      lastHandoff: completeHandoff("Configuration", "configuration"),
+      executionQueue: [],
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe(POST_HANDOFF_FINISH_ROUTE);
+    expect(result.lastHandoff).toEqual(completeHandoff("Configuration", "configuration"));
+    expect(result.messages).toBeUndefined();
+    expect(routingInvoke).not.toHaveBeenCalled();
+  });
+
   it("re-invokes the LLM after a complete handoff when the queue is empty", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "FINISH",
@@ -466,7 +500,44 @@ describe("createSupervisorNode", () => {
     });
 
     const result = await supervisorNode(asAgentState({
-      messages: [new HumanMessage("sync expenses then write a note")],
+      messages: [
+        new HumanMessage("sync expenses then write a note"),
+        new AIMessage("Synced 5 transactions."),
+      ],
+      lastHandoff: completeHandoff("Finance", "finance"),
+      executionQueue: [],
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe("FINISH");
+    expect(firstStateUpdateMessage(result)?.content).toBe("All done.");
+    expect(routingInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-invokes the LLM after configuration when the user sends a new message", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "FINISH",
+      reply: "All done.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("unused"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("sync expenses then write a note"),
+        new AIMessage("Synced 5 transactions."),
+        new HumanMessage("thanks"),
+      ],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [],
       context: {},
@@ -505,45 +576,6 @@ describe("createSupervisorNode", () => {
     expect(result.next).toBe(EMPTY_REPLY_ROUTE);
     expect(result.executionQueue).toEqual([]);
     expect(routingInvoke).not.toHaveBeenCalled();
-  });
-
-  it("injects post-handoff replan context when re-planning after a complete handoff", async () => {
-    const routingInvoke = vi.fn(async (input) => {
-      const systemContent = typeof input[0]?.content === "string" ? input[0].content : "";
-
-      expect(systemContent).toContain("<post_handoff_replan_context>");
-      expect(systemContent).toContain('runtime agent "finance" just completed');
-      expect(systemContent).toContain("Latest user message: yes");
-
-      return { next: "FINISH", reply: "Synced 5 transactions." };
-    });
-    const connector: ILLMConnector = {
-      bindRoutingTools: () => ({
-        invoke: routingInvoke as never,
-      }),
-      getModel: () => ({
-        invoke: async () => new AIMessage("unused"),
-      } as unknown as BaseChatModel),
-    };
-    const supervisorNode = createTestSupervisorNode(connector, {
-      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-    });
-
-    const result = await supervisorNode(asAgentState({
-      messages: [
-        new HumanMessage("show yesterday's expenses"),
-        new AIMessage("No matching expenses were found for yesterday. Would you like to sync your expenses?"),
-        new HumanMessage("yes"),
-      ],
-      lastHandoff: completeHandoff("Finance", "finance"),
-      executionQueue: [],
-      context: {},
-      next: undefined,
-    }));
-
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Synced 5 transactions.");
-    expect(routingInvoke).toHaveBeenCalledTimes(1);
   });
 
   it("blocks an immediate repeat route to the same agent after handoff", async () => {

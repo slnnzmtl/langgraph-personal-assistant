@@ -1,6 +1,7 @@
 import type { CapabilityCatalog } from "../../capabilities/index.js";
 import { configurationReposAvailable } from "../../capabilities/index.js";
 import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
+import type { LoadPromptByKey } from "../../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import {
   CONFIGURATION_AGENT_ID,
@@ -27,6 +28,7 @@ export type SystemConfigDeps = {
   cronTargetAgentIds?: readonly string[];
   skillCatalog?: SkillCatalog;
   capabilityCatalog?: CapabilityCatalog;
+  loadPromptByKey?: LoadPromptByKey;
 };
 
 export type SystemAgentOptions = {
@@ -40,6 +42,7 @@ export type SystemConfigToolsOptions = {
   capabilityCatalog?: CapabilityCatalog;
   cronTargetAgentIds?: readonly string[];
   validateCronTargetRoute?: (route: string, allowedRoutes: readonly string[]) => boolean;
+  loadPromptByKey?: LoadPromptByKey;
 };
 
 const SYSTEM_AGENT_BOOTSTRAP_PROMPT =

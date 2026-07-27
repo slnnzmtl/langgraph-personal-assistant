@@ -23,13 +23,20 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 | Field | Source |
 |---|---|
 | `id` | Slug from `name` (e.g. `Daily Summary` → `daily-summary`) |
-| `name`, `description`, `systemPrompt` | Tool args |
+| `name`, `description` | Tool args |
+| `systemPrompt` | Bootstrap snapshot in JSON; full prompt in `data/agent-prompts/{id}.xml` |
+| `promptSourceKey` | Set to `{id}`; runtime loads the XML file on each invocation |
 | `capabilityIds` | Allowlisted catalog only |
 | `modelKey` | Optional; selects which registered chat model to use (built-in specialists use domain keys like `finance` / `obsidian`) |
 | `maxSteps` | Optional, default `8` (1–20) |
 | `enabled` | Optional, default `true` |
 
-Persistence path: `data/runtime-agents.json` (document version `1`).
+Persistence paths:
+
+- Agent metadata: `data/runtime-agents.json` (document version `1`)
+- Runtime prompt file: `data/agent-prompts/{id}.xml` (writable data volume; survives Docker restarts)
+
+Shipped specialists (finance, obsidian) use image-baked prompts under `agents/{id}.xml` instead. Chat-created agents always use the data volume path.
 
 ### Related chat tools
 
@@ -107,12 +114,23 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 
 See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
 
+### Migrating legacy inline prompts
+
+Agents created before prompt files (inline `systemPrompt` only, no `promptSourceKey`) migrate on the next `update_runtime_agent` call that includes `systemPrompt`. Example for an existing trainer row:
+
+```
+update_runtime_agent(id: "trainer", systemPrompt: "<full prompt text>")
+```
+
+That writes `data/agent-prompts/trainer.xml`, sets `promptSourceKey: "trainer"`, and replaces the JSON prompt with the bootstrap snapshot.
+
 ---
 
 ## Quick checklist
 
 - [ ] Ask Configuration in Telegram to create the agent (name, description, prompt, capabilities)
-- [ ] Confirm create response shows `Enabled: true` and a kebab-case `Agent ID`
+- [ ] Confirm create response shows `Enabled: true`, a kebab-case `Agent ID`, and `Prompt file: data/agent-prompts/{id}.xml`
+- [ ] Confirm `data/agent-prompts/{id}.xml` exists on disk (or in the `./data` Compose volume)
 - [ ] Satisfy capability deps (`none` / vault / Supabase as needed)
 - [ ] Wait a few seconds for bot and scheduler graph recompile
 - [ ] Message the bot with intent matching the agent description

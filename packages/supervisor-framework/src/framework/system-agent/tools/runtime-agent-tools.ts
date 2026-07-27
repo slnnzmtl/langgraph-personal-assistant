@@ -6,6 +6,10 @@ import {
   type RuntimeAgentDefinition,
 } from "../../../core/types/agent.js";
 import type { RuntimeAgentRepository } from "../../../core/agents/repository.js";
+import {
+  withResolvedAgentSystemPrompt,
+  type LoadPromptByKey,
+} from "../../../core/agents/resolve-system-prompt.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
 import {
   configurationReposAvailable,
@@ -56,8 +60,21 @@ export const formatRuntimeAgentSummary = (agent: RuntimeAgentDefinition): string
   return lines.join("\n");
 };
 
-export const formatRuntimeAgentPreview = (agent: RuntimeAgentDefinition): string =>
-  [formatRuntimeAgentSummary(agent), `System Prompt:\n${agent.systemPrompt}`].join("\n\n");
+export const formatRuntimeAgentPreview = (
+  agent: RuntimeAgentDefinition,
+  loadPromptByKey?: LoadPromptByKey,
+): string => {
+  const resolved = loadPromptByKey ? withResolvedAgentSystemPrompt(agent, loadPromptByKey) : agent;
+  return [formatRuntimeAgentSummary(resolved), `System Prompt:\n${resolved.systemPrompt}`].join("\n\n");
+};
+
+const formatPromptFileNote = (
+  repository: RuntimeAgentRepository,
+  agent: RuntimeAgentDefinition,
+): string => {
+  const location = repository.describePromptLocation?.(agent.id);
+  return location ? `\nPrompt file: ${location}` : "";
+};
 
 const toAvailabilityContext = (deps: SystemConfigDeps): CapabilityAvailabilityContext => ({
   configurationReposAvailable: configurationReposAvailable(deps),
@@ -66,7 +83,7 @@ const toAvailabilityContext = (deps: SystemConfigDeps): CapabilityAvailabilityCo
 export const createRuntimeAgentTools = (
   repository: RuntimeAgentRepository,
   deps: SystemConfigDeps,
-  options: { writeAccess?: boolean; capabilityCatalog?: CapabilityCatalog } = {},
+  options: { writeAccess?: boolean; capabilityCatalog?: CapabilityCatalog; loadPromptByKey?: LoadPromptByKey } = {},
 ): StructuredToolInterface[] => {
   if (!options.capabilityCatalog) {
     throw new Error("Runtime agent tools require a capability catalog.");
@@ -75,6 +92,7 @@ export const createRuntimeAgentTools = (
   const capabilityCatalog = options.capabilityCatalog;
   const availabilityContext = toAvailabilityContext(deps);
   const capabilityIdSchema = capabilityCatalog.createIdSchema();
+  const loadPromptByKey = options.loadPromptByKey ?? deps.loadPromptByKey;
 
   const listRuntimeAgents = tool(
     async () => {
@@ -103,7 +121,7 @@ export const createRuntimeAgentTools = (
           throw new Error(`Runtime agent not found: ${input.id}`);
         }
 
-        return formatRuntimeAgentPreview(agent);
+        return formatRuntimeAgentPreview(agent, loadPromptByKey);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -145,7 +163,7 @@ export const createRuntimeAgentTools = (
           ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         });
 
-        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}\n\n${RUNTIME_AGENT_RELOAD_NOTE}`;
+        return `Created runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${formatPromptFileNote(repository, agent)}\n\n${RUNTIME_AGENT_RELOAD_NOTE}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;
@@ -180,7 +198,7 @@ export const createRuntimeAgentTools = (
 
         const reloadNote = agent.enabled ? `\n\n${RUNTIME_AGENT_RELOAD_NOTE}` : "";
 
-        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${reloadNote}`;
+        return `Updated runtime agent ${agent.name}.\n\n${formatRuntimeAgentSummary(agent)}${formatPromptFileNote(repository, agent)}${reloadNote}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;

@@ -6,7 +6,7 @@ import {
 } from "../execution/runtime-agent-handoff.js";
 import type { AgentState, AgentStateUpdate, ExecutionQueue } from "../state.js";
 import { POST_HANDOFF_FINISH_ROUTE } from "../state.js";
-import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
+import { CONFIGURATION_AGENT_ID, RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
 import {
   normalizeDelegationPrompt,
   normalizeSupervisorReply,
@@ -166,7 +166,19 @@ export const detectCompletionState = (state: AgentState): AgentStateUpdate | nul
     return enqueueAndStart(state.executionQueue);
   }
 
-  return null;
+  const lastMessage = state.messages[state.messages.length - 1];
+  const specialistJustFinished = lastMessage instanceof AIMessage;
+  const configurationHandoff = state.lastHandoff?.agentId === CONFIGURATION_AGENT_ID;
+
+  if (!specialistJustFinished || !configurationHandoff) {
+    return null;
+  }
+
+  return {
+    next: POST_HANDOFF_FINISH_ROUTE,
+    routingFailureContext: null,
+    lastHandoff: state.lastHandoff,
+  };
 };
 
 export const resolveRoutingDecision = async (

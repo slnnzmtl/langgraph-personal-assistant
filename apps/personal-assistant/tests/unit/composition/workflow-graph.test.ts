@@ -259,7 +259,7 @@ describe("supervisor graph compilation", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("schedule a daily reminder")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(2);
+    expect(supervisorCalls).toBe(1);
     expect(state.messages.at(-1)?.content).toContain("Cron configuration");
   });
 
@@ -317,7 +317,7 @@ describe("supervisor graph compilation", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("set up a cron job for daily notes")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(2);
+    expect(supervisorCalls).toBe(1);
     expect(state.messages.at(-1)?.content).toContain("Created cron job");
   });
 

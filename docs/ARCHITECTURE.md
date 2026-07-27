@@ -300,7 +300,7 @@ This is a practical balance between context-window cost and LangGraph conversati
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
 | Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
 | Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
-| Skills and prompts | Local files | No database coordination | Changes take effect on the next load; deployment paths must match source expectations. |
+| Skills and prompts | Local files (`agents/`, `data/agent-prompts/`, `skills/`) | No database coordination | Changes take effect on the next load; deployment paths must match source expectations. Chat-created agent prompts live under `data/agent-prompts/` (Compose volume). |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
@@ -371,8 +371,11 @@ Current skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, 
 | Finance | `agents/finance.xml` | XML |
 | Obsidian | `agents/obsidian.xml` | XML |
 | Configuration | `agents/configuration.xml` | XML |
+| Chat-created runtime agents | `data/agent-prompts/{id}.xml` | XML (writable data volume) |
 
-Prompts are **read from disk on each invocation** (hot-reload in dev). For built-ins with `promptSourceKey`, the persisted `systemPrompt` is a bootstrap snapshot and the prompt file is the runtime source of truth. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
+Prompt lookup checks `data/agent-prompts/{key}.xml` **before** `agents/{key}.xml`, so chat-created prompts override image-baked files when both exist.
+
+Prompts are **read from disk on each invocation** (hot-reload in dev). Agents with `promptSourceKey` store a bootstrap snapshot in JSON; the prompt file is the runtime source of truth. Shipped specialists reference `agents/`; chat-created agents reference `data/agent-prompts/`. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
 
 ---
 
@@ -503,7 +506,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a custom runtime agent at runtime (default):**
 
-Use the configuration agent in Telegram — creates an agent with selected capabilities, persisted to `data/runtime-agents.json`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart.
+Use the configuration agent in Telegram — creates an agent with selected capabilities, persists metadata to `data/runtime-agents.json`, and writes the runtime prompt to `data/agent-prompts/{id}.xml`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart.
 
 ---
 

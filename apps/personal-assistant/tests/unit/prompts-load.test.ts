@@ -15,6 +15,7 @@ import {
   loadSystemPromptByKey,
   SUPERVISOR_PROMPT_KEY,
 } from "../../src/prompts/load.js";
+import { createDataAgentPromptStore } from "../../src/prompts/agent-prompt-store.js";
 import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
 describe("prompt loaders", () => {
@@ -64,6 +65,32 @@ describe("prompt loaders", () => {
     expect(configurationPrompt).not.toMatch(/<available_skills>\s*\n/);
     expect(configurationPrompt).not.toContain("<runtime_execution>");
     expect(configurationPrompt).not.toContain("CURRENT DATETIME:");
+  });
+
+  it("loadSystemPromptByKey resolves chat-created prompts from data/agent-prompts", async () => {
+    const store = createDataAgentPromptStore();
+    const id = "data-path-precedence-test";
+
+    try {
+      await store.write(id, "Custom data-volume prompt content.");
+      const loaded = loadSystemPromptByKey(id);
+      expect(loaded).toContain("Custom data-volume prompt content.");
+    } finally {
+      await store.delete(id);
+    }
+  });
+
+  it("loadSystemPromptByKey prefers data/agent-prompts over agents/", async () => {
+    const store = createDataAgentPromptStore();
+
+    try {
+      await store.write("obsidian", "FROM DATA VOLUME");
+      const loaded = loadSystemPromptByKey("obsidian");
+      expect(loaded).toContain("FROM DATA VOLUME");
+      expect(loaded).not.toContain("Obsidian Vault Manager");
+    } finally {
+      await store.delete("obsidian");
+    }
   });
 });
 
