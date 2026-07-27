@@ -8,7 +8,7 @@ import {
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
 import {
