@@ -5,7 +5,7 @@ import type { RuntimeAgentRepository } from "../agents/repository.js";
 import type { PromptLoggingHook } from "../ports/prompt-logging.js";
 import type { PolicyContext } from "../types/policy-context.js";
 import type { RuntimeAgentPolicy } from "../types/policy.js";
-import { DEFAULT_PRODUCT_EXECUTOR } from "../types/agent.js";
+import { DEFAULT_MODEL_KEY } from "../types/agent.js";
 
 export type RuntimeAgentExecutionContext<
   TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
@@ -47,7 +47,7 @@ export const createRuntimeAgentExecutionContext = <
   input: CreateRuntimeAgentExecutionContextInput<TCapabilityDeps>,
 ): RuntimeAgentExecutionContext<TCapabilityDeps> => ({
   models: input.models,
-  defaultModelKey: input.defaultModelKey ?? DEFAULT_PRODUCT_EXECUTOR,
+  defaultModelKey: input.defaultModelKey ?? DEFAULT_MODEL_KEY,
   repository: input.repository,
   capabilityDeps: input.capabilityDeps,
   loadPromptByKey: input.loadPromptByKey,

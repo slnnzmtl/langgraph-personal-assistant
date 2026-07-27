@@ -1,9 +1,9 @@
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
-import { DEFAULT_PRODUCT_EXECUTOR, resolveAgentCapabilityIds, resolveAgentModelKey } from "../core/types/agent.js";
+import { DEFAULT_MODEL_KEY, resolveAgentCapabilityIds, resolveAgentModelKey } from "../core/types/agent.js";
 
 export const deriveModelKeys = (
   agents: RuntimeAgentDefinition[],
-  defaultModelKey = DEFAULT_PRODUCT_EXECUTOR,
+  defaultModelKey = DEFAULT_MODEL_KEY,
 ): Set<string> => {
   const keys = new Set<string>([defaultModelKey]);
 

@@ -37,6 +37,3 @@ export const applyLocalModuleAvailability = (
     return agent;
   });
 };
-
-/** @deprecated Use DEFAULT_MODEL_KEY from supervisor-framework */
-export { DEFAULT_MODEL_KEY as DEFAULT_PRODUCT_EXECUTOR };

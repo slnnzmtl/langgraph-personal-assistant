@@ -10,9 +10,6 @@ export const CONFIGURATION_AGENT_ID = "configuration" as const;
 /** Default model key for agents without an explicit modelKey. */
 export const DEFAULT_MODEL_KEY = "generic" as const;
 
-/** @deprecated Use DEFAULT_MODEL_KEY */
-export const DEFAULT_PRODUCT_EXECUTOR = DEFAULT_MODEL_KEY;
-
 /** Legacy persisted executor values that implied a dedicated model before migration. */
 const LEGACY_MODEL_EXECUTOR_KEYS = new Set(["finance", "obsidian"]);
 

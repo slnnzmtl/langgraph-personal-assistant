@@ -68,7 +68,6 @@ export type { PolicyContext } from "./core/types/policy-context.js";
 export {
   RUNTIME_AGENT_CONTEXT_KEY,
   DEFAULT_MODEL_KEY,
-  DEFAULT_PRODUCT_EXECUTOR,
   RuntimeAgentDefinitionSchema,
   RuntimeAgentsDocumentSchema,
   resolveAgentModelKey,

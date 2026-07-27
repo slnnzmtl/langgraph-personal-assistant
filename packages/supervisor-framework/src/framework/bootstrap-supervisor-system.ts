@@ -3,7 +3,7 @@ import path from "node:path";
 import { createCapabilityCatalog } from "../capabilities/index.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
-import { DEFAULT_PRODUCT_EXECUTOR } from "../core/types/agent.js";
+import { DEFAULT_MODEL_KEY } from "../core/types/agent.js";
 import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
 import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
@@ -76,7 +76,7 @@ export const bootstrapSupervisorSystem = async <
   };
 
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
-  const defaultModelKey = DEFAULT_PRODUCT_EXECUTOR;
+  const defaultModelKey = DEFAULT_MODEL_KEY;
   const models = pack.buildModels(pack.config, runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } =
     pack.buildRuntimeExecution(runtimeAgents, skillCatalog, bootstrapContext);
