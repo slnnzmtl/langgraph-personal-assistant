@@ -6,7 +6,7 @@ import {
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../../src/composition/runtime-execution.js";
-import { loadSystemPromptByKey } from "../../../src/load-system-prompt.js";
+import { loadSystemPromptByKey } from "../../../src/prompts/load.js";
 
 const financeDefinition: RuntimeAgentDefinition = {
   id: "finance",

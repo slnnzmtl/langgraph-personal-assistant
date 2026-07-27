@@ -23,17 +23,17 @@ import {
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../prompts/load.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
-  type CapabilityDeps,
-} from "../runtime-agents/builtin-capabilities.js";
+  type PersonalCapabilityDeps,
+} from "../runtime-agents/capabilities.js";
 import { setupSupabaseSession } from "../services/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
-import { applyLocalModuleAvailability } from "./bootstrap-agents.js";
+import { applyIntegrationAvailability } from "./runtime-agent-defaults.js";
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
@@ -76,7 +76,7 @@ export const buildPersonalCronGraphHooks = (
 export const buildPersonalCapabilityDeps = (
   obsidianVaultPath: string,
   options: PersonalCapabilityDepsOptions,
-): CapabilityDeps =>
+): PersonalCapabilityDeps =>
   createCapabilityDeps(obsidianVaultPath, {
     cronTargetAgentIds: options.cronTargetAgentIds,
     capabilityCatalog: options.capabilityCatalog,
@@ -102,7 +102,7 @@ export const buildPersonalSupervisorPack = ({
   supervisorLlm,
 }: BuildPersonalSupervisorPackInput): SupervisorPackBootstrap<
   AppConfig,
-  CapabilityDeps,
+  PersonalCapabilityDeps,
   PersonalAdapters
 > => ({
   config,
@@ -124,7 +124,7 @@ export const buildPersonalSupervisorPack = ({
     supabaseSession: await setupSupabaseSession(appConfig),
   }),
   seedAgents: async (repository, { adapters }) =>
-    applyLocalModuleAvailability(await repository.loadAgents(), {
+    applyIntegrationAvailability(await repository.loadAgents(), {
       supabaseAvailable: adapters.supabaseSession !== undefined,
     }),
   buildSkillCatalog: buildPersonalSkillCatalog,

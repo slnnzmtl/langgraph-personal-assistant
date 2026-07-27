@@ -9,12 +9,11 @@ import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createCapabilityDeps,
-  createDefaultCapabilityCatalog,
-  createPersonalCapabilityProviders,
+  createDomainCapabilityCatalog,
   listAvailableCapabilities,
   resolveCapabilities,
   validateGrantableCapabilityIds,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+} from "../../src/runtime-agents/capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
@@ -79,7 +78,7 @@ describe("builtin capabilities", () => {
   });
 
   it("allows grantable capabilities", () => {
-    const catalog = createDefaultCapabilityCatalog();
+    const catalog = createDomainCapabilityCatalog();
 
     catalog.validateGrantableIds(["none"], {
       obsidianVaultPath: "/tmp/vault",

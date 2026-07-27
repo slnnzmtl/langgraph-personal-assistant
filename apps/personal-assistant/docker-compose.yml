@@ -24,7 +24,7 @@ services:
       - .env
     environment:
       OBSIDIAN_VAULT_PATH: /data/obsidian-vault
-    command: ["node", "dist/cron/index.js"]
+    command: ["node", "dist/scheduler/index.js"]
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
       - ${DATA_HOST_PATH:-./data}:/app/apps/personal-assistant/data

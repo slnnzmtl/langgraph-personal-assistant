@@ -11,7 +11,7 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 | Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
 | Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | Composition, `createSupervisorSystem`, domain hooks |
 | Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
-| Agent prompts | `apps/personal-assistant/src/load-system-prompt.ts` + content `agents/` | System prompt loading and metadata helpers |
+| Agent prompts | `apps/personal-assistant/src/prompts/load.ts` + content `agents/` | System prompt loading and metadata helpers |
 | Skills runtime | `packages/supervisor-framework/src/core/skills/` | Skill filesystem I/O, `SkillCatalog`, prompt enrichment, attachments |
 | Cron runtime | `packages/supervisor-framework/src/framework/cron/` | Job definitions, JSON persistence, trigger protocol, scheduler service, graph runner |
 | Runtime agent watcher | `packages/supervisor-framework/src/framework/runtime-agent-watcher.ts` | Debounced hot-reload when `runtime-agents.json` changes |
@@ -60,7 +60,7 @@ Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps
 
 ## Adding a capability (personal app)
 
-1. Add a descriptor to `PERSONAL_CAPABILITY_DESCRIPTORS` in `apps/personal-assistant/src/runtime-agents/builtin-capabilities.ts`.
+1. Add a descriptor to `PERSONAL_CAPABILITY_DESCRIPTORS` in `apps/personal-assistant/src/runtime-agents/capabilities.ts`.
 2. Implement `CapabilityProvider.resolveTools`.
 3. Grant the capability ID on agent definitions (`capabilityIds`).
 4. Resolve tools through `resolveAgentTools()` (framework) or `createPersonalResolveTools()` (personal pack with `read_skill`).

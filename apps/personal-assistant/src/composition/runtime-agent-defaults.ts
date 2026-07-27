@@ -1,6 +1,5 @@
 import type { AppConfig } from "../config.js";
 import {
-  DEFAULT_MODEL_KEY,
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
@@ -14,13 +13,13 @@ const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {
 export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): string =>
   MODEL_OVERRIDES[modelKey]?.(config) ?? config.geminiModel;
 
-export type LocalModuleAvailabilityOptions = {
+export type IntegrationAvailabilityOptions = {
   supabaseAvailable?: boolean;
 };
 
-export const applyLocalModuleAvailability = (
+export const applyIntegrationAvailability = (
   agents: RuntimeAgentDefinition[],
-  options: LocalModuleAvailabilityOptions = {},
+  options: IntegrationAvailabilityOptions = {},
 ): RuntimeAgentDefinition[] => {
   if (options.supabaseAvailable !== false) {
     return agents;

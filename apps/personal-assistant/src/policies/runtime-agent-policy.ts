@@ -19,8 +19,8 @@ import {
 import type { CapabilityCatalog } from "@personal-assistant/supervisor-framework";
 import {
   OBSIDIAN_VAULT_CAPABILITY_ID,
-  type CapabilityDeps,
-} from "../runtime-agents/builtin-capabilities.js";
+  type PersonalCapabilityDeps,
+} from "../runtime-agents/capabilities.js";
 import type { PersonalResolveTools } from "../composition/personal-resolve-tools.js";
 import {
   composeObsidianCapabilityHooks,
@@ -38,7 +38,7 @@ export type DefaultRuntimePolicyOptions = AgentPolicyToolkitOptions & {
 
 type CapabilityBehaviorContext = {
   definition: RuntimeAgentDefinition;
-  capabilityDeps: CapabilityDeps;
+  capabilityDeps: PersonalCapabilityDeps;
   shellHooks: RuntimeAgentNodeHooks;
   shellFormatters: NonNullable<AgentPolicyToolkitOptions["shellFormatters"]>;
 };
@@ -143,7 +143,7 @@ export const createDefaultRuntimeAgentPolicy = (
   shellHooks: RuntimeAgentNodeHooks,
   options: DefaultRuntimePolicyOptions,
 ): RuntimeAgentPolicy =>
-  createAgentPolicy<CapabilityDeps>({
+  createAgentPolicy<PersonalCapabilityDeps>({
     resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
     unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
     resolveTools: (definition, capabilityDeps, resolveOptions) =>

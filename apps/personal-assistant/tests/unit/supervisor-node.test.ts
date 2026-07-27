@@ -5,7 +5,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { ILLMConnector } from "../../src/models/gemini-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, asAgentState, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getMessageText, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
 import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
 import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
 import { trimMessagesToTokenBudgetSync } from "@personal-assistant/supervisor-framework";

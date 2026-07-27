@@ -13,8 +13,8 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { ILLMConnector, RoutingChain } from "../../src/models/gemini-connector.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE, type CronJobRepository } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
-import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import {
   buildTestRuntimeAgents,
   defaultTestCronTargetAgentIds,
@@ -210,7 +210,7 @@ export const createRuntimeAgentRepositoryFake = (
   };
 };
 
-export const defaultConfigurationCapabilityDeps: CapabilityDeps = {
+export const defaultConfigurationCapabilityDeps: PersonalCapabilityDeps = {
   obsidianVaultPath: "/tmp/pa-unit-vault",
   cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
@@ -256,7 +256,7 @@ export const createRuntimeExecutionContextFake = (options?: {
   cronJobRepository?: CronJobRepository;
   llmConnector?: FakeLLMConnector;
   obsidianVaultPath?: string;
-  capabilityDeps?: Partial<CapabilityDeps>;
+  capabilityDeps?: Partial<PersonalCapabilityDeps>;
 }) => {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();

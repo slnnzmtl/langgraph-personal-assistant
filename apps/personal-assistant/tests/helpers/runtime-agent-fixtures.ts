@@ -11,7 +11,7 @@ import {
 import {
   FINANCE_DOMAIN_CAPABILITY_ID,
   OBSIDIAN_VAULT_CAPABILITY_ID,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+} from "../../src/runtime-agents/capabilities.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

@@ -2,7 +2,7 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 
 import type { AppConfig } from "../config.js";
 import { GeminiConnector } from "../models/gemini-connector.js";
-import { resolveBuiltinModelName } from "./bootstrap-agents.js";
+import { resolveBuiltinModelName } from "./runtime-agent-defaults.js";
 
 export const buildModelRegistry = (
   config: AppConfig,

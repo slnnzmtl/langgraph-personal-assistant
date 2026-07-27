@@ -7,9 +7,9 @@ import {
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
-import { applyLocalModuleAvailability } from "../../src/composition/bootstrap-agents.js";
+import { applyIntegrationAvailability } from "../../src/composition/runtime-agent-defaults.js";
 import {
   buildPersonalCapabilityDeps,
   buildPersonalCronGraphHooks,
@@ -48,7 +48,7 @@ export const createTestWorkflowGraph = ({
   supabaseSession,
   fileSender,
 }: TestWorkflowGraphOptions): CompiledSupervisorGraph => {
-  runtimeAgents = applyLocalModuleAvailability(runtimeAgents, {
+  runtimeAgents = applyIntegrationAvailability(runtimeAgents, {
     supabaseAvailable: supabaseSession !== undefined,
   });
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey as "generic");

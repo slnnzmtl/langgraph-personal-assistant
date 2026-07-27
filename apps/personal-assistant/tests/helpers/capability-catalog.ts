@@ -3,7 +3,7 @@ import {
   createSystemConfigCapabilityProviders,
   type CapabilityCatalog,
 } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
+import { createPersonalCapabilityProviders } from "../../src/runtime-agents/capabilities.js";
 
 /** Personal domain providers + system-config providers (matches bootstrap when systemAgent is enabled). */
 export const createPersonalCapabilityCatalog = (

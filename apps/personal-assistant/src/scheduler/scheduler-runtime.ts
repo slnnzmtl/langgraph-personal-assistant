@@ -20,19 +20,19 @@ type GraphInvoker = {
   invoke(input: unknown, config?: unknown): Promise<unknown>;
 };
 
-export type StartCronOptions = {
+export type StartSchedulerRuntimeOptions = {
   getGraph: () => GraphInvoker;
   summaryModel: BaseChatModel;
   config: AppConfig;
-  lazyCron: LazyCronService;
+  runtimeCron: LazyCronService;
   cronJobRepository: CronJobRepository;
   telegram: Telegram;
   cronTargetAgentIds?: readonly string[];
   schedulerEnabled?: boolean;
 };
 
-export const startCron = async (options: StartCronOptions): Promise<void> => {
-  const { getGraph, summaryModel, config, lazyCron, cronJobRepository, telegram } = options;
+export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOptions): Promise<void> => {
+  const { getGraph, summaryModel, config, runtimeCron, cronJobRepository, telegram } = options;
 
   const onJobError = (error: unknown, context: CronJobRun): void => {
     console.error(`[Cron] Job failed: ${context.jobName}`, error);
@@ -57,7 +57,7 @@ export const startCron = async (options: StartCronOptions): Promise<void> => {
     timezone: config.appTimezone,
   });
 
-  lazyCron.setService(runtimeCronService);
+  runtimeCron.setService(runtimeCronService);
 
   await startCronBootstrap({
     repository: cronJobRepository,

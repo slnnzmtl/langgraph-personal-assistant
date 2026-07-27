@@ -14,7 +14,7 @@ import {
   loadSupervisorSystemPrompt,
   loadSystemPromptByKey,
   SUPERVISOR_PROMPT_KEY,
-} from "../../src/load-system-prompt.js";
+} from "../../src/prompts/load.js";
 import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
 describe("prompt loaders", () => {

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { formatCurrentTime, toUtcDayRange } from "./utils/datetime.js";
+import { formatCurrentTime, toUtcDayRange } from "../utils/datetime.js";
 
 export const AGENTS_ROOT = path.resolve(process.cwd(), "agents");
 

@@ -13,17 +13,16 @@ import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.j
 import { createPersonalResolveTools } from "../../src/composition/personal-resolve-tools.js";
 import {
   createCapabilityDeps,
-  createDefaultCapabilityCatalog,
-  createPersonalCapabilityProviders,
+  createDomainCapabilityCatalog,
   PERSONAL_CAPABILITY_DESCRIPTORS,
   resolveCapabilities,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+} from "../../src/runtime-agents/capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
-const PROMPT_LAYER_FILES = [path.join(appRoot, "src/load-system-prompt.ts")];
+const PROMPT_LAYER_FILES = [path.join(appRoot, "src/prompts/load.ts")];
 
 const assertFilesAvoidImports = (
   files: readonly string[],
@@ -85,7 +84,7 @@ describe("app boundaries", () => {
   });
 
   it("rejects unavailable capability grants", () => {
-    const catalog = createDefaultCapabilityCatalog();
+    const catalog = createDomainCapabilityCatalog();
 
     expect(() =>
       catalog.validateIds(["finance-domain"], {
@@ -97,7 +96,7 @@ describe("app boundaries", () => {
   });
 
   it("resolves finance tools for agents with finance-domain capability", () => {
-    const catalog = createDefaultCapabilityCatalog();
+    const catalog = createDomainCapabilityCatalog();
     const resolveTools = createPersonalResolveTools(catalog);
     const deps = createCapabilityDeps("/tmp/vault", {
       supabaseSession: { executeSql: async () => [] } as never,

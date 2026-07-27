@@ -8,7 +8,7 @@ import {
   type CronJobRepository,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
+import type { PersonalCapabilityDeps } from "../runtime-agents/capabilities.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,
@@ -16,7 +16,7 @@ import {
 
 export type { SupervisorSystemOptions } from "./personal-pack.js";
 
-type PersonalAdapters = { supabaseSession?: CapabilityDeps["supabaseSession"] };
+type PersonalAdapters = { supabaseSession?: PersonalCapabilityDeps["supabaseSession"] };
 
 export type SupervisorSystemContext = {
   config: AppConfig;

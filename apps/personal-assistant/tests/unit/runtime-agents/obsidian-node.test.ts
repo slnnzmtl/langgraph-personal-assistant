@@ -20,7 +20,7 @@ import { extractMessageTextContent, resolveAgentSkillModule } from "@personal-as
 import {
   createPromptLoader,
   loadSystemPromptByKey,
-} from "../../../src/load-system-prompt.js";
+} from "../../../src/prompts/load.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");

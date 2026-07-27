@@ -11,9 +11,9 @@
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "pnpm test:unit && pnpm test:e2e",
     "dev": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/index.ts",
-    "dev:scheduler": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/cron/index.ts",
+    "dev:scheduler": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/scheduler/index.ts",
     "start": "node dist/index.js",
-    "start:scheduler": "node dist/cron/index.js",
+    "start:scheduler": "node dist/scheduler/index.js",
     "test:unit": "ENABLE_PROMPT_LOGS=false vitest run",
     "test:e2e": "ENABLE_PROMPT_LOGS=false playwright test",
     "test:e2e:ui": "ENABLE_PROMPT_LOGS=false playwright test --ui"

@@ -7,10 +7,10 @@ import {
   buildSkillModuleOwnerPattern,
 } from "@personal-assistant/supervisor-framework";
 import {
-  applyLocalModuleAvailability,
+  applyIntegrationAvailability,
   resolveBuiltinModelName,
-} from "../../../src/composition/bootstrap-agents.js";
-import { createSkillCatalog, listSkillModules } from "@personal-assistant/supervisor-framework";
+} from "../../../src/composition/runtime-agent-defaults.js";
+import { listSkillModules } from "@personal-assistant/supervisor-framework";
 import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
 import type { AppConfig } from "../../../src/config.js";
 
@@ -44,8 +44,8 @@ describe("system admin agent manifest", () => {
     );
 
     expect(financeAgent).toBeDefined();
-    expect(applyLocalModuleAvailability([financeAgent!], { supabaseAvailable: false })[0]?.enabled).toBe(false);
-    expect(applyLocalModuleAvailability([financeAgent!], { supabaseAvailable: true })[0]?.enabled).toBe(true);
+    expect(applyIntegrationAvailability([financeAgent!], { supabaseAvailable: false })[0]?.enabled).toBe(false);
+    expect(applyIntegrationAvailability([financeAgent!], { supabaseAvailable: true })[0]?.enabled).toBe(true);
   });
 
   it("resolves model names from model key overrides", () => {

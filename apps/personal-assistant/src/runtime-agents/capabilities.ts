@@ -58,7 +58,7 @@ const getDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
   return descriptor;
 };
 
-export type CapabilityDeps = {
+export type PersonalCapabilityDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
@@ -73,8 +73,8 @@ export type CapabilityDeps = {
 export const createCapabilityDeps = (
   obsidianVaultPath: string,
   options: {
-    fileSender?: CapabilityDeps["fileSender"];
-    supabaseSession?: CapabilityDeps["supabaseSession"];
+    fileSender?: PersonalCapabilityDeps["fileSender"];
+    supabaseSession?: PersonalCapabilityDeps["supabaseSession"];
     cronTargetAgentIds?: readonly string[];
     cronJobRepository?: CronJobRepository;
     runtimeAgentRepository?: RuntimeAgentRepository;
@@ -82,7 +82,7 @@ export const createCapabilityDeps = (
     capabilityCatalog?: CapabilityCatalog;
     skillCatalog?: SkillCatalog;
   } = {},
-): CapabilityDeps => ({
+): PersonalCapabilityDeps => ({
   obsidianVaultPath,
   ...(options.fileSender ? { fileSender: options.fileSender } : {}),
   ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
@@ -95,7 +95,7 @@ export const createCapabilityDeps = (
 });
 
 
-export const createPersonalCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] => [
+export const createPersonalCapabilityProviders = (): CapabilityProvider<PersonalCapabilityDeps>[] => [
   {
     descriptor: getDescriptor("none"),
     resolveTools: () => [],
@@ -116,42 +116,43 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Capabili
   },
 ];
 
-export const createDefaultCapabilityCatalog = (): CapabilityCatalog =>
+/** Personal domain capabilities only (excludes framework system-config providers). */
+export const createDomainCapabilityCatalog = (): CapabilityCatalog =>
   createCapabilityCatalog(createPersonalCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
 
 export const toCapabilityAvailabilityContext = (
-  deps: CapabilityDeps,
+  deps: PersonalCapabilityDeps,
 ): CapabilityAvailabilityContext => ({
   obsidianVaultPath: deps.obsidianVaultPath,
   supabaseAvailable: deps.supabaseSession !== undefined,
   configurationReposAvailable: configurationReposAvailable(deps),
 });
 
-export const getCapabilityCatalog = (deps: CapabilityDeps): CapabilityCatalog =>
-  deps.capabilityCatalog ?? createDefaultCapabilityCatalog();
+export const getCapabilityCatalog = (deps: PersonalCapabilityDeps): CapabilityCatalog =>
+  deps.capabilityCatalog ?? createDomainCapabilityCatalog();
 
 export const listAvailableCapabilities = (
-  deps: CapabilityDeps,
+  deps: PersonalCapabilityDeps,
 ): CapabilityDescriptor[] =>
   getCapabilityCatalog(deps).listAvailable(toCapabilityAvailabilityContext(deps));
 
 export const validateCapabilityIds = (
   capabilityIds: readonly string[],
-  deps: CapabilityDeps,
+  deps: PersonalCapabilityDeps,
 ): void => {
   getCapabilityCatalog(deps).validateIds(capabilityIds, toCapabilityAvailabilityContext(deps));
 };
 
 export const validateGrantableCapabilityIds = (
   capabilityIds: readonly string[],
-  deps: CapabilityDeps,
+  deps: PersonalCapabilityDeps,
 ): void => {
   getCapabilityCatalog(deps).validateGrantableIds(capabilityIds, toCapabilityAvailabilityContext(deps));
 };
 
 export const resolveCapabilities = (
   capabilityIds: readonly string[],
-  deps: CapabilityDeps,
+  deps: PersonalCapabilityDeps,
 ): StructuredToolInterface[] =>
   getCapabilityCatalog(deps).resolveTools(
     capabilityIds,

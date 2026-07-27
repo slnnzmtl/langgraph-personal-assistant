@@ -11,20 +11,20 @@ import { buildAppRuntimeExecution } from "../../src/composition/runtime-executio
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
-  type CapabilityDeps,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+  type PersonalCapabilityDeps,
+} from "../../src/runtime-agents/capabilities.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
   repository?: RuntimeAgentRepository;
-  capabilityDeps: CapabilityDeps;
+  capabilityDeps: PersonalCapabilityDeps;
 };
 
 export const createAppRuntimeExecutionContext = (
   input: CreateAppRuntimeExecutionContextInput,
-): RuntimeAgentExecutionContext<CapabilityDeps> => {
+): RuntimeAgentExecutionContext<PersonalCapabilityDeps> => {
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
   const capabilityCatalog = createPersonalCapabilityCatalog();
@@ -36,7 +36,7 @@ export const createAppRuntimeExecutionContext = (
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
-  return createCoreExecutionContext<CapabilityDeps>({
+  return createCoreExecutionContext<PersonalCapabilityDeps>({
     models: Object.fromEntries(
       [...deriveModelKeys(runtimeAgents, defaultModelKey)].map((modelKey) => [
         modelKey,

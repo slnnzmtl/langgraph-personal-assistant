@@ -17,6 +17,6 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((error: unknown) => {
-  console.error("Failed to start cron scheduler:", error);
+  console.error("Failed to start scheduler:", error);
   process.exitCode = 1;
 });

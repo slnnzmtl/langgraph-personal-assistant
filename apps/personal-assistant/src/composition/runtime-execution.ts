@@ -10,7 +10,7 @@ import {
   appendDynamicSections,
   formatSystemMetadata,
   loadSystemPromptByKey,
-} from "../load-system-prompt.js";
+} from "../prompts/load.js";
 import { createPersonalResolveTools } from "./personal-resolve-tools.js";
 import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
 

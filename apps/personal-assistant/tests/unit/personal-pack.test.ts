@@ -10,8 +10,8 @@ import { buildPersonalSupervisorPack } from "../../src/composition/personal-pack
 import type { AppConfig } from "../../src/config.js";
 import {
   createCapabilityDeps,
-  createDefaultCapabilityCatalog,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+  createDomainCapabilityCatalog,
+} from "../../src/runtime-agents/capabilities.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeExecutionContextFake, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
@@ -26,7 +26,7 @@ const testConfig = {
 const buildBootstrapContext = (
   runtimeAgents: ReturnType<typeof buildTestRuntimeAgents>,
   skillCatalog: ReturnType<typeof createSkillCatalog>,
-  capabilityCatalog: ReturnType<typeof createDefaultCapabilityCatalog>,
+  capabilityCatalog: ReturnType<typeof createDomainCapabilityCatalog>,
 ) => ({
   config: testConfig,
   runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
@@ -76,7 +76,7 @@ describe("buildPersonalSupervisorPack", () => {
       supervisorLlm: {} as ILLMConnector,
     });
     const skillCatalog = createSkillCatalog({ approvedModules: ["configuration"] });
-    const domainOnlyCatalog = createDefaultCapabilityCatalog();
+    const domainOnlyCatalog = createDomainCapabilityCatalog();
     const bootstrapContext = buildBootstrapContext(runtimeAgents, skillCatalog, domainOnlyCatalog);
     const { runtimeAgentPolicy } = pack.buildRuntimeExecution!(
       runtimeAgents,

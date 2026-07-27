@@ -1,4 +1,4 @@
-// Telegram bot process entry — distinct from src/cron/ scheduler entry.
+// Telegram bot process entry — distinct from src/scheduler/ scheduler entry.
 import { Telegraf } from "telegraf";
 
 import {

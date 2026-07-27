@@ -11,8 +11,8 @@ import {
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
-import { loadSystemPromptByKey } from "../../src/load-system-prompt.js";
-import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
+import { loadSystemPromptByKey } from "../../src/prompts/load.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import {
   buildRuntimeAgentNodeConfigForDefinition,
@@ -51,7 +51,7 @@ export const buildNodeConfigForTest = (
     definition,
     capabilityDeps: {
       obsidianVaultPath: options.vaultRoot ?? "/tmp/vault",
-    } as CapabilityDeps,
+    } as PersonalCapabilityDeps,
     shellHooks: testShellHooks,
     shellFormatters: testShellFormatters,
   });

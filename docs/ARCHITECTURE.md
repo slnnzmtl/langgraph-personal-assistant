@@ -36,7 +36,7 @@ flowchart TB
         TG[Telegram Adapter]
         CRON[Cron Scheduler Process]
         IDX[index.ts → app.ts]
-        CRIDX[cron/index.ts]
+        CRIDX[scheduler/index.ts]
     end
 
     subgraph AppLayer["App layer (src/composition/ + src/policies/)"]
@@ -119,14 +119,14 @@ index.ts
        └─ launchApp()
 ```
 
-### Cron scheduler (`src/cron/index.ts`)
+### Scheduler process (`src/scheduler/index.ts`)
 
 ```
-cron/index.ts
+scheduler/index.ts
   └─ loadConfig()
   └─ createSchedulerApp()
-       └─ createSupervisorSystem({ runtimeCron: lazyCron })
-       └─ startCron() — wires framework cron runner + node-cron service
+       └─ createSupervisorSystem({ runtimeCron })
+       └─ startSchedulerRuntime() — wires framework cron runner + node-cron service
        └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json (framework)
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
 ```
@@ -385,7 +385,7 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
 | **Wise** | REST API for transaction sync | `services/wise.ts` |
-| **Cron** | Separate scheduler process; framework cron kit + app Telegram wiring | `packages/supervisor-framework/src/framework/cron/`, `apps/personal-assistant/src/cron/`, `data/cron-jobs.json` |
+| **Cron** | Separate scheduler process; framework cron kit + app Telegram wiring | `packages/supervisor-framework/src/framework/cron/`, `apps/personal-assistant/src/scheduler/`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
 
@@ -405,9 +405,9 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 |---|---|---|
 | `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
 | `apps/personal-assistant/src/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
-| `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/cron/index.ts` |
+| `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/scheduler/index.ts` |
 | `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
-| `src/cron/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
+| `src/scheduler/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
 | `src/core/ports/gemini-connector.ts` | LLM port | Gemini implementation lives in `src/models/` |
 
@@ -430,7 +430,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── composition/        # Pack bootstrap & runtime execution wiring
 │       │   ├── policies/           # Domain capability hooks
 │       │   ├── runtime-agents/     # Domain tools & capability catalog
-│       │   ├── cron/ telegram/ services/ mcp/ models/ ...
+│       │   ├── scheduler/ telegram/ services/ mcp/ models/ prompts/ ...
 │       ├── agents/ skills/ data/ sql/
 │       ├── tests/unit/ tests/e2e/
 │       └── Dockerfile docker-compose.yml
@@ -494,7 +494,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 **Add a new tool domain (rare — most agents use chat create):**
 
 1. Implement tools under `runtime-agents/tools/`
-2. Add capability descriptor + provider in `runtime-agents/builtin-capabilities.ts`
+2. Add capability descriptor + provider in `runtime-agents/capabilities.ts`
 3. Compose capability behavior in `policies/runtime-agent-policy.ts` when that capability is granted
 4. Seed a persisted agent row with matching `capabilityIds` and prompt under `agents/`
 5. Restart scheduler once if cron jobs will target the new agent id

@@ -10,7 +10,7 @@ import {
   type RuntimeCronService,
 } from "@personal-assistant/supervisor-framework";
 import type { AppConfig } from "../config.js";
-import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.js";
+import { createLazyCron, startSchedulerRuntime, type LazyCronService } from "./scheduler-runtime.js";
 import type { GeminiConnector } from "../models/gemini-connector.js";
 
 export type SchedulerApp = {
@@ -18,23 +18,22 @@ export type SchedulerApp = {
   cronJobRepository: CronJobRepository;
   cronTargetAgentIds: readonly string[];
   supervisorConnector: GeminiConnector;
-  lazyCron: LazyCronService;
   runtimeCron: RuntimeCronService;
   jobWatcher: CronJobWatcher;
   agentWatcher: RuntimeAgentWatcher;
 };
 
 export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerApp> => {
-  const lazyCron = createLazyCron();
-  const system = await createSupervisorSystem(config, { runtimeCron: lazyCron });
+  const runtimeCron: LazyCronService = createLazyCron();
+  const system = await createSupervisorSystem(config, { runtimeCron });
 
   const bot = new Telegraf(config.telegramBotToken);
 
-  await startCron({
+  await startSchedulerRuntime({
     getGraph: () => system.getGraph(),
     summaryModel: system.supervisorConnector.getModel(),
     config,
-    lazyCron,
+    runtimeCron,
     cronJobRepository: system.cronJobRepository,
     telegram: bot.telegram,
     cronTargetAgentIds: system.cronTargetAgentIds,
@@ -43,7 +42,7 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
 
   const jobWatcher = watchCronJobDefinitions(config.cronJobsFilePath, {
     repository: system.cronJobRepository,
-    runtimeCron: lazyCron,
+    runtimeCron,
   });
   const agentWatcher = watchRuntimeAgentDefinitions(config.runtimeAgentsFilePath, system);
 
@@ -52,8 +51,7 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
     cronJobRepository: system.cronJobRepository,
     cronTargetAgentIds: system.cronTargetAgentIds,
     supervisorConnector: system.supervisorConnector,
-    lazyCron,
-    runtimeCron: lazyCron,
+    runtimeCron,
     jobWatcher,
     agentWatcher,
   };
@@ -67,7 +65,7 @@ export const waitForProcessShutdown = (): Promise<void> =>
   });
 
 export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
-  console.log("Cron scheduler running. Watching for job and runtime agent definition changes.");
+  console.log("Scheduler running. Watching for job and runtime agent definition changes.");
 
   await waitForProcessShutdown();
   app.jobWatcher.close();

@@ -10,7 +10,7 @@ import {
   isRuntimeAgentBuiltin,
   wrapRepositoryWithSystemAgent,
 } from "@personal-assistant/supervisor-framework";
-import { applyLocalModuleAvailability } from "../../src/composition/bootstrap-agents.js";
+import { applyIntegrationAvailability } from "../../src/composition/runtime-agent-defaults.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];
@@ -184,9 +184,9 @@ describe("wrapRepositoryWithSystemAgent", () => {
   });
 });
 
-describe("applyLocalModuleAvailability", () => {
+describe("applyIntegrationAvailability", () => {
   it("disables finance-domain agents when Supabase is unavailable", () => {
-    const agents = applyLocalModuleAvailability(buildLocalModuleAgents(), { supabaseAvailable: false });
+    const agents = applyIntegrationAvailability(buildLocalModuleAgents(), { supabaseAvailable: false });
 
     const financeAgent = agents.find((agent) => agent.capabilityIds.includes("finance-domain"));
     const obsidianAgent = agents.find((agent) => agent.capabilityIds.includes("obsidian-vault"));
