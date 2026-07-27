@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
-import { createFinanceNode } from "../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, financeRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools, getFinanceDomainTool } from "../../helpers/finance-tools.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
@@ -138,7 +138,7 @@ describe("finance tools", () => {
   describe("step counter", () => {
     it("resets stepCount to 1 on initial entry (last message is HumanMessage)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createFinanceNode(model, financeDefinition, []);
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
 
     const update = await financeNode({
       agentMessages: [new HumanMessage("sync finances")],
@@ -150,7 +150,7 @@ describe("finance tools", () => {
 
     it("increments stepCount when last message is a ToolMessage (loop continuation)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createFinanceNode(model, financeDefinition, []);
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
 
     const update = await financeNode({
       agentMessages: [
@@ -165,7 +165,7 @@ describe("finance tools", () => {
 
     it("starts stepCount at 1 from zero on first loop continuation", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createFinanceNode(model, financeDefinition, []);
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
 
     const update = await financeNode({
       agentMessages: [

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
 import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/generic-runtime-policy.js";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
-import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
@@ -99,10 +99,7 @@ describe("configuration subgraph", () => {
       configCalls += 1;
       return new AIMessage("should not run");
     }).getModel();
-    const configNode = createConfigurationNode(model, [], {
-      repository: createCronRepositoryFake(),
-      definition: configurationDefinition,
-    });
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, [], configurationRuntimeNodeConfig());
 
     const update = await configNode({
       agentMessages: [
@@ -155,10 +152,7 @@ describe("configuration subgraph", () => {
       return new AIMessage("Configuration updated.");
     }).getModel();
 
-    const configNode = createConfigurationNode(model, tools, {
-      repository,
-      definition: configurationDefinition,
-    });
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, tools, configurationRuntimeNodeConfig());
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);
     const result = await subgraph.invoke({
       agentMessages: [new HumanMessage("update cron jobs")],

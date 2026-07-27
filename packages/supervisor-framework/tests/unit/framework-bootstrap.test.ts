@@ -49,12 +49,12 @@ describe("framework bootstrap", () => {
       supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
-      buildRuntimeExecution: () => ({
+      buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
         loadPromptByKey: async () => "prompt",
         runtimeAgentPolicy: createAgentPolicy({
           executor: "generic",
           resolveTools: (definition, deps) =>
-            resolveAgentTools(definition, catalog, deps, {}),
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
         }),
       }),
       buildModels: () => ({

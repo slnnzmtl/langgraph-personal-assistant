@@ -486,7 +486,7 @@ The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-ag
 |---|---|
 | **Database-backed event log and long-term memory** | The application has one trusted user and Telegram remains the source of visible message history. Add it only for recall, audit, or restart-continuity requirements that cannot be met otherwise. |
 | **Multi-user tenancy and role-based authorization** | The current adapter is intentionally single-user. A generic-agent capability model is needed before opening access to additional users, not before. |
-| **Extracting `src/core/` into a package** | The existing split is adequate as internal organization. A published/shared package would add versioning, compatibility, and release overhead without a second concrete consumer. |
+| **Publishing `@personal-assistant/supervisor-framework` to npm** | The core already lives in a private workspace package (`packages/supervisor-framework/`). Defer **npm publish and semver compatibility** until a second deployment outside this monorepo justifies it. |
 | **More graph nodes or a workflow engine** | The supervisor plus per-agent flat nodes are already explicit. Add graph structure only for a durable business workflow that cannot fit a runtime-agent tool loop. |
 
 ### Capability boundary for custom agents
@@ -495,7 +495,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 ### Simplification opportunities
 
-- **Done:** Keep the policy registry and generic policy — they eliminate duplicated sub-agent graphs and are justified by the three built-in domains plus configurable agents.
+- **Done:** Single default runtime policy on `createAssistant()` (`runtimeAgentPolicy`) — capability hooks compose on the generic shell; no per-domain policy registry.
 - **Done:** Avoid adding a general dependency-injection container. `createSupervisorSystem()` is the composition root and makes dependencies visible.
 - **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
 - **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).

@@ -46,7 +46,6 @@ export type {
 export { createAssistant, type AssistantConfig } from "./core/create-assistant.js";
 export {
   createAgentPolicy,
-  createRuntimeAgentBundle,
   type AgentPolicyCapabilityDeps,
   type AgentPolicyToolkitOptions,
   type CreateAgentPolicyConfig,
@@ -56,20 +55,15 @@ export {
   type RuntimeAgentRepository,
 } from "./core/agents/repository.js";
 export {
-  resolveAgentSystemPrompt,
   withResolvedAgentSystemPrompt,
   type LoadPromptByKey,
 } from "./core/agents/resolve-system-prompt.js";
 export type { RuntimeAgentPolicy } from "./core/types/policy.js";
 export type { PolicyContext } from "./core/types/policy-context.js";
 export {
-  RUNTIME_AGENT_SCHEMA_VERSION,
   RUNTIME_AGENT_CONTEXT_KEY,
   DEFAULT_PRODUCT_EXECUTOR,
   RuntimeAgentDefinitionSchema,
-  CreateRuntimeAgentInputSchema,
-  UpdateRuntimeAgentInputSchema,
-  toRuntimeAgentId,
   resolveAgentModelKey,
   resolveAgentSkillModule,
   resolveAgentCapabilityIds,
@@ -90,24 +84,18 @@ export type {
   SkillAttachmentCatalog,
 } from "./core/skills/catalog.js";
 export {
-  SkillAttachmentMatchSchema,
-  SkillAttachmentRuleSchema,
-} from "./core/skills/catalog.js";
-export {
   createCapabilityCatalog,
   configurationReposAvailable,
   isCapabilityAvailable,
-  isCapabilityGrantable,
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
   type CapabilityAvailabilityContext,
 } from "./capabilities/index.js";
 export type { ILLMConnector, RoutingChain } from "./core/ports/llm-connector.js";
-export { defaultReplyUxConfig, type ReplyUxConfig } from "./core/supervisor/reply-ux.js";
+export type { ReplyUxConfig } from "./core/supervisor/reply-ux.js";
 export {
   createRuntimeAgentNode,
-  sanitizeResponseToolCalls,
   type RuntimeAgentNodeConfig,
   type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
@@ -141,9 +129,12 @@ export {
   normalizeDelegationPrompt,
   normalizeSupervisorReply,
 } from "./core/supervisor/routing-schema.js";
-export { createEmptyReplyNode } from "./core/supervisor/empty-reply-node.js";
-export { createFailureReplyNode } from "./core/supervisor/failure-reply-node.js";
-export { createPostHandoffFinishNode } from "./core/supervisor/post-handoff-finish-node.js";
+export {
+  createEmptyReplyNode,
+  createFailureReplyNode,
+  createPostHandoffFinishNode,
+  type FailureReplyNodeOptions,
+} from "./core/supervisor/reply-nodes.js";
 export { trimMessagesToTokenBudgetSync } from "./core/message-trimming.js";
 export {
   RuntimeAgentsDocumentSchema,
@@ -155,7 +146,6 @@ export {
 export { createRuntimeShellHooks } from "./core/execution/runtime-shell.js";
 export {
   buildLatestToolCompletionSummary,
-  defaultConsumableToolBody,
   hasCompletedAgentReply,
   processBlankToolLoopResponse,
   type ToolBodyPredicate,

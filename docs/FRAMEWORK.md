@@ -44,7 +44,7 @@ Optional bootstrap hooks (omit for minimal packs):
 - `buildSkillCatalog(agents)` — defaults to empty catalog
 - `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap, legacy purge, and merged `system-config` capabilities
 - `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
-- `buildRuntimeExecution` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters (personal pack uses `buildAppRuntimeExecution()`)
+- `buildRuntimeExecution(agents, skillCatalog, ctx)` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters; use `ctx.capabilityCatalog` (personal pack uses `buildAppRuntimeExecution()`)
 
 Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
 

@@ -93,6 +93,7 @@ export type SupervisorPackBootstrap<
   buildRuntimeExecution: (
     agents: RuntimeAgentDefinition[],
     skillCatalog: SkillCatalog,
+    ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => RuntimeExecutionKit;
   /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
   systemAgent?: SystemAgentOptions | false;

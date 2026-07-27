@@ -46,23 +46,14 @@ export const createTestRuntimeAgentNode = (
     config,
   ) as (state: SubAgentState) => Promise<SubAgentStateUpdate>;
 
-export const createFinanceNode = (
-  model: ModelSource,
-  definition: RuntimeAgentDefinition,
-  tools?: SubAgentToolSource,
-) => createTestRuntimeAgentNode(model, definition, tools, {
+export const financeRuntimeNodeConfig = (): RuntimeAgentNodeConfig => ({
   ...createRuntimeShellHooks(testShellFormatters),
   logLabel: "finance-system-prompt",
   buildErrorMessage: (error) =>
     `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
 });
 
-export const createObsidianNode = (
-  model: ModelSource,
-  vaultRoot: string,
-  definition: RuntimeAgentDefinition,
-  prebuiltTools?: SubAgentToolSource,
-) => createTestRuntimeAgentNode(model, definition, prebuiltTools, {
+export const obsidianRuntimeNodeConfig = (vaultRoot: string): RuntimeAgentNodeConfig => ({
   ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
   logLabel: "obsidian-system-prompt",
   buildErrorMessage: (error) =>
@@ -70,15 +61,7 @@ export const createObsidianNode = (
   selectToolsForTurn: selectObsidianToolsForTurn,
 });
 
-export const createConfigurationNode = (
-  model: ModelSource,
-  tools: SubAgentToolSource,
-  options: {
-    definition: RuntimeAgentDefinition;
-    repository?: unknown;
-    runtimeCron?: unknown;
-  },
-) => createTestRuntimeAgentNode(model, options.definition, tools, {
+export const configurationRuntimeNodeConfig = (): RuntimeAgentNodeConfig => ({
   ...createSystemAgentNodeHooks(testShellFormatters),
   logLabel: "configuration-system-prompt",
   buildErrorMessage: (error) =>

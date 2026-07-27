@@ -6,7 +6,7 @@ import {
   CONFIGURATION_COMPLETION_FALLBACK,
   mapConfigurationSubAgentResult,
 } from "@personal-assistant/supervisor-framework";
-import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
   createCronRepositoryFake,
@@ -24,7 +24,7 @@ const defaultCronJobs = [
   },
 ];
 
-describe("createConfigurationNode", () => {
+describe("configuration runtime node hooks", () => {
   it("invokes the llm for cron list requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here are your cron jobs." }));
@@ -34,17 +34,14 @@ describe("createConfigurationNode", () => {
       listActiveJobs: vi.fn(() => []),
     };
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-        runtimeCron: runtimeCron as never,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -62,16 +59,14 @@ describe("createConfigurationNode", () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed configuration skills." }));
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -100,16 +95,14 @@ describe("createConfigurationNode", () => {
       }),
     );
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -138,16 +131,14 @@ describe("createConfigurationNode", () => {
       }),
     );
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -168,16 +159,14 @@ describe("createConfigurationNode", () => {
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here is the skill preview summary." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -213,16 +202,14 @@ describe("createConfigurationNode", () => {
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed finance skills." }));
     const listContent = "sync-expenses: Sync Wise transactions";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -258,16 +245,14 @@ describe("createConfigurationNode", () => {
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
     const listContent = "Module: finance\nSkill Name: expense-sync\nStatus: Listed";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -302,16 +287,14 @@ describe("createConfigurationNode", () => {
     const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -346,16 +329,14 @@ describe("createConfigurationNode", () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async () => new AIMessage(""));
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -376,16 +357,14 @@ describe("createConfigurationNode", () => {
     ].join("\n");
     const invokeSpy = vi.fn(async () => new AIMessage(""));
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: unknown) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({

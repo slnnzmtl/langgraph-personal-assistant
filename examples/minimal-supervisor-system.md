@@ -128,12 +128,12 @@ const context = await bootstrapSupervisorSystem({
     await repo.createAgent(researcher);
     return repo.listAgents();
   },
-  buildRuntimeExecution: () => ({
+  buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
     loadPromptByKey: async (key) => `Prompt for ${key}`,
     runtimeAgentPolicy: createAgentPolicy({
       executor: "generic",
       resolveTools: (definition, deps) =>
-        resolveAgentTools(definition, catalog, deps, {}),
+        resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
     }),
   }),
   buildModels: () => ({ generic: myChatModel }),

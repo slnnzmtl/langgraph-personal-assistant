@@ -75,7 +75,7 @@ export const bootstrapSupervisorSystem = async <
   const defaultModelKey = DEFAULT_PRODUCT_EXECUTOR;
   const models = pack.buildModels(pack.config, runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } =
-    pack.buildRuntimeExecution(runtimeAgents, skillCatalog);
+    pack.buildRuntimeExecution(runtimeAgents, skillCatalog, bootstrapContext);
 
   const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
   const messageHistoryMaxTokens =

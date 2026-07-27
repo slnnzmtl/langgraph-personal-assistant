@@ -8,7 +8,6 @@ import {
   deriveModelKeys,
   deriveSkillModules,
   DEFAULT_PRODUCT_EXECUTOR,
-  mergeCapabilityCatalogs,
   SYSTEM_AGENT_ID,
   type CapabilityCatalog,
   type ILLMConnector,
@@ -124,10 +123,8 @@ export const buildPersonalSupervisorPack = ({
         supabaseAvailable: adapters.supabaseSession !== undefined,
       }),
     buildSkillCatalog: buildPersonalSkillCatalog,
-    buildRuntimeExecution: (_agents, skillCatalog) => {
-      const capabilityCatalog = mergeCapabilityCatalogs(personalCapabilityProviders, true);
-      return buildAppRuntimeExecution({ skillCatalog, capabilityCatalog });
-    },
+    buildRuntimeExecution: (_agents, skillCatalog, ctx) =>
+      buildAppRuntimeExecution({ skillCatalog, capabilityCatalog: ctx.capabilityCatalog }),
     buildModels: (appConfig, agents) =>
       buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_PRODUCT_EXECUTOR)),
     buildCapabilityDeps: (context) =>
