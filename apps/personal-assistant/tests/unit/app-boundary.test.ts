@@ -86,6 +86,12 @@ describe("app boundaries", () => {
     ]);
   });
 
+  it("keeps runtime-agents free of telegram process imports", () => {
+    assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
+      "telegram/",
+    ]);
+  });
+
   it("keeps prompt loading free of runtime-agents imports", () => {
     assertFilesAvoidImports(PROMPT_LAYER_FILES, ["runtime-agents/"]);
   });

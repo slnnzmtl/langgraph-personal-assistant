@@ -11,7 +11,7 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository, RuntimeCronService } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import type { IFileSender } from "../ports/file-sender.js";
 
 import { createFinanceDomainToolsFromSession } from "./finance/tools.js";
@@ -56,10 +56,13 @@ const getDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
   return descriptor;
 };
 
-export type PersonalCapabilityDeps = {
+export type PersonalDomainDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
   supabaseSession?: SupabaseMcpSession;
+};
+
+export type PersonalSystemDeps = {
   cronTargetAgentIds?: readonly string[];
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
@@ -68,17 +71,19 @@ export type PersonalCapabilityDeps = {
   skillCatalog?: SkillCatalog;
 };
 
+export type PersonalCapabilityDeps = PersonalDomainDeps & PersonalSystemDeps;
+
 export const createCapabilityDeps = (
   obsidianVaultPath: string,
   options: {
-    fileSender?: PersonalCapabilityDeps["fileSender"];
-    supabaseSession?: PersonalCapabilityDeps["supabaseSession"];
-    cronTargetAgentIds?: readonly string[];
-    cronJobRepository?: CronJobRepository;
-    runtimeAgentRepository?: RuntimeAgentRepository;
-    runtimeCron?: RuntimeCronService;
-    capabilityCatalog?: CapabilityCatalog;
-    skillCatalog?: SkillCatalog;
+    fileSender?: PersonalDomainDeps["fileSender"];
+    supabaseSession?: PersonalDomainDeps["supabaseSession"];
+    cronTargetAgentIds?: PersonalSystemDeps["cronTargetAgentIds"];
+    cronJobRepository?: PersonalSystemDeps["cronJobRepository"];
+    runtimeAgentRepository?: PersonalSystemDeps["runtimeAgentRepository"];
+    runtimeCron?: PersonalSystemDeps["runtimeCron"];
+    capabilityCatalog?: PersonalSystemDeps["capabilityCatalog"];
+    skillCatalog?: PersonalSystemDeps["skillCatalog"];
   } = {},
 ): PersonalCapabilityDeps => ({
   obsidianVaultPath,

@@ -2,10 +2,10 @@ import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { truncateToolOutput } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../../mcp/supabase.js";
+import type { SupabaseMcpSession } from "../../integrations/mcp/supabase.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
 import { serializeToolResult } from "../shared/output.js";
-import { fetchWiseTransactions } from "../../services/wise.js";
+import { fetchWiseTransactions } from "../../integrations/wise.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 

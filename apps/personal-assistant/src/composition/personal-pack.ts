@@ -22,14 +22,14 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
+import { setupSupabaseSession } from "../integrations/supabase.js";
 import { loadSupervisorSystemPrompt } from "../prompts/load.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
   type PersonalCapabilityDeps,
 } from "../runtime-agents/capabilities.js";
-import { setupSupabaseSession } from "../services/supabase.js";
 import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";

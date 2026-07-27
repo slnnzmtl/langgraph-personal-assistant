@@ -10,7 +10,7 @@ import {
   listDirContents,
   searchFiles,
   searchFilesByName,
-} from "../../services/obsidian.js";
+} from "../../integrations/obsidian.js";
 
 const MarkdownContentSchema = z
   .string()

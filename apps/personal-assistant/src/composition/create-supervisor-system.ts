@@ -7,7 +7,7 @@ import {
   type CompiledSupervisorGraph,
   type CronJobRepository,
 } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import type { PersonalCapabilityDeps } from "../runtime-agents/capabilities.js";
 import {
   buildPersonalSupervisorPack,
