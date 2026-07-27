@@ -9,7 +9,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
 import type { IFileSender } from "../../src/ports/file-sender.js";
-import { applyIntegrationAvailability } from "../../src/composition/runtime-agent-defaults.js";
+import { prepareRuntimeAgents } from "../../src/composition/runtime-agent-defaults.js";
 import {
   buildPersonalCapabilityDeps,
   buildPersonalCronGraphHooks,
@@ -48,7 +48,7 @@ export const createTestWorkflowGraph = ({
   supabaseSession,
   fileSender,
 }: TestWorkflowGraphOptions): CompiledSupervisorGraph => {
-  runtimeAgents = applyIntegrationAvailability(runtimeAgents, {
+  runtimeAgents = prepareRuntimeAgents(runtimeAgents, {
     supabaseAvailable: supabaseSession !== undefined,
   });
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey as "generic");

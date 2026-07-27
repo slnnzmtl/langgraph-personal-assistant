@@ -30,7 +30,7 @@ const createFakePromptStore = (): RuntimeAgentPromptStore & {
   return {
     files,
     deleted,
-    describeLocation: (id: string) => `data/agent-prompts/${id}.xml`,
+    describeLocation: (id: string) => `data/prompts/${id}.xml`,
     write: async (id: string, content: string) => {
       files.set(id, content);
     },
@@ -148,7 +148,7 @@ describe("createRuntimeAgentRepository", () => {
     expect(created.promptSourceKey).toBe("daily-summary");
     expect(created.systemPrompt).toBe(formatDataAgentPromptBootstrap("daily-summary"));
     expect(promptStore.files.get("daily-summary")).toBe("You summarize days.");
-    expect(repository.describePromptLocation?.("daily-summary")).toBe("data/agent-prompts/daily-summary.xml");
+    expect(repository.describePromptLocation?.("daily-summary")).toBe("data/prompts/daily-summary.xml");
   });
 
   it("migrates legacy inline prompts on update when a prompt store is configured", async () => {
@@ -216,7 +216,7 @@ describe("createRuntimeAgentRepository", () => {
     expect(promptStore.files.has("temporary")).toBe(false);
   });
 
-  it("rejects system prompt updates for shipped file-backed agents", async () => {
+  it("updates prompt files for promptSourceKey agents", async () => {
     const rootDir = await createTempRoot();
     const promptStore = createFakePromptStore();
     const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json", promptStore);
@@ -226,7 +226,7 @@ describe("createRuntimeAgentRepository", () => {
       id: "finance",
       name: "Finance",
       description: "Finance agent.",
-      systemPrompt: "Runtime prompt is loaded from agents/finance.xml via promptSourceKey.",
+      systemPrompt: formatDataAgentPromptBootstrap("finance"),
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
       modelKey: "finance",
@@ -236,8 +236,11 @@ describe("createRuntimeAgentRepository", () => {
       updatedAt: timestamp,
     }]);
 
-    await expect(repository.updateAgent("finance", {
+    const updated = await repository.updateAgent("finance", {
       systemPrompt: "New prompt",
-    })).rejects.toThrow(/cannot change system prompt for file-backed runtime agent/i);
+    });
+
+    expect(updated.systemPrompt).toBe(formatDataAgentPromptBootstrap("finance"));
+    expect(promptStore.files.get("finance")).toBe("New prompt");
   });
 });

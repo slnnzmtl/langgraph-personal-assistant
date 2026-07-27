@@ -1,5 +1,6 @@
 import type { CapabilityCatalog } from "../../capabilities/index.js";
 import { configurationReposAvailable } from "../../capabilities/index.js";
+import { formatDataAgentPromptBootstrap } from "../../core/agents/agent-prompt-bootstrap.js";
 import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { LoadPromptByKey } from "../../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentExecutionContext } from "../../core/execution/context.js";
@@ -45,9 +46,6 @@ export type SystemConfigToolsOptions = {
   loadPromptByKey?: LoadPromptByKey;
 };
 
-const SYSTEM_AGENT_BOOTSTRAP_PROMPT =
-  "Runtime prompt is loaded from agents/configuration.xml via promptSourceKey.";
-
 export const isSystemAgentId = (id: string): id is typeof SYSTEM_AGENT_ID =>
   id === SYSTEM_AGENT_ID;
 
@@ -60,7 +58,7 @@ export const createSystemAgentDefinition = (
     id: SYSTEM_AGENT_ID,
     name: SYSTEM_AGENT_DISPLAY_NAME,
     description: "Manage cron jobs, agent skills, and reusable runtime sub-agents.",
-    systemPrompt: SYSTEM_AGENT_BOOTSTRAP_PROMPT,
+    systemPrompt: formatDataAgentPromptBootstrap(SYSTEM_AGENT_ID),
     promptSourceKey: SYSTEM_AGENT_ID,
     capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
     modelKey,

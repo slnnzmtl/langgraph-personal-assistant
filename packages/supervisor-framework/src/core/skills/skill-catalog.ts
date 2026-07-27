@@ -1,6 +1,7 @@
 import {
   createSkillFile,
   deleteSkillFile,
+  describeWritableSkillLocation,
   formatSkillsForDisplay,
   formatSkillsForPrompt,
   listSkillModules,
@@ -20,6 +21,7 @@ import type {
 
 export type SkillCatalogOptions = {
   skillsDir?: string;
+  writableSkillsDir?: string;
   approvedModules?: readonly string[];
 };
 
@@ -27,17 +29,25 @@ export const createSkillCatalog = (
   options: SkillCatalogOptions = {},
 ): SkillCatalog & SkillAttachmentCatalog => {
   const skillsDir = options.skillsDir ?? SKILLS_ROOT;
+  const writableSkillsDir = options.writableSkillsDir;
+  const storeOptions = {
+    skillsDir,
+    ...(writableSkillsDir ? { writableSkillsDir } : {}),
+  };
   const resolveOptions = (module?: string) => ({
     ...(module ? { module } : {}),
-    skillsDir,
+    ...storeOptions,
   } as const);
 
   const listModules = (): string[] => {
-    const fromFiles = listSkillModules({ skillsDir });
+    const fromFiles = listSkillModules(storeOptions);
     const approved = options.approvedModules ?? [];
 
     return [...new Set([...fromFiles, ...approved])].sort();
   };
+
+  const formatWriteLocation = (name: string, filePath: string): string =>
+    writableSkillsDir ? describeWritableSkillLocation(name) : filePath;
 
   return {
     listSkills: (listOptions) => listSkills(resolveOptions(listOptions?.module)),
@@ -51,12 +61,21 @@ export const createSkillCatalog = (
       readFullSkill(name, resolveOptions(readOptions?.module)),
 
     createSkill: (name, description, body, module) =>
-      createSkillFile(name, description, body, module, skillsDir),
+      formatWriteLocation(
+        name,
+        createSkillFile(name, description, body, module, storeOptions),
+      ),
 
     updateSkill: (name, description, body, module) =>
-      updateSkillFile(name, description, body, module, skillsDir),
+      formatWriteLocation(
+        name,
+        updateSkillFile(name, description, body, module, storeOptions),
+      ),
 
-    deleteSkill: (name, _module) => deleteSkillFile(name, skillsDir),
+    deleteSkill: (name, _module) => {
+      deleteSkillFile(name, storeOptions);
+      return writableSkillsDir ? describeWritableSkillLocation(name) : `${name}.xml`;
+    },
 
     formatForDisplay: (
       module: string,
@@ -67,6 +86,6 @@ export const createSkillCatalog = (
     formatForPrompt: (skills) => formatSkillsForPrompt(skills),
 
     loadAttachmentRules: (module) =>
-      loadSkillAttachmentRules(module, skillsDir),
+      loadSkillAttachmentRules(module, storeOptions),
   };
 };

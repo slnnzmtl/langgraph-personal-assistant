@@ -549,4 +549,98 @@ Body
       );
     });
   });
+
+  describe("dual-root skill stores", () => {
+    it("prefers data skills over shipped skills with the same name", () => {
+      const shippedDir = path.join(tempDir, "dual-shipped");
+      const dataDir = path.join(tempDir, "dual-data");
+      mkdirSync(shippedDir, { recursive: true });
+      mkdirSync(dataDir, { recursive: true });
+
+      writeFileSync(
+        path.join(shippedDir, "expense-sync.xml"),
+        '<skill name="expense-sync" module="finance" description="Shipped">\nShipped body\n</skill>\n',
+        "utf8",
+      );
+      writeFileSync(
+        path.join(dataDir, "expense-sync.xml"),
+        '<skill name="expense-sync" module="finance" description="Override">\nOverride body\n</skill>\n',
+        "utf8",
+      );
+
+      const skills = listSkills({ skillsDir: shippedDir, writableSkillsDir: dataDir, module: "finance" });
+
+      expect(skills).toHaveLength(1);
+      expect(skills[0]?.description).toBe("Override");
+      expect(skills[0]?.source).toBe("data");
+      expect(readSkillContent("expense-sync", { skillsDir: shippedDir, writableSkillsDir: dataDir })).toBe(
+        "Override body",
+      );
+    });
+
+    it("writes create and update operations to the writable skills dir", () => {
+      const shippedDir = path.join(tempDir, "dual-write-shipped");
+      const dataDir = path.join(tempDir, "dual-write-data");
+      mkdirSync(shippedDir, { recursive: true });
+      mkdirSync(dataDir, { recursive: true });
+      const storeOptions = { skillsDir: shippedDir, writableSkillsDir: dataDir };
+
+      const createdPath = createSkillFile(
+        "custom-finance",
+        "Custom finance skill",
+        "Custom body",
+        "finance",
+        storeOptions,
+      );
+
+      expect(createdPath.startsWith(dataDir)).toBe(true);
+      expect(existsSync(path.join(dataDir, "custom-finance.xml"))).toBe(true);
+
+      writeFileSync(
+        path.join(shippedDir, "expense-view.xml"),
+        '<skill name="expense-view" module="finance" description="Shipped view">\nShipped view body\n</skill>\n',
+        "utf8",
+      );
+
+      updateSkillFile(
+        "expense-view",
+        "Updated view",
+        "Updated body",
+        "finance",
+        storeOptions,
+      );
+
+      expect(readSkillContent("expense-view", storeOptions)).toBe("Updated body");
+      expect(existsSync(path.join(dataDir, "expense-view.xml"))).toBe(true);
+      expect(readFileSync(path.join(shippedDir, "expense-view.xml"), "utf8")).toContain("Shipped view body");
+    });
+
+    it("blocks deleting shipped-only skills and removes data overrides", () => {
+      const shippedDir = path.join(tempDir, "dual-delete-shipped");
+      const dataDir = path.join(tempDir, "dual-delete-data");
+      mkdirSync(shippedDir, { recursive: true });
+      mkdirSync(dataDir, { recursive: true });
+      const storeOptions = { skillsDir: shippedDir, writableSkillsDir: dataDir };
+
+      writeFileSync(
+        path.join(shippedDir, "expense-sync.xml"),
+        '<skill name="expense-sync" module="finance" description="Shipped">\nShipped body\n</skill>\n',
+        "utf8",
+      );
+
+      expect(() => deleteSkillFile("expense-sync", storeOptions)).toThrow(/Cannot delete shipped skill/i);
+
+      createSkillFile("custom-skill", "Custom", "Body", "obsidian", storeOptions);
+      expect(deleteSkillFile("custom-skill", storeOptions)).toBe("custom-skill.xml");
+      expect(existsSync(path.join(dataDir, "custom-skill.xml"))).toBe(false);
+
+      writeFileSync(
+        path.join(dataDir, "expense-sync.xml"),
+        '<skill name="expense-sync" module="finance" description="Override">\nOverride body\n</skill>\n',
+        "utf8",
+      );
+      expect(deleteSkillFile("expense-sync", storeOptions)).toBe("expense-sync.xml");
+      expect(readSkillContent("expense-sync", storeOptions)).toBe("Shipped body");
+    });
+  });
 });

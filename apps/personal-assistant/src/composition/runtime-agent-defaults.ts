@@ -3,6 +3,7 @@ import {
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
+import { promptFileExists } from "../prompts/prompt-store.js";
 
 const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {
   finance: (config) => config.financeModel,
@@ -36,3 +37,27 @@ export const applyIntegrationAvailability = (
     return agent;
   });
 };
+
+export const applyPromptFileAvailability = (
+  agents: RuntimeAgentDefinition[],
+): RuntimeAgentDefinition[] =>
+  agents.filter((agent) => {
+    if (!agent.promptSourceKey) {
+      return true;
+    }
+
+    if (promptFileExists(agent.promptSourceKey)) {
+      return true;
+    }
+
+    console.warn(
+      `[RuntimeAgents] Skipping "${agent.id}": prompt file data/prompts/${agent.promptSourceKey}.xml not found`,
+    );
+    return false;
+  });
+
+export const prepareRuntimeAgents = (
+  agents: RuntimeAgentDefinition[],
+  options: IntegrationAvailabilityOptions = {},
+): RuntimeAgentDefinition[] =>
+  applyPromptFileAvailability(applyIntegrationAvailability(agents, options));

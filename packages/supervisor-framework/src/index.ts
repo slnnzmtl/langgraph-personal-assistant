@@ -145,6 +145,7 @@ export {
 } from "./core/skills/skill-catalog.js";
 export {
   SKILLS_ROOT,
+  describeWritableSkillLocation,
   listSkills,
   listSkillModules,
   readSkillContent,

@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { SkillAttachmentRule, SkillDisplayStatus, SkillMeta, ListSkillsOptions } from "./catalog.js";
+import type { SkillAttachmentRule, SkillDisplayStatus, SkillMeta, ListSkillsOptions, SkillSource, SkillStoreOptions } from "./catalog.js";
 
 export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
+
+export const describeWritableSkillLocation = (name: string): string =>
+  `data/skills/${name}.xml`;
 
 export type SkillFileType = "md" | "xml";
 
@@ -130,14 +133,16 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
 
 export const loadSkillAttachmentRules = (
   module: string,
-  skillsDir: string = SKILLS_ROOT,
+  options: SkillStoreOptions | string = SKILLS_ROOT,
 ): SkillAttachmentRule[] => {
-  const skills = listSkills({ module, skillsDir });
+  const storeOptions = normalizeStoreOptions(options);
+  const skills = listSkills({ module, ...storeOptions });
   const rules: SkillAttachmentRule[] = [];
 
   for (const skill of skills) {
     try {
-      const content = readFileSync(path.join(skillsDir, skill.fileName), "utf8");
+      const { filePath } = resolveSkillMeta(skill.name, { module, ...storeOptions });
+      const content = readFileSync(filePath, "utf8");
       const rawBody = content.match(/^<skill\s+[^>]+>([\s\S]*)<\/skill>\s*$/s)?.[1]?.trim() ?? "";
       const attachmentRules = parseSkillAttachmentsFromXmlBody(rawBody);
       for (const rule of attachmentRules) {
@@ -211,11 +216,32 @@ export const parseFrontmatter = (raw: string): FrontmatterResult => {
 const resolveSkillsDir = (options?: ListSkillsOptions): string =>
   options?.skillsDir ?? SKILLS_ROOT;
 
-/**
- * List skills in the flat skills store, optionally filtered by module.
- */
-export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
-  const skillsDir = resolveSkillsDir(options);
+const normalizeStoreOptions = (
+  skillsDirOrOptions?: string | SkillStoreOptions,
+): SkillStoreOptions => {
+  if (typeof skillsDirOrOptions === "string") {
+    return { skillsDir: skillsDirOrOptions };
+  }
+
+  return skillsDirOrOptions ?? {};
+};
+
+const resolveWriteDir = (options: SkillStoreOptions): string =>
+  options.writableSkillsDir ?? options.skillsDir ?? SKILLS_ROOT;
+
+const skillRootDir = (skill: SkillMeta, options: SkillStoreOptions): string => {
+  if (skill.source === "data" && options.writableSkillsDir) {
+    return options.writableSkillsDir;
+  }
+
+  return options.skillsDir ?? SKILLS_ROOT;
+};
+
+const listSkillsFromDirectory = (
+  skillsDir: string,
+  source: SkillSource,
+  module?: string,
+): SkillMeta[] => {
   if (!existsSync(skillsDir)) {
     return [];
   }
@@ -242,7 +268,7 @@ export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
         continue;
       }
 
-      if (options?.module && data.module !== options.module) {
+      if (module && data.module !== module) {
         continue;
       }
 
@@ -251,19 +277,50 @@ export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
         description: data.description,
         ...(data.module ? { module: data.module } : {}),
         fileName,
+        source,
       });
     } catch (error) {
       console.warn(`Failed to parse skill file ${fileName}:`, error);
     }
   }
 
-  return skills.sort((a, b) => a.name.localeCompare(b.name));
+  return skills;
 };
 
-export const listSkillModules = (options?: Pick<ListSkillsOptions, "skillsDir">): string[] => {
+const mergeSkillsByName = (shipped: SkillMeta[], data: SkillMeta[]): SkillMeta[] => {
+  const byName = new Map<string, SkillMeta>();
+
+  for (const skill of shipped) {
+    byName.set(skill.name.toLowerCase(), skill);
+  }
+
+  for (const skill of data) {
+    byName.set(skill.name.toLowerCase(), skill);
+  }
+
+  return [...byName.values()].sort((left, right) => left.name.localeCompare(right.name));
+};
+
+/**
+ * List skills in the flat skills store, optionally filtered by module.
+ */
+export const listSkills = (options?: ListSkillsOptions): SkillMeta[] => {
+  const skillsDir = resolveSkillsDir(options);
+  const shipped = listSkillsFromDirectory(skillsDir, "shipped", options?.module);
+
+  if (!options?.writableSkillsDir) {
+    return shipped;
+  }
+
+  const data = listSkillsFromDirectory(options.writableSkillsDir, "data", options?.module);
+  return mergeSkillsByName(shipped, data);
+};
+
+export const listSkillModules = (options?: SkillStoreOptions): string[] => {
+  const storeOptions = normalizeStoreOptions(options);
   const modules = new Set<string>();
 
-  for (const skill of listSkills(options)) {
+  for (const skill of listSkills(storeOptions)) {
     if (skill.module) {
       modules.add(skill.module);
     }
@@ -309,12 +366,13 @@ export const resolveSkillMeta = (
   name: string,
   options?: ListSkillsOptions,
 ): ResolvedSkill => {
-  const skillsDir = resolveSkillsDir(options);
-  const skills = listSkills(options);
+  const storeOptions = normalizeStoreOptions(options);
+  const skills = listSkills(storeOptions);
 
   const byName = skills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
   if (byName) {
-    const filePath = assertPathWithinDir(path.join(skillsDir, byName.fileName), skillsDir);
+    const rootDir = skillRootDir(byName, storeOptions);
+    const filePath = assertPathWithinDir(path.join(rootDir, byName.fileName), rootDir);
     return { meta: byName, filePath };
   }
 
@@ -326,7 +384,8 @@ export const resolveSkillMeta = (
     );
   });
   if (byFile) {
-    const filePath = assertPathWithinDir(path.join(skillsDir, byFile.fileName), skillsDir);
+    const rootDir = skillRootDir(byFile, storeOptions);
+    const filePath = assertPathWithinDir(path.join(rootDir, byFile.fileName), rootDir);
     return { meta: byFile, filePath };
   }
 
@@ -430,22 +489,25 @@ export const createSkillFile = (
   description: string,
   body: string,
   module: string,
-  skillsDir: string = SKILLS_ROOT,
+  skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
 ): string => {
   validateSkillFields(name, description, module);
 
-  const existingSkills = listSkills({ skillsDir });
+  const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
+  const writeDir = resolveWriteDir(storeOptions);
+  const existingSkills = listSkills(storeOptions);
+
   if (existingSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
     throw new Error(`Skill already exists: ${name}`);
   }
 
   const fileName = `${name}.xml`;
-  const targetPath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
+  const targetPath = assertPathWithinDir(path.join(writeDir, fileName), writeDir);
   if (existsSync(targetPath)) {
     throw new Error(`Skill file already exists: ${fileName}`);
   }
 
-  return writeSkillFile(fileName, name, description, body, module, skillsDir);
+  return writeSkillFile(fileName, name, description, body, module, writeDir);
 };
 
 /**
@@ -456,20 +518,47 @@ export const updateSkillFile = (
   description: string,
   body: string,
   module: string,
-  skillsDir: string = SKILLS_ROOT,
+  skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
 ): string => {
   validateSkillFields(name, description, module);
-  const { meta } = resolveSkillMeta(name, { skillsDir });
-  return writeSkillFile(meta.fileName, meta.name, description, body, module, skillsDir);
+  const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
+  const { meta } = resolveSkillMeta(name, storeOptions);
+  const writeDir = resolveWriteDir(storeOptions);
+  return writeSkillFile(meta.fileName, meta.name, description, body, module, writeDir);
 };
 
 /**
  * Delete an existing skill file.
  */
-export const deleteSkillFile = (name: string, skillsDir: string = SKILLS_ROOT): string => {
-  const { meta, filePath } = resolveSkillMeta(name, { skillsDir });
-  unlinkSync(filePath);
-  return meta.fileName;
+export const deleteSkillFile = (
+  name: string,
+  skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
+): string => {
+  const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
+  const writeDir = storeOptions.writableSkillsDir;
+
+  if (!writeDir) {
+    const { meta, filePath } = resolveSkillMeta(name, storeOptions);
+    unlinkSync(filePath);
+    return meta.fileName;
+  }
+
+  const dataSkills = listSkillsFromDirectory(writeDir, "data");
+  const dataSkill = dataSkills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
+
+  if (dataSkill) {
+    const filePath = assertPathWithinDir(path.join(writeDir, dataSkill.fileName), writeDir);
+    unlinkSync(filePath);
+    return dataSkill.fileName;
+  }
+
+  const shippedDir = storeOptions.skillsDir ?? SKILLS_ROOT;
+  const shippedSkills = listSkillsFromDirectory(shippedDir, "shipped");
+  if (shippedSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
+    throw new Error(`Cannot delete shipped skill: ${name}`);
+  }
+
+  throw new Error(`Skill not found: ${name}`);
 };
 
 /**

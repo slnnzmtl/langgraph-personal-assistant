@@ -300,7 +300,7 @@ This is a practical balance between context-window cost and LangGraph conversati
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
 | Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
 | Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
-| Skills and prompts | Local files (`agents/`, `data/agent-prompts/`, `skills/`) | No database coordination | Changes take effect on the next load; deployment paths must match source expectations. Chat-created agent prompts live under `data/agent-prompts/` (Compose volume). |
+| Skills and prompts | Local files (`skills/`, `data/skills/`, `data/prompts/`) | No database coordination | Prompts and chat-created skills live under `data/` (Compose volume). Shipped defaults are tracked in git at `data/prompts/`. |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
@@ -350,16 +350,24 @@ type RuntimeAgentPolicy = {
 
 ## Skills System
 
-Flat `skills/` directory with XML playbooks (and optional `.md`):
+Flat skill store with XML playbooks (and optional `.md`):
+
+| Layer | Path | Role |
+|---|---|---|
+| Shipped skills | `skills/*.xml` | Product defaults (image + git) |
+| Writable skills | `data/skills/*.xml` | Configuration CRUD output (Compose volume) |
 
 - Each skill has `name`, `module`, `description`
-- `module` controls which runtime agent can attach/use the skill
+- `module` controls which runtime agent can attach/use the skill (`finance`, `obsidian`, `configuration`, …)
+- Lookup merges both roots; **`data/skills/` wins on same skill name** (copy-on-write override)
+- Configuration agent writes via `create_skill` / `edit_skill` → `data/skills/{name}.xml`; deleting a data override restores the shipped default
+- Shipped-only skills cannot be deleted via chat (remove the data override to revert edits)
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
 - `packages/supervisor-framework/src/core/skills/skills-loader.ts` — filesystem read/write/parse; `packages/supervisor-framework/src/core/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
-Current skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
+Current shipped skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
 
 ---
 
@@ -367,15 +375,13 @@ Current skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, 
 
 | Agent | Source | Format |
 |---|---|---|
-| Supervisor | `agents/supervisor.xml` | XML |
-| Finance | `agents/finance.xml` | XML |
-| Obsidian | `agents/obsidian.xml` | XML |
-| Configuration | `agents/configuration.xml` | XML |
-| Chat-created runtime agents | `data/agent-prompts/{id}.xml` | XML (writable data volume) |
+| Supervisor | `data/prompts/supervisor.xml` | XML |
+| Finance | `data/prompts/finance.xml` | XML |
+| Obsidian | `data/prompts/obsidian.xml` | XML |
+| Configuration | `data/prompts/configuration.xml` | XML |
+| Chat-created runtime agents | `data/prompts/{id}.xml` | XML (writable data volume) |
 
-Prompt lookup checks `data/agent-prompts/{key}.xml` **before** `agents/{key}.xml`, so chat-created prompts override image-baked files when both exist.
-
-Prompts are **read from disk on each invocation** (hot-reload in dev). Agents with `promptSourceKey` store a bootstrap snapshot in JSON; the prompt file is the runtime source of truth. Shipped specialists reference `agents/`; chat-created agents reference `data/agent-prompts/`. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
+Prompts are **read from disk on each invocation** (hot-reload in dev). Agents with `promptSourceKey` store a bootstrap snapshot in JSON; the prompt file under `data/prompts/` is the runtime source of truth. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
 
 ---
 
@@ -434,7 +440,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── policies/           # Capability behavior registry
 │       │   ├── runtime-agents/     # Domain folders (finance/, obsidian/), capabilities, resolve-tools
 │       │   ├── ports/ integrations/ scheduler/ telegram/ models/ prompts/ ...
-│       ├── agents/ skills/ data/ sql/
+│       ├── data/prompts/ skills/ data/ sql/
 │       ├── tests/unit/{composition,policies,domains,integrations,processes}/
 │       └── Dockerfile docker-compose.yml
 ├── docs/ examples/
@@ -501,12 +507,12 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 1. Implement tools under `runtime-agents/<domain>/tools.ts` (and optional `hooks.ts`)
 2. Add capability descriptor + provider in `runtime-agents/capabilities.ts`
 3. Compose capability behavior in `policies/runtime-agent-policy.ts` when that capability is granted
-4. Seed a persisted agent row with matching `capabilityIds` and prompt under `agents/`
+4. Seed a persisted agent row with matching `capabilityIds` and add a prompt under `data/prompts/` (optional `promptSourceKey`)
 5. Restart scheduler once if cron jobs will target the new agent id
 
 **Add a custom runtime agent at runtime (default):**
 
-Use the configuration agent in Telegram — creates an agent with selected capabilities, persists metadata to `data/runtime-agents.json`, and writes the runtime prompt to `data/agent-prompts/{id}.xml`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart.
+Use the configuration agent in Telegram — creates an agent with selected capabilities, persists metadata to `data/runtime-agents.json`, and writes the runtime prompt to `data/prompts/{id}.xml`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart.
 
 ---
 

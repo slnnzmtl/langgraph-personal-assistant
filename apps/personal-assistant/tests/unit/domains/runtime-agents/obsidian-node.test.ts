@@ -355,7 +355,7 @@ describe("formatObsidianRoutineHint", () => {
 });
 
 describe("obsidian runtime node hooks", () => {
-  it("loads the Obsidian system prompt from agents/obsidian.xml", () => {
+  it("loads the Obsidian system prompt from data/prompts/obsidian.xml", () => {
     const prompt = loadSystemPromptByKey(obsidianPromptKey);
 
     expect(prompt).toContain("Obsidian Vault Manager");
@@ -369,7 +369,7 @@ describe("obsidian runtime node hooks", () => {
     expect(prompt).toContain("file deletion operations are unsupported");
   });
 
-  it("loads skill_usage guidance from agents/obsidian.xml", () => {
+  it("loads skill_usage guidance from data/prompts/obsidian.xml", () => {
     const prompt = loadSystemPromptByKey(obsidianPromptKey);
 
     expect(prompt).toContain("<skill_usage>");

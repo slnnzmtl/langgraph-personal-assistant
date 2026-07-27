@@ -10,8 +10,8 @@ import {
   isRuntimeAgentBuiltin,
   wrapRepositoryWithSystemAgent,
 } from "@personal-assistant/supervisor-framework";
-import { applyIntegrationAvailability } from "../../../src/composition/runtime-agent-defaults.js";
-import { buildLocalModuleAgents } from "../../helpers/runtime-agent-fixtures.js";
+import { applyIntegrationAvailability, applyPromptFileAvailability } from "../../../src/composition/runtime-agent-defaults.js";
+import { buildLocalModuleAgents, buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];
 
@@ -193,5 +193,45 @@ describe("applyIntegrationAvailability", () => {
 
     expect(financeAgent?.enabled).toBe(false);
     expect(obsidianAgent?.enabled).toBe(true);
+  });
+});
+
+describe("applyPromptFileAvailability", () => {
+  it("removes agents whose promptSourceKey file is missing", () => {
+    const agents = applyPromptFileAvailability([
+      ...buildTestRuntimeAgents(),
+      {
+        id: "trainer",
+        name: "Trainer",
+        description: "Missing prompt file.",
+        systemPrompt: "Runtime prompt is loaded from data/prompts/trainer.xml via promptSourceKey.",
+        promptSourceKey: "trainer",
+        capabilityIds: ["none"],
+        maxSteps: 8,
+        enabled: true,
+        createdAt: "2026-07-15T00:00:00.000Z",
+        updatedAt: "2026-07-15T00:00:00.000Z",
+      },
+    ]);
+
+    expect(agents.map((agent) => agent.id)).toEqual(["configuration", "finance", "obsidian"]);
+  });
+
+  it("keeps agents with inline prompts when no promptSourceKey is set", () => {
+    const agents = applyPromptFileAvailability([
+      {
+        id: "inline-only",
+        name: "Inline",
+        description: "Inline prompt agent.",
+        systemPrompt: "You are inline.",
+        capabilityIds: ["none"],
+        maxSteps: 8,
+        enabled: true,
+        createdAt: "2026-07-15T00:00:00.000Z",
+        updatedAt: "2026-07-15T00:00:00.000Z",
+      },
+    ]);
+
+    expect(agents.map((agent) => agent.id)).toEqual(["inline-only"]);
   });
 });

@@ -151,8 +151,8 @@ export const createSkillCrudTools = (
     async (input: z.infer<typeof DeleteSkillToolSchema>) => {
       try {
         assertKnownModule(input.module, skillCatalog);
-        const fileName = skillCatalog.deleteSkill(input.name, input.module);
-        return `Deleted skill ${input.name} for module ${input.module}.\nFile: ${fileName}`;
+        const location = skillCatalog.deleteSkill(input.name, input.module);
+        return `Removed skill ${input.name} for module ${input.module}.\nPath: ${location}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return `Error: ${message}`;

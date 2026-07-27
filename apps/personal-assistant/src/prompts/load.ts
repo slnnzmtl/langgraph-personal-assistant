@@ -1,10 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { formatCurrentTime, toUtcDayRange } from "../utils/datetime.js";
-import { resolveDataAgentPromptPath } from "./agent-prompt-store.js";
+import { PROMPTS_DATA_ROOT } from "./prompt-store.js";
 
-export const AGENTS_ROOT = path.resolve(process.cwd(), "agents");
-export { AGENT_PROMPTS_DATA_ROOT } from "./agent-prompt-store.js";
+export { PROMPTS_DATA_ROOT } from "./prompt-store.js";
 
 const shiftDateByDays = (date: Date, days: number): Date =>
   new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
@@ -58,11 +57,10 @@ const resolvePromptPath = (key: string, fileType: "md" | "xml" = "md"): string =
     return key;
   }
 
+  const base = path.join(PROMPTS_DATA_ROOT, key);
   const candidates = [
-    resolveDataAgentPromptPath(key),
-    path.join(AGENTS_ROOT, `${key}.${fileType}`),
-    ...(fileType === "md" ? [path.join(AGENTS_ROOT, `${key}.xml`)] : []),
-    ...(fileType === "xml" ? [path.join(AGENTS_ROOT, `${key}.md`)] : []),
+    `${base}.${fileType}`,
+    ...(fileType === "md" ? [`${base}.xml`] : [`${base}.md`]),
   ];
 
   for (const candidate of candidates) {
@@ -84,9 +82,7 @@ const readPromptFile = (filePath: string): string => {
   return content;
 };
 
-/**
- * Load raw agent prompt content by key from `agents/{key}.{md|xml}`.
- */
+/** Load raw agent prompt content by key from `data/prompts/{key}.{md|xml}`. */
 export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string => {
   const filePath = resolvePromptPath(key, fileType);
   return readPromptFile(filePath);

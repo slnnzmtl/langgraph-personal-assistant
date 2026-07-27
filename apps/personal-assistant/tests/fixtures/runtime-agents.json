@@ -5,7 +5,7 @@
       "id": "finance",
       "name": "Finance",
       "description": "Track money, raw expenses, transaction logs, budgets, or banking queries.",
-      "systemPrompt": "Runtime prompt is loaded from agents/finance.xml via promptSourceKey.",
+      "systemPrompt": "Runtime prompt is loaded from data/prompts/finance.xml via promptSourceKey.",
       "promptSourceKey": "finance",
       "capabilityIds": [
         "finance-domain"
@@ -20,7 +20,7 @@
       "id": "obsidian",
       "name": "Obsidian",
       "description": "Manage notes, plans, task checklists, markdown vault edits, summaries, or task status updates.",
-      "systemPrompt": "Runtime prompt is loaded from agents/obsidian.xml via promptSourceKey.",
+      "systemPrompt": "Runtime prompt is loaded from data/prompts/obsidian.xml via promptSourceKey.",
       "promptSourceKey": "obsidian",
       "capabilityIds": [
         "obsidian-vault"

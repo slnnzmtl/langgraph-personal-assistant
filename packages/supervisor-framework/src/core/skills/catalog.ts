@@ -2,11 +2,14 @@ import { z } from "zod";
 
 export type SkillDisplayStatus = "Created" | "Updated" | "Deleted" | "Listed" | "Previewed" | "Read";
 
+export type SkillSource = "shipped" | "data";
+
 export type SkillMeta = {
   name: string;
   description: string;
   module?: string;
   fileName: string;
+  source?: SkillSource;
 };
 
 export type SkillFull = SkillMeta & {
@@ -16,7 +19,10 @@ export type SkillFull = SkillMeta & {
 export type ListSkillsOptions = {
   module?: string;
   skillsDir?: string;
+  writableSkillsDir?: string;
 };
+
+export type SkillStoreOptions = Pick<ListSkillsOptions, "skillsDir" | "writableSkillsDir">;
 
 export const SkillAttachmentMatchSchema = z.object({
   anyPhrases: z.array(z.string().min(1)).optional(),

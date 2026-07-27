@@ -15,7 +15,7 @@
    - Call `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`.
    - Use a concise kebab-case-friendly name and a routing description the supervisor can match later.
    - Only choose capability ids from the grantable catalog (`list_capabilities`).
-   - The tool writes the runtime system prompt to `data/agent-prompts/{id}.xml` (Docker-persisted volume). JSON stores `promptSourceKey: {id}` and a bootstrap snapshot; the XML file is the runtime source of truth.
+   - The tool writes the runtime system prompt to `data/prompts/{id}.xml` (Docker-persisted volume). JSON stores `promptSourceKey: {id}` and a bootstrap snapshot; the XML file is the runtime source of truth.
    - After create or enable, tell the user the bot and scheduler pick up routing changes automatically within a few seconds (soft graph recompile).
    - If the user will schedule cron jobs for the new agent id, note that the scheduler process may need a restart before cron targeting accepts the new id.
    - Configure skill auto-attachment triggers in each skill file's `<skill_attachments>` block with `module` on the root `<skill>` tag.
@@ -23,7 +23,7 @@
 4. UPDATE (edit, update, change, rewrite, enable, disable):
    - Call `preview_runtime_agent(id)` first when the current definition is unknown.
    - Then call `update_runtime_agent(id, ...)` with the replacement fields.
-   - When `systemPrompt` is updated, the tool rewrites `data/agent-prompts/{id}.xml`; JSON keeps the bootstrap snapshot.
+   - When `systemPrompt` is updated, the tool rewrites `data/prompts/{id}.xml`; JSON keeps the bootstrap snapshot.
    - Legacy chat-created agents with inline-only prompts migrate to a prompt file on the first `systemPrompt` update.
 
 5. DELETE (remove, delete):

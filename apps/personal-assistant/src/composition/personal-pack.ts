@@ -25,7 +25,7 @@ import {
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import { setupSupabaseSession } from "../integrations/supabase.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
-import { createDataAgentPromptStore } from "../prompts/agent-prompt-store.js";
+import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
@@ -34,7 +34,7 @@ import {
 import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
-import { applyIntegrationAvailability } from "./runtime-agent-defaults.js";
+import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
@@ -57,6 +57,8 @@ type PersonalCapabilityDepsOptions = {
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
   createSkillCatalog({
+    skillsDir: path.resolve(process.cwd(), "skills"),
+    writableSkillsDir: path.resolve(process.cwd(), "data/skills"),
     approvedModules: [SYSTEM_AGENT_ID, ...deriveSkillModules(agents)],
   });
 
@@ -128,7 +130,7 @@ export const buildPersonalSupervisorPack = ({
     supabaseSession: await setupSupabaseSession(appConfig),
   }),
   seedAgents: async (repository, { adapters }) =>
-    applyIntegrationAvailability(await repository.loadAgents(), {
+    prepareRuntimeAgents(await repository.loadAgents(), {
       supabaseAvailable: adapters.supabaseSession !== undefined,
     }),
   buildSkillCatalog: buildPersonalSkillCatalog,

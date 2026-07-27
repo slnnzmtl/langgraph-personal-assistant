@@ -133,14 +133,14 @@ The `module` attribute (`finance`, `obsidian`, or `configuration`) controls whic
 
 ## System prompts
 
-Prompt sources of truth live under `agents/`:
+All runtime prompts live under `data/prompts/` (tracked in git; writable via the Compose `./data` volume):
 
 | Agent | File |
 |---|---|
-| Supervisor | `agents/supervisor.xml` |
-| Obsidian | `agents/obsidian.xml` |
-| Finance | `agents/finance.xml` |
-| Configuration | `agents/configuration.xml` |
+| Supervisor | `data/prompts/supervisor.xml` |
+| Obsidian | `data/prompts/obsidian.xml` |
+| Finance | `data/prompts/finance.xml` |
+| Configuration | `data/prompts/configuration.xml` |
 
 Prompts are read from disk on each invocation, so edits take effect without restarting the process during local development.
 
@@ -165,7 +165,7 @@ Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your
 
 Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. JSON writes are serialized within each process; concurrent writes from bot and scheduler can still race across processes.
 
-The production image copies `agents/` and `skills/` into the container. To override skill playbooks from the host, add a bind mount in a Compose override file, for example `./skills:/app/skills`.
+The production image copies `skills/` into the container. Prompts and runtime state persist on the mounted `./data` volume (`data/prompts/`, `data/skills/`, etc.). Ensure `data/prompts/` exists on the host (copy from the repo on first deploy).
 
 ### Development container
 
@@ -204,7 +204,7 @@ apps/
       runtime-agents/         # Domain folders (finance/, obsidian/), capabilities, resolve-tools
       ports/ integrations/    # External I/O clients (Obsidian, Wise, Supabase MCP)
       scheduler/ telegram/ models/ ...
-    agents/ skills/ data/ sql/
+    data/prompts/ skills/ data/ sql/
     tests/unit/               # Layer-aligned unit tests; e2e in tests/e2e/
     Dockerfile docker-compose.yml
 

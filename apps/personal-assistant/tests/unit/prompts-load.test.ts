@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -15,7 +16,7 @@ import {
   loadSystemPromptByKey,
   SUPERVISOR_PROMPT_KEY,
 } from "../../src/prompts/load.js";
-import { createDataAgentPromptStore } from "../../src/prompts/agent-prompt-store.js";
+import { createDataAgentPromptStore } from "../../src/prompts/prompt-store.js";
 import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
 describe("prompt loaders", () => {
@@ -24,7 +25,7 @@ describe("prompt loaders", () => {
     vi.restoreAllMocks();
   });
 
-  it("loads the supervisor prompt from agents/supervisor.xml", () => {
+  it("loads the supervisor prompt from data/prompts/supervisor.xml", () => {
     const prompt = loadSupervisorSystemPrompt();
 
     expect(prompt).toContain("You are the Root Supervisor");
@@ -67,7 +68,7 @@ describe("prompt loaders", () => {
     expect(configurationPrompt).not.toContain("CURRENT DATETIME:");
   });
 
-  it("loadSystemPromptByKey resolves chat-created prompts from data/agent-prompts", async () => {
+  it("loadSystemPromptByKey resolves chat-created prompts from data/prompts", async () => {
     const store = createDataAgentPromptStore();
     const id = "data-path-precedence-test";
 
@@ -80,8 +81,10 @@ describe("prompt loaders", () => {
     }
   });
 
-  it("loadSystemPromptByKey prefers data/agent-prompts over agents/", async () => {
+  it("loadSystemPromptByKey reads overrides from data/prompts", async () => {
     const store = createDataAgentPromptStore();
+    const promptPath = path.join(process.cwd(), "data/prompts/obsidian.xml");
+    const original = readFileSync(promptPath, "utf8");
 
     try {
       await store.write("obsidian", "FROM DATA VOLUME");
@@ -89,7 +92,7 @@ describe("prompt loaders", () => {
       expect(loaded).toContain("FROM DATA VOLUME");
       expect(loaded).not.toContain("Obsidian Vault Manager");
     } finally {
-      await store.delete("obsidian");
+      await writeFile(promptPath, original, "utf8");
     }
   });
 });
@@ -162,7 +165,7 @@ describe("loadPrompt", () => {
     expect(prompt).toContain("You are the Root Supervisor");
   });
 
-  it("resolves agent prompts like agents/obsidian.xml", () => {
+  it("resolves agent prompts like data/prompts/obsidian.xml", () => {
     const prompt = loadPrompt("obsidian", "xml");
 
     expect(prompt).toContain("Obsidian Vault Manager");

@@ -71,8 +71,7 @@ const validateUniqueAgentId = (agents: RuntimeAgentDefinition[], id: string): vo
 };
 
 const isDataManagedAgent = (agent: RuntimeAgentDefinition): boolean =>
-  agent.promptSourceKey === agent.id
-  && agent.systemPrompt.includes("data/agent-prompts/");
+  agent.promptSourceKey !== undefined && agent.promptSourceKey === agent.id;
 
 const canPersistPromptToStore = (
   agent: RuntimeAgentDefinition,

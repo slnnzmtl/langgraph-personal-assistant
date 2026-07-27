@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { createSkillCrudTools } from "../../../src/framework/system-agent/index.js";
@@ -215,7 +215,7 @@ describe("createSkillCrudTools", () => {
     const deleteResult = String(
       await deleteTool!.invoke({ module: "configuration", name: "manage-cron" }),
     );
-    expect(deleteResult).toContain("Deleted skill manage-cron");
+    expect(deleteResult).toContain("Removed skill manage-cron");
     expect(() => readFileSync(path.join(tempRoot, "manage-cron.xml"), "utf8")).toThrow();
   });
 
@@ -248,5 +248,62 @@ describe("createSkillCrudTools", () => {
     );
     expect(deleteResult).toContain("Error:");
     expect(deleteResult).toContain("not found");
+  });
+
+  it("returns data/skills paths and merges shipped finance skills with data overrides", async () => {
+    tempRoot = createTempSkillsRoot();
+    const shippedDir = path.join(tempRoot, "shipped");
+    const dataDir = path.join(tempRoot, "data");
+    mkdirSync(shippedDir, { recursive: true });
+    mkdirSync(dataDir, { recursive: true });
+
+    writeFileSync(
+      path.join(shippedDir, "expense-view.xml"),
+      '<skill name="expense-view" module="finance" description="Shipped view">\nShipped body\n</skill>\n',
+      "utf8",
+    );
+
+    const tools = createSkillCrudTools({
+      skillCatalog: createSkillCatalog({
+        skillsDir: shippedDir,
+        writableSkillsDir: dataDir,
+        approvedModules: ["finance", "obsidian", "configuration"],
+      }),
+    });
+
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+    const listTool = tools.find((tool) => tool.name === "list_skills");
+    const editTool = tools.find((tool) => tool.name === "edit_skill");
+    const deleteTool = tools.find((tool) => tool.name === "delete_skill");
+
+    const createResult = String(
+      await createTool!.invoke({
+        module: "obsidian",
+        name: "vault-helper",
+        description: "Helper skill",
+        content: "# Helper",
+      }),
+    );
+    expect(createResult).toContain("Path: data/skills/vault-helper.xml");
+
+    const listed = String(await listTool!.invoke({ module: "finance" }));
+    expect(listed).toContain("expense-view");
+
+    const editResult = String(
+      await editTool!.invoke({
+        module: "finance",
+        name: "expense-view",
+        description: "Updated view",
+        content: "# Updated",
+      }),
+    );
+    expect(editResult).toContain("Path: data/skills/expense-view.xml");
+
+    const shippedDelete = String(
+      await deleteTool!.invoke({ module: "finance", name: "expense-view" }),
+    );
+    expect(shippedDelete).toContain("Removed skill expense-view");
+    expect(shippedDelete).toContain("Path: data/skills/expense-view.xml");
+    expect(readFileSync(path.join(shippedDir, "expense-view.xml"), "utf8")).toContain("Shipped body");
   });
 });

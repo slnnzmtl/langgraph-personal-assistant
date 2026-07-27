@@ -24,7 +24,7 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 |---|---|
 | `id` | Slug from `name` (e.g. `Daily Summary` → `daily-summary`) |
 | `name`, `description` | Tool args |
-| `systemPrompt` | Bootstrap snapshot in JSON; full prompt in `data/agent-prompts/{id}.xml` |
+| `systemPrompt` | Bootstrap snapshot in JSON; full prompt in `data/prompts/{id}.xml` |
 | `promptSourceKey` | Set to `{id}`; runtime loads the XML file on each invocation |
 | `capabilityIds` | Allowlisted catalog only |
 | `modelKey` | Optional; selects which registered chat model to use (built-in specialists use domain keys like `finance` / `obsidian`) |
@@ -34,9 +34,9 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 Persistence paths:
 
 - Agent metadata: `data/runtime-agents.json` (document version `1`)
-- Runtime prompt file: `data/agent-prompts/{id}.xml` (writable data volume; survives Docker restarts)
+- Runtime prompt file: `data/prompts/{id}.xml` (writable data volume; survives Docker restarts)
 
-Shipped specialists (finance, obsidian) use image-baked prompts under `agents/{id}.xml` instead. Chat-created agents always use the data volume path.
+All agents (shipped and chat-created) use `data/prompts/{id}.xml`. Default shipped prompts are tracked in git under `data/prompts/`.
 
 ### Related chat tools
 
@@ -109,7 +109,7 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 2. Add a capability descriptor + provider in `src/runtime-agents/capabilities.ts`.
 3. If the domain needs LLM hooks, wire capability behavior in `src/policies/runtime-agent-policy.ts`.
 4. Seed or persist a `RuntimeAgentDefinition` with the new `capabilityIds`.
-5. Add a prompt under `agents/` (optional `promptSourceKey`).
+5. Add a prompt under `data/prompts/` (optional `promptSourceKey`).
 6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).
 
 See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
@@ -122,15 +122,15 @@ Agents created before prompt files (inline `systemPrompt` only, no `promptSource
 update_runtime_agent(id: "trainer", systemPrompt: "<full prompt text>")
 ```
 
-That writes `data/agent-prompts/trainer.xml`, sets `promptSourceKey: "trainer"`, and replaces the JSON prompt with the bootstrap snapshot.
+That writes `data/prompts/trainer.xml`, sets `promptSourceKey: "trainer"`, and replaces the JSON prompt with the bootstrap snapshot.
 
 ---
 
 ## Quick checklist
 
 - [ ] Ask Configuration in Telegram to create the agent (name, description, prompt, capabilities)
-- [ ] Confirm create response shows `Enabled: true`, a kebab-case `Agent ID`, and `Prompt file: data/agent-prompts/{id}.xml`
-- [ ] Confirm `data/agent-prompts/{id}.xml` exists on disk (or in the `./data` Compose volume)
+- [ ] Confirm create response shows `Enabled: true`, a kebab-case `Agent ID`, and `Prompt file: data/prompts/{id}.xml`
+- [ ] Confirm `data/prompts/{id}.xml` exists on disk (or in the `./data` Compose volume)
 - [ ] Satisfy capability deps (`none` / vault / Supabase as needed)
 - [ ] Wait a few seconds for bot and scheduler graph recompile
 - [ ] Message the bot with intent matching the agent description
