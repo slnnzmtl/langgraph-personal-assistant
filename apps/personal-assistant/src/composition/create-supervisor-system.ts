@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import { GeminiConnector } from "../connectors/llm-connector.js";
+import { GeminiConnector } from "../models/gemini-connector.js";
 import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
 import {
   bootstrapSupervisorSystem,

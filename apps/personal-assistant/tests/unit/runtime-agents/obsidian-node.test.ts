@@ -14,13 +14,13 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/app/policies/obsidian-hooks.js";
+import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/policies/obsidian-hooks.js";
 import { createTestRuntimeAgentNode, obsidianRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent, resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
   loadSystemPromptByKey,
-} from "../../../src/agents/load-system-prompt.js";
+} from "../../../src/load-system-prompt.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");

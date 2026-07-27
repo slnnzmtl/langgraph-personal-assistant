@@ -1,9 +1,9 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createDefaultRuntimeShellFormatters } from "../../../src/app/composition/runtime-execution.js";
-import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/runtime-agent-policy.js";
-import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
+import { createDefaultRuntimeShellFormatters } from "../../../src/composition/runtime-execution.js";
+import { createDefaultRuntimeAgentPolicy } from "../../../src/policies/runtime-agent-policy.js";
+import { createPersonalResolveTools } from "../../../src/composition/personal-resolve-tools.js";
 import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";

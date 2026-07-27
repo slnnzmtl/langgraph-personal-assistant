@@ -8,13 +8,13 @@ import { SYSTEM_AGENT_ID } from "@personal-assistant/supervisor-framework";
 
 import {
   appendDynamicSections,
-  createPromptLoader,
+  createPromptLoader, 
   formatSystemMetadata,
   loadPrompt,
   loadSupervisorSystemPrompt,
   loadSystemPromptByKey,
   SUPERVISOR_PROMPT_KEY,
-} from "../../src/agents/load-system-prompt.js";
+} from "../../src/load-system-prompt.js";
 import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
 describe("prompt loaders", () => {

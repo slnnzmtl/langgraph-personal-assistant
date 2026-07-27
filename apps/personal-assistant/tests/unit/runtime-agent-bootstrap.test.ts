@@ -10,7 +10,7 @@ import {
   isRuntimeAgentBuiltin,
   wrapRepositoryWithSystemAgent,
 } from "@personal-assistant/supervisor-framework";
-import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
+import { applyLocalModuleAvailability } from "../../src/composition/bootstrap-agents.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
 const tempPaths: string[] = [];

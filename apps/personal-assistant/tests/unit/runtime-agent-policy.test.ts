@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hasObsidianVaultCapability } from "../../src/app/policies/runtime-agent-policy.js";
+import { hasObsidianVaultCapability } from "../../src/policies/runtime-agent-policy.js";
 import { buildLocalModuleAgents } from "../helpers/runtime-agent-fixtures.js";
 
 describe("hasObsidianVaultCapability", () => {

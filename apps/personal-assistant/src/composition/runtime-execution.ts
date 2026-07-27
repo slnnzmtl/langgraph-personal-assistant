@@ -10,7 +10,7 @@ import {
   appendDynamicSections,
   formatSystemMetadata,
   loadSystemPromptByKey,
-} from "../agents/load-system-prompt.js";
+} from "../load-system-prompt.js";
 import { appendConfiguredSkillAttachments } from "../runtime-agents/skill-attachments.js";
 import {
   appendAvailableSkills,

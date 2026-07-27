@@ -2,10 +2,10 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import type { ILLMConnector } from "../../src/models/gemini-connector.js";
 import { createAppSupervisorNode, FakeLLMConnector, asAgentState, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getMessageText, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
-import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
 import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
 import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
 import { trimMessagesToTokenBudgetSync } from "@personal-assistant/supervisor-framework";

@@ -2,13 +2,13 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import type { ILLMConnector } from "../../src/models/gemini-connector.js";
 import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
 import { createEmptyReplyNode } from "@personal-assistant/supervisor-framework";
 import { createFailureReplyNode } from "@personal-assistant/supervisor-framework";
 import { createPostHandoffFinishNode } from "@personal-assistant/supervisor-framework";
 import { FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
 import { asAgentState, firstStateUpdateMessage } from "../helpers/fakes.js";
 
 const emptyHandoff = (

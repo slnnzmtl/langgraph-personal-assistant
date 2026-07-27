@@ -20,7 +20,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../load-system-prompt.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,

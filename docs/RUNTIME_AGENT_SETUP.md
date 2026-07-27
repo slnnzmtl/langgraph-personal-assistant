@@ -100,7 +100,7 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 
 1. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
 2. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
-3. If the domain needs LLM hooks, add capability behavior in `src/app/policies/runtime-agent-policy.ts`.
+3. If the domain needs LLM hooks, add capability behavior in `src/policies/runtime-agent-policy.ts`.
 4. Seed or persist a `RuntimeAgentDefinition` with the new `capabilityIds`.
 5. Add a prompt under `agents/` (optional `promptSourceKey`).
 6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).

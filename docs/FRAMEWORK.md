@@ -9,17 +9,18 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 | Layer | Path | Responsibility |
 |---|---|---|
 | Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
-| Personal app | `apps/personal-assistant/src/app/` | Composition, `createSupervisorSystem`, domain hooks |
+| Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | Composition, `createSupervisorSystem`, domain hooks |
 | Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
-| Agent prompts | `apps/personal-assistant/src/prompts/` + content `agents/` | System prompt loading and metadata helpers |
+| Agent prompts | `apps/personal-assistant/src/load-system-prompt.ts` + content `agents/` | System prompt loading and metadata helpers |
 | Skills runtime | `apps/personal-assistant/src/runtime-agents/skills/` | Skill filesystem I/O, `SkillCatalog`, prompt enrichment |
 
 ## Intentional boundaries
 
 - `packages/supervisor-framework/src/core/` — execution kernel only. Must not import app or product integrations.
 - `packages/supervisor-framework/src/framework/` — orchestration only. May import `core` and `capabilities`.
-- `apps/personal-assistant/src/app/` — composition and policies. Imports `@personal-assistant/supervisor-framework` and `runtime-agents/`.
-- `apps/personal-assistant/src/runtime-agents/` — domain tools. Must **not** import `src/app/`.
+- `apps/personal-assistant/src/composition/` — pack bootstrap and runtime execution wiring. Imports `@personal-assistant/supervisor-framework` and `runtime-agents/`.
+- `apps/personal-assistant/src/policies/` — app-local capability behaviors (prompt enrichment, tool restrictions, result mapping).
+- `apps/personal-assistant/src/runtime-agents/` — domain tools. Must **not** import `src/composition/` or `src/policies/`.
 
 Boundary tests:
 
@@ -46,7 +47,7 @@ Optional bootstrap hooks (omit for minimal packs):
 - `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
 - `buildRuntimeExecution(agents, skillCatalog, ctx)` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters; use `ctx.capabilityCatalog` (personal pack uses `buildAppRuntimeExecution()`)
 
-Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
+Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/composition/create-supervisor-system.ts).
 
 ## Composition entry points
 

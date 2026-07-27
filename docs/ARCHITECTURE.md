@@ -11,7 +11,8 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 | Layer | Role |
 |---|---|
 | **`packages/supervisor-framework/`** | Execution kernel (graph, state, policies API, pack bootstrap) |
-| **`apps/personal-assistant/src/app/`** | Default runtime policy, capability behaviors, model registry, composition |
+| **`apps/personal-assistant/src/composition/`** | Pack bootstrap, runtime execution wiring, model registry |
+| **`apps/personal-assistant/src/policies/`** | Default runtime policy hooks and capability behaviors |
 | **`apps/personal-assistant/src/runtime-agents/`** | Domain tools, capability providers, skill attachments |
 
 The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `packages/supervisor-framework/` as an internal framework package, not a separately published product, until a second deployment outside this monorepo justifies npm release.
@@ -38,7 +39,7 @@ flowchart TB
         CRIDX[cron/index.ts]
     end
 
-    subgraph AppLayer["App Layer (src/app/)"]
+    subgraph AppLayer["App layer (src/composition/ + src/policies/)"]
         WFC[createSupervisorSystem]
         KIT[buildAppRuntimeExecution]
         POL[Domain Policies + Hooks]
@@ -220,7 +221,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
 
-Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/app/policies/`; tools in `src/runtime-agents/tools/`.
+Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/policies/`; tools in `src/runtime-agents/tools/`.
 
 **Runtime agents** register through `buildAppRuntimeExecution()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
@@ -244,7 +245,7 @@ Key abstractions:
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
 | `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
 | `createCompiledSubAgentGraph` | `tests/helpers/compiled-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
-| Domain hooks | `app/policies/` | App-local capability behaviors (prompt enrichment, tool restrictions, result mapping) |
+| Domain hooks | `policies/` | App-local capability behaviors (prompt enrichment, tool restrictions, result mapping) |
 
 Tool execution uses `ToolNode.run()` (not `invoke()`) to avoid an extra Runnable boundary inside the parent graph node.
 
@@ -333,7 +334,7 @@ Persisted specialists optionally set `modelKey` for dedicated chat models. Legac
 
 ## Runtime Policy Pattern
 
-At bootstrap the app pack registers one **default** runtime policy via `buildAppRuntimeExecution()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery; configuration unavailable-gate and completion summaries) live in `src/app/policies/` (and framework system-agent definition hooks) and compose when matching capabilities are granted. `bootstrapSupervisorSystem()` passes a single `runtimeAgentPolicy` to `createAssistant()` — the virtual configuration agent uses the same builder.
+At bootstrap the app pack registers one **default** runtime policy via `buildAppRuntimeExecution()`. Capability-specific LLM hooks (Obsidian vault context, blank-reply recovery; configuration unavailable-gate and completion summaries) live in `src/policies/` (and framework system-agent definition hooks) and compose when matching capabilities are granted. `bootstrapSupervisorSystem()` passes a single `runtimeAgentPolicy` to `createAssistant()` — the virtual configuration agent uses the same builder.
 
 Each policy implements:
 
@@ -343,7 +344,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/tools/`; hook composition lives in `src/app/policies/`.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/tools/`; hook composition lives in `src/policies/`.
 
 ---
 
@@ -379,7 +380,7 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 
 | Service | Access Pattern | Location |
 |---|---|---|
-| **Google Gemini** | `GeminiConnector` + per-agent model registry | `connectors/`, `app/model-registry.ts` |
+| **Google Gemini** | `GeminiConnector` + per-agent model registry | `models/`, `composition/model-registry.ts` |
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
@@ -403,12 +404,12 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | Path | Role | Why keep separate |
 |---|---|---|
 | `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
-| `apps/personal-assistant/src/app/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
-| `src/app.ts` | Telegram process bootstrap | Sibling to `src/cron/index.ts`, not nested under `src/app/` |
-| `src/app/` vs `src/runtime-agents/` | Composition vs domain tools | App imports runtime-agents only; runtime-agents must not import app (enforced in tests) |
+| `apps/personal-assistant/src/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
+| `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/cron/index.ts` |
+| `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
 | `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/core/ports/llm-connector.ts` | LLM port | Gemini implementation lives in `src/connectors/` |
+| `src/core/ports/gemini-connector.ts` | LLM port | Gemini implementation lives in `src/models/` |
 
 ---
 
@@ -426,9 +427,10 @@ personal-assistant/                 # pnpm workspace root
 │   └── personal-assistant/
 │       ├── src/
 │       │   ├── index.ts, app.ts, config.ts
-│       │   ├── app/                # Composition & domain hooks
+│       │   ├── composition/        # Pack bootstrap & runtime execution wiring
+│       │   ├── policies/           # Domain capability hooks
 │       │   ├── runtime-agents/     # Domain tools & capability catalog
-│       │   ├── cron/ telegram/ services/ mcp/ connectors/ ...
+│       │   ├── cron/ telegram/ services/ mcp/ models/ ...
 │       ├── agents/ skills/ data/ sql/
 │       ├── tests/unit/ tests/e2e/
 │       └── Dockerfile docker-compose.yml
@@ -493,7 +495,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 1. Implement tools under `runtime-agents/tools/`
 2. Add capability descriptor + provider in `runtime-agents/builtin-capabilities.ts`
-3. Compose capability behavior in `app/policies/runtime-agent-policy.ts` when that capability is granted
+3. Compose capability behavior in `policies/runtime-agent-policy.ts` when that capability is granted
 4. Seed a persisted agent row with matching `capabilityIds` and prompt under `agents/`
 5. Restart scheduler once if cron jobs will target the new agent id
 

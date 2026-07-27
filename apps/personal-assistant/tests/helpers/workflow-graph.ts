@@ -7,7 +7,7 @@ import {
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
 import { applyLocalModuleAvailability } from "../../src/composition/bootstrap-agents.js";
 import {
@@ -16,7 +16,7 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
-import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
+import type { ILLMConnector } from "../../src/models/gemini-connector.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";

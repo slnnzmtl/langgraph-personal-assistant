@@ -10,7 +10,7 @@ import {
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
-import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
+import { createPersonalResolveTools } from "../../src/composition/personal-resolve-tools.js";
 import {
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
@@ -62,8 +62,8 @@ const assertNoForbiddenImports = (
 describe("app boundaries", () => {
   it("keeps runtime-agents free of app composition and policy imports", () => {
     assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
-      "app/composition/",
-      "app/policies/",
+      "composition/",
+      "policies/",
     ]);
   });
 

@@ -6,7 +6,7 @@ This repo splits **kernel + pack SDK** from **this personal assistant**. Another
 | Layer | Path | Reuse in another project? |
 |---|---|---|
 | Framework package | `packages/supervisor-framework/` | **Yes — import `@personal-assistant/supervisor-framework`** |
-| Personal app | `apps/personal-assistant/src/app/` | No — copy the pattern, not the code |
+| Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | No — copy the pattern, not the code |
 | Domain tools | `apps/personal-assistant/src/runtime-agents/` | No — write your own providers |
 | Telegram / cron / services | `apps/personal-assistant/src/...` | No — your I/O stack |
 
@@ -169,7 +169,7 @@ console.log(typeof last?.content === "string" ? last.content : last?.content);
 This assistant wraps framework bootstrap with product wiring. **Do not copy this into another project** unless you want the same Telegram / Gemini / finance stack.
 
 ```typescript
-import { createSupervisorSystem } from "../apps/personal-assistant/src/app/composition/create-supervisor-system.js";
+import { createSupervisorSystem } from "../apps/personal-assistant/src/composition/create-supervisor-system.js";
 
 const { graph, cronJobRepository } = await createSupervisorSystem(config, { fileSender });
 ```
@@ -210,8 +210,8 @@ Prefer `bootstrapSupervisorSystem()` for a second deployment — it standardizes
 1. Import from `@personal-assistant/supervisor-framework` (workspace package in this monorepo).
 2. Provide at least one enabled agent. Product agents use the pack's default `runtimeAgentPolicy` (usually `generic`); only the virtual system agent uses `configuration`.
 3. Put tools behind capability IDs; grant them via `capabilityIds` on agent definitions.
-4. Supply your own LLM connector / models; do not import `src/connectors/` unless you want Gemini.
-5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/app/` + `runtime-agents/`.
+4. Supply your own LLM connector / models; do not import `src/models/` unless you want Gemini.
+5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/composition/` + `src/policies/` + `runtime-agents/`.
 6. After adding agents, wait for soft graph recompile (file watcher, ~seconds) or restart the process — routing nodes are fixed until the next compile.
 
 For layer boundaries and the personal pack entrypoint, see [docs/FRAMEWORK.md](../docs/FRAMEWORK.md), [docs/PACK_DEVELOPMENT.md](../docs/PACK_DEVELOPMENT.md), and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).

@@ -4,8 +4,8 @@ import {
   resolveAgentSkillModule,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
-import { createDefaultRuntimeShellFormatters } from "../../../src/app/composition/runtime-execution.js";
-import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
+import { createDefaultRuntimeShellFormatters } from "../../../src/composition/runtime-execution.js";
+import { loadSystemPromptByKey } from "../../../src/load-system-prompt.js";
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import {
   appendAvailableSkills,
@@ -23,7 +23,7 @@ const financeDefinition: RuntimeAgentDefinition = {
   capabilityIds: ["finance-domain"],
   modelKey: "finance",
   maxSteps: 10,
-  enabled: true,
+  enabled: true,  
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };

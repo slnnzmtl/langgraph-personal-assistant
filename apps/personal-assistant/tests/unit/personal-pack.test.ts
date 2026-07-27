@@ -6,7 +6,7 @@ import {
   type ILLMConnector,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
-import { buildPersonalSupervisorPack } from "../../src/app/composition/personal-pack.js";
+import { buildPersonalSupervisorPack } from "../../src/composition/personal-pack.js";
 import type { AppConfig } from "../../src/config.js";
 import {
   createCapabilityDeps,

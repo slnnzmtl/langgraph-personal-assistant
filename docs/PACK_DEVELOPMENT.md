@@ -84,7 +84,7 @@ await bootstrapSupervisorSystem({
 
 ## Personal pack reference
 
-The Telegram assistant is the reference product pack: [`apps/personal-assistant/src/app/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/app/composition/create-supervisor-system.ts).
+The Telegram assistant is the reference product pack: [`apps/personal-assistant/src/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/composition/create-supervisor-system.ts).
 
 Copy its **pattern** (bootstrap object + product adapters), not its finance/Obsidian/Telegram specifics.
 
