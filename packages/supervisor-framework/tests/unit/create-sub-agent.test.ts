@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
@@ -85,6 +85,7 @@ describe("createSubAgentGraphBundle", () => {
       stepCount: 3,
     });
 
-    expect(finalized.messages?.[0]?.content).toBe("steps: 3/3");
+    const messages = finalized.messages;
+    expect(Array.isArray(messages) ? messages[0]?.content : undefined).toBe("steps: 3/3");
   });
 });

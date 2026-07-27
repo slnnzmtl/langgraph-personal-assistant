@@ -5,7 +5,6 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import {
   buildDirectoryTree,
-  createRuntimeShellHooks,
   extractMessageTextContent,
   hasCompletedAgentReply,
   processBlankToolLoopResponse,
@@ -173,11 +172,6 @@ export const selectObsidianToolsForTurn = (
   return toolsForTurn.filter((tool) => tool.name !== "read_skill");
 };
 
-export const createObsidianNodeHooks = (
-  vaultRoot: string,
-  shellFormatters: RuntimeShellFormatters,
-  baseHooks: RuntimeAgentNodeHooks = createRuntimeShellHooks(shellFormatters),
-): RuntimeAgentNodeHooks => composeObsidianCapabilityHooks(vaultRoot, shellFormatters, baseHooks);
 
 export const composeObsidianCapabilityHooks = (
   vaultRoot: string,

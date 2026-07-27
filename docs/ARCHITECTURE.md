@@ -1,6 +1,6 @@
 # Personal Assistant — Architecture Review
 
-*Implementation review as of July 2026, based on the current codebase (~79 source files and 46 unit test files). This document describes verified behavior and separates current defects from conditional future work.*
+*Architecture reference for the personal-assistant deployment (July 2026).*
 
 ---
 
@@ -10,9 +10,9 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 
 | Layer | Role |
 |---|---|
-| **`src/core/`** | Execution kernel (graph, state, policies API, runtime agent bundle factory) |
-| **`src/app/`** | This deployment's wiring (domain policies, LLM hooks, model registry) |
-| **`src/runtime-agents/`** | Domain tools, tool bundles, built-in agent specs |
+| **`packages/supervisor-framework/`** | Execution kernel (graph, state, policies API, pack bootstrap) |
+| **`apps/personal-assistant/src/app/`** | Default runtime policy, capability behaviors, model registry, composition |
+| **`apps/personal-assistant/src/runtime-agents/`** | Domain tools, capability providers, skill attachments |
 
 The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `packages/supervisor-framework/` as an internal framework package, not a separately published product, until a second deployment outside this monorepo justifies npm release.
 
@@ -312,7 +312,7 @@ Agents are first-class persisted entities (`data/runtime-agents.json`):
 ```typescript
 RuntimeAgentDefinitionSchema = z.object({
   id, name, description, systemPrompt,
-  promptSourceKey?, capabilityIds, executor, modelKey?,
+  promptSourceKey?, capabilityIds, modelKey?,
   builtin, maxSteps, enabled, createdAt, updatedAt,
 });
 ```
@@ -321,13 +321,13 @@ RuntimeAgentDefinitionSchema = z.object({
 
 The **configuration** system admin agent is virtual: defined via the framework `systemAgent` pack option, injected at bootstrap, and never written to `data/runtime-agents.json`. Legacy `configuration` rows are purged once at seed time. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
-| ID | Executor | Typical max steps | Capability | Requires |
+| ID | Model key | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
 | `configuration` | `configuration` | 10 | `system-config` | Cron + runtime agent repos |
-| `finance` | `generic` | 10 | `finance-domain` | Supabase MCP |
-| `obsidian` | `generic` | 12 | `obsidian-vault` | Vault path |
+| `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
+| `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
 
-All persisted specialists use `executor: "generic"` and optionally `modelKey` for dedicated chat models. Tools and optional LLM hooks come from grantable **capabilities** (`none`, `obsidian-vault`, `finance-domain`, `system-config-read`, etc.). Agents with `obsidian-vault` inherit Obsidian vault UX (directory tree, routine hints, blank-reply recovery) via app-local hooks composed on the generic policy shell.
+Persisted specialists optionally set `modelKey` for dedicated chat models. Legacy `executor` values in JSON are migrated on load (inferring `modelKey` when absent). Tools and optional LLM hooks come from grantable **capabilities**.
 
 ---
 
@@ -358,7 +358,7 @@ Flat `skills/` directory with XML playbooks (and optional `.md`):
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
 - `src/runtime-agents/skills/skills-loader.ts` — filesystem read/write/parse; `src/runtime-agents/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
-Current skills: `sync-expenses`, `daily-routine-note-creation`, `cron`, `runtime-agents`, `skill-management`.
+Current skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
 
 ---
 
@@ -428,7 +428,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── index.ts, app.ts, config.ts, cron-triggers.ts
 │       │   ├── app/                # Composition & domain hooks
 │       │   ├── runtime-agents/     # Domain tools & capability catalog
-│       │   ├── cron/ telegram/ tools/ services/ mcp/ connectors/ ...
+│       │   ├── cron/ telegram/ services/ mcp/ connectors/ ...
 │       ├── agents/ skills/ data/ sql/
 │       ├── tests/unit/ tests/e2e/
 │       └── Dockerfile docker-compose.yml
@@ -440,7 +440,7 @@ personal-assistant/                 # pnpm workspace root
 
 ## Testing Posture
 
-- **46 unit test files** covering graph topology, state reducers, compaction, token-budget trimming, supervisor routing, runtime agent loops, cron, skills, MCP self-healing, and domain tools
+- Unit tests cover graph topology, state reducers, compaction, supervisor routing, runtime agent loops, cron, skills, MCP self-healing, and domain tools
 - **E2E** via Playwright (`tests/e2e/workflow.spec.ts`)
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
@@ -460,16 +460,6 @@ The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-ag
 ---
 
 ## Architecture Debt and Recommended Decisions
-
-### Fix now: deployment contracts
-
-| Finding | Status |
-|---|---|
-| **Skills unavailable in production Compose** | **Done** — production image copies `skills/` to `/app/skills`. Compose does not bind-mount skills by default, so baked-in playbooks are used unless the operator adds an override mount. |
-| **Bot and scheduler do not share persisted definitions** | **Done** — both services mount `./data` at `/app/data`. |
-| **Scheduler flag misleading in deployed scheduler** | **Done** — scheduler honors `ENABLE_SCHEDULER`; when disabled it idles until shutdown (avoids Compose restart loops). |
-| **Cron uses two independent task registries** | **Done** — bootstrap and file reconciliation both use `RuntimeCronService`; reconcile updates changed schedules in place. |
-| **Configuration writes are not coordinated** | **Done (in-process)** — runtime-agent and cron repositories serialize read-modify-write mutations per file within each process via `createJob`/`deleteJob` and repository CRUD. Cross-process file locking remains deferred. |
 
 ### Improve when reliability requirements increase
 
@@ -495,12 +485,6 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 ### Simplification opportunities
 
-- **Done:** Single default runtime policy on `createAssistant()` (`runtimeAgentPolicy`) — capability hooks compose on the generic shell; no per-domain policy registry.
-- **Done:** Avoid adding a general dependency-injection container. `createSupervisorSystem()` is the composition root and makes dependencies visible.
-- **Done:** `AppConfig.messageHistoryMaxTokens` is parsed once in `loadConfig()` and passed through graph creation into the message reducer via `createAgentStateAnnotation()`.
-- **Done:** Compiled graph name is `personal-assistant` (removed legacy `personal-assistant-phase-1` override).
-- **Done:** Legacy subgraph specs referring to `Finance_SG` and `Obsidian_SG` were retired; this document describes the unified flat runtime-agent model (no `Runtime_SG` dispatcher).
-
 ---
 
 ## Extension Guide (Quick Reference)
@@ -509,13 +493,13 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 1. Implement tools under `runtime-agents/tools/`
 2. Add capability descriptor + provider in `runtime-agents/builtin-capabilities.ts`
-3. Compose LLM hook deltas under `app/policies/` and wire onto generic when the capability is granted (see `generic-runtime-policy.ts`)
-4. Seed a persisted agent row: `executor: "generic"`, matching `capabilityIds`, prompt under `agents/`
+3. Compose capability behavior in `app/policies/runtime-agent-policy.ts` when that capability is granted
+4. Seed a persisted agent row with matching `capabilityIds` and prompt under `agents/`
 5. Restart scheduler once if cron jobs will target the new agent id
 
 **Add a custom runtime agent at runtime (default):**
 
-Use the configuration agent in Telegram — creates a `generic` executor agent with selected capabilities, persisted to `data/runtime-agents.json`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart. Cron jobs targeting a brand-new agent id may require a scheduler restart until cron-target allowlist refresh is implemented.
+Use the configuration agent in Telegram — creates an agent with selected capabilities, persisted to `data/runtime-agents.json`. **Soft recompile** (file watcher, ~seconds) adds routable graph nodes without a manual restart.
 
 ---
 

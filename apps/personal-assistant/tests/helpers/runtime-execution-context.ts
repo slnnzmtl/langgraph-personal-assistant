@@ -11,7 +11,6 @@ import {
 import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
-  createDefaultCapabilityCatalog,
   createPersonalCapabilityProviders,
   type CapabilityDeps,
 } from "../../src/runtime-agents/builtin-capabilities.js";
@@ -33,7 +32,7 @@ export const createAppRuntimeExecutionContext = (
   const skillCatalog = createSkillCatalog();
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
-    capabilityCatalog: createDefaultCapabilityCatalog(),
+    capabilityCatalog,
   });
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);

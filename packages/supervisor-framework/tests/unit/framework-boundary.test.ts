@@ -117,7 +117,6 @@ describe("framework boundaries", () => {
       description: "Finance",
       systemPrompt: "Finance",
       capabilityIds: ["finance-domain"],
-      executor: "generic",
       builtin: false,
       maxSteps: 8,
       enabled: true,

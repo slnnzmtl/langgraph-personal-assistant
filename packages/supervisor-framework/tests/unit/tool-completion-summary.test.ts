@@ -24,6 +24,7 @@ describe("tool completion summary", () => {
           agentMessages: [
             new ToolMessage({ content: "Created skill foo", tool_call_id: "1", name: "create_skill" }),
           ],
+          stepCount: 1,
         },
       },
       new AIMessage({ content: "" }),

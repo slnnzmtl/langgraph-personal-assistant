@@ -6,6 +6,7 @@ logs/
 .github/agents/
 .pnpm-store/
 test-results/*
+*.tsbuildinfo
 .tmp
 data/*
 cron-jobs.json

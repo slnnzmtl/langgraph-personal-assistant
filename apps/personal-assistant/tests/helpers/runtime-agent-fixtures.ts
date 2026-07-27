@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   createSystemAgentDefinition,
@@ -8,7 +9,10 @@ import {
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 
-const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");
+const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/runtime-agents.json",
+);
 
 const DOMAIN_MODULE_CAPABILITY_IDS = new Set(["finance-domain", "obsidian-vault"]);
 

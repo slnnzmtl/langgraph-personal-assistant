@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SupabaseMcpSession } from "../../../src/mcp/supabase/index.js";
+import type { SupabaseMcpSession } from "../../../src/mcp/supabase.js";
 import { createTestRuntimeAgentNode, financeRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools, getFinanceDomainTool } from "../../helpers/finance-tools.js";

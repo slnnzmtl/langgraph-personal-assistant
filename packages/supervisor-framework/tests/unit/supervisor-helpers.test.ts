@@ -73,7 +73,7 @@ describe("supervisor replan helpers", () => {
   it("blocks an immediate repeat route to the same agent", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "finance", prompt: "Sync expenses." },
+      { next: "finance", prompt: "Sync expenses.", reply: undefined },
       "yes",
     )).toBe(true);
   });
@@ -81,7 +81,7 @@ describe("supervisor replan helpers", () => {
   it("allows FINISH after a complete handoff", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "FINISH", reply: "Synced 5 transactions." },
+      { next: "FINISH", reply: "Synced 5 transactions.", prompt: undefined },
       "yes",
     )).toBe(false);
   });
@@ -89,7 +89,7 @@ describe("supervisor replan helpers", () => {
   it("allows repeat routes when the user explicitly retries", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "finance", prompt: "Retry the sync." },
+      { next: "finance", prompt: "Retry the sync.", reply: undefined },
       "retry finance sync",
     )).toBe(false);
   });

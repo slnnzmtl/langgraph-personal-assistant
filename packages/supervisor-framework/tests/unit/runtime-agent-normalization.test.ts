@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONFIGURATION_AGENT_ID,
-  DEFAULT_PRODUCT_EXECUTOR,
+  DEFAULT_MODEL_KEY,
   normalizeRuntimeAgentDefinition,
   resolveAgentModelKey,
 } from "../../src/core/types/agent.js";
@@ -20,7 +20,7 @@ const baseInput = {
 };
 
 describe("runtime agent normalization", () => {
-  it("coerces legacy finance executor to generic while preserving modelKey", () => {
+  it("strips legacy finance executor while preserving modelKey", () => {
     const normalized = normalizeRuntimeAgentDefinition({
       ...baseInput,
       id: "finance",
@@ -29,7 +29,7 @@ describe("runtime agent normalization", () => {
       modelKey: "finance",
     });
 
-    expect(normalized.executor).toBe(DEFAULT_PRODUCT_EXECUTOR);
+    expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("finance");
   });
 
@@ -42,21 +42,20 @@ describe("runtime agent normalization", () => {
       executor: "obsidian",
     });
 
-    expect(normalized.executor).toBe(DEFAULT_PRODUCT_EXECUTOR);
+    expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("obsidian");
   });
 
-  it("keeps configuration as the only non-generic executor", () => {
+  it("defaults configuration modelKey when absent", () => {
     const normalized = normalizeRuntimeAgentDefinition({
       ...baseInput,
       id: CONFIGURATION_AGENT_ID,
       capabilityIds: ["system-config"],
       executor: CONFIGURATION_AGENT_ID,
-      modelKey: "configuration",
       builtin: true,
     });
 
-    expect(normalized.executor).toBe(CONFIGURATION_AGENT_ID);
+    expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("configuration");
   });
 
@@ -74,8 +73,7 @@ describe("runtime agent normalization", () => {
         ...baseInput,
         id: "coder",
         capabilityIds: ["none"],
-        executor: "generic",
       }),
-    )).toBe(DEFAULT_PRODUCT_EXECUTOR);
+    )).toBe(DEFAULT_MODEL_KEY);
   });
 });

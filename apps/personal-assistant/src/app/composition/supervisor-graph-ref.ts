@@ -14,9 +14,13 @@ export type SupervisorGraphRef = {
   recompile(): Promise<boolean>;
 };
 
-type PersonalBootstrapState = SupervisorSystemContext<AppConfig, CapabilityDeps>;
-
 type PersonalAdapters = { supabaseSession?: CapabilityDeps["supabaseSession"] };
+
+type PersonalBootstrapState = SupervisorSystemContext<
+  AppConfig,
+  CapabilityDeps,
+  PersonalAdapters
+>;
 
 export const createSupervisorGraphRef = async (
   config: AppConfig,
@@ -31,7 +35,6 @@ export const createSupervisorGraphRef = async (
     options,
     supervisorLlm: supervisorConnector,
   });
-  const adapters: PersonalAdapters = pack.setupAdapters ? await pack.setupAdapters(config) : {};
 
   let bootstrap = await bootstrapSupervisorSystem(pack);
   let fingerprint = deriveRuntimeAgentGraphFingerprint(bootstrap.runtimeAgents);
@@ -44,10 +47,17 @@ export const createSupervisorGraphRef = async (
         throw new Error("Runtime agent repository is not configured.");
       }
 
-      const runtimeAgents = await pack.seedAgents(runtimeAgentRepository, { adapters });
+      const runtimeAgents = await pack.seedAgents(runtimeAgentRepository, {
+        adapters: bootstrap.adapters,
+      });
       const nextFingerprint = deriveRuntimeAgentGraphFingerprint(runtimeAgents);
       if (nextFingerprint === fingerprint) {
         return false;
+      }
+
+      const previousSession = bootstrap.adapters.supabaseSession;
+      if (previousSession?.close) {
+        await previousSession.close().catch(() => undefined);
       }
 
       bootstrap = await bootstrapSupervisorSystem(pack);

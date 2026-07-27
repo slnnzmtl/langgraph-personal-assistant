@@ -17,7 +17,6 @@ import {
   createPersonalCapabilityProviders,
   PERSONAL_CAPABILITY_DESCRIPTORS,
   resolveCapabilities,
-  toCapabilityAvailabilityContext,
 } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
@@ -100,7 +99,6 @@ describe("app boundaries", () => {
       systemPrompt: "Finance",
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
-      executor: "generic",
       modelKey: "finance",
       builtin: false,
       maxSteps: 8,

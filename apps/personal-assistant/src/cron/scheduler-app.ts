@@ -8,13 +8,11 @@ import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.
 import { watchCronJobDefinitions, type CronJobWatcher } from "./cron-job-watcher.js";
 import type { CronJobRepository } from "./cron-job-repository.js";
 import type { RuntimeCronService } from "./types.js";
-import type { CompiledSupervisorGraph } from "@personal-assistant/supervisor-framework";
 import type { GeminiConnector } from "../connectors/llm-connector.js";
 import type { SupervisorGraphRef } from "../app/composition/supervisor-graph-ref.js";
 
 export type SchedulerApp = {
   config: AppConfig;
-  graph: CompiledSupervisorGraph;
   graphRef: SupervisorGraphRef;
   cronJobRepository: CronJobRepository;
   cronTargetAgentIds: readonly string[];
@@ -50,7 +48,6 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
 
   return {
     config: system.config,
-    graph: system.graph,
     graphRef: system.graphRef,
     cronJobRepository: system.cronJobRepository,
     cronTargetAgentIds: system.cronTargetAgentIds,

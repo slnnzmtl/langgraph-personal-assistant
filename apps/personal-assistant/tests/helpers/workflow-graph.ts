@@ -17,7 +17,6 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/app/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
-import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
@@ -42,7 +41,7 @@ export const createTestWorkflowGraph = ({
   supervisorLlm,
   modelHandlers = {},
   runtimeAgents = buildTestRuntimeAgents(),
-  defaultModelKey = "generic",
+  defaultModelKey = "generic" as const,
   messageHistoryMaxTokens = DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
   obsidianVaultPath = "/tmp/vault",
   cronJobRepository,
@@ -53,7 +52,7 @@ export const createTestWorkflowGraph = ({
   runtimeAgents = applyLocalModuleAvailability(runtimeAgents, {
     supabaseAvailable: supabaseSession !== undefined,
   });
-  const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey);
+  const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey as "generic");
   const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
     ? supervisorLlm.getSharedRuntimeModel()
     : supervisorLlm.getModel();
@@ -68,8 +67,7 @@ export const createTestWorkflowGraph = ({
 
   const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
-  const resolveTools = createPersonalResolveTools(capabilityCatalog);
-  const { loadPromptByKey, runtimeAgentPolicy, shellFormatters } = buildAppRuntimeExecution({
+  const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog,
   });

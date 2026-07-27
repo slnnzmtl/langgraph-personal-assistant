@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
-import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
+import { createAppSupervisorNode, FakeLLMConnector, asAgentState, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getMessageText, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
 import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
@@ -60,12 +60,13 @@ describe("createSupervisorNode", () => {
       expect(Array.isArray(input)).toBe(true);
       const promptMessages = input as HumanMessage[];
 
-      expect(promptMessages[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
-      expect(promptMessages[0]?.content).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
-      expect(promptMessages[0]?.content.indexOf("You are the Root Supervisor")).toBeLessThan(
-        promptMessages[0]?.content.indexOf("<system_metadata>") ?? -1,
+      const firstPrompt = getMessageText(promptMessages[0]);
+      expect(firstPrompt).toContain("You are the Root Supervisor for a private personal assistant.");
+      expect(firstPrompt).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
+      expect(firstPrompt.indexOf("You are the Root Supervisor")).toBeLessThan(
+        firstPrompt.indexOf("<system_metadata>") ?? -1,
       );
-      expect(promptMessages[1]?.content).toBe("hello");
+      expect(getMessageText(promptMessages[1])).toBe("hello");
 
       return {
         next: "FINISH",
@@ -122,7 +123,7 @@ describe("createSupervisorNode", () => {
 
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -159,10 +160,10 @@ describe("createSupervisorNode", () => {
     const modelInvoke = vi.fn(async () => new AIMessage("Please rephrase your request."));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({
+        invoke: (async () => ({
           next: "FINISH",
           reply: "null",
-        }),
+        })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -214,11 +215,11 @@ describe("createSupervisorNode", () => {
       { maxTokens: 120 },
     );
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: history,
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("FINISH");
     expect(firstStateUpdateMessage(result)?.content).toBe("Trimmed reply");
@@ -240,14 +241,14 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage("where is the note?"),
         new HumanMessage("give me a plan for yesterday"),
       ],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("obsidian");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
@@ -281,7 +282,7 @@ describe("createSupervisorNode", () => {
     });
     const supervisorNode = createAppSupervisorNode(connector);
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage("add go to shop"),
         new AIMessage({
@@ -302,7 +303,7 @@ describe("createSupervisorNode", () => {
       ],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("FINISH");
     expect(firstStateUpdateMessage(result)?.content).toBe("Sanitized");
@@ -314,7 +315,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -324,12 +325,12 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("today's plan")],
       lastHandoff: emptyHandoff("Obsidian", "obsidian"),
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(EMPTY_REPLY_ROUTE);
     expect(result.messages).toBeUndefined();
@@ -358,14 +359,14 @@ describe("createSupervisorNode", () => {
     const connector = new FakeLLMConnector(invokeSpy);
     const supervisorNode = createAppSupervisorNode(connector);
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage(buildCronTriggerForJob("finance", "finance-sync")),
         new HumanMessage("tell me what changed today"),
       ],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("FINISH");
     expect(firstStateUpdateMessage(result)?.content).toBe("Handled by LLM");
@@ -413,13 +414,13 @@ describe("createSupervisorNode", () => {
     const connector = new FakeLLMConnector(invokeSpy);
     const supervisorNode = createAppSupervisorNode(connector);
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage(buildCronTriggerForJob("finance", "finance-sync") + "\n\nPayload:\nSync the Wise transactions for yesterday."),
       ],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("finance");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
@@ -456,7 +457,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -466,13 +467,13 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("sync expenses then write a note")],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [{ agentId: "obsidian", prompt: "Write a summary note." }],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("obsidian");
     expect(result.delegationPrompt).toBe("Write a summary note.");
@@ -489,7 +490,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -499,13 +500,13 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("sync expenses then write a note")],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("FINISH");
     expect(firstStateUpdateMessage(result)?.content).toBe("All done.");
@@ -518,7 +519,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -528,13 +529,13 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("today's plan")],
       lastHandoff: emptyHandoff("Obsidian", "obsidian"),
       executionQueue: [{ agentId: "finance", prompt: "Sync expenses." }],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(EMPTY_REPLY_ROUTE);
     expect(result.executionQueue).toEqual([]);
@@ -553,7 +554,7 @@ describe("createSupervisorNode", () => {
     });
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -563,7 +564,7 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage("show yesterday's expenses"),
         new AIMessage("No matching expenses were found for yesterday. Would you like to sync your expenses?"),
@@ -573,7 +574,7 @@ describe("createSupervisorNode", () => {
       executionQueue: [],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("FINISH");
     expect(firstStateUpdateMessage(result)?.content).toBe("Synced 5 transactions.");
@@ -587,7 +588,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("Handled"),
@@ -597,7 +598,7 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [
         new HumanMessage("show yesterday's expenses"),
         new AIMessage("No matching expenses were found for yesterday. Would you like to sync your expenses?"),
@@ -607,7 +608,7 @@ describe("createSupervisorNode", () => {
       executionQueue: [],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(POST_HANDOFF_FINISH_ROUTE);
     expect(result.lastHandoff).toEqual(completeHandoff("Finance", "finance"));
@@ -625,7 +626,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -635,13 +636,13 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("sync expenses and write a note")],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("obsidian");
     expect(result.delegationPrompt).toBe("Write a summary note.");
@@ -658,7 +659,7 @@ describe("createSupervisorNode", () => {
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: routingInvoke,
+        invoke: routingInvoke as never,
       }),
       getModel: () => ({
         invoke: async () => new AIMessage("unused"),
@@ -668,13 +669,13 @@ describe("createSupervisorNode", () => {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
-    const result = await supervisorNode({
+    const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("retry finance sync")],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [],
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe("finance");
     expect(result.delegationPrompt).toBe("Retry the sync.");

@@ -54,6 +54,7 @@ export type SupervisorBootstrapContext<
 export type SupervisorSystemContext<
   TConfig extends SupervisorPaths = SupervisorPaths,
   TDeps extends Record<string, unknown> = Record<string, unknown>,
+  TAdapters extends Record<string, unknown> = Record<string, never>,
 > = {
   config: TConfig;
   graph: CompiledSupervisorGraph;
@@ -62,6 +63,7 @@ export type SupervisorSystemContext<
   runtimeAgents: RuntimeAgentDefinition[];
   skillCatalog: SkillCatalog;
   capabilityDeps: TDeps;
+  adapters: TAdapters;
 };
 
 export type RuntimeExecutionKit = {

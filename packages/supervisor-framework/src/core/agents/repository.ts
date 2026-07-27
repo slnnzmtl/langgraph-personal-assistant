@@ -5,7 +5,6 @@ import { fileExists, readTextFile, resolveSafePath } from "../persistence/file-s
 import { withSerializedFileWrite } from "../persistence/json-store.js";
 import {
   RUNTIME_AGENT_SCHEMA_VERSION,
-  DEFAULT_PRODUCT_EXECUTOR,
   parseCreateRuntimeAgentInput,
   parseRuntimeAgentDefinition,
   parseUpdateRuntimeAgentInput,
@@ -25,11 +24,6 @@ export type RuntimeAgentRepository = {
   updateAgent(id: string, input: UpdateRuntimeAgentInput): Promise<RuntimeAgentDefinition>;
   deleteAgent(id: string): Promise<RuntimeAgentDefinition>;
 };
-
-const emptyDocument = (): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => ({
-  version: RUNTIME_AGENT_SCHEMA_VERSION,
-  agents: [],
-});
 
 const parseDocument = (rawContent: string): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => {
   try {
@@ -121,10 +115,6 @@ export const createRuntimeAgentRepository = (
 
         validateUniqueAgentId(agents, id);
 
-        if (parsed.executor && parsed.executor !== DEFAULT_PRODUCT_EXECUTOR) {
-          throw new Error("Only generic runtime agents can be created through the configuration API.");
-        }
-
         const timestamp = new Date().toISOString();
         const nextAgent = parseRuntimeAgentDefinition({
           id,
@@ -132,7 +122,7 @@ export const createRuntimeAgentRepository = (
           description: parsed.description.trim(),
           systemPrompt: parsed.systemPrompt.trim(),
           capabilityIds: parsed.capabilityIds,
-          executor: DEFAULT_PRODUCT_EXECUTOR,
+          ...(parsed.modelKey ? { modelKey: parsed.modelKey } : {}),
           builtin: false,
           maxSteps: parsed.maxSteps ?? 8,
           enabled: parsed.enabled ?? true,
@@ -157,14 +147,6 @@ export const createRuntimeAgentRepository = (
 
         const current = agents[index]!;
         const builtin = isRuntimeAgentBuiltin(current);
-
-        if (!builtin && parsed.executor !== undefined && parsed.executor !== DEFAULT_PRODUCT_EXECUTOR) {
-          throw new Error("Product runtime agents always use the generic executor.");
-        }
-
-        if (builtin && parsed.executor !== undefined && parsed.executor !== current.executor) {
-          throw new Error(`Cannot change executor for built-in runtime agent: ${id}`);
-        }
 
         if (builtin && parsed.modelKey !== undefined && parsed.modelKey !== current.modelKey) {
           throw new Error(`Cannot change model key for built-in runtime agent: ${id}`);
@@ -214,4 +196,3 @@ export const createRuntimeAgentRepository = (
     },
   };
 };
-

@@ -57,10 +57,6 @@ export type CreateAgentPolicyConfig<
   logLabel?: string;
   buildErrorMessage?: RuntimeAgentNodeConfig["buildErrorMessage"];
   selectToolsForTurn?: RuntimeAgentNodeConfig["selectToolsForTurn"];
-  mapResult?: (
-    result: SubAgentState,
-    config: { maxSteps: number; name: string },
-  ) => AgentStateUpdate;
   resolveMapResult?: (
     definition: RuntimeAgentDefinition,
   ) => ((
@@ -126,7 +122,6 @@ export const createAgentPolicy = <
     };
 
     const mapResult = config.resolveMapResult?.(definition)
-      ?? config.mapResult
       ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig));
 
     return createSubAgentGraphBundle({
@@ -143,6 +138,3 @@ export const createAgentPolicy = <
     });
   },
 });
-
-/** Alias for the default runtime agent loop builder (prepare → llm ⇄ tools → finalize). */
-export const createRuntimeAgentBundle = createAgentPolicy;

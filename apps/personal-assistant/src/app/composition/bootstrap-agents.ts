@@ -1,36 +1,18 @@
 import type { AppConfig } from "../../config.js";
 import {
-  DEFAULT_PRODUCT_EXECUTOR,
+  DEFAULT_MODEL_KEY,
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 
-type AppModelConfigKey = keyof Pick<
-  AppConfig,
-  "financeModel" | "obsidianModel" | "configurationModel"
->;
-
-const resolveModelConfigKey = (modelKey: string): AppModelConfigKey | undefined => {
-  const candidate = `${modelKey}Model`;
-  if (candidate === "financeModel" || candidate === "obsidianModel" || candidate === "configurationModel") {
-    return candidate;
-  }
-
-  return undefined;
+const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {
+  finance: (config) => config.financeModel,
+  obsidian: (config) => config.obsidianModel,
+  configuration: (config) => config.configurationModel,
 };
 
-export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): string => {
-  if (modelKey === DEFAULT_PRODUCT_EXECUTOR) {
-    return config.obsidianModel;
-  }
-
-  const configKey = resolveModelConfigKey(modelKey);
-  if (configKey) {
-    return config[configKey];
-  }
-
-  return config.geminiModel;
-};
+export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): string =>
+  MODEL_OVERRIDES[modelKey]?.(config) ?? config.geminiModel;
 
 export type LocalModuleAvailabilityOptions = {
   supabaseAvailable?: boolean;
@@ -55,3 +37,6 @@ export const applyLocalModuleAvailability = (
     return agent;
   });
 };
+
+/** @deprecated Use DEFAULT_MODEL_KEY from supervisor-framework */
+export { DEFAULT_MODEL_KEY as DEFAULT_PRODUCT_EXECUTOR };

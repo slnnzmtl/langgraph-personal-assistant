@@ -17,7 +17,7 @@ import {
   appendRuntimeExecutionModel,
 } from "../runtime-agents/skills/prompt-enrichment.js";
 import { createPersonalResolveTools } from "./composition/personal-resolve-tools.js";
-import { createDefaultRuntimeAgentPolicy } from "./policies/generic-runtime-policy.js";
+import { createDefaultRuntimeAgentPolicy } from "./policies/runtime-agent-policy.js";
 
 export const createDefaultRuntimeShellFormatters = (
   skillCatalog?: SkillCatalog,

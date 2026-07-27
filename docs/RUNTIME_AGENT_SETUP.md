@@ -25,7 +25,6 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 | `id` | Slug from `name` (e.g. `Daily Summary` → `daily-summary`) |
 | `name`, `description`, `systemPrompt` | Tool args |
 | `capabilityIds` | Allowlisted catalog only |
-| `executor` | Always `"generic"` internally for product agents (legacy values are normalized on load) |
 | `modelKey` | Optional; selects which registered chat model to use (built-in specialists use domain keys like `finance` / `obsidian`) |
 | `builtin` | Always `false` |
 | `maxSteps` | Optional, default `8` (1–20) |
@@ -50,7 +49,7 @@ Agents granted only `system-config-read` can list summaries but cannot preview f
 
 > Create a runtime agent named “Coder” that helps with writing and debugging code. Use capability `none`. Description: coding agent.
 
-That produces a definition like the existing `coder` agent: `executor: "generic"`, `capabilityIds: ["none"]`.
+That produces a definition with `capabilityIds: ["none"]` and the default model unless you set `modelKey`.
 
 ---
 
@@ -102,8 +101,8 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 
 1. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
 2. Add a capability descriptor + provider in `src/runtime-agents/builtin-capabilities.ts`.
-3. If the domain needs LLM hooks (vault context, blank-reply recovery, etc.), add app-local capability behavior under `src/app/policies/` and wire it onto the generic policy when that capability is granted — see `generic-runtime-policy.ts` for the Obsidian pattern.
-4. Seed or persist a `RuntimeAgentDefinition` with `executor: "generic"` and the new `capabilityIds`.
+3. If the domain needs LLM hooks, add capability behavior in `src/app/policies/runtime-agent-policy.ts`.
+4. Seed or persist a `RuntimeAgentDefinition` with the new `capabilityIds`.
 5. Add a prompt under `agents/` (optional `promptSourceKey`).
 6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).
 

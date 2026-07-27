@@ -5,9 +5,11 @@ import type { z } from "zod";
 import {
   createSupervisorNode,
   RUNTIME_AGENT_CONTEXT_KEY,
+  type AgentState,
   type AgentStateUpdate,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
+  type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
@@ -17,7 +19,6 @@ import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabiliti
 import {
   buildTestRuntimeAgents,
   defaultTestCronTargetAgentIds,
-  getRuntimeAgentFixture,
 } from "./runtime-agent-fixtures.js";
 export { getRuntimeAgentFixture } from "./runtime-agent-fixtures.js";
 import { createAppRuntimeExecutionContext } from "./runtime-execution-context.js";
@@ -101,11 +102,50 @@ export class FakeLLMConnector implements ILLMConnector {
   }
 }
 
-export const makeHumanState = (text: string) => ({
-  messages: [new HumanMessage(text)],
-  context: {},
-  next: undefined,
+export const asAgentState = (
+  partial: Partial<AgentState> & Pick<AgentState, "messages">,
+): AgentState => partial as AgentState;
+
+export const asSubAgentState = (
+  partial: Partial<SubAgentState> & Pick<SubAgentState, "agentMessages">,
+): SubAgentState => partial as SubAgentState;
+
+export const getMessageText = (message: BaseMessage | undefined): string => {
+  const content = message?.content;
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => (typeof block === "string" ? block : "text" in block ? String(block.text) : ""))
+      .join("");
+  }
+
+  return String(content ?? "");
+};
+
+export const makeTestRuntimeAgent = (
+  overrides: Partial<RuntimeAgentDefinition> & Pick<RuntimeAgentDefinition, "id" | "name">,
+): RuntimeAgentDefinition => ({
+  description: "",
+  systemPrompt: "",
+  capabilityIds: [],
+  builtin: false,
+  maxSteps: 8,
+  enabled: true,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  ...overrides,
 });
+
+export const makeHumanState = (text: string, overrides?: Partial<AgentState>): AgentState =>
+  asAgentState({
+    messages: [new HumanMessage(text)],
+    context: {},
+    next: undefined,
+    ...overrides,
+  });
 
 export const createRuntimeAgentRepositoryFake = (
   initialAgents: RuntimeAgentDefinition[] = buildTestRuntimeAgents(),
@@ -131,7 +171,7 @@ export const createRuntimeAgentRepositoryFake = (
         description: input.description.trim(),
         systemPrompt: input.systemPrompt.trim(),
         capabilityIds: input.capabilityIds,
-        executor: input.executor ?? "generic",
+        ...(input.modelKey ? { modelKey: input.modelKey } : {}),
         builtin: false,
         maxSteps: input.maxSteps ?? 8,
         enabled: input.enabled ?? true,
@@ -154,7 +194,7 @@ export const createRuntimeAgentRepositoryFake = (
         ...(input.description !== undefined ? { description: input.description.trim() } : {}),
         ...(input.systemPrompt !== undefined ? { systemPrompt: input.systemPrompt.trim() } : {}),
         ...(input.capabilityIds !== undefined ? { capabilityIds: input.capabilityIds } : {}),
-        ...(input.executor !== undefined ? { executor: input.executor } : {}),
+        ...(input.modelKey !== undefined ? { modelKey: input.modelKey } : {}),
         ...(input.maxSteps !== undefined ? { maxSteps: input.maxSteps } : {}),
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
         updatedAt: new Date().toISOString(),
@@ -215,14 +255,17 @@ const emptyCronRepository = (): CronJobRepository => ({
 
 export const createRuntimeExecutionContextFake = (options?: {
   repository?: RuntimeAgentRepository;
+  runtimeAgentRepository?: RuntimeAgentRepository;
   cronJobRepository?: CronJobRepository;
   llmConnector?: FakeLLMConnector;
   obsidianVaultPath?: string;
+  capabilityDeps?: Partial<CapabilityDeps>;
 }) => {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
   const model = llmConnector.getModel();
   const cronJobRepository = options?.cronJobRepository ?? emptyCronRepository();
-  const repository = options?.repository ?? createRuntimeAgentRepositoryFake();
+  const repository =
+    options?.runtimeAgentRepository ?? options?.repository ?? createRuntimeAgentRepositoryFake();
 
   return createAppRuntimeExecutionContext({
     defaultModel: model,
@@ -232,6 +275,7 @@ export const createRuntimeExecutionContextFake = (options?: {
       cronTargetAgentIds: defaultConfigurationCapabilityDeps.cronTargetAgentIds,
       cronJobRepository,
       runtimeAgentRepository: repository,
+      ...options?.capabilityDeps,
     },
   });
 };

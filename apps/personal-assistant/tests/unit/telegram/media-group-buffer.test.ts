@@ -1,5 +1,6 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Context } from "telegraf";
 
 import {
   CAPTIONLESS_PHOTO_TEXT,
@@ -55,7 +56,7 @@ describe("MediaGroupBuffer", () => {
   it("flushes album members into one multimodal message after debounce", async () => {
     vi.useFakeTimers();
 
-    const onFlush = vi.fn(async () => undefined);
+    const onFlush = vi.fn(async (_ctx: Context, _message: HumanMessage) => undefined);
     const buffer = new MediaGroupBuffer(700, onFlush);
     const ctx = { chat: { id: 42 } } as never;
 
@@ -78,7 +79,7 @@ describe("MediaGroupBuffer", () => {
   it("coalesces rapid singles in the same chat before flush", async () => {
     vi.useFakeTimers();
 
-    const onFlush = vi.fn(async () => undefined);
+    const onFlush = vi.fn(async (_ctx: Context, _message: HumanMessage) => undefined);
     const buffer = new MediaGroupBuffer(700, onFlush);
     const ctx = { chat: { id: 42 } } as never;
 
@@ -97,7 +98,7 @@ describe("MediaGroupBuffer", () => {
   });
 
   it("uses continuation text when no album caption exists", async () => {
-    const onFlush = vi.fn(async () => undefined);
+    const onFlush = vi.fn(async (_ctx: Context, _message: HumanMessage) => undefined);
     const buffer = new MediaGroupBuffer(700, onFlush);
     const ctx = { chat: { id: 42 } } as never;
     const key = buildMediaGroupBufferKey(42, "album-2");

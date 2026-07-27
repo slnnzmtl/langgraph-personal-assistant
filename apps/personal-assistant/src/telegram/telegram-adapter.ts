@@ -1,5 +1,5 @@
 import type { BaseMessage } from "@langchain/core/messages";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { Telegraf, type Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
@@ -225,8 +225,6 @@ export class TelegramAdapter implements ITelegramAdapter {
     }
 
     if (ctx.message && "text" in ctx.message) {
-      logTelegramMessage("user", ctx.message.text);
-
       return new HumanMessage(ctx.message.text);
     }
 

@@ -68,7 +68,6 @@ export const createSystemAgentDefinition = (
     systemPrompt: SYSTEM_AGENT_BOOTSTRAP_PROMPT,
     promptSourceKey: SYSTEM_AGENT_ID,
     capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
-    executor: CONFIGURATION_AGENT_ID,
     modelKey,
     builtin: true,
     maxSteps: options.maxSteps ?? 10,

@@ -1,45 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildDefaultCronJobs, mergeCronJobs, startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
+import { startCronBootstrap } from "../../src/cron/cron-bootstrap.js";
 import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
+import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
+import type { CronJobDefinition } from "../../src/cron/types.js";
 import type { RuntimeCronService } from "../../src/cron/types.js";
 
-describe("buildDefaultCronJobs", () => {
-	it("returns no default jobs", () => {
-		expect(buildDefaultCronJobs()).toEqual([]);
-	});
-});
-
-describe("mergeCronJobs", () => {
-	it("lets persisted jobs override defaults by job name", () => {
-		const jobs = mergeCronJobs(
-			[
-				{
-					jobName: "daily-report",
-					schedule: "59 23 * * *",
-					targetRoute: "finance",
-				},
-			],
-			[
-				{
-					jobName: "daily-report",
-					schedule: "0 1 * * *",
-					targetRoute: "finance",
-					timezone: "America/New_York",
-				},
-			],
-		);
-
-		expect(jobs).toEqual([
-			{
-				jobName: "daily-report",
-				schedule: "0 1 * * *",
-				targetRoute: "finance",
-				timezone: "America/New_York",
-			},
-		]);
-	});
-});
 
 describe("startCronBootstrap", () => {
 	const cronTargetAgentIds = defaultTestCronTargetAgentIds();
@@ -54,17 +20,20 @@ describe("startCronBootstrap", () => {
 		listActiveJobs: vi.fn().mockReturnValue([]),
 	});
 
+	const createRepository = (jobs: CronJobDefinition[]) => {
+		const repository = createCronRepositoryFake(jobs);
+		repository.loadJobs = vi.fn().mockResolvedValue(jobs);
+		return repository;
+	};
+
 	it("rejects invalid cron jobs even when scheduling is disabled", async () => {
-		const repository = {
-			loadJobs: vi.fn().mockResolvedValue([
-				{
-					jobName: "",
-					schedule: "59 23 * * *",
-					targetRoute: "finance",
-				},
-			]),
-			saveJobs: vi.fn(),
-		};
+		const repository = createRepository([
+			{
+				jobName: "",
+				schedule: "59 23 * * *",
+				targetRoute: "finance",
+			},
+		]);
 
 		await expect(
 			startCronBootstrap({
@@ -82,16 +51,13 @@ describe("startCronBootstrap", () => {
 	});
 
 	it("validates jobs before scheduling and skips scheduling when disabled", async () => {
-		const repository = {
-			loadJobs: vi.fn().mockResolvedValue([
-				{
-					jobName: "daily-report",
-					schedule: "59 23 * * *",
-					targetRoute: "finance",
-				},
-			]),
-			saveJobs: vi.fn(),
-		};
+		const repository = createRepository([
+			{
+				jobName: "daily-report",
+				schedule: "59 23 * * *",
+				targetRoute: "finance",
+			},
+		]);
 		const runtimeCron = createRuntimeCronMock();
 
 		const jobs = await startCronBootstrap({
@@ -116,16 +82,13 @@ describe("startCronBootstrap", () => {
 	});
 
 	it("registers validated jobs through RuntimeCronService when enabled", async () => {
-		const repository = {
-			loadJobs: vi.fn().mockResolvedValue([
-				{
-					jobName: "daily-report",
-					schedule: "59 23 * * *",
-					targetRoute: "finance",
-				},
-			]),
-			saveJobs: vi.fn(),
-		};
+		const repository = createRepository([
+			{
+				jobName: "daily-report",
+				schedule: "59 23 * * *",
+				targetRoute: "finance",
+			},
+		]);
 		const runtimeCron = createRuntimeCronMock();
 
 		const jobs = await startCronBootstrap({
@@ -154,17 +117,14 @@ describe("startCronBootstrap", () => {
 	});
 
 	it("skips disabled jobs during bootstrap registration", async () => {
-		const repository = {
-			loadJobs: vi.fn().mockResolvedValue([
-				{
-					jobName: "daily-report",
-					schedule: "59 23 * * *",
-					targetRoute: "finance",
-					enabled: false,
-				},
-			]),
-			saveJobs: vi.fn(),
-		};
+		const repository = createRepository([
+			{
+				jobName: "daily-report",
+				schedule: "59 23 * * *",
+				targetRoute: "finance",
+				enabled: false,
+			},
+		]);
 		const runtimeCron = createRuntimeCronMock();
 
 		await startCronBootstrap({

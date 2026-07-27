@@ -13,7 +13,6 @@ const agent = (overrides: Partial<RuntimeAgentDefinition> = {}): RuntimeAgentDef
   description: "Test",
   systemPrompt: "Test",
   capabilityIds: ["none"],
-  executor: "generic",
   builtin: false,
   maxSteps: 8,
   enabled: true,

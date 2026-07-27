@@ -25,7 +25,7 @@ Architecture note: the framework is a **workspace package** in this monorepo (no
 1. Agent definitions (JSON and/or seed)
 2. Capability catalog + tool factories
 3. LLM connector and chat models
-4. Default runtime policy (usually one `generic` executor via `buildRuntimeExecution`)
+4. Default runtime policy via `buildRuntimeExecution` (`createAgentPolicy` + capability catalog)
 5. Cron repository factory (or a stub)
 6. Skill catalog (or an empty stub)
 7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
@@ -49,7 +49,7 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions with web search.",
   systemPrompt: "You are a concise research assistant. Prefer short answers.",
   capabilityIds: ["web-search"],
-  executor: "generic",
+  modelKey: "generic",
   builtin: false,
   maxSteps: 6,
   enabled: true,
@@ -131,7 +131,6 @@ const context = await bootstrapSupervisorSystem({
   buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
     loadPromptByKey: async (key) => `Prompt for ${key}`,
     runtimeAgentPolicy: createAgentPolicy({
-      executor: "generic",
       resolveTools: (definition, deps) =>
         resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
     }),

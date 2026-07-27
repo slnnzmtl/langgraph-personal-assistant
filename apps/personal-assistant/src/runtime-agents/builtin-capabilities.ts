@@ -90,7 +90,8 @@ export const createCapabilityDeps = (
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
 });
 
-const createPersonalCapabilityProviderList = (): CapabilityProvider<CapabilityDeps>[] => [
+
+export const createPersonalCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] => [
   {
     descriptor: getDescriptor("none"),
     resolveTools: () => [],
@@ -110,9 +111,6 @@ const createPersonalCapabilityProviderList = (): CapabilityProvider<CapabilityDe
     },
   },
 ];
-
-export const createPersonalCapabilityProviders = (): CapabilityProvider<CapabilityDeps>[] =>
-  createPersonalCapabilityProviderList();
 
 export const createDefaultCapabilityCatalog = (): CapabilityCatalog =>
   createCapabilityCatalog(createPersonalCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
@@ -156,9 +154,3 @@ export const resolveCapabilities = (
     deps,
     toCapabilityAvailabilityContext(deps),
   );
-
-export const formatCapabilityCatalog = (deps: CapabilityDeps): string =>
-  getCapabilityCatalog(deps).formatCatalog(toCapabilityAvailabilityContext(deps));
-
-export const formatGrantableCapabilityCatalog = (deps: CapabilityDeps): string =>
-  getCapabilityCatalog(deps).formatGrantableCatalog(toCapabilityAvailabilityContext(deps));

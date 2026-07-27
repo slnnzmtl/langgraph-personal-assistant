@@ -47,7 +47,7 @@ describe("system admin agent manifest", () => {
     expect(applyLocalModuleAvailability([financeAgent!], { supabaseAvailable: true })[0]?.enabled).toBe(true);
   });
 
-  it("resolves model names from executor config keys", () => {
+  it("resolves model names from model key overrides", () => {
     const config = {
       geminiModel: "gemini-default",
       obsidianModel: "obsidian-model",
@@ -55,7 +55,7 @@ describe("system admin agent manifest", () => {
       configurationModel: "configuration-model",
     } as AppConfig;
 
-    expect(resolveBuiltinModelName(config, "generic")).toBe("obsidian-model");
+    expect(resolveBuiltinModelName(config, "generic")).toBe("gemini-default");
     expect(resolveBuiltinModelName(config, "finance")).toBe("finance-model");
     expect(resolveBuiltinModelName(config, "obsidian")).toBe("obsidian-model");
     expect(resolveBuiltinModelName(config, "configuration")).toBe("configuration-model");

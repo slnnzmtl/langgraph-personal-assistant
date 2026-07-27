@@ -27,7 +27,7 @@ const defaultCronJobs = [
 describe("configuration runtime node hooks", () => {
   it("invokes the llm for cron list requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here are your cron jobs." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Here are your cron jobs." }));
     const runtimeCron = {
       addJob: vi.fn(),
       removeJob: vi.fn(),
@@ -57,7 +57,7 @@ describe("configuration runtime node hooks", () => {
 
   it("invokes the llm for configuration skill catalog requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed configuration skills." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Listed configuration skills." }));
 
     const node = createTestRuntimeAgentNode(
       {
@@ -81,7 +81,7 @@ describe("configuration runtime node hooks", () => {
 
   it("delegates cross-owner skill list requests to the model", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () =>
+    const invokeSpy = vi.fn(async (_input: unknown) =>
       new AIMessage({
         content: "",
         tool_calls: [
@@ -117,7 +117,7 @@ describe("configuration runtime node hooks", () => {
 
   it("strips hallucinated tool calls that are not currently bound", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () =>
+    const invokeSpy = vi.fn(async (_input: unknown) =>
       new AIMessage({
         content: "",
         tool_calls: [
@@ -156,7 +156,7 @@ describe("configuration runtime node hooks", () => {
 
   it("invokes the llm after preview_skill tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Here is the skill preview summary." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Here is the skill preview summary." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
     const node = createTestRuntimeAgentNode(
@@ -199,7 +199,7 @@ describe("configuration runtime node hooks", () => {
 
   it("invokes the llm after list_skills tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Listed finance skills." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Listed finance skills." }));
     const listContent = "sync-expenses: Sync Wise transactions";
 
     const node = createTestRuntimeAgentNode(
@@ -242,7 +242,7 @@ describe("configuration runtime node hooks", () => {
 
   it("continues to the model after list_skills during skill bootstrap enrichment", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
     const listContent = "Module: finance\nSkill Name: expense-sync\nStatus: Listed";
 
     const node = createTestRuntimeAgentNode(
@@ -284,7 +284,7 @@ describe("configuration runtime node hooks", () => {
 
   it("continues to the model after preview_skill so edit flows can proceed", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
     const node = createTestRuntimeAgentNode(
@@ -327,7 +327,7 @@ describe("configuration runtime node hooks", () => {
 
   it("falls back to a non-empty completion when the model returns blank text with no tools", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage(""));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
 
     const node = createTestRuntimeAgentNode(
       {
@@ -355,7 +355,7 @@ describe("configuration runtime node hooks", () => {
       "Schedule: 0 7 * * *",
       "Target route: finance",
     ].join("\n");
-    const invokeSpy = vi.fn(async () => new AIMessage(""));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
 
     const node = createTestRuntimeAgentNode(
       {

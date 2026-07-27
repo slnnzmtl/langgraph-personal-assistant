@@ -7,7 +7,7 @@ import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
 import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
 import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
-import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeTestRuntimeAgent } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
 
@@ -208,7 +208,9 @@ describe("supervisor graph compilation", () => {
           });
         }
 
-        const toolResults = input.filter((message: { _getType?: () => string }) => message._getType?.() === "tool");
+        const toolResults = (input as Array<{ _getType?: () => string; tool_call_id?: string }>).filter(
+          (message) => message._getType?.() === "tool",
+        );
         const execSqlResults = toolResults.filter(
           (message: { tool_call_id?: string }) => message.tool_call_id?.startsWith("finance-tool-"),
         );
@@ -404,18 +406,16 @@ describe("supervisor graph compilation", () => {
   it("routes to a runtime agent when the supervisor selects a custom agent id", async () => {
     const customAgents = [
       ...buildTestRuntimeAgents(),
-      {
+      makeTestRuntimeAgent({
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
-        capabilityIds: ["none"] as const,
-        executor: "generic",
+        capabilityIds: ["none"],
         maxSteps: 4,
-        enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
-      },
+      }),
     ];
     const runtimeAgentRepository = createRuntimeAgentRepositoryFake(customAgents);
 

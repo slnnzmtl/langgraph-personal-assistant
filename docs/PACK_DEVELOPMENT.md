@@ -18,7 +18,7 @@ How to build a **client pack** on `@personal-assistant/supervisor-framework` ins
 1. Add a workspace dependency on `@personal-assistant/supervisor-framework` (or a path/git ref pre-publish).
 2. Define one or more `RuntimeAgentDefinition` records (JSON and/or seed function).
 3. Register a `createCapabilityCatalog([...])` with at least a `none` provider.
-4. Implement `buildRuntimeExecution(agents, skillCatalog, ctx)` — return one `runtimeAgentPolicy` (usually `executor: "generic"`) via `createAgentPolicy` + `resolveAgentTools`. Use `ctx.capabilityCatalog` from bootstrap (already merged when `systemAgent` is enabled).
+4. Implement `buildRuntimeExecution(agents, skillCatalog, ctx)` — return one `runtimeAgentPolicy` via `createAgentPolicy` + `resolveAgentTools`. Use `ctx.capabilityCatalog` from bootstrap (already merged when `systemAgent` is enabled).
 5. Provide `supervisorLlm`, `loadSupervisorPrompt`, `buildModels`, `buildCapabilityDeps`, and `seedAgents`.
 6. Optionally override `createRuntimeAgentRepository`, `createCronJobRepository`, and `buildSkillCatalog` (defaults exist).
 7. Invoke `context.graph` from your channel entrypoint.
@@ -73,7 +73,6 @@ await bootstrapSupervisorSystem({
   buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
     loadPromptByKey: async () => "prompt",
     runtimeAgentPolicy: createAgentPolicy({
-      executor: "generic",
       resolveTools: (definition, deps) =>
         resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
     }),

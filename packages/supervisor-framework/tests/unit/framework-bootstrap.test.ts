@@ -19,7 +19,6 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions.",
   systemPrompt: "You are a concise research assistant.",
   capabilityIds: ["none"],
-  executor: "generic",
   builtin: false,
   maxSteps: 6,
   enabled: true,
@@ -50,9 +49,8 @@ describe("framework bootstrap", () => {
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
       buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
-        loadPromptByKey: async () => "prompt",
+        loadPromptByKey: () => "prompt",
         runtimeAgentPolicy: createAgentPolicy({
-          executor: "generic",
           resolveTools: (definition, deps) =>
             resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
         }),
@@ -82,7 +80,7 @@ describe("framework bootstrap", () => {
       runtimeAgents: [researcher],
       runtimeAgentRepository: createRuntimeAgentRepository(process.cwd(), ".tmp/framework-test-agents.json"),
       capabilityDeps: {},
-      loadPromptByKey: async () => "prompt",
+      loadPromptByKey: () => "prompt",
       loadSupervisorPrompt: () => "Supervise requests.",
       runtimeAgentPolicy: createAgentPolicy({
         resolveTools: (definition, deps) =>

@@ -213,7 +213,7 @@ describe("createSelfHealingMcpSession backoff", () => {
 
     const outcome = await settled;
     expect(outcome.ok).toBe(false);
-    if (!outcome.ok) {
+    if (outcome.ok === false) {
       expect(outcome.error).toMatchObject({ code: "ECONNRESET" });
     }
 

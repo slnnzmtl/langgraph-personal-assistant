@@ -25,7 +25,7 @@ export const bootstrapSupervisorSystem = async <
   TAdapters extends Record<string, unknown> = Record<string, never>,
 >(
   pack: SupervisorPackBootstrap<TConfig, TDeps, TAdapters>,
-): Promise<SupervisorSystemContext<TConfig, TDeps>> => {
+): Promise<SupervisorSystemContext<TConfig, TDeps, TAdapters>> => {
   const adapters = pack.setupAdapters ? await pack.setupAdapters(pack.config) : ({} as TAdapters);
   const systemAgentEnabled = pack.systemAgent !== undefined && pack.systemAgent !== false;
 
@@ -105,5 +105,6 @@ export const bootstrapSupervisorSystem = async <
     runtimeAgents,
     skillCatalog,
     capabilityDeps,
+    adapters,
   };
 };

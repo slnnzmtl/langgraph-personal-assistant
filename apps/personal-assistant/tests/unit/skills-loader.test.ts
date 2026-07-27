@@ -17,7 +17,6 @@ import {
   updateSkillFile,
   deleteSkillFile,
   readFullSkill,
-  formatSkillFile,
   formatXmlSkillFile,
   serializeSkillFile,
 } from "../../src/runtime-agents/skills/skills-loader.js";

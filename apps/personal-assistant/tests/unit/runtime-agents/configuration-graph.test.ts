@@ -2,13 +2,14 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/generic-runtime-policy.js";
+import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/runtime-agent-policy.js";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
 import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
   FakeLLMConnector,
+  asAgentState,
   createRuntimeExecutionContextFake,
   getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
@@ -25,7 +26,6 @@ const configurationDefinition = getRuntimeAgentFixture("configuration");
 describe("configuration subgraph", () => {
   it("executes tool calls before returning to the parent wrapper", async () => {
     const repository = createCronRepositoryFake();
-    const tools = createConfigurationTools(repository);
     let configCalls = 0;
 
     const llmConnector = new FakeLLMConnector(() => {
@@ -73,13 +73,13 @@ describe("configuration subgraph", () => {
       skillCatalog: createSkillCatalog(),
     });
     const bundle = policy.createGraphBundle(context, configurationDefinition);
-    const prepared = bundle.prepare({
+    const prepared = bundle.prepare(asAgentState({
       messages: [new HumanMessage("set up a cron job for daily notes")],
       context: {},
       next: undefined,
       agentMessages: [],
       stepCount: 0,
-    });
+    }));
     const compiled = createCompiledSubAgentGraph(
       "Configuration",
       configurationDefinition.maxSteps,

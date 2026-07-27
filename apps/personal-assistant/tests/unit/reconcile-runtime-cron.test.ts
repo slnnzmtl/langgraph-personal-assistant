@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { reconcileRuntimeCron } from "../../src/cron/reconcile-runtime-cron.js";
+import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import type { CronJobDefinition } from "../../src/cron/cron-launcher.js";
 import type { RuntimeCronService } from "../../src/cron/types.js";
 
@@ -11,11 +12,14 @@ const dailyReportJob: CronJobDefinition = {
 };
 
 describe("reconcileRuntimeCron", () => {
+  const createRepository = (jobs: CronJobDefinition[]) => {
+    const repository = createCronRepositoryFake(jobs);
+    repository.loadJobs = vi.fn().mockResolvedValue(jobs);
+    return repository;
+  };
+
   it("does not duplicate jobs already registered during bootstrap", async () => {
-    const repository = {
-      loadJobs: vi.fn().mockResolvedValue([dailyReportJob]),
-      saveJobs: vi.fn(),
-    };
+    const repository = createRepository([dailyReportJob]);
     const runtimeCron: RuntimeCronService = {
       addJob: vi.fn().mockResolvedValue(undefined),
       removeJob: vi.fn().mockResolvedValue(undefined),
@@ -33,10 +37,7 @@ describe("reconcileRuntimeCron", () => {
       ...dailyReportJob,
       schedule: "0 1 * * *",
     };
-    const repository = {
-      loadJobs: vi.fn().mockResolvedValue([updatedJob]),
-      saveJobs: vi.fn(),
-    };
+    const repository = createRepository([updatedJob]);
     const runtimeCron: RuntimeCronService = {
       addJob: vi.fn().mockResolvedValue(undefined),
       removeJob: vi.fn().mockResolvedValue(undefined),
@@ -52,10 +53,7 @@ describe("reconcileRuntimeCron", () => {
   });
 
   it("adds jobs that were not registered during bootstrap", async () => {
-    const repository = {
-      loadJobs: vi.fn().mockResolvedValue([dailyReportJob]),
-      saveJobs: vi.fn(),
-    };
+    const repository = createRepository([dailyReportJob]);
     const runtimeCron: RuntimeCronService = {
       addJob: vi.fn().mockResolvedValue(undefined),
       removeJob: vi.fn().mockResolvedValue(undefined),
