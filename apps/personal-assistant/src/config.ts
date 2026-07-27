@@ -108,9 +108,6 @@ export const loadConfig = (): AppConfig => {
     mcpReconnectMaxDelayMs,
   );
 
-  console.log("[Config Debug] SUPABASE_PROJECT_REF set:", !!process.env.SUPABASE_PROJECT_REF);
-  console.log("[Config Debug] SUPABASE_ACCESS_TOKEN set:", !!process.env.SUPABASE_ACCESS_TOKEN);
-
   return {
     telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
     allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),

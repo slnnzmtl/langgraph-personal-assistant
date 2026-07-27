@@ -1,9 +1,19 @@
+import path from "node:path";
+
+import { createCapabilityCatalog } from "../capabilities/index.js";
 import { createAssistant } from "../core/create-assistant.js";
+import { createRuntimeAgentRepository } from "../core/agents/repository.js";
+import { DEFAULT_PRODUCT_EXECUTOR } from "../core/types/agent.js";
 import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
-import { createFileRuntimeAgentRepository } from "./defaults/file-runtime-agent-repository.js";
 import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
+import {
+  createSystemConfigCapabilityProviders,
+  type SystemAgentRepository,
+  wrapRepositoryWithSystemAgent,
+} from "./system-agent/index.js";
+import type { SystemAgentOptions } from "./system-agent/definition.js";
 import type {
   SupervisorPackBootstrap,
   SupervisorPaths,
@@ -16,12 +26,24 @@ export const bootstrapSupervisorSystem = async <
   TAdapters extends Record<string, unknown> = Record<string, never>,
 >(
   pack: SupervisorPackBootstrap<TConfig, TDeps, TAdapters>,
-): Promise<SupervisorSystemContext<TConfig, TDeps>> => {
+): Promise<SupervisorSystemContext<TConfig, TDeps, TAdapters>> => {
   const adapters = pack.setupAdapters ? await pack.setupAdapters(pack.config) : ({} as TAdapters);
+  const systemAgentEnabled = pack.systemAgent !== undefined && pack.systemAgent !== false;
 
-  const runtimeAgentRepository =
+  const baseRuntimeAgentRepository =
     pack.createRuntimeAgentRepository?.(pack.config) ??
-    createFileRuntimeAgentRepository(pack.config);
+    createRuntimeAgentRepository(
+      process.cwd(),
+      path.relative(process.cwd(), pack.config.runtimeAgentsFilePath),
+    );
+
+  const runtimeAgentRepository = systemAgentEnabled
+    ? wrapRepositoryWithSystemAgent(baseRuntimeAgentRepository, pack.systemAgent as SystemAgentOptions)
+    : baseRuntimeAgentRepository;
+
+  if (systemAgentEnabled) {
+    await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
+  }
 
   const runtimeAgents = await pack.seedAgents(runtimeAgentRepository, { adapters });
 
@@ -31,21 +53,33 @@ export const bootstrapSupervisorSystem = async <
     createNoopCronJobRepository();
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
+  const capabilityCatalog = pack.capabilityProviders
+    ? createCapabilityCatalog([
+        ...pack.capabilityProviders,
+        ...(systemAgentEnabled ? createSystemConfigCapabilityProviders() : []),
+      ])
+    : pack.capabilityCatalog;
+
+  if (!capabilityCatalog) {
+    throw new Error("SupervisorPackBootstrap requires capabilityProviders or capabilityCatalog.");
+  }
+
   const bootstrapContext = {
     config: pack.config,
     runtimeAgentRepository,
     runtimeAgents,
     cronTargetAgentIds,
     cronJobRepository,
-    capabilityCatalog: pack.capabilityCatalog,
+    capabilityCatalog,
     skillCatalog,
     adapters,
   };
 
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
-  const defaultModelKey = "generic";
+  const defaultModelKey = DEFAULT_PRODUCT_EXECUTOR;
   const models = pack.buildModels(pack.config, runtimeAgents);
-  const { loadPromptByKey, policyRegistry } = pack.buildPolicyRegistry(runtimeAgents, skillCatalog);
+  const { loadPromptByKey, runtimeAgentPolicy } =
+    pack.buildRuntimeExecution(runtimeAgents, skillCatalog, bootstrapContext);
 
   const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
   const messageHistoryMaxTokens =
@@ -59,7 +93,7 @@ export const bootstrapSupervisorSystem = async <
     runtimeAgentRepository,
     capabilityDeps,
     loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy,
     loadSupervisorPrompt: pack.loadSupervisorPrompt,
     replyUx: graphHooks.replyUx ?? defaultReplyUxConfig,
     ...(graphHooks.promptLogging ? { promptLogging: graphHooks.promptLogging } : {}),
@@ -75,5 +109,6 @@ export const bootstrapSupervisorSystem = async <
     runtimeAgents,
     skillCatalog,
     capabilityDeps,
+    adapters,
   };
 };

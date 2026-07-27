@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Context, Telegraf } from "telegraf";
 
 import type { AppConfig } from "../../src/config.js";
+import { getMessageHistoryMaxTokens } from "@personal-assistant/supervisor-framework";
 import {
   formatTelegramMarkdownV2,
   TelegramAdapter,
@@ -19,10 +20,16 @@ const config: AppConfig = {
   supervisorModel: "gemini-1.5-flash",
   obsidianModel: "gemini-1.5-flash",
   financeModel: "gemini-1.5-flash",
+  configurationModel: "gemini-1.5-flash",
   obsidianVaultPath: "/tmp/vault",
   appTimezone: "UTC",
   schedulerEnabled: false,
   cronJobsFilePath: "/tmp/cron-jobs.json",
+  runtimeAgentsFilePath: "/tmp/runtime-agents.json",
+  messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
+  mcpMaxReconnectAttempts: 1,
+  mcpReconnectBaseDelayMs: 0,
+  mcpReconnectMaxDelayMs: 5_000,
 };
 
 const defaultInvokeResult = {
@@ -41,7 +48,7 @@ const bot = {
   telegram: {},
 } as unknown as Telegraf<Context>;
 
-const createAdapter = () => new TelegramAdapter(app as never, config, bot);
+const createAdapter = () => new TelegramAdapter({ getGraph: () => app as never }, config, bot);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -186,7 +193,9 @@ describe("TelegramAdapter", () => {
     } as never);
 
     expect(textMessage).toBeInstanceOf(HumanMessage);
-    expect(textMessage?.content).toBe("hello");
+    if (textMessage instanceof HumanMessage) {
+      expect(textMessage.content).toBe("hello");
+    }
 
     const photoMessage = await adapter.parseInbound({
       from: { id: 42 },
@@ -201,8 +210,7 @@ describe("TelegramAdapter", () => {
     } as never);
 
     expect(photoMessage).toBe("media-group-buffered");
-    expect(logSpy).toHaveBeenCalledTimes(1);
-    expect(logSpy).toHaveBeenCalledWith("user: hello");
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it("buffers captionless single photos until debounce flush", async () => {
@@ -432,7 +440,7 @@ describe("TelegramAdapter", () => {
       setCurrentChatId: vi.fn(),
       sendFile: vi.fn(async () => undefined),
     };
-    const adapter = new TelegramAdapter(app as never, config, bot, mockFileSender);
+    const adapter = new TelegramAdapter({ getGraph: () => app as never }, config, bot, mockFileSender);
     const sendMessage = vi.fn(async () => undefined);
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
 

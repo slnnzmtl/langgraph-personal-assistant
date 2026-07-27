@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -69,7 +69,7 @@ describe("compactConsumedToolResults", () => {
   });
 
   it("compacts all completed rounds once a final reply is appended", () => {
-    let messages = [
+    let messages: BaseMessage[] = [
       new HumanMessage("save note"),
       new AIMessage({
         content: "",

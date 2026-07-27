@@ -1,14 +1,18 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
+  createSystemAgentDefinition,
   isRuntimeAgentBuiltin,
   RuntimeAgentsDocumentSchema,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
 
-const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(process.cwd(), "data/runtime-agents.json");
+const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/runtime-agents.json",
+);
 
 const DOMAIN_MODULE_CAPABILITY_IDS = new Set(["finance-domain", "obsidian-vault"]);
 
@@ -26,7 +30,9 @@ export const buildLocalModuleAgents = (): RuntimeAgentDefinition[] =>
   loadLocalModuleAgentsFromFixture();
 
 export const buildTestRuntimeAgents = (): RuntimeAgentDefinition[] => [
-  ...buildDefaultRuntimeAgents(),
+  createSystemAgentDefinition({
+    modelKey: "configuration",
+  }),
   ...buildLocalModuleAgents(),
 ];
 

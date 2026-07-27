@@ -34,8 +34,7 @@ export const buildRuntimeAgentGraphNodeSets = (
     .filter((agent) => agent.enabled)
     .map((agent) => {
       const resolved = withResolvedAgentSystemPrompt(agent, context.loadPromptByKey);
-      const policy = context.policyRegistry.get(resolved.executor ?? "generic");
-      const bundle = policy.createGraphBundle(context, resolved);
+      const bundle = context.runtimeAgentPolicy.createGraphBundle(context, resolved);
 
       return {
         agentId: agent.id,

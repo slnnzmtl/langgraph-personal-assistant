@@ -13,12 +13,14 @@ import {
 import type { LoadPromptByKey } from "./agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "./agents/repository.js";
 import { createRuntimeAgentExecutionContext } from "./execution/context.js";
-import type { PolicyRegistry } from "./policies/registry.js";
+import type { RuntimeAgentPolicy } from "./types/policy.js";
 import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
-import { createEmptyReplyNode } from "./supervisor/empty-reply-node.js";
-import { createFailureReplyNode } from "./supervisor/failure-reply-node.js";
-import { createPostHandoffFinishNode } from "./supervisor/post-handoff-finish-node.js";
+import {
+  createEmptyReplyNode,
+  createFailureReplyNode,
+  createPostHandoffFinishNode,
+} from "./supervisor/reply-nodes.js";
 import { defaultReplyUxConfig, type ReplyUxConfig } from "./supervisor/reply-ux.js";
 import { DEFAULT_MESSAGE_HISTORY_MAX_TOKENS } from "./message-trimming.js";
 import {
@@ -39,7 +41,7 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
   capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
-  policyRegistry: PolicyRegistry;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
   replyUx?: ReplyUxConfig;
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
@@ -51,7 +53,6 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
 export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>(
   config: AssistantConfig<TCapabilityDeps>,
 ) => {
-  const policyRegistry = config.policyRegistry;
   const replyUx = config.replyUx ?? defaultReplyUxConfig;
 
   const memory = config.checkpointer ?? new MemorySaver();
@@ -61,7 +62,7 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     repository: config.runtimeAgentRepository,
     capabilityDeps: config.capabilityDeps,
     loadPromptByKey: config.loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy: config.runtimeAgentPolicy,
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
   });
 
@@ -78,18 +79,17 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
   });
-  const emptyReplyNode = createEmptyReplyNode(config.supervisorLlm, replyUx);
+
   const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     replyUx,
   });
-  const postHandoffFinishNode = createPostHandoffFinishNode(config.supervisorLlm, replyUx);
 
   const graph = new StateGraph(agentStateAnnotation)
     .addNode("supervisor", supervisorNode)
-    .addNode(EMPTY_REPLY_ROUTE, emptyReplyNode)
+    .addNode(EMPTY_REPLY_ROUTE, createEmptyReplyNode(config.supervisorLlm, replyUx))
     .addNode(FAILURE_REPLY_ROUTE, failureReplyNode)
-    .addNode(POST_HANDOFF_FINISH_ROUTE, postHandoffFinishNode);
+    .addNode(POST_HANDOFF_FINISH_ROUTE, createPostHandoffFinishNode(config.supervisorLlm, replyUx));
 
   for (const nodeSet of runtimeAgentNodeSets) {
     const { bundle } = nodeSet;

@@ -4,6 +4,18 @@ export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
 export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
 
+/** Virtual system admin agent id. */
+export const CONFIGURATION_AGENT_ID = "configuration" as const;
+
+/** Default model key for agents without an explicit modelKey. */
+export const DEFAULT_MODEL_KEY = "generic" as const;
+
+/** @deprecated Use DEFAULT_MODEL_KEY */
+export const DEFAULT_PRODUCT_EXECUTOR = DEFAULT_MODEL_KEY;
+
+/** Legacy persisted executor values that implied a dedicated model before migration. */
+const LEGACY_MODEL_EXECUTOR_KEYS = new Set(["finance", "obsidian"]);
+
 const CapabilityIdListSchema = z.array(z.string().min(1)).min(1);
 
 export type RuntimeAgentDefinition = {
@@ -13,25 +25,25 @@ export type RuntimeAgentDefinition = {
   systemPrompt: string;
   promptSourceKey?: string | undefined;
   capabilityIds: string[];
-  executor: string;
   modelKey?: string | undefined;
-  builtin: boolean;
   maxSteps: number;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
-const RuntimeAgentDefinitionBaseSchema = z.object({
+const RuntimeAgentDefinitionParseSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
   promptSourceKey: z.string().min(1).optional(),
   capabilityIds: CapabilityIdListSchema,
-  executor: z.string().min(1).default("generic"),
+  /** Legacy field — stripped on load after modelKey inference. */
+  executor: z.string().min(1).optional(),
   modelKey: z.string().min(1).optional(),
-  builtin: z.boolean().default(false),
+  /** Legacy field — stripped on load. */
+  builtin: z.boolean().optional(),
   maxSteps: z.number().int().min(1).max(20).default(8),
   enabled: z.boolean().default(true),
   createdAt: z.string().min(1),
@@ -39,15 +51,32 @@ const RuntimeAgentDefinitionBaseSchema = z.object({
 });
 
 export const normalizeRuntimeAgentDefinition = (
-  input: z.infer<typeof RuntimeAgentDefinitionBaseSchema>,
-): RuntimeAgentDefinition => ({
-  ...input,
-  executor: input.executor ?? "generic",
-  ...(input.modelKey ? { modelKey: input.modelKey } : {}),
-});
+  input: z.infer<typeof RuntimeAgentDefinitionParseSchema>,
+): RuntimeAgentDefinition => {
+  const { executor: legacyExecutor, builtin: _legacyBuiltin, ...base } = input;
+  let modelKey = input.modelKey;
+
+  if (
+    !modelKey
+    && legacyExecutor
+    && legacyExecutor !== DEFAULT_MODEL_KEY
+    && LEGACY_MODEL_EXECUTOR_KEYS.has(legacyExecutor)
+  ) {
+    modelKey = legacyExecutor;
+  }
+
+  if (input.id === CONFIGURATION_AGENT_ID && !modelKey) {
+    modelKey = CONFIGURATION_AGENT_ID;
+  }
+
+  return {
+    ...base,
+    ...(modelKey ? { modelKey } : {}),
+  };
+};
 
 export const parseRuntimeAgentDefinition = (input: unknown): RuntimeAgentDefinition =>
-  normalizeRuntimeAgentDefinition(RuntimeAgentDefinitionBaseSchema.parse(input));
+  normalizeRuntimeAgentDefinition(RuntimeAgentDefinitionParseSchema.parse(input));
 
 export const RuntimeAgentDefinitionSchema = z.custom<RuntimeAgentDefinition>((value) => {
   try {
@@ -70,7 +99,6 @@ export type CreateRuntimeAgentInput = {
   description: string;
   systemPrompt: string;
   capabilityIds: string[];
-  executor?: string | undefined;
   modelKey?: string | undefined;
   maxSteps?: number | undefined;
   enabled?: boolean | undefined;
@@ -83,7 +111,6 @@ const CreateRuntimeAgentInputBaseSchema = z.object({
   description: z.string().min(1),
   systemPrompt: z.string().min(1),
   capabilityIds: CapabilityIdListSchema,
-  executor: z.string().min(1).optional(),
   modelKey: z.string().min(1).optional(),
   maxSteps: z.number().int().min(1).max(20).optional(),
   enabled: z.boolean().optional(),
@@ -126,11 +153,11 @@ export const toRuntimeAgentId = (name: string): string =>
 
 export const resolveAgentModelKey = (
   definition: RuntimeAgentDefinition,
-  defaultModelKey = "generic",
-): string => definition.modelKey ?? definition.executor ?? defaultModelKey;
+  defaultModelKey: string = DEFAULT_MODEL_KEY,
+): string => definition.modelKey ?? defaultModelKey;
 
-export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boolean =>
-  definition.builtin === true;
+export const isRuntimeAgentBuiltin = (definition: Pick<RuntimeAgentDefinition, "id">): boolean =>
+  definition.id === CONFIGURATION_AGENT_ID;
 
 export const resolveAgentSkillModule = (definition: RuntimeAgentDefinition): string =>
   definition.promptSourceKey ?? definition.id;

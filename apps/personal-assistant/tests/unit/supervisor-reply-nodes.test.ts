@@ -9,7 +9,7 @@ import { createFailureReplyNode } from "@personal-assistant/supervisor-framework
 import { createPostHandoffFinishNode } from "@personal-assistant/supervisor-framework";
 import { FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
-import { firstStateUpdateMessage } from "../helpers/fakes.js";
+import { asAgentState, firstStateUpdateMessage } from "../helpers/fakes.js";
 
 const emptyHandoff = (
   agentName: string,
@@ -30,7 +30,7 @@ describe("supervisor reply nodes", () => {
     );
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({ next: "obsidian" }),
+        invoke: (async () => ({ next: "obsidian" })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -38,12 +38,12 @@ describe("supervisor reply nodes", () => {
     };
     const emptyReplyNode = createEmptyReplyNode(connector);
 
-    const result = await emptyReplyNode({
+    const result = await emptyReplyNode(asAgentState({
       messages: [new HumanMessage("today's plan")],
       lastHandoff: emptyHandoff("Obsidian", "obsidian"),
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(firstStateUpdateMessage(result)?.content).toBe(
@@ -65,7 +65,7 @@ describe("supervisor reply nodes", () => {
     });
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({ next: "finance" }),
+        invoke: (async () => ({ next: "finance" })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -73,7 +73,7 @@ describe("supervisor reply nodes", () => {
     };
     const emptyReplyNode = createEmptyReplyNode(connector);
 
-    const result = await emptyReplyNode({
+    const result = await emptyReplyNode(asAgentState({
       messages: [new HumanMessage("for yesterday only")],
       lastHandoff: emptyHandoff(
         "Finance",
@@ -82,7 +82,7 @@ describe("supervisor reply nodes", () => {
       ),
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(firstStateUpdateMessage(result)?.content).toBe(
@@ -106,7 +106,7 @@ describe("supervisor reply nodes", () => {
     });
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({ next: "finance" }),
+        invoke: (async () => ({ next: "finance" })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -115,7 +115,7 @@ describe("supervisor reply nodes", () => {
     const emptyReplyNode = createEmptyReplyNode(connector);
     const toolContext = 'exec_sql: [{"name":"Moonmilk","amount":20,"category":"Shop","paid_date":"2026-07-20"}]';
 
-    const result = await emptyReplyNode({
+    const result = await emptyReplyNode(asAgentState({
       messages: [
         new HumanMessage("Moonmilk is not debt"),
         new AIMessage("What category should Moonmilk use?"),
@@ -124,7 +124,7 @@ describe("supervisor reply nodes", () => {
       lastHandoff: emptyHandoff("Finance", "finance", toolContext),
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(firstStateUpdateMessage(result)?.content).toBe(
@@ -136,7 +136,7 @@ describe("supervisor reply nodes", () => {
     const modelInvoke = vi.fn();
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({ next: "finance" }),
+        invoke: (async () => ({ next: "finance" })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -144,7 +144,7 @@ describe("supervisor reply nodes", () => {
     };
     const postHandoffFinishNode = createPostHandoffFinishNode(connector);
 
-    const result = await postHandoffFinishNode({
+    const result = await postHandoffFinishNode(asAgentState({
       messages: [
         new HumanMessage("sync expenses"),
         new AIMessage("Synced 5 Wise transactions."),
@@ -157,7 +157,7 @@ describe("supervisor reply nodes", () => {
       },
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(result.messages).toBeUndefined();
@@ -168,7 +168,7 @@ describe("supervisor reply nodes", () => {
     const modelInvoke = vi.fn(async () => new AIMessage(""));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
-        invoke: async () => ({ next: "finance" }),
+        invoke: (async () => ({ next: "finance" })) as never,
       }),
       getModel: () => ({
         invoke: modelInvoke,
@@ -177,7 +177,7 @@ describe("supervisor reply nodes", () => {
     const postHandoffFinishNode = createPostHandoffFinishNode(connector);
     const toolContext = "fetch_wise_transactions: Fetched and normalized 5 Wise transactions";
 
-    const result = await postHandoffFinishNode({
+    const result = await postHandoffFinishNode(asAgentState({
       messages: [new HumanMessage("sync expenses")],
       lastHandoff: {
         kind: "runtime-agent-handoff",
@@ -188,7 +188,7 @@ describe("supervisor reply nodes", () => {
       },
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(firstStateUpdateMessage(result)?.content).toBe(
@@ -213,12 +213,12 @@ describe("supervisor reply nodes", () => {
       loadSupervisorPrompt: loadSupervisorSystemPrompt,
     });
 
-    const result = await failureReplyNode({
+    const result = await failureReplyNode(asAgentState({
       messages: [new HumanMessage("hello")],
       routingFailureContext: "Structured routing failed: schema parse failed",
       context: {},
       next: undefined,
-    });
+    }));
 
     expect(result.next).toBe(FINISH_ROUTE);
     expect(firstStateUpdateMessage(result)?.content).toBe("Final explanatory answer");

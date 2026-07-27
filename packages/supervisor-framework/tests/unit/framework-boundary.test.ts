@@ -37,8 +37,13 @@ const assertNoForbiddenImports = (
   rootDir: string,
   forbiddenPathSegments: readonly string[],
   forbiddenImportSubstrings: readonly string[] = [],
+  options: { excludeSubdirs?: readonly string[] } = {},
 ): void => {
   for (const file of collectSourceFiles(rootDir)) {
+    if (options.excludeSubdirs?.some((segment) => file.includes(segment))) {
+      continue;
+    }
+
     const content = readFileSync(file, "utf8");
 
     for (const segment of forbiddenPathSegments) {
@@ -65,16 +70,36 @@ describe("framework boundaries", () => {
   });
 
   it("keeps framework free of app, runtime-agents, cron, and product imports", () => {
-    assertNoForbiddenImports(FRAMEWORK_ROOT, [
+    for (const file of collectSourceFiles(FRAMEWORK_ROOT)) {
+      if (file.includes(`${path.sep}system-agent${path.sep}`)) {
+        continue;
+      }
+
+      const content = readFileSync(file, "utf8");
+
+      for (const segment of [
+        "runtime-agents/",
+        "app/",
+        "integrations/",
+        "connectors/",
+        "telegram/",
+        "tools/",
+        "cron/",
+        "../../logging/",
+        "../../utils/",
+      ]) {
+        expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+      }
+    }
+  });
+
+  it("allows system-agent kit to use framework ports only", () => {
+    const systemAgentRoot = path.join(FRAMEWORK_ROOT, "system-agent");
+    assertNoForbiddenImports(systemAgentRoot, [
       "runtime-agents/",
       "app/",
-      "integrations/",
-      "connectors/",
       "telegram/",
-      "tools/",
-      "cron/",
-      "../../logging/",
-      "../../utils/",
+      "obsidian/",
     ]);
   });
 
@@ -92,8 +117,6 @@ describe("framework boundaries", () => {
       description: "Finance",
       systemPrompt: "Finance",
       capabilityIds: ["finance-domain"],
-      executor: "generic",
-      builtin: false,
       maxSteps: 8,
       enabled: true,
       createdAt: "2026-01-01T00:00:00.000Z",

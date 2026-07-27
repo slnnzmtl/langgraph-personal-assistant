@@ -2,19 +2,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 
+import { createSkillCrudTools } from "@personal-assistant/supervisor-framework";
 import {
   createSkillActionRegistry,
   registerSkillActions,
-} from "../../src/tools/skill-actions.js";
-import {
-  createReadSkillTool,
-  createSkillCrudTools,
-} from "../../src/tools/skill-management.js";
+} from "../../src/runtime-agents/skills/skill-actions.js";
+import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 
 const createTempSkillsRoot = (): string => mkdtempSync(path.join(process.cwd(), "test-skill-tools-"));
 
 const createCrudTools = (rootDir: string) =>
-  createSkillCrudTools({ skillsDir: rootDir });
+  createSkillCrudTools({
+    skillCatalog: createSkillCatalog({
+      skillsDir: rootDir,
+      approvedModules: ["finance", "obsidian", "configuration"],
+    }),
+  });
 
 describe("createReadSkillTool", () => {
   it("loads a finance skill by name", async () => {
@@ -145,16 +149,16 @@ describe("createSkillCrudTools", () => {
     });
 
     const result = String(await previewTool!.invoke({ module: "obsidian", name: "daily-note" }));
-    expect(result).toContain('name="daily-note"');
-    expect(result).toContain('module="obsidian"');
+    expect(result).toContain("Name: daily-note");
+    expect(result).toContain("Module: obsidian");
     expect(result).toContain("# Daily note steps");
   });
 
-  it("reads a full skill file for a module", async () => {
+  it("loads a full skill file before edit", async () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);
     const createTool = tools.find((tool) => tool.name === "create_skill");
-    const readTool = tools.find((tool) => tool.name === "read_skill_for_edit");
+    const previewTool = tools.find((tool) => tool.name === "preview_skill");
 
     await createTool!.invoke({
       module: "obsidian",
@@ -163,9 +167,9 @@ describe("createSkillCrudTools", () => {
       content: "# Daily note steps",
     });
 
-    const result = String(await readTool!.invoke({ module: "obsidian", name: "daily-note" }));
-    expect(result).toContain('name="daily-note"');
-    expect(result).toContain('module="obsidian"');
+    const result = String(await previewTool!.invoke({ module: "obsidian", name: "daily-note" }));
+    expect(result).toContain("Name: daily-note");
+    expect(result).toContain("Module: obsidian");
     expect(result).toContain("# Daily note steps");
   });
 
@@ -175,7 +179,7 @@ describe("createSkillCrudTools", () => {
     const createTool = tools.find((tool) => tool.name === "create_skill");
     const editTool = tools.find((tool) => tool.name === "edit_skill");
     const deleteTool = tools.find((tool) => tool.name === "delete_skill");
-    const readTool = tools.find((tool) => tool.name === "read_skill_for_edit");
+    const previewTool = tools.find((tool) => tool.name === "preview_skill");
 
     const createResult = String(
       await createTool!.invoke({
@@ -197,7 +201,7 @@ describe("createSkillCrudTools", () => {
     );
     expect(editResult).toContain("Updated skill manage-cron");
 
-    const readResult = String(await readTool!.invoke({ module: "configuration", name: "manage-cron" }));
+    const readResult = String(await previewTool!.invoke({ module: "configuration", name: "manage-cron" }));
     expect(readResult).toContain("Manage cron and schedules");
     expect(readResult).toContain("# Updated cron");
 

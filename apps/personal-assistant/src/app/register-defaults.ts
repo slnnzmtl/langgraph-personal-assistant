@@ -1,10 +1,8 @@
 import {
-  createAgentPolicy,
-  createPolicyRegistry,
   createRuntimeShellHooks,
   resolveAgentSkillModule,
   type CapabilityCatalog,
-  type RuntimeAgentPolicy,
+  type RuntimeExecutionKit,
   type RuntimeShellFormatters,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
@@ -18,13 +16,8 @@ import {
   appendAvailableSkills,
   appendRuntimeExecutionModel,
 } from "../runtime-agents/skills/prompt-enrichment.js";
-import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
-import {
-  createConfigurationPolicy,
-  createObsidianPolicy,
-  type DomainPolicyOptions,
-} from "./policies/index.js";
 import { createPersonalResolveTools } from "./composition/personal-resolve-tools.js";
+import { createDefaultRuntimeAgentPolicy } from "./policies/runtime-agent-policy.js";
 
 export const createDefaultRuntimeShellFormatters = (
   skillCatalog?: SkillCatalog,
@@ -53,57 +46,28 @@ export const createDefaultRuntimeShellFormatters = (
   };
 };
 
-export const DOMAIN_POLICY_FACTORIES: Record<
-  string,
-  (options: DomainPolicyOptions) => RuntimeAgentPolicy
-> = {
-  obsidian: createObsidianPolicy,
-  configuration: createConfigurationPolicy,
-};
-
-export const DEPLOYMENT_EXECUTOR_IDS = Object.keys(DOMAIN_POLICY_FACTORIES);
-
-export type AppExecutionKitOptions = {
+export type AppRuntimeExecutionOptions = {
   capabilityCatalog: CapabilityCatalog;
   skillCatalog?: SkillCatalog | undefined;
   shellFormatters?: RuntimeShellFormatters;
 };
 
-export const createAppExecutionKit = (
-  executors: Iterable<string> = DEPLOYMENT_EXECUTOR_IDS,
-  options: AppExecutionKitOptions,
-) => {
-  const executorSet = new Set(executors);
-  const shellFormatters = createDefaultRuntimeShellFormatters(options.skillCatalog);
+/** Builds the personal pack default runtime execution kit (one generic policy + shell formatters). */
+export const buildAppRuntimeExecution = (options: AppRuntimeExecutionOptions): RuntimeExecutionKit => {
+  const shellFormatters = options.shellFormatters ?? createDefaultRuntimeShellFormatters(options.skillCatalog);
   const genericShellHooks = createRuntimeShellHooks(shellFormatters);
   const resolveTools = createPersonalResolveTools(options.capabilityCatalog);
 
-  const domainPolicyOptions = {
+  const policyOptions = {
     capabilityCatalog: options.capabilityCatalog,
     resolveTools,
     ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
     shellFormatters,
   };
 
-  const domainPolicies = Object.entries(DOMAIN_POLICY_FACTORIES)
-    .filter(([executor]) => executorSet.has(executor))
-    .map(([, factory]) => factory(domainPolicyOptions));
-
-  const policyRegistry = createPolicyRegistry([
-    createAgentPolicy<CapabilityDeps>({
-      executor: "generic",
-      resolveTools: (definition, capabilityDeps, resolveOptions) =>
-        resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
-      hooks: genericShellHooks,
-      logLabel: "generic-runtime-agent",
-      buildErrorMessage: (error, definition) =>
-        `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
-    }, {
-      ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
-      shellFormatters,
-    }),
-    ...domainPolicies,
-  ]);
-
-  return { loadPromptByKey: loadSystemPromptByKey, policyRegistry, shellFormatters };
+  return {
+    loadPromptByKey: loadSystemPromptByKey,
+    runtimeAgentPolicy: createDefaultRuntimeAgentPolicy(genericShellHooks, policyOptions),
+    shellFormatters,
+  };
 };

@@ -40,8 +40,6 @@ export type CreateAgentPolicyConfig<
   TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
   TExtra extends Record<string, unknown> = Record<string, never>,
 > = {
-  /** Selects optional LLM hooks; tools always come from capabilityIds. */
-  executor: string;
   displayName?: string;
   requireShellFormatters?: boolean;
   resolveDeps?: (context: RuntimeAgentExecutionContext<TCapabilityDeps>, definition: RuntimeAgentDefinition) => TExtra | null;
@@ -59,10 +57,12 @@ export type CreateAgentPolicyConfig<
   logLabel?: string;
   buildErrorMessage?: RuntimeAgentNodeConfig["buildErrorMessage"];
   selectToolsForTurn?: RuntimeAgentNodeConfig["selectToolsForTurn"];
-  mapResult?: (
+  resolveMapResult?: (
+    definition: RuntimeAgentDefinition,
+  ) => ((
     result: SubAgentState,
     config: { maxSteps: number; name: string },
-  ) => AgentStateUpdate;
+  ) => AgentStateUpdate) | undefined;
 };
 
 const createAgentLlmNode = (
@@ -82,12 +82,12 @@ export const createAgentPolicy = <
   config: CreateAgentPolicyConfig<TCapabilityDeps, TExtra>,
   options: AgentPolicyToolkitOptions = {},
 ): RuntimeAgentPolicy => ({
-  executor: config.executor,
   createGraphBundle: (context, definition) => {
     const policyContext = context as RuntimeAgentExecutionContext<TCapabilityDeps>;
+    const policyLabel = config.displayName ?? definition.name;
     const needsHooks = config.createHooks !== undefined;
     if (config.requireShellFormatters !== false && needsHooks && !options.shellFormatters) {
-      throw new Error(`createAgentPolicy(${config.executor}) requires runtime shell formatters.`);
+      throw new Error(`createAgentPolicy(${policyLabel}) requires runtime shell formatters.`);
     }
 
     const resolvedExtra = config.resolveDeps?.(policyContext, definition) ?? ({} as TExtra);
@@ -121,6 +121,9 @@ export const createAgentPolicy = <
       ...(config.selectToolsForTurn ? { selectToolsForTurn: config.selectToolsForTurn } : {}),
     };
 
+    const mapResult = config.resolveMapResult?.(definition)
+      ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig));
+
     return createSubAgentGraphBundle({
       name: config.displayName ?? definition.name,
       maxSteps: definition.maxSteps,
@@ -131,7 +134,7 @@ export const createAgentPolicy = <
         }),
       createLlmNode: (agentDeps, agentTools) =>
         createAgentLlmNode(agentDeps.model, agentDeps.definition, agentTools, nodeConfig),
-      mapResult: config.mapResult ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig)),
+      mapResult,
     });
   },
 });

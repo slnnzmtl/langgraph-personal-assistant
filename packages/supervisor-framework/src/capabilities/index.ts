@@ -3,6 +3,7 @@ export {
   type CapabilityCatalog,
 } from "./catalog.js";
 export {
+  configurationReposAvailable,
   isCapabilityAvailable,
   isCapabilityGrantable,
   type CapabilityAvailabilityContext,

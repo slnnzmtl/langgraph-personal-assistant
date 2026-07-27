@@ -24,7 +24,7 @@ type GraphInvoker = {
 };
 
 type CronRunnerOptions = {
-  graph: GraphInvoker;
+  getGraph: () => GraphInvoker;
   summaryModel: BaseChatModel;
   onError(error: unknown, context: CronJobRun): void;
   reporter?: CronExecutionReporter;
@@ -146,7 +146,7 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
 
       try {
         const config = { configurable: { thread_id: createThreadId(job.jobName) } };
-        let result = await options.graph.invoke(
+        let result = await options.getGraph().invoke(
           { messages: [buildCronInputMessage(job)] },
           config,
         );
@@ -159,7 +159,7 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
             break;
           }
           continuationCount += 1;
-          result = await options.graph.invoke({ messages: [] }, config);
+          result = await options.getGraph().invoke({ messages: [] }, config);
           resultObject = typeof result === "object" && result !== null ? (result as Partial<CronJobResult>) : {};
           messages = Array.isArray(resultObject.messages) ? resultObject.messages : [];
         }

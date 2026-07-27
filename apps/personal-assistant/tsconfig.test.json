@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "exactOptionalPropertyTypes": false,
+    "strict": false,
+    "rootDir": "."
+  },
+  "references": [
+    { "path": "../../packages/supervisor-framework" }
+  ],
+  "include": ["tests/**/*.ts"]
+}

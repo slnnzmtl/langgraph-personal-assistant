@@ -15,7 +15,7 @@ import {
   searchFiles,
 } from "../../../src/services/obsidian.js";
 import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/app/policies/obsidian-hooks.js";
-import { createObsidianNode } from "../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, obsidianRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
@@ -353,7 +353,7 @@ describe("formatObsidianRoutineHint", () => {
   });
 });
 
-describe("createObsidianNode", () => {
+describe("obsidian runtime node hooks", () => {
   it("loads the Obsidian system prompt from agents/obsidian.xml", () => {
     const prompt = loadObsidianSystemPrompt();
 
@@ -390,7 +390,7 @@ describe("createObsidianNode", () => {
       getModel: () => ({}) as BaseChatModel,
     };
 
-    expect(() => createObsidianNode(connector, vaultRoot, obsidianDefinition)).toThrow(
+    expect(() => createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot))).toThrow(
       "Runtime agent LLM model must support tool calling.",
     );
   });
@@ -398,9 +398,10 @@ describe("createObsidianNode", () => {
   it("falls back to a non-empty completion when the model returns blank text", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector(() => new AIMessage(""));
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [new HumanMessage("create a note for today")],
     });
 
@@ -444,9 +445,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [new HumanMessage("give me a plan for today")],
     });
 
@@ -469,9 +471,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Prepared today's routine note.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [new HumanMessage("create today's routine note")],
     });
 
@@ -492,9 +495,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Read the fitness log.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [new HumanMessage("read my fitness log")],
     });
 
@@ -524,7 +528,7 @@ describe("createObsidianNode", () => {
         }],
       });
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
       agentMessages: [
@@ -574,9 +578,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [new HumanMessage("show me the vault structure")],
     });
 
@@ -596,9 +601,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [
         new HumanMessage("create a note for today, move unchecked todos from yesterday's note"),
         new AIMessage({
@@ -645,9 +651,10 @@ describe("createObsidianNode", () => {
       return new AIMessage("Best matches:\nroutine/July/July 3 - Fri.md\nroutine/July/July 4 - Sat.md");
     });
 
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [
         new HumanMessage("find routine note matches for potuzhno event note"),
         new AIMessage({
@@ -705,9 +712,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Added sauna to today's tasks in your routine.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [
         new HumanMessage("add sauna to today's plan"),
         new AIMessage({
@@ -749,9 +757,10 @@ describe("createObsidianNode", () => {
 
       return new AIMessage("Prepared today's note successfully.");
     });
-    const obsidianNode = createObsidianNode(connector, vaultRoot, obsidianDefinition);
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
 
     const result = await obsidianNode({
+      stepCount: 0,
       agentMessages: [
         new HumanMessage("collect and save today's note"),
         new AIMessage({

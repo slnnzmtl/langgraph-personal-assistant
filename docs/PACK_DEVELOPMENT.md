@@ -10,7 +10,7 @@ How to build a **client pack** on `@personal-assistant/supervisor-framework` ins
 | `bootstrapSupervisorSystem` | LLM connector (Gemini, OpenAI, …) |
 | Agent repository **contracts** | Concrete cron + skill storage |
 | Capability catalog **types** | Your capability providers + tools |
-| Policy registry API | Domain policies and LLM hooks |
+| `createAgentPolicy` / runtime execution kit | Default `runtimeAgentPolicy` + optional app-local capability behaviors |
 | Message trimming / state | Prompts, skills content, env config |
 
 ## Minimal bootstrap checklist
@@ -18,7 +18,7 @@ How to build a **client pack** on `@personal-assistant/supervisor-framework` ins
 1. Add a workspace dependency on `@personal-assistant/supervisor-framework` (or a path/git ref pre-publish).
 2. Define one or more `RuntimeAgentDefinition` records (JSON and/or seed function).
 3. Register a `createCapabilityCatalog([...])` with at least a `none` provider.
-4. Implement `buildPolicyRegistry()` — usually one `generic` executor via `createAgentPolicy` + `resolveAgentTools`.
+4. Implement `buildRuntimeExecution(agents, skillCatalog, ctx)` — return one `runtimeAgentPolicy` via `createAgentPolicy` + `resolveAgentTools`. Use `ctx.capabilityCatalog` from bootstrap (already merged when `systemAgent` is enabled).
 5. Provide `supervisorLlm`, `loadSupervisorPrompt`, `buildModels`, `buildCapabilityDeps`, and `seedAgents`.
 6. Optionally override `createRuntimeAgentRepository`, `createCronJobRepository`, and `buildSkillCatalog` (defaults exist).
 7. Invoke `context.graph` from your channel entrypoint.
@@ -58,8 +58,6 @@ See [examples/minimal-supervisor-system.md](../examples/minimal-supervisor-syste
 import {
   bootstrapSupervisorSystem,
   createAgentPolicy,
-  createCapabilityCatalog,
-  createPolicyRegistry,
   resolveAgentTools,
 } from "@personal-assistant/supervisor-framework";
 
@@ -72,7 +70,13 @@ await bootstrapSupervisorSystem({
   supervisorLlm,
   loadSupervisorPrompt: () => "Route to specialists.",
   seedAgents: async (repo) => { /* ... */ return repo.listAgents(); },
-  buildPolicyRegistry: () => ({ /* ... */ }),
+  buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
+    loadPromptByKey: async () => "prompt",
+    runtimeAgentPolicy: createAgentPolicy({
+      resolveTools: (definition, deps) =>
+        resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
+    }),
+  }),
   buildModels: () => ({ generic: model }),
   buildCapabilityDeps: () => ({}),
 });

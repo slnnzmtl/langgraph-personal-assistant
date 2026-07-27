@@ -1,6 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "./messages/message-content.js";
+import { extractMessageTextContent } from "./message-content.js";
 
 export const CONSUMED_TOOL_MARKER_PREFIX = "[consumed:";
 

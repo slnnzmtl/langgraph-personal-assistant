@@ -16,7 +16,6 @@ describe("createConfigurationTools", () => {
         "read_skill",
         "list_skills",
         "preview_skill",
-        "read_skill_for_edit",
         "create_skill",
         "edit_skill",
         "delete_skill",
@@ -204,7 +203,7 @@ describe("createConfigurationTools", () => {
     });
 
     expect(created).toContain("daily-summary");
-    expect(created).toContain("Restart the bot and scheduler processes");
+    expect(created).toContain("pick up routing changes automatically");
 
     const listed = await listTool!.invoke({});
     expect(listed).toContain("Agent ID: daily-summary");

@@ -5,16 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCapabilityCatalog,
+  createSystemAgentDefinition,
   isCapabilityAvailable,
+  SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import {
-  BUILTIN_CAPABILITY_DESCRIPTORS,
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
+  createPersonalCapabilityProviders,
+  PERSONAL_CAPABILITY_DESCRIPTORS,
   resolveCapabilities,
-  toCapabilityAvailabilityContext,
 } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
@@ -82,7 +84,7 @@ describe("app boundaries", () => {
     ).toThrow(/unavailable/i);
   });
 
-  it("resolves finance tools for generic executor agents with finance-domain capability", () => {
+  it("resolves finance tools for agents with finance-domain capability", () => {
     const catalog = createDefaultCapabilityCatalog();
     const resolveTools = createPersonalResolveTools(catalog);
     const deps = createCapabilityDeps("/tmp/vault", {
@@ -97,9 +99,7 @@ describe("app boundaries", () => {
       systemPrompt: "Finance",
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
-      executor: "generic",
       modelKey: "finance",
-      builtin: false,
       maxSteps: 8,
       enabled: true,
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -114,30 +114,42 @@ describe("app boundaries", () => {
   });
 
   it("seeds only the configuration built-in from code", () => {
-    expect(buildDefaultRuntimeAgents().map((agent) => agent.id)).toEqual(["configuration"]);
+    const agent = createSystemAgentDefinition({
+      modelKey: "configuration",
+    });
+
+    expect(agent.id).toBe("configuration");
   });
 
   it("exposes read-only system configuration separately from write", () => {
+    const catalog = createPersonalCapabilityCatalog();
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+      capabilityCatalog: catalog,
     });
 
     const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
     const writeTools = resolveCapabilities(["system-config"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
+    expect(readTools).toContain("list_runtime_agents");
+    expect(readTools).not.toContain("preview_runtime_agent");
     expect(readTools).not.toContain("create_cron_job");
     expect(writeTools).toContain("create_cron_job");
+    expect(writeTools).toContain("preview_runtime_agent");
   });
 
   it("marks configurable capabilities in the catalog", () => {
-    const configurable = BUILTIN_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable);
+    const configurable = [
+      ...PERSONAL_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable),
+      { id: SYSTEM_CONFIG_READ_CAPABILITY_ID, configurable: true },
+    ];
     expect(configurable.map((entry) => entry.id)).toEqual(
       expect.arrayContaining(["none", "obsidian-vault", "finance-domain", "system-config-read"]),
     );
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
+    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
+    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
   });
 });
 

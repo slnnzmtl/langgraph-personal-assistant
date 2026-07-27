@@ -21,7 +21,6 @@ const financeDefinition: RuntimeAgentDefinition = {
   systemPrompt: "",
   promptSourceKey: "finance",
   capabilityIds: ["finance-domain"],
-  executor: "generic",
   modelKey: "finance",
   maxSteps: 10,
   enabled: true,

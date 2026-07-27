@@ -11,6 +11,7 @@ import {
   createRuntimeAgentPrepareNode,
   routeAfterRuntimeAgentLlm,
   routeAfterRuntimeAgentTools,
+  type AgentState,
 } from "@personal-assistant/supervisor-framework";
 import { createSubAgentToolsNode } from "@personal-assistant/supervisor-framework";
 import { createAgentStateAnnotation } from "@personal-assistant/supervisor-framework";
@@ -47,7 +48,7 @@ const createFlattenedRuntimeAgentGraph = () => {
   const bundle = {
     name: "Finance",
     maxSteps: 10,
-    prepare: (parentState: { messages: HumanMessage[] }) => ({
+    prepare: (parentState: AgentState) => ({
       agentMessages: parentState.messages,
       stepCount: 0,
     }),
@@ -64,7 +65,7 @@ const createFlattenedRuntimeAgentGraph = () => {
     .addNode("finance__prepare", createRuntimeAgentPrepareNode(bundle))
     .addNode("finance__llm", bundle.llmNode)
     .addNode("finance__tools", bundle.toolsNode)
-    .addNode("finance__finalize", createRuntimeAgentFinalizeNode(bundle))
+    .addNode("finance__finalize", createRuntimeAgentFinalizeNode(bundle, "finance"))
     .addEdge(START, "finance__prepare")
     .addEdge("finance__prepare", "finance__llm")
     .addConditionalEdges(
@@ -163,7 +164,6 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
           description: "Finance agent",
           systemPrompt: "finance",
           capabilityIds: ["none"],
-          executor: "generic",
           maxSteps: 4,
           enabled: true,
           createdAt: "2026-01-01T00:00:00.000Z",
@@ -172,17 +172,14 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
       ],
       {
         loadPromptByKey: (key) => key,
-        policyRegistry: {
-          get: () => ({
-            executor: "generic",
-            createGraphBundle: () => ({
-              name: "Finance",
-              maxSteps: 4,
-              prepare: () => ({ agentMessages: [], stepCount: 0 }),
-              llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
-              toolsNode: async () => ({}),
-              finalize: () => ({ messages: [new AIMessage("done")] }),
-            }),
+        runtimeAgentPolicy: {
+          createGraphBundle: () => ({
+            name: "Finance",
+            maxSteps: 4,
+            prepare: () => ({ agentMessages: [], stepCount: 0 }),
+            llmNode: async () => ({ agentMessages: [], stepCount: 0 }),
+            toolsNode: async () => ({}),
+            finalize: () => ({ messages: [new AIMessage("done")] }),
           }),
         },
       } as never,

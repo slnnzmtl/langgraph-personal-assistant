@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm --filter @personal-assistant/supervisor-framework build && tsc -p tsconfig.json",
-    "check": "tsc --noEmit -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "pnpm test:unit && pnpm test:e2e",
     "dev": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/index.ts",
     "dev:scheduler": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/cron/index.ts",

@@ -10,100 +10,110 @@ import {
   type SubAgentStateUpdate,
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
-import type { CronJobRepository, RuntimeCronService } from "../../src/cron/types.js";
-import { createConfigurationNodeHooks } from "../../src/app/policies/configuration-hooks.js";
-import {
-  createObsidianNodeHooks,
-  selectObsidianToolsForTurn,
-} from "../../src/app/policies/obsidian-hooks.js";
 import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
 import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
+import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+import {
+  buildRuntimeAgentNodeConfigForDefinition,
+  resolveCapabilityBehavior,
+} from "../../src/app/policies/runtime-agent-policy.js";
 
 const testSkillCatalog = createSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
+const testShellHooks = createRuntimeShellHooks(testShellFormatters);
 
 const resolveTestAgentSystemPrompt = (
   definition: Parameters<typeof withResolvedAgentSystemPrompt>[0],
 ) => withResolvedAgentSystemPrompt(definition, loadSystemPromptByKey);
 
-type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
+export type ModelSource = BaseChatModel | { getModel(): BaseChatModel };
 
-type ModelConnector = { getModel(): BaseChatModel };
+const resolveModel = (source: ModelSource): BaseChatModel => {
+  if (
+    typeof source === "object"
+    && source !== null
+    && "getModel" in source
+    && typeof source.getModel === "function"
+  ) {
+    return source.getModel();
+  }
 
-const isModelConnector = (source: ModelSource): source is ModelConnector =>
-  typeof (source as ModelConnector).getModel === "function";
-
-const resolveModel = (source: ModelSource): BaseChatModel =>
-  isModelConnector(source) ? source.getModel() : source;
-
-const createTestDomainLlmNode = (
-  model: BaseChatModel,
-  definition: RuntimeAgentDefinition,
-  tools: SubAgentToolSource | undefined,
-  config: RuntimeAgentNodeConfig,
-) =>
-  createRuntimeAgentNode(model, definition, tools, config) as (
-    state: SubAgentState,
-  ) => Promise<SubAgentStateUpdate>;
-
-export const createFinanceNode = (
-  model: ModelSource,
-  definition: RuntimeAgentDefinition,
-  tools?: SubAgentToolSource,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(definition),
-  tools,
-  {
-    ...createRuntimeShellHooks(testShellFormatters),
-    logLabel: "finance-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to complete finance request: ${error instanceof Error ? error.message : "Unknown error during finance request"}`,
-  },
-);
-
-export const createObsidianNode = (
-  model: ModelSource,
-  vaultRoot: string,
-  definition: RuntimeAgentDefinition,
-  prebuiltTools?: SubAgentToolSource,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(definition),
-  prebuiltTools,
-  {
-    ...createObsidianNodeHooks(vaultRoot, testShellFormatters),
-    logLabel: "obsidian-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
-    selectToolsForTurn: selectObsidianToolsForTurn,
-  },
-);
-
-type ConfigurationNodeOptions = {
-  repository: CronJobRepository;
-  runtimeCron?: RuntimeCronService;
-  definition: RuntimeAgentDefinition;
+  return source as BaseChatModel;
 };
 
-export const createConfigurationNode = (
+export const buildNodeConfigForTest = (
+  definition: RuntimeAgentDefinition,
+  options: { vaultRoot?: string } = {},
+): RuntimeAgentNodeConfig => {
+  const behavior = resolveCapabilityBehavior(definition, testShellHooks, testShellFormatters);
+  const hooks = behavior.createHooks({
+    definition,
+    capabilityDeps: {
+      obsidianVaultPath: options.vaultRoot ?? "/tmp/vault",
+    } as CapabilityDeps,
+    shellHooks: testShellHooks,
+    shellFormatters: testShellFormatters,
+  });
+
+  return {
+    ...hooks,
+    ...buildRuntimeAgentNodeConfigForDefinition(definition, testShellHooks, testShellFormatters),
+  };
+};
+
+export const createTestRuntimeAgentNode = (
   model: ModelSource,
-  tools: SubAgentToolSource,
-  options: ConfigurationNodeOptions,
-) => createTestDomainLlmNode(
-  resolveModel(model),
-  resolveTestAgentSystemPrompt(options.definition),
-  tools,
-  {
-    ...createConfigurationNodeHooks({
-      repository: options.repository,
-      ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
-      skillCatalog: testSkillCatalog,
-      shellFormatters: testShellFormatters,
-    }),
-    logLabel: "configuration-system-prompt",
-    buildErrorMessage: (error) =>
-      `Unable to update cron configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`,
-  },
-);
+  definition: RuntimeAgentDefinition,
+  tools: SubAgentToolSource | undefined,
+  config: RuntimeAgentNodeConfig = buildNodeConfigForTest(definition),
+) =>
+  createRuntimeAgentNode(
+    resolveModel(model),
+    resolveTestAgentSystemPrompt(definition),
+    tools,
+    config,
+  ) as (state: SubAgentState) => Promise<SubAgentStateUpdate>;
+
+/** @deprecated Use buildNodeConfigForTest(definition) */
+export const financeRuntimeNodeConfig = (): RuntimeAgentNodeConfig =>
+  buildNodeConfigForTest({
+    id: "finance",
+    name: "Finance",
+    description: "",
+    systemPrompt: "",
+    capabilityIds: ["finance-domain"],
+    maxSteps: 8,
+    enabled: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+/** @deprecated Use buildNodeConfigForTest(definition, { vaultRoot }) */
+export const obsidianRuntimeNodeConfig = (vaultRoot: string): RuntimeAgentNodeConfig =>
+  buildNodeConfigForTest({
+    id: "obsidian",
+    name: "Obsidian",
+    description: "",
+    systemPrompt: "",
+    capabilityIds: ["obsidian-vault"],
+    maxSteps: 8,
+    enabled: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }, { vaultRoot });
+
+/** @deprecated Use buildNodeConfigForTest(definition) */
+export const configurationRuntimeNodeConfig = (): RuntimeAgentNodeConfig =>
+  buildNodeConfigForTest({
+    id: "configuration",
+    name: "Configuration",
+    description: "",
+    systemPrompt: "",
+    capabilityIds: ["system-config"],
+    modelKey: "configuration",
+    maxSteps: 10,
+    enabled: true,
+    createdAt: "1970-01-01T00:00:00.000Z",
+    updatedAt: "1970-01-01T00:00:00.000Z",
+  });

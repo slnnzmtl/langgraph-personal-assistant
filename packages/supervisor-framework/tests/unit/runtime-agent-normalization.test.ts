@@ -1,27 +1,88 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeRuntimeAgentDefinition } from "../../src/core/types/agent.js";
+import {
+  CONFIGURATION_AGENT_ID,
+  DEFAULT_MODEL_KEY,
+  normalizeRuntimeAgentDefinition,
+  resolveAgentModelKey,
+} from "../../src/core/types/agent.js";
+
+const baseInput = {
+  name: "Finance",
+  description: "Finance",
+  systemPrompt: "Finance",
+  capabilityIds: ["finance-domain"],
+  maxSteps: 10,
+  enabled: true,
+  createdAt: "2026-07-20T10:33:00.659Z",
+  updatedAt: "2026-07-15T21:31:53.713Z",
+};
 
 describe("runtime agent normalization", () => {
-  it("preserves executor and modelKey in normalized definitions", () => {
+  it("strips legacy finance executor while preserving modelKey", () => {
     const normalized = normalizeRuntimeAgentDefinition({
+      ...baseInput,
       id: "finance",
-      name: "Finance",
-      description: "Finance",
-      systemPrompt: "Finance",
       promptSourceKey: "finance",
-      capabilityIds: ["finance-domain"],
       executor: "finance",
       modelKey: "finance",
-      builtin: false,
-      maxSteps: 10,
-      enabled: true,
-      createdAt: "2026-07-20T10:33:00.659Z",
-      updatedAt: "2026-07-15T21:31:53.713Z",
     });
 
-    expect(normalized.executor).toBe("finance");
+    expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("finance");
-    expect(normalized.capabilityIds).toEqual(["finance-domain"]);
+  });
+
+  it("infers modelKey from legacy executor when modelKey is absent", () => {
+    const normalized = normalizeRuntimeAgentDefinition({
+      ...baseInput,
+      id: "obsidian",
+      promptSourceKey: "obsidian",
+      capabilityIds: ["obsidian-vault"],
+      executor: "obsidian",
+    });
+
+    expect("executor" in normalized).toBe(false);
+    expect(normalized.modelKey).toBe("obsidian");
+  });
+
+  it("strips legacy builtin field on load", () => {
+    const normalized = normalizeRuntimeAgentDefinition({
+      ...baseInput,
+      id: "finance",
+      builtin: false,
+    });
+
+    expect("builtin" in normalized).toBe(false);
+  });
+
+  it("defaults configuration modelKey when absent", () => {
+    const normalized = normalizeRuntimeAgentDefinition({
+      ...baseInput,
+      id: CONFIGURATION_AGENT_ID,
+      capabilityIds: ["system-config"],
+      executor: CONFIGURATION_AGENT_ID,
+      builtin: true,
+    });
+
+    expect("executor" in normalized).toBe(false);
+    expect(normalized.modelKey).toBe("configuration");
+  });
+
+  it("resolves model keys from modelKey only", () => {
+    const agent = normalizeRuntimeAgentDefinition({
+      ...baseInput,
+      id: "finance",
+      executor: "finance",
+      modelKey: "finance",
+    });
+
+    expect(resolveAgentModelKey(agent)).toBe("finance");
+    expect(resolveAgentModelKey(
+      normalizeRuntimeAgentDefinition({
+        ...baseInput,
+        id: "coder",
+        capabilityIds: ["none"],
+      }),
+    )).toBe(DEFAULT_MODEL_KEY);
   });
 });

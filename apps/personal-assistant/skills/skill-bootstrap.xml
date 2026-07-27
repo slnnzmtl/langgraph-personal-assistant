@@ -37,7 +37,7 @@ Use available tools to fill gaps before drafting. Skip calls that are not needed
 
 1. Resolve the owning agent and module:
    - Call `list_runtime_agents` when the target agent or module is unclear.
-   - Call `preview_runtime_agent(id)` when capability or prompt context is needed.
+   - Call `preview_runtime_agent(id)` when full capability or prompt context is needed (configuration write access only; not available on `system-config-read`).
 
 2. Resolve available tools for the target agent:
    - Call `list_capabilities` when the skill must reference specific agent tools.

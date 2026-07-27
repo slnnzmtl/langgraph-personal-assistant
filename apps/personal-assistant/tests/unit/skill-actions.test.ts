@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   createSkillActionRegistry,
@@ -7,7 +7,7 @@ import {
   registerSkillActions,
   runSkillActions,
   SKILL_CONTEXT_MAX_CHARS,
-} from "../../src/tools/skill-actions.js";
+} from "../../src/runtime-agents/skills/skill-actions.js";
 
 describe("skill action registry", () => {
   it("returns no actions for unknown prompt keys or skills", () => {

@@ -7,10 +7,11 @@ import {
   createAssistant,
   createCapabilityCatalog,
   createEmptySkillCatalog,
-  createPolicyRegistry,
   createRuntimeAgentRepository,
   resolveAgentTools,
   type RuntimeAgentDefinition,
+  type SkillCatalog,
+  type CapabilityCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -20,8 +21,6 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions.",
   systemPrompt: "You are a concise research assistant.",
   capabilityIds: ["none"],
-  executor: "generic",
-  builtin: false,
   maxSteps: 6,
   enabled: true,
   createdAt: new Date().toISOString(),
@@ -50,15 +49,16 @@ describe("framework bootstrap", () => {
       supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
-      buildPolicyRegistry: () => ({
-        loadPromptByKey: async () => "prompt",
-        policyRegistry: createPolicyRegistry([
-          createAgentPolicy({
-            executor: "generic",
-            resolveTools: (definition, deps) =>
-              resolveAgentTools(definition, catalog, deps, {}),
-          }),
-        ]),
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
+        }),
       }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),
@@ -85,15 +85,12 @@ describe("framework bootstrap", () => {
       runtimeAgents: [researcher],
       runtimeAgentRepository: createRuntimeAgentRepository(process.cwd(), ".tmp/framework-test-agents.json"),
       capabilityDeps: {},
-      loadPromptByKey: async () => "prompt",
+      loadPromptByKey: () => "prompt",
       loadSupervisorPrompt: () => "Supervise requests.",
-      policyRegistry: createPolicyRegistry([
-        createAgentPolicy({
-          executor: "generic",
-          resolveTools: (definition, deps) =>
-            resolveAgentTools(definition, catalog, deps, {}),
-        }),
-      ]),
+      runtimeAgentPolicy: createAgentPolicy({
+        resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+          resolveAgentTools(definition, catalog, deps, {}),
+      }),
     });
 
     expect(graph.invoke).toBeTypeOf("function");

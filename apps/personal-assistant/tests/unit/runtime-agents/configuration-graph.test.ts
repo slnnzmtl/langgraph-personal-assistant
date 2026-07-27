@@ -1,31 +1,31 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { createConfigurationPolicy } from "../../../src/app/policies/index.js";
+import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/runtime-agent-policy.js";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
-import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
   FakeLLMConnector,
+  asAgentState,
   createRuntimeExecutionContextFake,
   getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
 
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import { createDefaultCapabilityCatalog } from "../../../src/runtime-agents/builtin-capabilities.js";
+import { createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
 
-const capabilityCatalog = createDefaultCapabilityCatalog();
+const capabilityCatalog = createPersonalCapabilityCatalog();
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
-const configurationShellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");
 
 describe("configuration subgraph", () => {
   it("executes tool calls before returning to the parent wrapper", async () => {
     const repository = createCronRepositoryFake();
-    const tools = createConfigurationTools(repository);
     let configCalls = 0;
 
     const llmConnector = new FakeLLMConnector(() => {
@@ -64,19 +64,22 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const bundle = createConfigurationPolicy({
-      shellFormatters: configurationShellFormatters,
+    const shellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
+    const shellHooks = createRuntimeShellHooks(shellFormatters);
+    const policy = createDefaultRuntimeAgentPolicy(shellHooks, {
+      shellFormatters,
       capabilityCatalog,
       resolveTools,
-    })
-      .createGraphBundle(context, configurationDefinition);
-    const prepared = bundle.prepare({
+      skillCatalog: createSkillCatalog(),
+    });
+    const bundle = policy.createGraphBundle(context, configurationDefinition);
+    const prepared = bundle.prepare(asAgentState({
       messages: [new HumanMessage("set up a cron job for daily notes")],
       context: {},
       next: undefined,
       agentMessages: [],
       stepCount: 0,
-    });
+    }));
     const compiled = createCompiledSubAgentGraph(
       "Configuration",
       configurationDefinition.maxSteps,
@@ -96,10 +99,7 @@ describe("configuration subgraph", () => {
       configCalls += 1;
       return new AIMessage("should not run");
     }).getModel();
-    const configNode = createConfigurationNode(model, [], {
-      repository: createCronRepositoryFake(),
-      definition: configurationDefinition,
-    });
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, [], configurationRuntimeNodeConfig());
 
     const update = await configNode({
       agentMessages: [
@@ -152,10 +152,7 @@ describe("configuration subgraph", () => {
       return new AIMessage("Configuration updated.");
     }).getModel();
 
-    const configNode = createConfigurationNode(model, tools, {
-      repository,
-      definition: configurationDefinition,
-    });
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, tools, configurationRuntimeNodeConfig());
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);
     const result = await subgraph.invoke({
       agentMessages: [new HumanMessage("update cron jobs")],

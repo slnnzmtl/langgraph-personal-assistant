@@ -1,7 +1,6 @@
-import { AIMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState } from "../helpers/fakes.js";
+import { createAppSupervisorNode, FakeLLMConnector, createRuntimeAgentRepositoryFake, makeHumanState, makeTestRuntimeAgent } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import { RUNTIME_AGENT_CONTEXT_KEY } from "@personal-assistant/supervisor-framework";
 import { FAILURE_REPLY_ROUTE } from "@personal-assistant/supervisor-framework";
@@ -10,18 +9,16 @@ describe("supervisor runtime routing", () => {
   it("maps a runtime agent id to the agent route and stores the selection in context", async () => {
     const repository = createRuntimeAgentRepositoryFake([
       ...buildTestRuntimeAgents(),
-      {
+      makeTestRuntimeAgent({
         id: "daily-summary",
         name: "Daily Summary",
         description: "Summarize the user's day.",
         systemPrompt: "You summarize days.",
         capabilityIds: ["none"],
-        executor: "generic",
         maxSteps: 4,
-        enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
-      },
+      }),
     ]);
 
     const supervisorNode = createAppSupervisorNode(
@@ -56,18 +53,16 @@ describe("supervisor runtime routing", () => {
   it("routes unwired enabled agents to failure_reply", async () => {
     const repository = createRuntimeAgentRepositoryFake([
       ...buildTestRuntimeAgents(),
-      {
+      makeTestRuntimeAgent({
         id: "unwired-agent",
         name: "Unwired Agent",
         description: "Persisted but not compiled.",
         systemPrompt: "You are unwired.",
         capabilityIds: ["none"],
-        executor: "generic",
         maxSteps: 4,
-        enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",
         updatedAt: "2026-07-16T00:00:00.000Z",
-      },
+      }),
     ]);
 
     const supervisorNode = createAppSupervisorNode(

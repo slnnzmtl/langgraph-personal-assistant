@@ -1,15 +1,17 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { CapabilityCatalog } from "../capabilities/index.js";
+import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
 import type { createAssistant, AssistantConfig } from "../core/create-assistant.js";
 import type { ILLMConnector } from "../core/ports/llm-connector.js";
 import type { PromptLoggingHook } from "../core/ports/prompt-logging.js";
-import type { PolicyRegistry } from "../core/policies/registry.js";
+import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 import type { ReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
+import type { RuntimeShellFormatters } from "../core/system-context.js";
+import type { SystemAgentOptions } from "./system-agent/definition.js";
 
 /** Minimal cron repository contract for pack bootstrap (duck-types cron impl). */
 export type CronJobRepository = {
@@ -52,6 +54,7 @@ export type SupervisorBootstrapContext<
 export type SupervisorSystemContext<
   TConfig extends SupervisorPaths = SupervisorPaths,
   TDeps extends Record<string, unknown> = Record<string, unknown>,
+  TAdapters extends Record<string, unknown> = Record<string, never>,
 > = {
   config: TConfig;
   graph: CompiledSupervisorGraph;
@@ -60,6 +63,13 @@ export type SupervisorSystemContext<
   runtimeAgents: RuntimeAgentDefinition[];
   skillCatalog: SkillCatalog;
   capabilityDeps: TDeps;
+  adapters: TAdapters;
+};
+
+export type RuntimeExecutionKit = {
+  loadPromptByKey: LoadPromptByKey;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
+  shellFormatters?: RuntimeShellFormatters;
 };
 
 export type SupervisorPackBootstrap<
@@ -68,7 +78,8 @@ export type SupervisorPackBootstrap<
   TAdapters extends Record<string, unknown> = Record<string, never>,
 > = {
   config: TConfig;
-  capabilityCatalog: CapabilityCatalog;
+  /** Pre-built catalog when capabilityProviders is not supplied (e.g. minimal test packs). */
+  capabilityCatalog?: CapabilityCatalog;
   supervisorLlm: ILLMConnector;
   loadSupervisorPrompt: () => string;
   createRuntimeAgentRepository?: (config: TConfig) => RuntimeAgentRepository;
@@ -81,10 +92,15 @@ export type SupervisorPackBootstrap<
     context: { adapters: TAdapters },
   ) => Promise<RuntimeAgentDefinition[]>;
   buildSkillCatalog?: (agents: RuntimeAgentDefinition[]) => SkillCatalog;
-  buildPolicyRegistry: (
+  buildRuntimeExecution: (
     agents: RuntimeAgentDefinition[],
     skillCatalog: SkillCatalog,
-  ) => { loadPromptByKey: LoadPromptByKey; policyRegistry: PolicyRegistry };
+    ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
+  ) => RuntimeExecutionKit;
+  /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
+  systemAgent?: SystemAgentOptions | false;
+  /** Primary catalog source; merged with system-config capabilities when systemAgent is enabled. */
+  capabilityProviders?: CapabilityProvider<Record<string, unknown>>[];
   buildModels: (config: TConfig, agents: RuntimeAgentDefinition[]) => Record<string, BaseChatModel>;
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,

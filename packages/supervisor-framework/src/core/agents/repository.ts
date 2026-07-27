@@ -25,11 +25,6 @@ export type RuntimeAgentRepository = {
   deleteAgent(id: string): Promise<RuntimeAgentDefinition>;
 };
 
-const emptyDocument = (): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => ({
-  version: RUNTIME_AGENT_SCHEMA_VERSION,
-  agents: [],
-});
-
 const parseDocument = (rawContent: string): { version: typeof RUNTIME_AGENT_SCHEMA_VERSION; agents: RuntimeAgentDefinition[] } => {
   try {
     const parsed = JSON.parse(rawContent) as unknown;
@@ -120,10 +115,6 @@ export const createRuntimeAgentRepository = (
 
         validateUniqueAgentId(agents, id);
 
-        if (parsed.executor && parsed.executor !== "generic") {
-          throw new Error("Only generic runtime agents can be created through the configuration API.");
-        }
-
         const timestamp = new Date().toISOString();
         const nextAgent = parseRuntimeAgentDefinition({
           id,
@@ -131,8 +122,7 @@ export const createRuntimeAgentRepository = (
           description: parsed.description.trim(),
           systemPrompt: parsed.systemPrompt.trim(),
           capabilityIds: parsed.capabilityIds,
-          executor: "generic",
-          builtin: false,
+          ...(parsed.modelKey ? { modelKey: parsed.modelKey } : {}),
           maxSteps: parsed.maxSteps ?? 8,
           enabled: parsed.enabled ?? true,
           createdAt: timestamp,
@@ -157,10 +147,6 @@ export const createRuntimeAgentRepository = (
         const current = agents[index]!;
         const builtin = isRuntimeAgentBuiltin(current);
 
-        if (builtin && parsed.executor !== undefined && parsed.executor !== current.executor) {
-          throw new Error(`Cannot change executor for built-in runtime agent: ${id}`);
-        }
-
         if (builtin && parsed.modelKey !== undefined && parsed.modelKey !== current.modelKey) {
           throw new Error(`Cannot change model key for built-in runtime agent: ${id}`);
         }
@@ -177,7 +163,6 @@ export const createRuntimeAgentRepository = (
           ...(parsed.capabilityIds !== undefined && !builtin
             ? { capabilityIds: parsed.capabilityIds }
             : {}),
-          ...(parsed.executor !== undefined && !builtin ? { executor: parsed.executor } : {}),
           ...(parsed.modelKey !== undefined && !builtin ? { modelKey: parsed.modelKey } : {}),
           ...(parsed.maxSteps !== undefined ? { maxSteps: parsed.maxSteps } : {}),
           ...(parsed.enabled !== undefined ? { enabled: parsed.enabled } : {}),
@@ -210,4 +195,3 @@ export const createRuntimeAgentRepository = (
     },
   };
 };
-

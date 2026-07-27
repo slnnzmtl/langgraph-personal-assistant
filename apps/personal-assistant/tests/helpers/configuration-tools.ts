@@ -1,11 +1,17 @@
 import { vi } from "vitest";
 
-import { createSystemConfigDomainTools } from "../../src/runtime-agents/tools/configuration.js";
-import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agents.js";
-import type { RuntimeAgentRepository } from "@personal-assistant/supervisor-framework";
+import {
+  createSystemConfigTools,
+  SYSTEM_AGENT_ID,
+  type RuntimeAgentRepository,
+} from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
+import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
-import { createReadSkillTool } from "../../src/tools/skill-management.js";
+import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
+
+const defaultConfigurationCatalog = createPersonalCapabilityCatalog();
 
 export const createCronRepositoryFake = (
   initialJobs: CronJobDefinition[] = [],
@@ -40,16 +46,18 @@ export const createCronRepositoryFake = (
 export const createConfigurationTools = (
   repository: CronJobRepository = createCronRepositoryFake(),
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
-  skillModule: string = CONFIGURATOR_AGENT_ID,
+  skillModule: string = SYSTEM_AGENT_ID,
 ) => {
   const capabilityDeps = {
     ...defaultConfigurationCapabilityDeps,
     cronJobRepository: repository,
     runtimeAgentRepository,
+    capabilityCatalog: defaultConfigurationCatalog,
+    skillCatalog: createSkillCatalog({ approvedModules: [skillModule, "finance", "obsidian"] }),
   };
 
   return [
     createReadSkillTool(skillModule, "xml"),
-    ...createSystemConfigDomainTools(capabilityDeps),
+    ...createSystemConfigTools(capabilityDeps),
   ];
 };

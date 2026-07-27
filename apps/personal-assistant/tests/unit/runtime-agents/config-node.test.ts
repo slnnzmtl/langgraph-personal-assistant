@@ -1,7 +1,12 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createConfigurationNode } from "../../helpers/policy-nodes.js";
+import {
+  buildConfigurationCompletionSummary,
+  CONFIGURATION_COMPLETION_FALLBACK,
+  mapConfigurationSubAgentResult,
+} from "@personal-assistant/supervisor-framework";
+import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
   createCronRepositoryFake,
@@ -19,29 +24,24 @@ const defaultCronJobs = [
   },
 ];
 
-describe("createConfigurationNode", () => {
-  it("lists cron jobs directly without invoking the llm or runtime scheduler", async () => {
+describe("configuration runtime node hooks", () => {
+  it("invokes the llm for cron list requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run for list requests");
-    });
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Here are your cron jobs." }));
     const runtimeCron = {
       addJob: vi.fn(),
       removeJob: vi.fn(),
       listActiveJobs: vi.fn(() => []),
     };
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-        runtimeCron: runtimeCron as never,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -50,28 +50,23 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toContain("Job name: sync-wise-transactions");
-    expect(result.agentMessages?.[0]?.content).toContain("Schedule: 0 7 * * *");
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Here are your cron jobs.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
     expect(runtimeCron.addJob).not.toHaveBeenCalled();
   });
 
-  it("lists configuration skills directly without invoking the llm", async () => {
+  it("invokes the llm for configuration skill catalog requests", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run for configuration skill catalog requests");
-    });
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Listed configuration skills." }));
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -80,16 +75,13 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toContain("Module: configuration");
-    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: cron");
-    expect(result.agentMessages?.[0]?.content).toContain("Skill Name: skill-management");
-    expect(result.agentMessages?.[0]?.content).toContain("Status: Listed");
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Listed configuration skills.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("delegates cross-owner skill list requests to the model", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () =>
+    const invokeSpy = vi.fn(async (_input: unknown) =>
       new AIMessage({
         content: "",
         tool_calls: [
@@ -103,16 +95,14 @@ describe("createConfigurationNode", () => {
       }),
     );
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -127,7 +117,7 @@ describe("createConfigurationNode", () => {
 
   it("strips hallucinated tool calls that are not currently bound", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () =>
+    const invokeSpy = vi.fn(async (_input: unknown) =>
       new AIMessage({
         content: "",
         tool_calls: [
@@ -141,16 +131,14 @@ describe("createConfigurationNode", () => {
       }),
     );
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -166,23 +154,19 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns preview_skill tool output directly without invoking the llm again", async () => {
+  it("invokes the llm after preview_skill tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run after read-only skill tool results");
-    });
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Here is the skill preview summary." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -209,27 +193,23 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toBe(skillContent);
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Here is the skill preview summary.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("returns list_skills tool output directly without invoking the llm again", async () => {
+  it("invokes the llm after list_skills tool results", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(() => {
-      throw new Error("LLM must not run after read-only skill tool results");
-    });
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Listed finance skills." }));
     const listContent = "sync-expenses: Sync Wise transactions";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
-        invoke: async (input: any) => invokeSpy(input),
-        bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -256,25 +236,23 @@ describe("createConfigurationNode", () => {
     });
 
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
-    expect(result.agentMessages?.[0]?.content).toBe(listContent);
-    expect(invokeSpy).not.toHaveBeenCalled();
+    expect(result.agentMessages?.[0]?.content).toBe("Listed finance skills.");
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
   it("continues to the model after list_skills during skill bootstrap enrichment", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Module: finance\nSkill Name: finance-summary\nStatus: Draft" }));
     const listContent = "Module: finance\nSkill Name: expense-sync\nStatus: Listed";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -304,21 +282,19 @@ describe("createConfigurationNode", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("continues to the model after read_skill_for_edit so edit flows can proceed", async () => {
+  it("continues to the model after preview_skill so edit flows can proceed", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
-    const invokeSpy = vi.fn(async () => new AIMessage({ content: "Ready to edit." }));
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage({ content: "Ready to edit." }));
     const skillContent = "---\nname: sync-expenses\ndescription: Example\n---\n\n# Skill body";
 
-    const node = createConfigurationNode(
+    const node = createTestRuntimeAgentNode(
       {
         invoke: async (input: any) => invokeSpy(input),
         bindTools: () => ({ invoke: async (input: any) => invokeSpy(input) }),
       } as never,
+      configurationDefinition,
       createConfigurationTools(repository),
-      {
-        repository: repository as never,
-        definition: configurationDefinition,
-      },
+      configurationRuntimeNodeConfig(),
     );
 
     const result = await node({
@@ -328,7 +304,7 @@ describe("createConfigurationNode", () => {
           content: "",
           tool_calls: [
             {
-              name: "read_skill_for_edit",
+              name: "preview_skill",
               args: { module: "finance", name: "sync-expenses" },
               id: "read-1",
               type: "tool_call",
@@ -336,7 +312,7 @@ describe("createConfigurationNode", () => {
           ],
         }),
         new ToolMessage({
-          name: "read_skill_for_edit",
+          name: "preview_skill",
           tool_call_id: "read-1",
           content: skillContent,
         }),
@@ -347,5 +323,141 @@ describe("createConfigurationNode", () => {
     expect(result.agentMessages?.[0]).toBeInstanceOf(AIMessage);
     expect(result.agentMessages?.[0]?.content).toBe("Ready to edit.");
     expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to a non-empty completion when the model returns blank text with no tools", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
+
+    const node = createTestRuntimeAgentNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      configurationDefinition,
+      createConfigurationTools(repository),
+      configurationRuntimeNodeConfig(),
+    );
+
+    const result = await node({
+      agentMessages: [new HumanMessage("list cron jobs")],
+      stepCount: 0,
+    });
+
+    expect(result.agentMessages?.[0]?.content).toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("summarizes list_cron_jobs results when the model returns a blank final response", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const cronListing = [
+      "Job name: sync-wise-transactions",
+      "Schedule: 0 7 * * *",
+      "Target route: finance",
+    ].join("\n");
+    const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
+
+    const node = createTestRuntimeAgentNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      configurationDefinition,
+      createConfigurationTools(repository),
+      configurationRuntimeNodeConfig(),
+    );
+
+    const result = await node({
+      agentMessages: [
+        new HumanMessage("list all cron jobs"),
+        new AIMessage({
+          content: "",
+          tool_calls: [
+            {
+              name: "list_cron_jobs",
+              args: {},
+              id: "list-1",
+              type: "tool_call",
+            },
+          ],
+        }),
+        new ToolMessage({
+          name: "list_cron_jobs",
+          tool_call_id: "list-1",
+          content: cronListing,
+        }),
+      ],
+      stepCount: 1,
+    });
+
+    expect(result.agentMessages?.[0]?.content).toContain("Job name: sync-wise-transactions");
+    expect(result.agentMessages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("buildConfigurationCompletionSummary", () => {
+  it("returns the latest consumable tool body", () => {
+    const summary = buildConfigurationCompletionSummary([
+      new ToolMessage({
+        name: "list_skills",
+        tool_call_id: "list-1",
+        content: "cron: Manage cron jobs",
+      }),
+      new ToolMessage({
+        name: "list_cron_jobs",
+        tool_call_id: "list-2",
+        content: "Job name: daily-note\nSchedule: 0 6 * * *",
+      }),
+    ]);
+
+    expect(summary).toContain("Job name: daily-note");
+  });
+
+  it("ignores consumed markers and error bodies", () => {
+    const summary = buildConfigurationCompletionSummary([
+      new ToolMessage({
+        name: "read_skill",
+        tool_call_id: "read-1",
+        content: "[consumed: read_skill]",
+      }),
+      new ToolMessage({
+        name: "create_cron_job",
+        tool_call_id: "create-1",
+        content: "Error: job already exists",
+      }),
+      new ToolMessage({
+        name: "list_cron_jobs",
+        tool_call_id: "list-1",
+        content: "Job name: finance-sync",
+      }),
+    ]);
+
+    expect(summary).toBe("Job name: finance-sync");
+  });
+});
+
+describe("mapConfigurationSubAgentResult", () => {
+  it("salvages tool output when the last reply is the generic fallback", () => {
+    const cronListing = "Job name: finance-sync\nSchedule: 59 23 * * *";
+
+    const result = mapConfigurationSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("list cron jobs"),
+          new ToolMessage({
+            name: "list_cron_jobs",
+            tool_call_id: "list-1",
+            content: cronListing,
+          }),
+          new AIMessage(CONFIGURATION_COMPLETION_FALLBACK),
+        ],
+        stepCount: 2,
+      },
+      10,
+      "Configuration",
+    );
+
+    expect(result.messages?.[0]?.content).toBe(cronListing);
   });
 });
