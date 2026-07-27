@@ -15,6 +15,7 @@ export type SkillFull = SkillMeta & {
 
 export type ListSkillsOptions = {
   module?: string;
+  skillsDir?: string;
 };
 
 export const SkillAttachmentMatchSchema = z.object({

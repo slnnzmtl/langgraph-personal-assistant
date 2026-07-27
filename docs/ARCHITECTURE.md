@@ -357,7 +357,7 @@ Flat `skills/` directory with XML playbooks (and optional `.md`):
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
-- `src/runtime-agents/skills/skills-loader.ts` — filesystem read/write/parse; `src/runtime-agents/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
+- `packages/supervisor-framework/src/core/skills/skills-loader.ts` — filesystem read/write/parse; `packages/supervisor-framework/src/core/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
 Current skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
 

@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { resolveActiveSkillFromHistory } from "../../src/runtime-agents/skills/skill-history.js";
+import { resolveActiveSkillFromHistory } from "../../../src/core/skills/skill-history.js";
 
 describe("resolveActiveSkillFromHistory", () => {
   it("returns the most recent successful read_skill selection", () => {

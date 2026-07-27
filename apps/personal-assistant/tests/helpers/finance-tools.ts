@@ -2,7 +2,7 @@ import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { createFinanceDomainToolsFromSession } from "../../src/runtime-agents/tools/finance.js";
-import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
+import { createReadSkillTool } from "@personal-assistant/supervisor-framework";
 
 export const createFinanceTestTools = (
   mcpSession: SupabaseMcpSession,

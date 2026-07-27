@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 
-import { createSkillCrudTools } from "@personal-assistant/supervisor-framework";
+import { createSkillCrudTools } from "../../../src/framework/system-agent/index.js";
 import {
   createSkillActionRegistry,
+  createReadSkillTool,
+  createSkillCatalog,
   registerSkillActions,
-} from "../../src/runtime-agents/skills/skill-actions.js";
-import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
-import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+} from "../../../src/index.js";
+import { APP_SKILLS_DIR } from "../../helpers/app-skills-dir.js";
 
 const createTempSkillsRoot = (): string => mkdtempSync(path.join(process.cwd(), "test-skill-tools-"));
 
@@ -20,9 +21,15 @@ const createCrudTools = (rootDir: string) =>
     }),
   });
 
+const productSkillCatalog = () =>
+  createSkillCatalog({
+    skillsDir: APP_SKILLS_DIR,
+    approvedModules: ["finance", "obsidian", "configuration"],
+  });
+
 describe("createReadSkillTool", () => {
   it("loads a finance skill by name", async () => {
-    const readSkill = createReadSkillTool("finance", "xml");
+    const readSkill = createReadSkillTool("finance", "xml", { skillCatalog: productSkillCatalog() });
     const result = String(await readSkill.invoke({ name: "expense-view" }));
 
     expect(result).toContain("<view_intent>");
@@ -34,7 +41,7 @@ describe("createReadSkillTool", () => {
   });
 
   it("includes canonical aliased verification SQL in expense-update", async () => {
-    const readSkill = createReadSkillTool("finance", "xml");
+    const readSkill = createReadSkillTool("finance", "xml", { skillCatalog: productSkillCatalog() });
     const result = String(await readSkill.invoke({ name: "expense-update" }));
 
     expect(result).toContain("<verification_query>");
@@ -44,7 +51,7 @@ describe("createReadSkillTool", () => {
   });
 
   it("lists available skills when the requested skill is missing", async () => {
-    const readSkill = createReadSkillTool("finance", "xml");
+    const readSkill = createReadSkillTool("finance", "xml", { skillCatalog: productSkillCatalog() });
     const result = String(await readSkill.invoke({ name: "missing-skill" }));
 
     expect(result).toContain("Error reading skill:");
@@ -54,7 +61,7 @@ describe("createReadSkillTool", () => {
   });
 
   it("exposes the shared read_skill tool name", () => {
-    const readSkill = createReadSkillTool("obsidian", "xml");
+    const readSkill = createReadSkillTool("obsidian", "xml", { skillCatalog: productSkillCatalog() });
 
     expect(readSkill.name).toBe("read_skill");
   });
@@ -66,7 +73,7 @@ describe("createReadSkillTool", () => {
       { label: "expense_categories", run },
     ]);
 
-    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
+    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry, skillCatalog: productSkillCatalog() });
     await readSkill.invoke({ name: "missing-skill" });
 
     expect(run).not.toHaveBeenCalled();
@@ -79,7 +86,7 @@ describe("createReadSkillTool", () => {
       { label: "expense_categories", run },
     ]);
 
-    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
+    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry, skillCatalog: productSkillCatalog() });
     const result = String(await readSkill.invoke({ name: "expense-view" }));
 
     expect(run).toHaveBeenCalledTimes(1);
@@ -97,7 +104,7 @@ describe("createReadSkillTool", () => {
       { label: "expense_categories", run },
     ]);
 
-    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry });
+    const readSkill = createReadSkillTool("finance", "xml", { actionRegistry: registry, skillCatalog: productSkillCatalog() });
     const result = String(await readSkill.invoke({ name: "expense-view" }));
 
     expect(result).toContain("<view_intent>");

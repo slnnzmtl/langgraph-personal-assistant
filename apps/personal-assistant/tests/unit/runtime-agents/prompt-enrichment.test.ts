@@ -1,18 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createSkillCatalog,
   resolveAgentSkillModule,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../../src/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../../src/load-system-prompt.js";
-import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import {
-  appendAvailableSkills,
-  appendRuntimeExecutionModel,
-  enrichRuntimeAgentPrompt,
-  RUNTIME_EXECUTION_MODEL,
-} from "../../../src/runtime-agents/skills/prompt-enrichment.js";
 
 const financeDefinition: RuntimeAgentDefinition = {
   id: "finance",
@@ -23,43 +17,14 @@ const financeDefinition: RuntimeAgentDefinition = {
   capabilityIds: ["finance-domain"],
   modelKey: "finance",
   maxSteps: 10,
-  enabled: true,  
+  enabled: true,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
 
-describe("prompt enrichment", () => {
+describe("runtime shell prompt enrichment", () => {
   const skillCatalog = createSkillCatalog({
     approvedModules: ["finance", "obsidian", "configuration"],
-  });
-
-  it("appendAvailableSkills adds available_skills and read_skill hint", () => {
-    const prompt = appendAvailableSkills("Base prompt", "finance", skillCatalog);
-
-    expect(prompt).toContain("Base prompt");
-    expect(prompt).toContain("<available_skills>");
-    expect(prompt).toContain("expense-view");
-    expect(prompt).toContain("Call read_skill(skill_name)");
-  });
-
-  it("appendRuntimeExecutionModel appends the shared runtime execution block", () => {
-    const prompt = appendRuntimeExecutionModel("Base prompt");
-
-    expect(prompt).toBe(`Base prompt\n\n${RUNTIME_EXECUTION_MODEL}`);
-  });
-
-  it("enrichRuntimeAgentPrompt adds skills and runtime execution for skill modules", () => {
-    const prompt = enrichRuntimeAgentPrompt(
-      loadSystemPromptByKey(resolveAgentSkillModule(financeDefinition)),
-      financeDefinition,
-      [],
-      skillCatalog,
-    );
-
-    expect(prompt).toContain("Financial Assistant");
-    expect(prompt).toContain("<available_skills>");
-    expect(prompt).toContain("<runtime_execution>");
-    expect(prompt).toContain("Never return an empty turn");
   });
 
   it("createDefaultRuntimeShellFormatters enriches runtime agent prompts at shell time", () => {

@@ -93,6 +93,71 @@ export {
 
 // --- Kernel: skills ---
 export { buildSkillModuleOwnerPattern } from "./core/skills/skill-patterns.js";
+export {
+  createSkillCatalog,
+  type SkillCatalogOptions,
+} from "./core/skills/skill-catalog.js";
+export {
+  SKILLS_ROOT,
+  listSkills,
+  listSkillModules,
+  readSkillContent,
+  readFullSkill,
+  loadSkillAttachmentRules,
+  parseFrontmatter,
+  parseXmlSkill,
+  parseSkillFile,
+  parseSkillAttachmentsFromXmlBody,
+  stripSkillAttachmentsBlock,
+  parseCommaSeparatedPhrases,
+  formatSkillsForPrompt,
+  formatSkillsForDisplay,
+  createSkillFile,
+  updateSkillFile,
+  deleteSkillFile,
+  formatXmlSkillFile,
+  serializeSkillFile,
+} from "./core/skills/skills-loader.js";
+export {
+  createReadSkillTool,
+  ReadSkillToolSchema,
+  type ReadSkillToolOptions,
+} from "./core/skills/skill-management.js";
+export {
+  createSkillActionRegistry,
+  registerSkillActions,
+  getSkillActions,
+  runSkillActions,
+  formatSkillContextBlock,
+  enrichSkillWithActions,
+  SKILL_CONTEXT_MAX_CHARS,
+  type SkillActionDefinition,
+  type SkillActionResult,
+  type SkillActionError,
+  type SkillActionRegistry,
+} from "./core/skills/skill-actions.js";
+export {
+  enrichRuntimeAgentPrompt,
+  appendAvailableSkills,
+  appendRuntimeExecutionModel,
+  RUNTIME_EXECUTION_MODEL,
+} from "./core/skills/prompt-enrichment.js";
+export {
+  appendConfiguredSkillAttachments,
+  extractTriggerUserText,
+  extractRecentHumanTexts,
+  formatAttachedSkillBlock,
+  formatAttachedSkillsPrompt,
+  matchesCronJobTrigger,
+  matchesSkillAttachmentRule,
+  resolveSkillAttachmentRulesForModule,
+  resolveSkillAttachments,
+  getAttachedSkillNames,
+  type ResolvedSkillAttachment,
+  type ResolveSkillAttachmentsOptions,
+} from "./core/skills/skill-attachments.js";
+export { resolveActiveSkillFromHistory, type ActiveSkillSelection } from "./core/skills/skill-history.js";
+export { truncateToolOutput, TOOL_OUTPUT_MAX_CHARS } from "./core/skills/truncate-output.js";
 export type {
   SkillCatalog,
   SkillMeta,

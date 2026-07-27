@@ -1,5 +1,6 @@
 import {
   createRuntimeShellHooks,
+  enrichRuntimeAgentPrompt,
   type CapabilityCatalog,
   type RuntimeExecutionKit,
   type RuntimeShellFormatters,
@@ -10,7 +11,6 @@ import {
   formatSystemMetadata,
   loadSystemPromptByKey,
 } from "../load-system-prompt.js";
-import { enrichRuntimeAgentPrompt } from "../runtime-agents/skills/prompt-enrichment.js";
 import { createPersonalResolveTools } from "./personal-resolve-tools.js";
 import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
 

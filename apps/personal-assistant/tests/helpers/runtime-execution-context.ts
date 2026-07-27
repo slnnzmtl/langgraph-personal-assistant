@@ -13,7 +13,7 @@ import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   type CapabilityDeps,
 } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 
 export type CreateAppRuntimeExecutionContextInput = {

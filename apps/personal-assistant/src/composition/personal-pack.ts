@@ -28,7 +28,7 @@ import {
 } from "../runtime-agents/builtin-capabilities.js";
 import { setupSupabaseSession } from "../services/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
-import { createSkillCatalog } from "../runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { applyLocalModuleAvailability } from "./bootstrap-agents.js";

@@ -1,32 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-import type { SkillAttachmentRule } from "@personal-assistant/supervisor-framework";
+import type { SkillAttachmentRule, SkillDisplayStatus, SkillMeta, ListSkillsOptions } from "./catalog.js";
 
 export const SKILLS_ROOT = path.resolve(process.cwd(), "skills");
-
-/**
- * Metadata extracted from a skill file.
- */
-export interface SkillMeta {
-  name: string;
-  description: string;
-  module?: string;
-  fileName: string;
-}
-
-export type SkillDisplayStatus = "Created" | "Updated" | "Deleted" | "Listed" | "Previewed" | "Read";
 
 export type SkillFileType = "md" | "xml";
 
 export const SKILL_FILE_EXTENSIONS: Record<SkillFileType, string> = {
   md: ".md",
   xml: ".xml",
-};
-
-export type ListSkillsOptions = {
-  module?: string;
-  skillsDir?: string;
 };
 
 /**

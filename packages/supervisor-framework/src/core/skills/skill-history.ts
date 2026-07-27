@@ -1,6 +1,6 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
+import { extractMessageTextContent } from "../message-content.js";
 
 export type ActiveSkillSelection = {
   skillName: string;

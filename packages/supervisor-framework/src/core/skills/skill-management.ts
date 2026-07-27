@@ -5,9 +5,9 @@ import {
   listSkills,
   readSkillContent,
 } from "./skills-loader.js";
-import type { SkillCatalog } from "@personal-assistant/supervisor-framework";
+import type { SkillCatalog } from "./catalog.js";
 import { enrichSkillWithActions, type SkillActionRegistry } from "./skill-actions.js";
-import { truncateToolOutput } from "../tools/output.js";
+import { truncateToolOutput } from "./truncate-output.js";
 
 export const ReadSkillToolSchema = z.object({
   name: z.string().describe("The name of the skill to read (e.g., 'sync-expenses')"),

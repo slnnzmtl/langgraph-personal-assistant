@@ -19,7 +19,8 @@ import {
   readFullSkill,
   formatXmlSkillFile,
   serializeSkillFile,
-} from "../../src/runtime-agents/skills/skills-loader.js";
+} from "../../../src/core/skills/skills-loader.js";
+import { APP_SKILLS_DIR } from "../../helpers/app-skills-dir.js";
 
 describe("skills-loader", () => {
   let tempDir: string;
@@ -250,7 +251,7 @@ A`
 
   describe("readSkillContent", () => {
     it("reads bundled expense-view skill content from the workspace skills directory", () => {
-      const content = readSkillContent("expense-view");
+      const content = readSkillContent("expense-view", { skillsDir: APP_SKILLS_DIR });
 
       expect(content.length).toBeGreaterThan(0);
       expect(content).toContain("<view_intent>");

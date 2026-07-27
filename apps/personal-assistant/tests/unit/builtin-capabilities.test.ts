@@ -5,7 +5,7 @@ import {
   deriveCronTargetAgentIds,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
-import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
   createCapabilityDeps,

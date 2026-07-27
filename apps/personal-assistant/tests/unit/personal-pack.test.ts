@@ -12,7 +12,7 @@ import {
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
 } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeExecutionContextFake, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";

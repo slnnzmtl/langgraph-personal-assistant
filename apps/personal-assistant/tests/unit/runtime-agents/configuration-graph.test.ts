@@ -14,7 +14,7 @@ import {
   getRuntimeAgentFixture,
 } from "../../helpers/fakes.js";
 
-import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
 

@@ -1,10 +1,9 @@
-import {
-  resolveAgentSkillModule,
-  type RuntimeAgentDefinition,
-  type SkillCatalog,
-} from "@personal-assistant/supervisor-framework";
 import type { BaseMessage } from "@langchain/core/messages";
-import { appendConfiguredSkillAttachments } from "../skill-attachments.js";
+
+import { resolveAgentSkillModule } from "../types/agent.js";
+import type { RuntimeAgentDefinition } from "../types/agent.js";
+import type { SkillCatalog } from "./catalog.js";
+import { appendConfiguredSkillAttachments } from "./skill-attachments.js";
 
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.

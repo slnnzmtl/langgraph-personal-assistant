@@ -13,7 +13,7 @@ import {
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../src/load-system-prompt.js";
 import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
+import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import {
   buildRuntimeAgentNodeConfigForDefinition,
   resolveCapabilityBehavior,

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   appendConfiguredSkillAttachments,
+  createSkillCatalog,
   extractTriggerUserText,
   formatAttachedSkillBlock,
   formatAttachedSkillsPrompt,
@@ -10,11 +11,23 @@ import {
   matchesSkillAttachmentRule,
   resolveSkillAttachmentRulesForModule,
   resolveSkillAttachments,
-} from "../../../src/runtime-agents/skill-attachments.js";
-import { getRuntimeAgentFixture } from "../../helpers/fakes.js";
+  type RuntimeAgentDefinition,
+} from "../../../src/index.js";
+import { APP_SKILLS_DIR } from "../../helpers/app-skills-dir.js";
 
-const routineRules = () => resolveSkillAttachmentRulesForModule("obsidian");
-const financeRules = () => resolveSkillAttachmentRulesForModule("finance");
+const skillCatalog = createSkillCatalog({
+  skillsDir: APP_SKILLS_DIR,
+  approvedModules: ["finance", "obsidian", "configuration"],
+});
+
+const routineRules = () => resolveSkillAttachmentRulesForModule("obsidian", skillCatalog);
+const financeRules = () => resolveSkillAttachmentRulesForModule("finance", skillCatalog);
+
+const agentFixture = (promptSourceKey: string): RuntimeAgentDefinition =>
+  ({
+    id: promptSourceKey,
+    promptSourceKey,
+  }) as RuntimeAgentDefinition;
 
 describe("matchesSkillAttachmentRule", () => {
   it.each([
@@ -122,7 +135,7 @@ describe("resolveSkillAttachments", () => {
   it("loads the Routine skill body when intent matches", () => {
     const attachments = resolveSkillAttachments(routineRules(), [
       new HumanMessage("create today's routine note"),
-    ]);
+    ], { skillCatalog });
 
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note-creation");
@@ -133,7 +146,7 @@ describe("resolveSkillAttachments", () => {
   it("returns an empty list when intent does not match", () => {
     expect(resolveSkillAttachments(routineRules(), [
       new HumanMessage("read my fitness log"),
-    ])).toEqual([]);
+    ], { skillCatalog })).toEqual([]);
   });
 
   it("keeps expense-view attached on short follow-ups after a matching request", () => {
@@ -141,7 +154,7 @@ describe("resolveSkillAttachments", () => {
       new HumanMessage("sync expenses"),
       new AIMessage("There were no transactions found for today."),
       new HumanMessage("for yesterday"),
-    ]);
+    ], { skillCatalog });
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
       "expense-sync",
@@ -152,7 +165,7 @@ describe("resolveSkillAttachments", () => {
   it("attaches expense-update for category corrections", () => {
     const attachments = resolveSkillAttachments(financeRules(), [
       new HumanMessage("uniqlo is clothes category"),
-    ]);
+    ], { skillCatalog });
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
       "expense-update",
@@ -168,7 +181,7 @@ describe("resolveSkillAttachments", () => {
       }),
       new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "Update skill body" }),
       new HumanMessage("yes, all UNIQLO rows"),
-    ]);
+    ], { skillCatalog });
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
       "expense-update",
@@ -183,7 +196,7 @@ describe("resolveSkillAttachments", () => {
         tool_calls: [{ name: "read_skill", args: { name: "daily-routine-note-creation" }, id: "read-1", type: "tool_call" }],
       }),
       new ToolMessage({ name: "read_skill", tool_call_id: "read-1", content: "Routine skill body" }),
-    ]);
+    ], { skillCatalog });
 
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note-creation");
@@ -192,11 +205,12 @@ describe("resolveSkillAttachments", () => {
 
 describe("appendConfiguredSkillAttachments", () => {
   it("appends configured attachments to the base prompt", () => {
-    const definition = getRuntimeAgentFixture("obsidian");
+    const definition = agentFixture("obsidian");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
       [new HumanMessage("move unchecked todos from yesterday")],
+      skillCatalog,
     );
 
     expect(prompt).toContain("Base prompt");
@@ -206,22 +220,24 @@ describe("appendConfiguredSkillAttachments", () => {
   });
 
   it("returns the base prompt unchanged when intent does not match", () => {
-    const definition = getRuntimeAgentFixture("obsidian");
+    const definition = agentFixture("obsidian");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
       [new HumanMessage("read my fitness log")],
+      skillCatalog,
     );
 
     expect(prompt).toBe("Base prompt");
   });
 
   it("appends expense-view for finance expense-db queries", () => {
-    const definition = getRuntimeAgentFixture("finance");
+    const definition = agentFixture("finance");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
       [new HumanMessage("what the last expense date in db?")],
+      skillCatalog,
     );
 
     expect(prompt).toContain("Base prompt");
@@ -232,11 +248,12 @@ describe("appendConfiguredSkillAttachments", () => {
   });
 
   it("appends skill-bootstrap for configuration skill create requests", () => {
-    const definition = getRuntimeAgentFixture("configuration");
+    const definition = agentFixture("configuration");
     const prompt = appendConfiguredSkillAttachments(
       "Base prompt",
       definition,
       [new HumanMessage("Create a new skill for the finance agent named finance-summary.")],
+      skillCatalog,
     );
 
     expect(prompt).toContain("Base prompt");

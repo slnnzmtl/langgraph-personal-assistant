@@ -16,7 +16,7 @@ import type {
   SkillCatalog,
   SkillDisplayStatus,
   SkillMeta,
-} from "@personal-assistant/supervisor-framework";
+} from "./catalog.js";
 
 export type SkillCatalogOptions = {
   skillsDir?: string;

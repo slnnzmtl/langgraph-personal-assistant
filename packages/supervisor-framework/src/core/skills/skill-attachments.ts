@@ -1,15 +1,12 @@
 import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
 
-import {
-  extractMessageTextContent,
-  resolveAgentSkillModule,
-  SUB_AGENT_CONTEXT_HUMAN_TURNS,
-  type RuntimeAgentDefinition,
-  type SkillAttachmentRule,
-  type SkillCatalog,
-} from "@personal-assistant/supervisor-framework";
-import { loadSkillAttachmentRules, readSkillContent } from "./skills/skills-loader.js";
-import { resolveActiveSkillFromHistory } from "./skills/skill-history.js";
+import { extractMessageTextContent } from "../message-content.js";
+import { resolveAgentSkillModule } from "../types/agent.js";
+import { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "../execution/sub-agent-messages.js";
+import type { RuntimeAgentDefinition } from "../types/agent.js";
+import type { SkillAttachmentRule, SkillCatalog } from "./catalog.js";
+import { loadSkillAttachmentRules, readSkillContent } from "./skills-loader.js";
+import { resolveActiveSkillFromHistory } from "./skill-history.js";
 
 const normalizeText = (text: string): string =>
   text.toLowerCase().replaceAll(/\s+/g, " ").trim();
