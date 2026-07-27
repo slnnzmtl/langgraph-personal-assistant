@@ -30,7 +30,7 @@ import {
   type PersonalCapabilityDeps,
 } from "../runtime-agents/capabilities.js";
 import { setupSupabaseSession } from "../services/supabase.js";
-import type { IFileSender } from "../telegram/file-sender.js";
+import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { applyIntegrationAvailability } from "./runtime-agent-defaults.js";

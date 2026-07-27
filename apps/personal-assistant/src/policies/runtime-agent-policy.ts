@@ -21,12 +21,12 @@ import {
   OBSIDIAN_VAULT_CAPABILITY_ID,
   type PersonalCapabilityDeps,
 } from "../runtime-agents/capabilities.js";
-import type { PersonalResolveTools } from "../composition/personal-resolve-tools.js";
+import type { PersonalResolveTools } from "../runtime-agents/resolve-tools.js";
 import {
   composeObsidianCapabilityHooks,
   mapObsidianSubAgentResult,
   selectObsidianToolsForTurn,
-} from "./obsidian-hooks.js";
+} from "../runtime-agents/obsidian/hooks.js";
 
 export const hasObsidianVaultCapability = (definition: RuntimeAgentDefinition): boolean =>
   resolveAgentCapabilityIds(definition).includes(OBSIDIAN_VAULT_CAPABILITY_ID);

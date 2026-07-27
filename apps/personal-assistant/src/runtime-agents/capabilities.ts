@@ -12,12 +12,10 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository, RuntimeCronService } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
-import type { IFileSender } from "../telegram/file-sender.js";
+import type { IFileSender } from "../ports/file-sender.js";
 
-import {
-  createFinanceDomainToolsFromSession,
-  createObsidianVaultTools,
-} from "./tools/index.js";
+import { createFinanceDomainToolsFromSession } from "./finance/tools.js";
+import { createObsidianVaultTools } from "./obsidian/tools.js";
 
 export const NONE_CAPABILITY_ID = "none" as const;
 export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;

@@ -10,7 +10,7 @@ import {
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
-import { createPersonalResolveTools } from "../../src/composition/personal-resolve-tools.js";
+import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
 import {
   createCapabilityDeps,
   createDomainCapabilityCatalog,
@@ -22,6 +22,7 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
+const POLICIES_ROOT = path.join(appRoot, "src/policies");
 const PROMPT_LAYER_FILES = [path.join(appRoot, "src/prompts/load.ts")];
 
 const assertFilesAvoidImports = (
@@ -76,6 +77,12 @@ describe("app boundaries", () => {
     assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
       "composition/",
       "policies/",
+    ]);
+  });
+
+  it("keeps policies free of composition imports", () => {
+    assertNoForbiddenImports(POLICIES_ROOT, [
+      "composition/",
     ]);
   });
 

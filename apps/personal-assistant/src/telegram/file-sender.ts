@@ -1,9 +1,8 @@
 import type { Telegram } from "telegraf";
 
-export interface IFileSender {
-  sendFile(absolutePath: string): Promise<void>;
-  setCurrentChatId(chatId: number): void;
-}
+import type { IFileSender } from "../ports/file-sender.js";
+
+export type { IFileSender } from "../ports/file-sender.js";
 
 export class TelegramFileSender implements IFileSender {
   private currentChatId: number | null = null;

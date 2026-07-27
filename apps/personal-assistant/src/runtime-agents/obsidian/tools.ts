@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import type { IFileSender } from "../../telegram/file-sender.js";
+import type { IFileSender } from "../../ports/file-sender.js";
 import {
   RelativePathSchema,
   resolveVaultPath,

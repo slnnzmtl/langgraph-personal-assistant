@@ -11,7 +11,7 @@ import {
   formatSystemMetadata,
   loadSystemPromptByKey,
 } from "../prompts/load.js";
-import { createPersonalResolveTools } from "./personal-resolve-tools.js";
+import { createPersonalResolveTools } from "../runtime-agents/resolve-tools.js";
 import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
 
 export const createDefaultRuntimeShellFormatters = (

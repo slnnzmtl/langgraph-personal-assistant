@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { minimizeJsonString } from "../../src/runtime-agents/tools/output.js";
+import { minimizeJsonString } from "../../src/runtime-agents/shared/output.js";
 
 describe("minimizeJsonString", () => {
   it("serializes a single object as compact JSON", () => {

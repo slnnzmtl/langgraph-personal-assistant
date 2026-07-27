@@ -8,7 +8,7 @@ import {
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import type { IFileSender } from "../../src/telegram/file-sender.js";
+import type { IFileSender } from "../../src/ports/file-sender.js";
 import { applyIntegrationAvailability } from "../../src/composition/runtime-agent-defaults.js";
 import {
   buildPersonalCapabilityDeps,

@@ -6,7 +6,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createObsidianVaultTools } from "../../../src/runtime-agents/tools/obsidian.js";
+import { createObsidianVaultTools } from "../../../src/runtime-agents/obsidian/tools.js";
 import {
   applyFileWrite,
   listDirContents,
@@ -14,7 +14,7 @@ import {
   resolveVaultPath,
   searchFiles,
 } from "../../../src/services/obsidian.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/policies/obsidian-hooks.js";
+import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/runtime-agents/obsidian/hooks.js";
 import { createTestRuntimeAgentNode, obsidianRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent, resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import {
