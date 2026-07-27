@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createSystemAgentDefinition,
+  isRuntimeAgentBuiltin,
   SYSTEM_AGENT_ID,
   buildSkillModuleOwnerPattern,
 } from "@personal-assistant/supervisor-framework";
@@ -25,7 +26,7 @@ describe("system admin agent manifest", () => {
     });
 
     expect(agent.id).toBe("configuration");
-    expect(agent.builtin).toBe(true);
+    expect(isRuntimeAgentBuiltin(agent)).toBe(true);
     expect(agent.capabilityIds).toEqual(["system-config"]);
   });
 

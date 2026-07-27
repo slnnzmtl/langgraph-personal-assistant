@@ -50,7 +50,6 @@ const researcher: RuntimeAgentDefinition = {
   systemPrompt: "You are a concise research assistant. Prefer short answers.",
   capabilityIds: ["web-search"],
   modelKey: "generic",
-  builtin: false,
   maxSteps: 6,
   enabled: true,
   createdAt: new Date().toISOString(),

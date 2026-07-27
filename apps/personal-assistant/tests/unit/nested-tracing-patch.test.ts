@@ -164,7 +164,6 @@ describe("buildRuntimeAgentGraphNodeSets", () => {
           description: "Finance agent",
           systemPrompt: "finance",
           capabilityIds: ["none"],
-          builtin: false,
           maxSteps: 4,
           enabled: true,
           createdAt: "2026-01-01T00:00:00.000Z",

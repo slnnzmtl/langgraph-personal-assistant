@@ -9,7 +9,7 @@ import {
   type SystemContextFormatter,
 } from "../system-context.js";
 import { hasPendingToolCalls } from "./tool-routing.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
 import {

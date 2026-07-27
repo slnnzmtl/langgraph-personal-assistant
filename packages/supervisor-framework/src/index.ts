@@ -178,7 +178,7 @@ export {
   POST_HANDOFF_FINISH_ROUTE,
 } from "./core/state.js";
 export { trimMessagesToTokenBudgetSync, DEFAULT_MESSAGE_HISTORY_MAX_TOKENS, getMessageHistoryMaxTokens } from "./core/message-trimming.js";
-export { extractMessageTextContent } from "./core/messages/message-content.js";
+export { extractMessageTextContent } from "./core/message-content.js";
 
 // --- Persistence helpers (exported for pack tool implementations) ---
 export {

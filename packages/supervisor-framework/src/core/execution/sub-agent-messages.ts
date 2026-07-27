@@ -9,7 +9,7 @@ export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "- A tool error is not a user-facing completion. Never claim a write succeeded unless a successful tool payload proves it.",
 ].join("\n");
 
-import { extractMessageTextContent, extractNonTextContentParts } from "../messages/message-content.js";
+import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
 
 /** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
 export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;

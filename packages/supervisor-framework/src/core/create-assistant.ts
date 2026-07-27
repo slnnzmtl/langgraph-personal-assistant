@@ -79,18 +79,17 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
   });
-  const emptyReplyNode = createEmptyReplyNode(config.supervisorLlm, replyUx);
+
   const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     replyUx,
   });
-  const postHandoffFinishNode = createPostHandoffFinishNode(config.supervisorLlm, replyUx);
 
   const graph = new StateGraph(agentStateAnnotation)
     .addNode("supervisor", supervisorNode)
-    .addNode(EMPTY_REPLY_ROUTE, emptyReplyNode)
+    .addNode(EMPTY_REPLY_ROUTE, createEmptyReplyNode(config.supervisorLlm, replyUx))
     .addNode(FAILURE_REPLY_ROUTE, failureReplyNode)
-    .addNode(POST_HANDOFF_FINISH_ROUTE, postHandoffFinishNode);
+    .addNode(POST_HANDOFF_FINISH_ROUTE, createPostHandoffFinishNode(config.supervisorLlm, replyUx));
 
   for (const nodeSet of runtimeAgentNodeSets) {
     const { bundle } = nodeSet;

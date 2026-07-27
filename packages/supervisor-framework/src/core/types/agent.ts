@@ -26,7 +26,6 @@ export type RuntimeAgentDefinition = {
   promptSourceKey?: string | undefined;
   capabilityIds: string[];
   modelKey?: string | undefined;
-  builtin: boolean;
   maxSteps: number;
   enabled: boolean;
   createdAt: string;
@@ -43,7 +42,8 @@ const RuntimeAgentDefinitionParseSchema = z.object({
   /** Legacy field — stripped on load after modelKey inference. */
   executor: z.string().min(1).optional(),
   modelKey: z.string().min(1).optional(),
-  builtin: z.boolean().default(false),
+  /** Legacy field — stripped on load. */
+  builtin: z.boolean().optional(),
   maxSteps: z.number().int().min(1).max(20).default(8),
   enabled: z.boolean().default(true),
   createdAt: z.string().min(1),
@@ -53,7 +53,7 @@ const RuntimeAgentDefinitionParseSchema = z.object({
 export const normalizeRuntimeAgentDefinition = (
   input: z.infer<typeof RuntimeAgentDefinitionParseSchema>,
 ): RuntimeAgentDefinition => {
-  const { executor: legacyExecutor, ...base } = input;
+  const { executor: legacyExecutor, builtin: _legacyBuiltin, ...base } = input;
   let modelKey = input.modelKey;
 
   if (
@@ -156,8 +156,8 @@ export const resolveAgentModelKey = (
   defaultModelKey: string = DEFAULT_MODEL_KEY,
 ): string => definition.modelKey ?? defaultModelKey;
 
-export const isRuntimeAgentBuiltin = (definition: RuntimeAgentDefinition): boolean =>
-  definition.builtin === true;
+export const isRuntimeAgentBuiltin = (definition: Pick<RuntimeAgentDefinition, "id">): boolean =>
+  definition.id === CONFIGURATION_AGENT_ID;
 
 export const resolveAgentSkillModule = (definition: RuntimeAgentDefinition): string =>
   definition.promptSourceKey ?? definition.id;

@@ -23,7 +23,7 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
-const PROMPTS_ROOT = path.join(appRoot, "src/prompts");
+const AGENTS_ROOT = path.join(appRoot, "src/agents");
 
 const collectSourceFiles = (dir: string): string[] => {
   const entries = readdirSync(dir);
@@ -68,8 +68,8 @@ describe("app boundaries", () => {
     ]);
   });
 
-  it("keeps prompts free of runtime-agents imports", () => {
-    assertNoForbiddenImports(PROMPTS_ROOT, ["runtime-agents/"]);
+  it("keeps agents free of runtime-agents imports", () => {
+    assertNoForbiddenImports(AGENTS_ROOT, ["runtime-agents/"]);
   });
 
   it("rejects unavailable capability grants", () => {
@@ -100,7 +100,6 @@ describe("app boundaries", () => {
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
       modelKey: "finance",
-      builtin: false,
       maxSteps: 8,
       enabled: true,
       createdAt: "2026-01-01T00:00:00.000Z",

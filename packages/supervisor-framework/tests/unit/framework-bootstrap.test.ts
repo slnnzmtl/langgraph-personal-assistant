@@ -11,7 +11,7 @@ import {
   resolveAgentTools,
   type RuntimeAgentDefinition,
   type SkillCatalog,
-  type SupervisorBootstrapContext,
+  type CapabilityCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -21,7 +21,6 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions.",
   systemPrompt: "You are a concise research assistant.",
   capabilityIds: ["none"],
-  builtin: false,
   maxSteps: 6,
   enabled: true,
   createdAt: new Date().toISOString(),
@@ -53,7 +52,7 @@ describe("framework bootstrap", () => {
       buildRuntimeExecution: (
         _agents: RuntimeAgentDefinition[],
         _skillCatalog: SkillCatalog,
-        ctx: SupervisorBootstrapContext,
+        ctx: { capabilityCatalog: CapabilityCatalog },
       ) => ({
         loadPromptByKey: () => "prompt",
         runtimeAgentPolicy: createAgentPolicy({

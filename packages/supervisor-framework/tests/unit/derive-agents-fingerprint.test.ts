@@ -9,7 +9,6 @@ const agent = (overrides: Partial<RuntimeAgentDefinition> = {}): RuntimeAgentDef
   description: "Finance",
   systemPrompt: "prompt",
   capabilityIds: ["finance-domain"],
-  builtin: false,
   maxSteps: 8,
   enabled: true,
   createdAt: "2026-01-01T00:00:00.000Z",

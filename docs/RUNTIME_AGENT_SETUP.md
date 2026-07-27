@@ -26,7 +26,6 @@ Creation goes through the **Configuration** agent — there is no separate UI or
 | `name`, `description`, `systemPrompt` | Tool args |
 | `capabilityIds` | Allowlisted catalog only |
 | `modelKey` | Optional; selects which registered chat model to use (built-in specialists use domain keys like `finance` / `obsidian`) |
-| `builtin` | Always `false` |
 | `maxSteps` | Optional, default `8` (1–20) |
 | `enabled` | Optional, default `true` |
 

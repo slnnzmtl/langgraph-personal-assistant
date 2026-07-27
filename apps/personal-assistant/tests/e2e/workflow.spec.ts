@@ -773,7 +773,6 @@ test.describe("workflow graph", () => {
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
         capabilityIds: ["none"],
-        builtin: false,
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",

@@ -123,7 +123,6 @@ export const createRuntimeAgentRepository = (
           systemPrompt: parsed.systemPrompt.trim(),
           capabilityIds: parsed.capabilityIds,
           ...(parsed.modelKey ? { modelKey: parsed.modelKey } : {}),
-          builtin: false,
           maxSteps: parsed.maxSteps ?? 8,
           enabled: parsed.enabled ?? true,
           createdAt: timestamp,

@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { isConsumedToolMarker } from "../message-compaction.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 
 const MAX_TOOL_CONTEXT_CHARS = 2_000;
 

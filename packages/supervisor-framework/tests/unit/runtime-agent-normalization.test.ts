@@ -12,7 +12,6 @@ const baseInput = {
   description: "Finance",
   systemPrompt: "Finance",
   capabilityIds: ["finance-domain"],
-  builtin: false,
   maxSteps: 10,
   enabled: true,
   createdAt: "2026-07-20T10:33:00.659Z",
@@ -44,6 +43,16 @@ describe("runtime agent normalization", () => {
 
     expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("obsidian");
+  });
+
+  it("strips legacy builtin field on load", () => {
+    const normalized = normalizeRuntimeAgentDefinition({
+      ...baseInput,
+      id: "finance",
+      builtin: false,
+    });
+
+    expect("builtin" in normalized).toBe(false);
   });
 
   it("defaults configuration modelKey when absent", () => {

@@ -5,7 +5,7 @@ import {
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { loadFinanceSystemPrompt, loadObsidianSystemPrompt } from "../../../src/prompts/load-system-prompt.js";
+import { loadFinanceSystemPrompt, loadObsidianSystemPrompt } from "../../../src/agents/load-system-prompt.js";
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import {
   appendAvailableSkills,
@@ -24,7 +24,6 @@ const financeDefinition: RuntimeAgentDefinition = {
   modelKey: "finance",
   maxSteps: 10,
   enabled: true,
-  builtin: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };

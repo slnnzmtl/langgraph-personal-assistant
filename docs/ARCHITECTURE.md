@@ -313,7 +313,7 @@ Agents are first-class persisted entities (`data/runtime-agents.json`):
 RuntimeAgentDefinitionSchema = z.object({
   id, name, description, systemPrompt,
   promptSourceKey?, capabilityIds, modelKey?,
-  builtin, maxSteps, enabled, createdAt, updatedAt,
+  modelKey, maxSteps, enabled, createdAt, updatedAt,
 });
 ```
 

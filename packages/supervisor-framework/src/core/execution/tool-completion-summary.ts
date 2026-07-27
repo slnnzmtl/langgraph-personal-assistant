@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { isConsumedToolMarker } from "../message-compaction.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 import type { SubAgentState } from "./sub-agent-state.js";
 
 export type ToolBodyPredicate = (content: string) => boolean;

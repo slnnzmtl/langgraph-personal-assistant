@@ -3,7 +3,7 @@ import type { RunnableConfig } from "@langchain/core/runnables";
 
 import { formatRecentToolResultsForHandoff } from "../execution/runtime-agent-handoff.js";
 import type { ILLMConnector } from "../ports/llm-connector.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { FINISH_ROUTE } from "../state.js";
 import { stripToolsForSupervisor } from "./message-history.js";

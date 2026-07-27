@@ -69,7 +69,6 @@ export const createSystemAgentDefinition = (
     promptSourceKey: SYSTEM_AGENT_ID,
     capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
     modelKey,
-    builtin: true,
     maxSteps: options.maxSteps ?? 10,
     enabled: true,
     createdAt: SYSTEM_AGENT_EPOCH,

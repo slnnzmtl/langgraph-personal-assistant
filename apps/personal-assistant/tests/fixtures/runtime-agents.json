@@ -11,7 +11,6 @@
         "finance-domain"
       ],
       "modelKey": "finance",
-      "builtin": false,
       "maxSteps": 10,
       "enabled": true,
       "createdAt": "2026-07-20T10:33:00.659Z",
@@ -27,7 +26,6 @@
         "obsidian-vault"
       ],
       "modelKey": "obsidian",
-      "builtin": false,
       "maxSteps": 12,
       "enabled": true,
       "createdAt": "2026-07-20T10:33:00.659Z",

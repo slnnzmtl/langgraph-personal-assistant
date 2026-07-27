@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createSystemAgentDefinition,
   createRuntimeAgentRepository,
+  isRuntimeAgentBuiltin,
   wrapRepositoryWithSystemAgent,
 } from "@personal-assistant/supervisor-framework";
 import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
@@ -39,7 +40,7 @@ describe("wrapRepositoryWithSystemAgent", () => {
 
     expect(agents.map((agent) => agent.id)).toEqual(["configuration"]);
     expect(agents.find((agent) => agent.id === "configuration")?.modelKey).toBe("configuration");
-    expect(agents.find((agent) => agent.id === "configuration")?.builtin).toBe(true);
+    expect(isRuntimeAgentBuiltin(agents.find((agent) => agent.id === "configuration")!)).toBe(true);
     expect(agents.find((agent) => agent.id === "configuration")?.createdAt).toBe("1970-01-01T00:00:00.000Z");
   });
 
