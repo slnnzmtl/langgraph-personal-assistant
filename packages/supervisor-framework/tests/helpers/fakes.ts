@@ -19,12 +19,12 @@ export class FakeLLMConnector implements ILLMConnector {
   bindRoutingTools<TRoute extends Record<string, unknown>>(_schema: z.ZodType<TRoute>): RoutingChain<TRoute> {
     return {
       invoke: async (input: unknown) => {
-        const result = this.handler(input);
+        const result = await Promise.resolve(this.handler(input));
         if (result instanceof AIMessage) {
           return result as unknown as TRoute;
         }
 
-        return (typeof result === "string" ? result : JSON.stringify(result)) as unknown as TRoute;
+        return result as TRoute;
       },
     };
   }

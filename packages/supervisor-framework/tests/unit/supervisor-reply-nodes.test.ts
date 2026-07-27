@@ -2,14 +2,13 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ILLMConnector } from "../../src/models/gemini-connector.js";
-import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
-import { createEmptyReplyNode } from "@personal-assistant/supervisor-framework";
-import { createFailureReplyNode } from "@personal-assistant/supervisor-framework";
-import { createPostHandoffFinishNode } from "@personal-assistant/supervisor-framework";
-import { FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import { asAgentState, firstStateUpdateMessage } from "../helpers/fakes.js";
+import type { ILLMConnector } from "../../src/core/ports/llm-connector.js";
+import type { RuntimeAgentHandoff } from "../../src/index.js";
+import { createEmptyReplyNode } from "../../src/index.js";
+import { createFailureReplyNode } from "../../src/index.js";
+import { createPostHandoffFinishNode } from "../../src/index.js";
+import { FINISH_ROUTE } from "../../src/index.js";
+import { asAgentState, firstStateUpdateMessage, loadTestSupervisorPrompt } from "../helpers/supervisor-node-fixtures.js";
 
 const emptyHandoff = (
   agentName: string,
@@ -210,7 +209,7 @@ describe("supervisor reply nodes", () => {
       } as unknown as BaseChatModel),
     };
     const failureReplyNode = createFailureReplyNode(connector, {
-      loadSupervisorPrompt: loadSupervisorSystemPrompt,
+      loadSupervisorPrompt: loadTestSupervisorPrompt,
     });
 
     const result = await failureReplyNode(asAgentState({

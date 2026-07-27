@@ -6,10 +6,10 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { createCompiledSubAgentGraph } from "../helpers/compiled-sub-agent.js";
-import { createRuntimeAgentNode } from "@personal-assistant/supervisor-framework";
-import type { SubAgentState, SubAgentStateUpdate } from "@personal-assistant/supervisor-framework";
-import { hasPendingToolCalls } from "@personal-assistant/supervisor-framework";
-import { getRuntimeAgentFixture } from "../helpers/fakes.js";
+import { createRuntimeAgentNode } from "../../src/index.js";
+import type { SubAgentState, SubAgentStateUpdate } from "../../src/index.js";
+import { hasPendingToolCalls } from "../../src/index.js";
+import { makeTestRuntimeAgent } from "../helpers/supervisor-node-fixtures.js";
 
 class PairingCallbackHandler extends BaseCallbackHandler {
   name = "PairingCallbackHandler";
@@ -127,7 +127,14 @@ describe("callback propagation", () => {
   });
 
   it("forwards config through createRuntimeAgentNode model invokes", async () => {
-    const definition = getRuntimeAgentFixture("finance");
+    const definition = makeTestRuntimeAgent({
+      id: "finance",
+      name: "Finance",
+      description: "Finance",
+      systemPrompt: "finance",
+      capabilityIds: ["finance-domain"],
+      maxSteps: 10,
+    });
     let receivedConfig: unknown;
 
     const model = {

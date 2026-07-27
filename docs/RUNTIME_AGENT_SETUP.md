@@ -98,9 +98,9 @@ Definitions are hot on disk; **execution topology recompiles when the graph fing
 
 Most specialists are created via chat (`generic` + grantable capabilities). Use this path only when you need **new tools** or capability-specific LLM hooks that are not already in the catalog.
 
-1. Implement tools under `src/runtime-agents/tools/<domain>.ts`.
+1. Implement tools under `src/runtime-agents/<domain>/tools.ts` (and optional `hooks.ts` for LLM turn behavior).
 2. Add a capability descriptor + provider in `src/runtime-agents/capabilities.ts`.
-3. If the domain needs LLM hooks, add capability behavior in `src/policies/runtime-agent-policy.ts`.
+3. If the domain needs LLM hooks, wire capability behavior in `src/policies/runtime-agent-policy.ts`.
 4. Seed or persist a `RuntimeAgentDefinition` with the new `capabilityIds`.
 5. Add a prompt under `agents/` (optional `promptSourceKey`).
 6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).

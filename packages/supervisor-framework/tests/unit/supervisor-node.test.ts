@@ -2,13 +2,22 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { ILLMConnector } from "../../src/models/gemini-connector.js";
-import { createAppSupervisorNode, FakeLLMConnector, asAgentState, createRuntimeAgentRepositoryFake, firstStateUpdateMessage, getMessageText, getStateUpdateMessages, getStateUpdateRuntimeAgentId, makeHumanState } from "../helpers/fakes.js";
-import { buildCronTriggerForJob } from "@personal-assistant/supervisor-framework";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import type { RuntimeAgentHandoff } from "@personal-assistant/supervisor-framework";
-import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "@personal-assistant/supervisor-framework";
-import { trimMessagesToTokenBudgetSync } from "@personal-assistant/supervisor-framework";
+import type { ILLMConnector } from "../../src/core/ports/llm-connector.js";
+import { FakeLLMConnector } from "../helpers/fakes.js";
+import {
+  createTestSupervisorNode,
+  asAgentState,
+  createRuntimeAgentRepositoryFake,
+  firstStateUpdateMessage,
+  getMessageText,
+  getStateUpdateMessages,
+  getStateUpdateRuntimeAgentId,
+  makeHumanState,
+} from "../helpers/supervisor-node-fixtures.js";
+import { buildCronTriggerForJob } from "../../src/index.js";
+import type { RuntimeAgentHandoff } from "../../src/index.js";
+import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "../../src/index.js";
+import { trimMessagesToTokenBudgetSync } from "../../src/index.js";
 
 const emptyHandoff = (
   agentName: string,
@@ -37,56 +46,12 @@ describe("createSupervisorNode", () => {
     vi.useRealTimers();
   });
 
-  it("loads the supervisor system prompt from the markdown file", () => {
-    const prompt = loadSupervisorSystemPrompt();
-
-    expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
-  });
-
-  it("tells the supervisor not to transcribe screenshot images in delegation prompts", () => {
-    const prompt = loadSupervisorSystemPrompt();
-
-    expect(prompt).toContain("<delegation_rules>");
-    expect(prompt).toContain("DO NOT summarize, describe, or transcribe attached images yourself");
-    expect(prompt).toContain("pass the raw image context directly to the specialist");
-  });
-
-  it("includes the current datetime in the shared system prompt", async () => {
-    const currentInstant = new Date("2026-07-05T12:34:56.000Z");
-    vi.useFakeTimers();
-    vi.setSystemTime(currentInstant);
-
-    const connector = new FakeLLMConnector((input) => {
-      expect(Array.isArray(input)).toBe(true);
-      const promptMessages = input as HumanMessage[];
-
-      const firstPrompt = getMessageText(promptMessages[0]);
-      expect(firstPrompt).toContain("You are the Root Supervisor for a private personal assistant.");
-      expect(firstPrompt).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
-      expect(firstPrompt.indexOf("You are the Root Supervisor")).toBeLessThan(
-        firstPrompt.indexOf("<system_metadata>") ?? -1,
-      );
-      expect(getMessageText(promptMessages[1])).toBe("hello");
-
-      return {
-        next: "FINISH",
-        reply: "Datetime checked",
-      };
-    });
-    const supervisorNode = createAppSupervisorNode(connector);
-
-    const result = await supervisorNode(makeHumanState("hello"));
-
-    expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("Datetime checked");
-  });
-
   it("appends a direct AI reply for the FINISH path", async () => {
     const connector = new FakeLLMConnector(() => ({
       next: "FINISH",
       reply: "Direct answer",
     }));
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -106,7 +71,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("Final explanatory answer"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -129,7 +94,7 @@ describe("createSupervisorNode", () => {
         invoke: modelInvoke,
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -145,7 +110,7 @@ describe("createSupervisorNode", () => {
       prompt: "Create today's routine note.",
       reply: "null",
     }));
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -169,7 +134,7 @@ describe("createSupervisorNode", () => {
         invoke: modelInvoke,
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(makeHumanState("hello"));
 
@@ -186,7 +151,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "finance", prompt: "Log the lunch expense." };
     });
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -200,14 +165,14 @@ describe("createSupervisorNode", () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
       expect((input as HumanMessage[])).toHaveLength(2);
-      expect((input as HumanMessage[])[0]?.content).toContain("You are the Root Supervisor for a private personal assistant.");
+      expect((input as HumanMessage[])[0]?.content).toContain("You are the test supervisor for unit tests.");
       expect((input as HumanMessage[])[1]?.content).toContain("turn-12");
       expect((input as HumanMessage[])[1]?.content).toContain("turn-14");
       expect((input as HumanMessage[])[1]?.content).not.toContain("turn-01");
 
       return { next: "FINISH", reply: "Trimmed reply" };
     });
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
     const history = trimMessagesToTokenBudgetSync(
       Array.from({ length: 14 }, (_, index) =>
         new HumanMessage(`word `.repeat(20) + `turn-${String(index + 1).padStart(2, "0")}`),
@@ -237,7 +202,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "obsidian", prompt: "Give me a plan for yesterday." };
     });
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -260,7 +225,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "configuration", prompt: "Set up a cron message every weekday at 9am." };
     });
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -280,7 +245,7 @@ describe("createSupervisorNode", () => {
 
       return { next: "FINISH", reply: "Sanitized" };
     });
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(asAgentState({
       messages: [
@@ -321,7 +286,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -342,7 +307,7 @@ describe("createSupervisorNode", () => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(
       makeHumanState(buildCronTriggerForJob("finance", "finance-sync")),
@@ -357,7 +322,7 @@ describe("createSupervisorNode", () => {
   it("only treats the latest message as a scheduler trigger", async () => {
     const invokeSpy = vi.fn(() => ({ next: "FINISH", reply: "Handled by LLM" }));
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(asAgentState({
       messages: [
@@ -378,7 +343,7 @@ describe("createSupervisorNode", () => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(
       makeHumanState(buildCronTriggerForJob("obsidian", "obsidian-daily-note")),
@@ -396,7 +361,7 @@ describe("createSupervisorNode", () => {
       reply: "Handled by the main supervisor",
     }));
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(
       makeHumanState("SYSTEM_CRON_TRIGGER:supervisor:morning-review\n\nPayload:\nReview today's priorities."),
@@ -412,7 +377,7 @@ describe("createSupervisorNode", () => {
       throw new Error("LLM must not run for scheduler trigger");
     });
     const connector = new FakeLLMConnector(invokeSpy);
-    const supervisorNode = createAppSupervisorNode(connector);
+    const supervisorNode = createTestSupervisorNode(connector);
 
     const result = await supervisorNode(asAgentState({
       messages: [
@@ -437,7 +402,7 @@ describe("createSupervisorNode", () => {
         { agentId: "obsidian", prompt: "Write a summary note." },
       ],
     }));
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -463,7 +428,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -496,7 +461,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -525,7 +490,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -560,7 +525,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -594,7 +559,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("Handled"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -632,7 +597,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 
@@ -665,7 +630,7 @@ describe("createSupervisorNode", () => {
         invoke: async () => new AIMessage("unused"),
       } as unknown as BaseChatModel),
     };
-    const supervisorNode = createAppSupervisorNode(connector, {
+    const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
     });
 

@@ -201,10 +201,11 @@ apps/
     src/
       composition/            # createSupervisorSystem, personal-pack, runtime-execution
       policies/               # Domain capability hooks
-      runtime-agents/         # Domain tools and builtin capability providers
-      scheduler/ telegram/ services/ models/ ...
+      runtime-agents/         # Domain folders (finance/, obsidian/), capabilities, resolve-tools
+      ports/ integrations/    # External I/O clients (Obsidian, Wise, Supabase MCP)
+      scheduler/ telegram/ models/ ...
     agents/ skills/ data/ sql/
-    tests/                    # App + integration unit tests, e2e
+    tests/unit/               # Layer-aligned unit tests; e2e in tests/e2e/
     Dockerfile docker-compose.yml
 
 docs/                         # Architecture and pack development guides
@@ -218,4 +219,4 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 ### Extending the assistant
 
 - **New specialist (default):** create via the configuration agent with a prompt, optional skills, and grantable `capabilityIds`. Routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
-- **New tool domain (rare):** add a capability descriptor + provider in `capabilities.ts`, implement tools under `runtime-agents/tools/`, and compose LLM hooks in `src/policies/runtime-agent-policy.ts` when that capability is granted.
+- **New tool domain (rare):** add a capability descriptor + provider in `capabilities.ts`, implement tools under `runtime-agents/<domain>/`, and register capability behavior in `src/policies/runtime-agent-policy.ts` when that capability is granted.

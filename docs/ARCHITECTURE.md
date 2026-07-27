@@ -221,7 +221,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
 
-Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/policies/`; tools in `src/runtime-agents/tools/`.
+Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/policies/`; domain tools live in `src/runtime-agents/{finance,obsidian}/`.
 
 **Runtime agents** register through `buildAppRuntimeExecution()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
@@ -344,7 +344,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/tools/`; hook composition lives in `src/policies/`.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`; the policy registry in `runtime-agent-policy.ts` selects behaviors by capability id.
 
 ---
 
@@ -382,9 +382,9 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 |---|---|---|
 | **Google Gemini** | `GeminiConnector` + per-agent model registry | `models/`, `composition/model-registry.ts` |
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
-| **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
-| **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
-| **Wise** | REST API for transaction sync | `services/wise.ts` |
+| **Obsidian vault** | Local filesystem read/write | `integrations/obsidian.ts`, `runtime-agents/obsidian/tools.ts` |
+| **Supabase** | Hosted MCP session with transport-error reconnect | `integrations/mcp/supabase.ts`, `integrations/mcp/self-healing-session.ts`, `integrations/supabase.ts` |
+| **Wise** | REST API for transaction sync | `integrations/wise.ts` |
 | **Cron** | Separate scheduler process; framework cron kit + app Telegram wiring | `packages/supervisor-framework/src/framework/cron/`, `apps/personal-assistant/src/scheduler/`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
@@ -404,12 +404,12 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | Path | Role | Why keep separate |
 |---|---|---|
 | `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
-| `apps/personal-assistant/src/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
+| `apps/personal-assistant/src/runtime-agents/resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
 | `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/scheduler/index.ts` |
 | `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
 | `src/scheduler/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
-| `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/core/ports/gemini-connector.ts` | LLM port | Gemini implementation lives in `src/models/` |
+| `src/integrations/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
+| `src/ports/file-sender.ts` | File delivery port | Domain tools depend on the port; Telegraf impl in `telegram/` |
 
 ---
 
@@ -428,11 +428,11 @@ personal-assistant/                 # pnpm workspace root
 │       ├── src/
 │       │   ├── index.ts, app.ts, config.ts
 │       │   ├── composition/        # Pack bootstrap & runtime execution wiring
-│       │   ├── policies/           # Domain capability hooks
-│       │   ├── runtime-agents/     # Domain tools & capability catalog
-│       │   ├── scheduler/ telegram/ services/ mcp/ models/ prompts/ ...
+│       │   ├── policies/           # Capability behavior registry
+│       │   ├── runtime-agents/     # Domain folders (finance/, obsidian/), capabilities, resolve-tools
+│       │   ├── ports/ integrations/ scheduler/ telegram/ models/ prompts/ ...
 │       ├── agents/ skills/ data/ sql/
-│       ├── tests/unit/ tests/e2e/
+│       ├── tests/unit/{composition,policies,domains,integrations,processes}/
 │       └── Dockerfile docker-compose.yml
 ├── docs/ examples/
 └── pnpm-workspace.yaml
@@ -443,6 +443,8 @@ personal-assistant/                 # pnpm workspace root
 ## Testing Posture
 
 - Unit tests cover graph topology, state reducers, compaction, supervisor routing, runtime agent loops, cron, skills, MCP self-healing, and domain tools
+- **Framework** supervisor/routing/callback tests live in `packages/supervisor-framework/tests/unit/`
+- **App** tests mirror layers under `tests/unit/{composition,policies,domains,integrations,processes}/`
 - **E2E** via Playwright (`tests/e2e/workflow.spec.ts`)
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
@@ -493,7 +495,7 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a new tool domain (rare — most agents use chat create):**
 
-1. Implement tools under `runtime-agents/tools/`
+1. Implement tools under `runtime-agents/<domain>/tools.ts` (and optional `hooks.ts`)
 2. Add capability descriptor + provider in `runtime-agents/capabilities.ts`
 3. Compose capability behavior in `policies/runtime-agent-policy.ts` when that capability is granted
 4. Seed a persisted agent row with matching `capabilityIds` and prompt under `agents/`
