@@ -3,6 +3,8 @@ import {
   type RuntimeAgentDefinition,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
+import type { BaseMessage } from "@langchain/core/messages";
+import { appendConfiguredSkillAttachments } from "../skill-attachments.js";
 
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
@@ -36,19 +38,23 @@ export const appendRuntimeExecutionModel = (prompt: string): string =>
 export const enrichRuntimeAgentPrompt = (
   basePrompt: string,
   definition: RuntimeAgentDefinition,
+  messages: BaseMessage[],
   skillCatalog?: SkillCatalog,
 ): string => {
-  if (!skillCatalog) {
-    return basePrompt.trim();
+  let prompt = basePrompt.trim();
+
+  if (skillCatalog) {
+    const module = resolveAgentSkillModule(definition);
+    const skillModules = new Set(skillCatalog.listModules());
+    prompt = appendAvailableSkills(prompt, module, skillCatalog);
+    prompt = appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
+
+    if (skillModules.has(module)) {
+      prompt = appendRuntimeExecutionModel(prompt);
+    }
+
+    return prompt;
   }
 
-  const module = resolveAgentSkillModule(definition);
-  const skillModules = new Set(skillCatalog.listModules());
-  let prompt = appendAvailableSkills(basePrompt, module, skillCatalog);
-
-  if (skillModules.has(module)) {
-    prompt = appendRuntimeExecutionModel(prompt);
-  }
-
-  return prompt;
+  return appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
 };

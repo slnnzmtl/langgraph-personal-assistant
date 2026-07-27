@@ -11,14 +11,6 @@ import {
 import { loadSkillAttachmentRules, readSkillContent } from "./skills/skills-loader.js";
 import { resolveActiveSkillFromHistory } from "./skills/skill-history.js";
 
-const FINANCE_MODULE = "finance";
-const FINANCE_SCHEMA_SKILL = "expense-ledger-schema";
-const FINANCE_COMPANION_SKILLS = new Set([
-  "expense-view",
-  "expense-sync",
-  "expense-update",
-]);
-
 const normalizeText = (text: string): string =>
   text.toLowerCase().replaceAll(/\s+/g, " ").trim();
 
@@ -175,36 +167,6 @@ const addSkillAttachment = (
   });
 };
 
-const orderFinanceAttachments = (
-  attachments: ResolvedSkillAttachment[],
-): ResolvedSkillAttachment[] =>
-  [...attachments].sort((left, right) => {
-    if (left.skillName === FINANCE_SCHEMA_SKILL) {
-      return -1;
-    }
-
-    if (right.skillName === FINANCE_SCHEMA_SKILL) {
-      return 1;
-    }
-
-    return left.skillName.localeCompare(right.skillName);
-  });
-
-const ensureFinanceSchemaAttachment = (
-  resolved: Map<string, ResolvedSkillAttachment>,
-  skillCatalog?: SkillCatalog,
-): void => {
-  const hasCompanion = [...resolved.values()].some((attachment) =>
-    FINANCE_COMPANION_SKILLS.has(attachment.skillName),
-  );
-
-  if (!hasCompanion) {
-    return;
-  }
-
-  addSkillAttachment(resolved, FINANCE_MODULE, FINANCE_SCHEMA_SKILL, skillCatalog);
-};
-
 export const resolveSkillAttachmentRulesForModule = (
   module: string,
   skillCatalog?: SkillCatalog,
@@ -217,11 +179,17 @@ export const resolveSkillAttachmentRulesForModule = (
   return loadSkillAttachmentRules(module);
 };
 
+export type ResolveSkillAttachmentsOptions = {
+  skillCatalog?: SkillCatalog | undefined;
+};
+
 export const resolveSkillAttachments = (
   rules: SkillAttachmentRule[],
   messages: BaseMessage[],
-  skillCatalog?: SkillCatalog,
+  options: ResolveSkillAttachmentsOptions = {},
 ): ResolvedSkillAttachment[] => {
+  const skillCatalog = options.skillCatalog;
+
   const triggerTexts = extractRecentHumanTexts(messages);
   if (triggerTexts.length === 0) {
     return [];
@@ -249,12 +217,7 @@ export const resolveSkillAttachments = (
     }
   }
 
-  ensureFinanceSchemaAttachment(resolved, skillCatalog);
-
-  const attachments = Array.from(resolved.values());
-  return attachments.some((attachment) => attachment.module === FINANCE_MODULE)
-    ? orderFinanceAttachments(attachments)
-    : attachments;
+  return Array.from(resolved.values());
 };
 
 export const appendConfiguredSkillAttachments = (
@@ -269,7 +232,7 @@ export const appendConfiguredSkillAttachments = (
     return basePrompt;
   }
 
-  const attachments = resolveSkillAttachments(rules, messages, skillCatalog);
+  const attachments = resolveSkillAttachments(rules, messages, { skillCatalog });
   if (attachments.length === 0) {
     return basePrompt;
   }
@@ -289,7 +252,10 @@ export const getAttachedSkillNames = (
   const module = resolveAgentSkillModule(definition);
 
   return new Set(
-    resolveSkillAttachments(resolveSkillAttachmentRulesForModule(module, skillCatalog), messages, skillCatalog)
-      .map((attachment) => attachment.skillName),
+    resolveSkillAttachments(
+      resolveSkillAttachmentRulesForModule(module, skillCatalog),
+      messages,
+      { skillCatalog },
+    ).map((attachment) => attachment.skillName),
   );
 };

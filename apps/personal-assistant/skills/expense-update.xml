@@ -6,6 +6,7 @@
 </skill_attachments>
 
 <update_intent>
+0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` for table names, date bounds, and category mapping.
 1. `get_categories()` if needed — resolve category name to numeric `public.category.id`.
 2. Narrow `SELECT id, name, amount, paid_date, category FROM public.expense ...` to find target row IDs. Never update by merchant name alone.
 3. Scoped `UPDATE public.expense SET category = &lt;id&gt; WHERE id IN (...)` or `DELETE FROM public.expense WHERE id IN (...)` — PK only.

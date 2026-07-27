@@ -144,7 +144,6 @@ describe("resolveSkillAttachments", () => {
     ]);
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
-      "expense-ledger-schema",
       "expense-sync",
       "expense-view",
     ]);
@@ -156,7 +155,6 @@ describe("resolveSkillAttachments", () => {
     ]);
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
-      "expense-ledger-schema",
       "expense-update",
     ]);
   });
@@ -173,7 +171,6 @@ describe("resolveSkillAttachments", () => {
     ]);
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
-      "expense-ledger-schema",
       "expense-update",
     ]);
   });
@@ -229,7 +226,8 @@ describe("appendConfiguredSkillAttachments", () => {
 
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain('<attached_skill name="expense-view">');
-    expect(prompt).toContain('<attached_skill name="expense-ledger-schema">');
+    expect(prompt).toContain('read_skill("expense-ledger-schema")');
+    expect(prompt).not.toContain('<attached_skill name="expense-ledger-schema">');
     expect(prompt).toContain("public.expense");
   });
 

@@ -52,6 +52,7 @@ describe("prompt enrichment", () => {
     const prompt = enrichRuntimeAgentPrompt(
       loadSystemPromptByKey(resolveAgentSkillModule(financeDefinition)),
       financeDefinition,
+      [],
       skillCatalog,
     );
 

@@ -43,5 +43,5 @@ If `<attached_skills>` is not present, call `read_skill` for the matching skill 
 - view/list/summarize → `expense-view`
 - sync/import Wise → `expense-sync`
 - recategorize/edit/delete → `expense-update`
-Also load `expense-ledger-schema` when you need table names, date bounds, or category mapping.
+Before any expense SQL, category mapping, or Wise insert mapping, call `read_skill("expense-ledger-schema")` unless that skill body is already in the prompt or prior tool history.
 </skill_usage>
