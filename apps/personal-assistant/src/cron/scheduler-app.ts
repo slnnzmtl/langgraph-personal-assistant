@@ -9,11 +9,9 @@ import { watchCronJobDefinitions, type CronJobWatcher } from "./cron-job-watcher
 import type { CronJobRepository } from "./cron-job-repository.js";
 import type { RuntimeCronService } from "./types.js";
 import type { GeminiConnector } from "../connectors/llm-connector.js";
-import type { SupervisorGraphRef } from "../app/composition/supervisor-graph-ref.js";
 
 export type SchedulerApp = {
   config: AppConfig;
-  graphRef: SupervisorGraphRef;
   cronJobRepository: CronJobRepository;
   cronTargetAgentIds: readonly string[];
   supervisorConnector: GeminiConnector;
@@ -30,7 +28,7 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
   const bot = new Telegraf(config.telegramBotToken);
 
   await startCron({
-    getGraph: () => system.graphRef.getGraph(),
+    getGraph: () => system.getGraph(),
     summaryModel: system.supervisorConnector.getModel(),
     config,
     lazyCron,
@@ -44,11 +42,10 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
     repository: system.cronJobRepository,
     runtimeCron: lazyCron,
   });
-  const agentWatcher = watchRuntimeAgentDefinitions(config.runtimeAgentsFilePath, system.graphRef);
+  const agentWatcher = watchRuntimeAgentDefinitions(config.runtimeAgentsFilePath, system);
 
   return {
     config: system.config,
-    graphRef: system.graphRef,
     cronJobRepository: system.cronJobRepository,
     cronTargetAgentIds: system.cronTargetAgentIds,
     supervisorConnector: system.supervisorConnector,
