@@ -4,18 +4,20 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { SYSTEM_AGENT_ID } from "@personal-assistant/supervisor-framework";
+
 import {
   appendDynamicSections,
   createPromptLoader,
   formatSystemMetadata,
-  loadConfigurationSystemPrompt,
-  loadFinanceSystemPrompt,
-  loadObsidianSystemPrompt,
   loadPrompt,
   loadSupervisorSystemPrompt,
+  loadSystemPromptByKey,
+  SUPERVISOR_PROMPT_KEY,
 } from "../../src/agents/load-system-prompt.js";
+import { getRuntimeAgentFixture } from "../helpers/fakes.js";
 
-describe("named prompt loaders", () => {
+describe("prompt loaders", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
@@ -33,41 +35,35 @@ describe("named prompt loaders", () => {
     );
   });
 
-  it("loads the Obsidian prompt from agents/obsidian.xml without shell enrichment", () => {
-    const prompt = loadObsidianSystemPrompt();
+  it("loads runtime agent prompts by promptSourceKey without shell enrichment", () => {
+    const obsidianPrompt = loadSystemPromptByKey(getRuntimeAgentFixture("obsidian").promptSourceKey!);
+    const financePrompt = loadSystemPromptByKey(getRuntimeAgentFixture("finance").promptSourceKey!);
+    const configurationPrompt = loadSystemPromptByKey(SYSTEM_AGENT_ID);
 
-    expect(prompt).toContain("Obsidian Vault Manager");
-    expect(prompt).not.toContain("<runtime_execution>");
-    expect(prompt).not.toContain("One tool call per turn");
-    expect(prompt).not.toContain("CURRENT DATETIME:");
-    expect(prompt).not.toContain("Yesterday: routine/");
-  });
+    expect(obsidianPrompt).toContain("Obsidian Vault Manager");
+    expect(obsidianPrompt).not.toContain("<runtime_execution>");
+    expect(obsidianPrompt).not.toContain("One tool call per turn");
+    expect(obsidianPrompt).not.toContain("CURRENT DATETIME:");
+    expect(obsidianPrompt).not.toContain("Yesterday: routine/");
 
-  it("loads the Finance prompt from agents/finance.xml without shell enrichment", () => {
-    const prompt = loadFinanceSystemPrompt();
+    expect(financePrompt).toContain("Financial Assistant");
+    expect(financePrompt).toContain("<skill_usage>");
+    expect(financePrompt).toContain("call `read_skill` for the matching skill");
+    expect(financePrompt).toContain("<tool_error_recovery>");
+    expect(financePrompt).toContain("ambiguous SQL columns");
+    expect(financePrompt).not.toContain("<runtime_execution>");
+    expect(financePrompt).not.toContain("<available_skills>");
+    expect(financePrompt).not.toContain("CURRENT DATETIME:");
 
-    expect(prompt).toContain("Financial Assistant");
-    expect(prompt).toContain("<skill_usage>");
-    expect(prompt).toContain("call `read_skill` for the matching skill");
-    expect(prompt).toContain("<tool_error_recovery>");
-    expect(prompt).toContain("ambiguous SQL columns");
-    expect(prompt).not.toContain("<runtime_execution>");
-    expect(prompt).not.toContain("<available_skills>");
-    expect(prompt).not.toContain("CURRENT DATETIME:");
-  });
-
-  it("loads the configuration prompt from agents/configuration.xml without shell enrichment", () => {
-    const prompt = loadConfigurationSystemPrompt();
-
-    expect(prompt).toContain("Configuration Manager");
-    expect(prompt).toContain("<tool_access>");
-    expect(prompt).toContain("All configuration tools are available from the start");
-    expect(prompt).toContain("read_skill(skill_name)");
-    expect(prompt).toContain("<output_template>");
-    expect(prompt).toContain("<skill_output_template>");
-    expect(prompt).not.toMatch(/<available_skills>\s*\n/);
-    expect(prompt).not.toContain("<runtime_execution>");
-    expect(prompt).not.toContain("CURRENT DATETIME:");
+    expect(configurationPrompt).toContain("Configuration Manager");
+    expect(configurationPrompt).toContain("<tool_access>");
+    expect(configurationPrompt).toContain("All configuration tools are available from the start");
+    expect(configurationPrompt).toContain("read_skill(skill_name)");
+    expect(configurationPrompt).toContain("<output_template>");
+    expect(configurationPrompt).toContain("<skill_output_template>");
+    expect(configurationPrompt).not.toMatch(/<available_skills>\s*\n/);
+    expect(configurationPrompt).not.toContain("<runtime_execution>");
+    expect(configurationPrompt).not.toContain("CURRENT DATETIME:");
   });
 });
 
@@ -98,7 +94,7 @@ describe("dynamic prompt formatters", () => {
 
 describe("createPromptLoader", () => {
   it("loads prompt by key and caches when hotReload is disabled", () => {
-    const loadByKey = createPromptLoader("supervisor", { hotReload: false, fileType: "xml" });
+    const loadByKey = createPromptLoader(SUPERVISOR_PROMPT_KEY, { hotReload: false, fileType: "xml" });
 
     const result1 = loadByKey();
     const result2 = loadByKey();
@@ -128,13 +124,13 @@ describe("createPromptLoader", () => {
 
 describe("loadPrompt", () => {
   it("resolves prompts by file-first convention: key.xml", () => {
-    const prompt = loadPrompt("supervisor", "xml");
+    const prompt = loadPrompt(SUPERVISOR_PROMPT_KEY, "xml");
 
     expect(prompt).toContain("You are the Root Supervisor");
   });
 
   it("resolves prompts by file-first convention with md/xml fallback", () => {
-    const prompt = loadPrompt("supervisor");
+    const prompt = loadPrompt(SUPERVISOR_PROMPT_KEY);
 
     expect(prompt).toContain("You are the Root Supervisor");
   });

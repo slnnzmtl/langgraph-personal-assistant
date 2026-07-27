@@ -89,16 +89,12 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
   return readPromptFile(filePath);
 };
 
+export const SUPERVISOR_PROMPT_KEY = "supervisor" as const;
+
 export const loadSystemPromptByKey = (key: string): string => loadPrompt(key, "xml");
 
 export const loadSupervisorSystemPrompt = (): string =>
-  appendSystemMetadata(loadPrompt("supervisor", "xml"));
-
-export const loadObsidianSystemPrompt = (): string => loadSystemPromptByKey("obsidian");
-
-export const loadFinanceSystemPrompt = (): string => loadSystemPromptByKey("finance");
-
-export const loadConfigurationSystemPrompt = (): string => loadSystemPromptByKey("configuration");
+  appendSystemMetadata(loadPrompt(SUPERVISOR_PROMPT_KEY, "xml"));
 
 export const createPromptLoader = (
   key: string,

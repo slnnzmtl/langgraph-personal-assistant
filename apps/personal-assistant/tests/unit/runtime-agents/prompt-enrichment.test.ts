@@ -5,7 +5,7 @@ import {
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
-import { loadFinanceSystemPrompt, loadObsidianSystemPrompt } from "../../../src/agents/load-system-prompt.js";
+import { loadSystemPromptByKey } from "../../../src/agents/load-system-prompt.js";
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
 import {
   appendAvailableSkills,
@@ -49,7 +49,11 @@ describe("prompt enrichment", () => {
   });
 
   it("enrichRuntimeAgentPrompt adds skills and runtime execution for skill modules", () => {
-    const prompt = enrichRuntimeAgentPrompt(loadFinanceSystemPrompt(), financeDefinition, skillCatalog);
+    const prompt = enrichRuntimeAgentPrompt(
+      loadSystemPromptByKey(resolveAgentSkillModule(financeDefinition)),
+      financeDefinition,
+      skillCatalog,
+    );
 
     expect(prompt).toContain("Financial Assistant");
     expect(prompt).toContain("<available_skills>");
@@ -59,7 +63,14 @@ describe("prompt enrichment", () => {
 
   it("createDefaultRuntimeShellFormatters enriches runtime agent prompts at shell time", () => {
     const formatters = createDefaultRuntimeShellFormatters(skillCatalog);
-    const basePrompt = loadObsidianSystemPrompt();
+    const basePrompt = loadSystemPromptByKey(
+      resolveAgentSkillModule({
+        ...financeDefinition,
+        id: "obsidian",
+        name: "Obsidian",
+        promptSourceKey: "obsidian",
+      }),
+    );
 
     const enriched = formatters.appendSkillAttachments?.(
       basePrompt,

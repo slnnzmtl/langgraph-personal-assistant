@@ -16,14 +16,15 @@ import {
 } from "../../../src/services/obsidian.js";
 import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/app/policies/obsidian-hooks.js";
 import { createTestRuntimeAgentNode, obsidianRuntimeNodeConfig } from "../../helpers/policy-nodes.js";
-import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
+import { extractMessageTextContent, resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
-  loadObsidianSystemPrompt,
+  loadSystemPromptByKey,
 } from "../../../src/agents/load-system-prompt.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");
+const obsidianPromptKey = resolveAgentSkillModule(obsidianDefinition);
 
 const tempPaths: string[] = [];
 
@@ -355,7 +356,7 @@ describe("formatObsidianRoutineHint", () => {
 
 describe("obsidian runtime node hooks", () => {
   it("loads the Obsidian system prompt from agents/obsidian.xml", () => {
-    const prompt = loadObsidianSystemPrompt();
+    const prompt = loadSystemPromptByKey(obsidianPromptKey);
 
     expect(prompt).toContain("Obsidian Vault Manager");
     expect(prompt).toContain("<role_and_rules>");
@@ -369,14 +370,14 @@ describe("obsidian runtime node hooks", () => {
   });
 
   it("loads skill_usage guidance from agents/obsidian.xml", () => {
-    const prompt = loadObsidianSystemPrompt();
+    const prompt = loadSystemPromptByKey(obsidianPromptKey);
 
     expect(prompt).toContain("<skill_usage>");
     expect(prompt).toContain("read_skill(skill_name)");
   });
 
   it("requires verbatim screenshot transcription without translation", () => {
-    const prompt = loadObsidianSystemPrompt();
+    const prompt = loadSystemPromptByKey(obsidianPromptKey);
 
     expect(prompt).toContain('<intent type="PARSE_SCREENSHOT">');
     expect(prompt).toContain("<ocr_transcription_standard>");
