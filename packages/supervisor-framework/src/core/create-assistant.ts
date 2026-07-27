@@ -48,6 +48,7 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
   checkpointer?: MemorySaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
+  maxErrorRetries?: number;
 };
 
 export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>(
@@ -78,6 +79,7 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     loadSupervisorPrompt: config.loadSupervisorPrompt,
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
+    ...(config.maxErrorRetries !== undefined ? { maxErrorRetries: config.maxErrorRetries } : {}),
   });
 
   const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {

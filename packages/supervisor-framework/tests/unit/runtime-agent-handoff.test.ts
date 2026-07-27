@@ -64,4 +64,28 @@ describe("runtime agent handoff protocol", () => {
 
     expect(handoff.status).toBe("error");
   });
+
+  it("marks tool-surfaced Error results as error without explicit status", () => {
+    const handoff = buildRuntimeAgentHandoff({
+      agentId: "configuration",
+      agentName: "Configuration",
+      message: new AIMessage("I cannot create the agent because the capability is invalid."),
+      agentMessages: [
+        new AIMessage({
+          content: "",
+          tool_calls: [{ id: "1", name: "create_runtime_agent", args: {} }],
+        }),
+        new ToolMessage({
+          tool_call_id: "1",
+          name: "create_runtime_agent",
+          content: "Error: Unknown capability: fitness-domain",
+        }),
+        new AIMessage("I cannot create the agent because the capability is invalid."),
+      ],
+      stepCount: 2,
+      maxSteps: 10,
+    });
+
+    expect(handoff.status).toBe("error");
+  });
 });

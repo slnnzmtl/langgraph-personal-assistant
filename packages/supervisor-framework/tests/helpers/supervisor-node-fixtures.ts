@@ -190,6 +190,7 @@ export const createTestSupervisorNode = (
     runtimeAgentRepository?: RuntimeAgentRepository;
     loadSupervisorPrompt?: () => string;
     wiredAgentIds?: ReadonlySet<string>;
+    maxErrorRetries?: number;
   },
 ) => {
   const defaultWiredAgentIds = new Set(
@@ -207,5 +208,6 @@ export const createTestSupervisorNode = (
     ...(options?.runtimeAgentRepository
       ? { runtimeAgentRepository: options.runtimeAgentRepository }
       : {}),
+    ...(options?.maxErrorRetries !== undefined ? { maxErrorRetries: options.maxErrorRetries } : {}),
   });
 };

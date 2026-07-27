@@ -16,6 +16,8 @@ import {
 
 const AFFIRMATIVE_FOLLOW_UP = /^(yes|yeah|yep|sure|ok|okay|please|do it|go ahead)\.?$/i;
 
+export const DEFAULT_MAX_ERROR_RETRIES = 2;
+
 export const isAffirmativeFollowUp = (text: string): boolean =>
   AFFIRMATIVE_FOLLOW_UP.test(text.trim());
 
@@ -25,6 +27,7 @@ export const isExplicitRetryRequest = (text: string): boolean =>
 export const buildPostHandoffReplanHint = (
   state: AgentState,
   latestUserText: string,
+  maxErrorRetries: number = DEFAULT_MAX_ERROR_RETRIES,
 ): string | null => {
   const handoff = state.lastHandoff;
 
@@ -44,6 +47,22 @@ export const buildPostHandoffReplanHint = (
     "Default to FINISH with a synthesized user-facing reply from visible thread history.",
     "Do not re-route to the same agent unless the user explicitly asks to retry.",
   ];
+
+  if (handoff.status === "error") {
+    const remaining = Math.max(0, maxErrorRetries - state.retryCount);
+    if (remaining > 0) {
+      lines.push(
+        "This attempt failed with an error.",
+        `You may retry "${handoff.agentId}" with corrected parameters based on the error.`,
+        `${remaining} automatic ${remaining === 1 ? "retry" : "retries"} left.`,
+      );
+    } else {
+      lines.push(
+        "Retry budget exhausted.",
+        "FINISH and explain the failure to the user instead of retrying again.",
+      );
+    }
+  }
 
   if (isAffirmativeFollowUp(latestUserText)) {
     lines.push(
@@ -85,6 +104,32 @@ export const isBlockedRepeatRoute = (
   return head.agentId === lastHandoff.agentId;
 };
 
+export const isAutoRetryableErrorRoute = (
+  lastHandoff: RuntimeAgentHandoff | null | undefined,
+  response: RoutingDecision,
+  retryCount: number,
+  maxErrorRetries: number = DEFAULT_MAX_ERROR_RETRIES,
+): boolean => {
+  if (response.next === "FINISH") {
+    return false;
+  }
+
+  if (!lastHandoff || lastHandoff.status !== "error") {
+    return false;
+  }
+
+  if (retryCount >= maxErrorRetries) {
+    return false;
+  }
+
+  const head = resolveEffectiveExecutionPlan(response)[0];
+  if (!head) {
+    return false;
+  }
+
+  return head.agentId === lastHandoff.agentId;
+};
+
 export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpdate => {
   const [head, ...tail] = steps;
 
@@ -98,6 +143,7 @@ export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpda
     executionQueue: [...tail],
     lastHandoff: null,
     routingFailureContext: null,
+    retryCount: 0,
     context: {
       [RUNTIME_AGENT_CONTEXT_KEY]: head.agentId,
     },
@@ -153,7 +199,10 @@ export const resolveEffectiveExecutionPlan = (
   return [];
 };
 
-export const detectCompletionState = (state: AgentState): AgentStateUpdate | null => {
+export const detectCompletionState = (
+  state: AgentState,
+  maxErrorRetries: number = DEFAULT_MAX_ERROR_RETRIES,
+): AgentStateUpdate | null => {
   if (needsEmptySubAgentSummary(state)) {
     return null;
   }
@@ -164,6 +213,13 @@ export const detectCompletionState = (state: AgentState): AgentStateUpdate | nul
 
   if (state.executionQueue.length > 0) {
     return enqueueAndStart(state.executionQueue);
+  }
+
+  if (
+    state.lastHandoff?.status === "error"
+    && state.retryCount < maxErrorRetries
+  ) {
+    return null;
   }
 
   const lastMessage = state.messages[state.messages.length - 1];
@@ -188,8 +244,13 @@ export const resolveRoutingDecision = async (
   options?: {
     lastHandoff?: RuntimeAgentHandoff | null;
     latestUserText?: string;
+    retryCount?: number;
+    maxErrorRetries?: number;
   },
 ): Promise<AgentStateUpdate> => {
+  const retryCount = options?.retryCount ?? 0;
+  const maxErrorRetries = options?.maxErrorRetries ?? DEFAULT_MAX_ERROR_RETRIES;
+
   if (response.next === "FINISH") {
     const reply = normalizeSupervisorReply(response.reply);
 
@@ -203,11 +264,22 @@ export const resolveRoutingDecision = async (
       routingFailureContext: null,
       executionQueue: [],
       delegationPrompt: null,
+      retryCount: 0,
       messages: [new AIMessage(reply)],
     };
   }
 
   const effectivePlan = resolveEffectiveExecutionPlan(response);
+
+  if (
+    options?.lastHandoff
+    && isAutoRetryableErrorRoute(options.lastHandoff, response, retryCount, maxErrorRetries)
+  ) {
+    return {
+      ...enqueueAndStart(effectivePlan),
+      retryCount: retryCount + 1,
+    };
+  }
 
   if (
     options?.lastHandoff
@@ -226,6 +298,7 @@ export const resolveRoutingDecision = async (
       routingFailureContext: null,
       executionQueue: [],
       delegationPrompt: null,
+      retryCount: 0,
     };
   }
 

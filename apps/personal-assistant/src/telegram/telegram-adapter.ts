@@ -259,7 +259,10 @@ export class TelegramAdapter implements ITelegramAdapter {
   async triggerWorkflow(message: HumanMessage, threadId: string): Promise<AgentState> {
     return this.graphSource.getGraph().invoke(
       { messages: [message] },
-      { configurable: { thread_id: threadId } },
+      {
+        configurable: { thread_id: threadId },
+        recursionLimit: 40,
+      },
     );
   }
 

@@ -4,19 +4,34 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import {
   buildPostHandoffReplanHint,
+  DEFAULT_MAX_ERROR_RETRIES,
   detectCompletionState,
   isAffirmativeFollowUp,
+  isAutoRetryableErrorRoute,
   isBlockedRepeatRoute,
   isExplicitRetryRequest,
+  resolveRoutingDecision,
 } from "../../src/core/supervisor/helpers.js";
 import { POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
 
-const completeHandoff = (agentId: string): RuntimeAgentHandoff => ({
+const completeHandoff = (agentId: string, status: RuntimeAgentHandoff["status"] = "ok"): RuntimeAgentHandoff => ({
   kind: "runtime-agent-handoff",
   agentId,
   agentName: agentId,
-  status: "ok",
+  status,
 });
+
+const baseState = {
+  agentMessages: [],
+  stepCount: 0,
+  next: undefined,
+  executionQueue: [],
+  delegationPrompt: null,
+  context: {},
+  handoffStatus: undefined,
+  routingFailureContext: null,
+  retryCount: 0,
+};
 
 describe("supervisor replan helpers", () => {
   it("detects affirmative follow-ups", () => {
@@ -34,16 +49,9 @@ describe("supervisor replan helpers", () => {
   it("builds a post-handoff replan hint after a complete handoff with an empty queue", () => {
     const hint = buildPostHandoffReplanHint(
       {
+        ...baseState,
         messages: [],
-        agentMessages: [],
-        stepCount: 0,
-        next: undefined,
-        executionQueue: [],
-        delegationPrompt: null,
-        context: {},
         lastHandoff: completeHandoff("finance"),
-        handoffStatus: undefined,
-        routingFailureContext: null,
       },
       "yes",
     );
@@ -56,16 +64,10 @@ describe("supervisor replan helpers", () => {
   it("returns null when the execution queue still has steps", () => {
     const hint = buildPostHandoffReplanHint(
       {
+        ...baseState,
         messages: [],
-        agentMessages: [],
-        stepCount: 0,
-        next: undefined,
         executionQueue: [{ agentId: "obsidian", prompt: "Show today's plan." }],
-        delegationPrompt: null,
-        context: {},
         lastHandoff: completeHandoff("finance"),
-        handoffStatus: undefined,
-        routingFailureContext: null,
       },
       "yes",
     );
@@ -99,16 +101,9 @@ describe("supervisor replan helpers", () => {
 
   it("routes to post_handoff_finish when configuration returns in the same turn", () => {
     expect(detectCompletionState({
+      ...baseState,
       messages: [new HumanMessage("list agents"), new AIMessage("Agent ID: finance")],
-      agentMessages: [],
-      stepCount: 0,
-      next: undefined,
-      executionQueue: [],
-      delegationPrompt: null,
-      context: {},
       lastHandoff: completeHandoff("configuration"),
-      handoffStatus: undefined,
-      routingFailureContext: null,
     })).toEqual({
       next: POST_HANDOFF_FINISH_ROUTE,
       routingFailureContext: null,
@@ -116,37 +111,131 @@ describe("supervisor replan helpers", () => {
     });
   });
 
+  it("returns null when configuration failed with error and retries remain", () => {
+    expect(detectCompletionState({
+      ...baseState,
+      retryCount: 0,
+      messages: [
+        new HumanMessage("create trainer"),
+        new AIMessage("Invalid capability."),
+      ],
+      lastHandoff: completeHandoff("configuration", "error"),
+    })).toBeNull();
+  });
+
+  it("routes to post_handoff_finish when configuration error retries are exhausted", () => {
+    expect(detectCompletionState({
+      ...baseState,
+      retryCount: DEFAULT_MAX_ERROR_RETRIES,
+      messages: [
+        new HumanMessage("create trainer"),
+        new AIMessage("Invalid capability."),
+      ],
+      lastHandoff: completeHandoff("configuration", "error"),
+    })).toEqual({
+      next: POST_HANDOFF_FINISH_ROUTE,
+      routingFailureContext: null,
+      lastHandoff: completeHandoff("configuration", "error"),
+    });
+  });
+
+  it("includes retry guidance in post-handoff hint for errored handoffs", () => {
+    const hint = buildPostHandoffReplanHint(
+      {
+        ...baseState,
+        messages: [],
+        retryCount: 1,
+        lastHandoff: completeHandoff("configuration", "error"),
+      },
+      "create trainer",
+    );
+
+    expect(hint).toContain('status "error"');
+    expect(hint).toContain("automatic retry");
+    expect(hint).toContain('"configuration"');
+  });
+
+  it("includes exhausted retry guidance when the error retry budget is spent", () => {
+    const hint = buildPostHandoffReplanHint(
+      {
+        ...baseState,
+        messages: [],
+        retryCount: DEFAULT_MAX_ERROR_RETRIES,
+        lastHandoff: completeHandoff("configuration", "error"),
+      },
+      "create trainer",
+    );
+
+    expect(hint).toContain("Retry budget exhausted");
+    expect(hint).toContain("FINISH and explain the failure");
+  });
+
+  it("allows auto-retry routing to the same agent after an error handoff", () => {
+    expect(isAutoRetryableErrorRoute(
+      completeHandoff("configuration", "error"),
+      { next: "configuration", prompt: "Create trainer with valid capabilities.", reply: undefined },
+      0,
+    )).toBe(true);
+  });
+
+  it("blocks auto-retry routing once the retry budget is exhausted", () => {
+    expect(isAutoRetryableErrorRoute(
+      completeHandoff("configuration", "error"),
+      { next: "configuration", prompt: "Create trainer with valid capabilities.", reply: undefined },
+      DEFAULT_MAX_ERROR_RETRIES,
+    )).toBe(false);
+  });
+
+  it("increments retryCount when auto-retrying after an error handoff", async () => {
+    const result = await resolveRoutingDecision(
+      { next: "configuration", prompt: "Create trainer with none capability.", reply: undefined },
+      new Set(["configuration"]),
+      async () => ({ next: "failure" }),
+      {
+        lastHandoff: completeHandoff("configuration", "error"),
+        latestUserText: "create trainer",
+        retryCount: 0,
+        maxErrorRetries: DEFAULT_MAX_ERROR_RETRIES,
+      },
+    );
+
+    expect(result.next).toBe("configuration");
+    expect(result.retryCount).toBe(1);
+  });
+
+  it("resets retryCount to zero on FINISH", async () => {
+    const result = await resolveRoutingDecision(
+      { next: "FINISH", reply: "Could not create the trainer agent.", prompt: undefined },
+      new Set(["configuration"]),
+      async () => ({ next: "failure" }),
+      {
+        lastHandoff: completeHandoff("configuration", "error"),
+        latestUserText: "create trainer",
+        retryCount: 2,
+      },
+    );
+
+    expect(result.next).toBe("FINISH");
+    expect(result.retryCount).toBe(0);
+  });
+
   it("returns null when a non-configuration specialist returns in the same turn", () => {
     expect(detectCompletionState({
+      ...baseState,
       messages: [new HumanMessage("sync expenses"), new AIMessage("Synced 5 transactions.")],
-      agentMessages: [],
-      stepCount: 0,
-      next: undefined,
-      executionQueue: [],
-      delegationPrompt: null,
-      context: {},
       lastHandoff: completeHandoff("finance"),
-      handoffStatus: undefined,
-      routingFailureContext: null,
     })).toBeNull();
   });
 
   it("returns null when the user sends a new message after a complete handoff", () => {
     expect(detectCompletionState({
+      ...baseState,
       messages: [
         new HumanMessage("list agents"),
         new AIMessage("Agent ID: finance"),
         new HumanMessage("thanks"),
       ],
-      agentMessages: [],
-      stepCount: 0,
-      next: undefined,
-      executionQueue: [],
-      delegationPrompt: null,
-      context: {},
       lastHandoff: completeHandoff("configuration"),
-      handoffStatus: undefined,
-      routingFailureContext: null,
     })).toBeNull();
   });
 });

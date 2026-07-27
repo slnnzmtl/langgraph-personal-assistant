@@ -9,11 +9,7 @@ test-results/*
 *.tsbuildinfo
 .tmp
 data/*
-!data/prompts/
-!data/prompts/**
 cron-jobs.json
 obsidian-vault/*
 apps/personal-assistant/data/*
-!apps/personal-assistant/data/prompts/
-!apps/personal-assistant/data/prompts/**
 .cursor/agents

@@ -14,6 +14,7 @@ import type { AgentState, AgentStateUpdate } from "../state.js";
 import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE } from "../state.js";
 import {
   buildPostHandoffReplanHint,
+  DEFAULT_MAX_ERROR_RETRIES,
   detectCompletionState,
   formatExecutionPlanLog,
   needsEmptySubAgentSummary,
@@ -33,6 +34,7 @@ export type SupervisorNodeOptions = {
   loadSupervisorPrompt: () => string;
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: CronTriggerResolver;
+  maxErrorRetries?: number;
 };
 
 export const createSupervisorNode = (
@@ -41,6 +43,7 @@ export const createSupervisorNode = (
 ) =>
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
     const promptLogging = options.promptLogging ?? noopPromptLogging;
+    const maxErrorRetries = options.maxErrorRetries ?? DEFAULT_MAX_ERROR_RETRIES;
     const supervisorPromptText = options.loadSupervisorPrompt();
     const latestUserText = findLatestSubstantiveHumanMessageText(state.messages);
     const lastMessage = state.messages[state.messages.length - 1];
@@ -61,13 +64,13 @@ export const createSupervisorNode = (
       return { next: EMPTY_REPLY_ROUTE, executionQueue: [], delegationPrompt: null };
     }
 
-    const completionUpdate = detectCompletionState(state);
+    const completionUpdate = detectCompletionState(state, maxErrorRetries);
 
     if (completionUpdate) {
       return completionUpdate;
     }
 
-    const replanHint = buildPostHandoffReplanHint(state, latestUserText);
+    const replanHint = buildPostHandoffReplanHint(state, latestUserText, maxErrorRetries);
     const supervisorPrompt = new SystemMessage(
       replanHint ? `${supervisorPromptText}\n${replanHint}` : supervisorPromptText,
     );
@@ -121,6 +124,8 @@ export const createSupervisorNode = (
       {
         lastHandoff: state.lastHandoff,
         latestUserText,
+        retryCount: state.retryCount,
+        maxErrorRetries,
       },
     );
   };

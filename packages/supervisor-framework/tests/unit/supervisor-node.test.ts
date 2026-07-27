@@ -34,11 +34,12 @@ const emptyHandoff = (
 const completeHandoff = (
   agentName: string,
   agentId: string,
+  status: RuntimeAgentHandoff["status"] = "ok",
 ): RuntimeAgentHandoff => ({
   kind: "runtime-agent-handoff",
   agentId,
   agentName,
-  status: "ok",
+  status,
 });
 
 describe("createSupervisorNode", () => {
@@ -678,6 +679,74 @@ describe("createSupervisorNode", () => {
     expect(result.delegationPrompt).toBe("Retry the sync.");
     expect(result.routingFailureContext).toBeNull();
     expect(routingInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-invokes the LLM after configuration returns an error with retries remaining", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "configuration",
+      prompt: "Create trainer with none capability.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("unused"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("create trainer"),
+        new AIMessage("Invalid capability fitness-domain."),
+      ],
+      lastHandoff: completeHandoff("Configuration", "configuration", "error"),
+      executionQueue: [],
+      retryCount: 0,
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe("configuration");
+    expect(result.retryCount).toBe(1);
+    expect(routingInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes to post_handoff_finish after configuration error retries are exhausted", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "configuration",
+      prompt: "Create trainer with none capability.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("unused"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("create trainer"),
+        new AIMessage("Invalid capability fitness-domain."),
+      ],
+      lastHandoff: completeHandoff("Configuration", "configuration", "error"),
+      executionQueue: [],
+      retryCount: 2,
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe(POST_HANDOFF_FINISH_ROUTE);
+    expect(result.lastHandoff).toEqual(completeHandoff("Configuration", "configuration", "error"));
+    expect(routingInvoke).not.toHaveBeenCalled();
   });
 
 });

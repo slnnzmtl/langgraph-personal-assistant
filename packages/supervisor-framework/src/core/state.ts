@@ -74,6 +74,10 @@ export const createAgentStateAnnotation = ({
       reducer: (_left, right) => right ?? null,
       default: () => null,
     }),
+    retryCount: Annotation<number>({
+      reducer: (_left, right) => right ?? 0,
+      default: () => 0,
+    }),
   });
 
 export const reduceAgentMessages = createReduceAgentMessages(DEFAULT_MESSAGE_HISTORY_MAX_TOKENS);
