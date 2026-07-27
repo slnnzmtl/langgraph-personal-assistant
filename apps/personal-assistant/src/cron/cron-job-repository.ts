@@ -2,7 +2,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { isCronTargetRoute } from "./cron-triggers.js";
+import { isCronTargetRoute } from "../cron-triggers.js";
 import {
   fileExists,
   readTextFile,

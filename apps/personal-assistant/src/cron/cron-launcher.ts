@@ -2,7 +2,7 @@ import {
   buildCronTriggerForJob,
   isCronTargetRoute,
   type CronTargetRoute,
-} from "./cron-triggers.js";
+} from "../cron-triggers.js";
 import type { CronRunner } from "./cron-runner.js";
 
 type ScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;

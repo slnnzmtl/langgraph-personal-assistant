@@ -12,9 +12,9 @@ import {
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
 import type { ILLMConnector, RoutingChain } from "../../src/connectors/llm-connector.js";
-import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron/cron-triggers.js";
+import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE } from "../../src/cron-triggers.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
-import { loadSupervisorSystemPrompt } from "../../src/prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import {
   buildTestRuntimeAgents,

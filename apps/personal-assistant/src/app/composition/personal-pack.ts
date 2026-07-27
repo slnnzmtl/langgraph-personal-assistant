@@ -2,7 +2,7 @@ import type { AppConfig } from "../../config.js";
 import path from "node:path";
 import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
 import type { RuntimeCronService } from "../../cron/types.js";
-import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron/cron-triggers.js";
+import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
 import {
   createRuntimeAgentRepository,
   deriveModelKeys,
@@ -18,7 +18,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
 import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../../prompts/load-system-prompt.js";
+import { loadSupervisorSystemPrompt } from "../../agents/load-system-prompt.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
