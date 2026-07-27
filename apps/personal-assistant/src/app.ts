@@ -1,10 +1,10 @@
 // Telegram bot process entry — distinct from src/cron/ scheduler entry.
 import { Telegraf } from "telegraf";
 
-import { createSupervisorSystem } from "./app/composition/create-supervisor-system.js";
-import { watchRuntimeAgentDefinitions } from "./app/composition/runtime-agent-watcher.js";
+import { createSupervisorSystem } from "./composition/create-supervisor-system.js";
+import { watchRuntimeAgentDefinitions } from "./composition/runtime-agent-watcher.js";
 import type { AppConfig } from "./config.js";
-import type { RuntimeAgentWatcher } from "./app/composition/runtime-agent-watcher.js";
+import type { RuntimeAgentWatcher } from "./composition/runtime-agent-watcher.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { TelegramFileSender } from "./telegram/file-sender.js";
 

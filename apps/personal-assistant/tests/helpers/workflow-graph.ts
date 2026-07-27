@@ -9,13 +9,13 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/agents/load-system-prompt.js";
 import type { IFileSender } from "../../src/telegram/file-sender.js";
-import { applyLocalModuleAvailability } from "../../src/app/composition/bootstrap-agents.js";
+import { applyLocalModuleAvailability } from "../../src/composition/bootstrap-agents.js";
 import {
   buildPersonalCapabilityDeps,
   buildPersonalCronGraphHooks,
   buildPersonalSkillCatalog,
-} from "../../src/app/composition/personal-pack.js";
-import { buildAppRuntimeExecution } from "../../src/app/composition/runtime-execution.js";
+} from "../../src/composition/personal-pack.js";
+import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";

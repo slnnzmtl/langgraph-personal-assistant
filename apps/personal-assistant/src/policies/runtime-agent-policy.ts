@@ -17,7 +17,7 @@ import {
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
 import type { CapabilityCatalog } from "@personal-assistant/supervisor-framework";
-import type { CapabilityDeps } from "../../runtime-agents/builtin-capabilities.js";
+import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
 import type { PersonalResolveTools } from "../composition/personal-resolve-tools.js";
 import {
   composeObsidianCapabilityHooks,

@@ -10,14 +10,14 @@ import {
   type SubAgentStateUpdate,
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
-import { createDefaultRuntimeShellFormatters } from "../../src/app/composition/runtime-execution.js";
+import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import {
   buildRuntimeAgentNodeConfigForDefinition,
   resolveCapabilityBehavior,
-} from "../../src/app/policies/runtime-agent-policy.js";
+} from "../../src/policies/runtime-agent-policy.js";
 
 const testSkillCatalog = createSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);

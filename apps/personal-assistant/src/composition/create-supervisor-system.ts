@@ -1,14 +1,14 @@
-import type { AppConfig } from "../../config.js";
-import { GeminiConnector } from "../../connectors/llm-connector.js";
-import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
+import type { AppConfig } from "../config.js";
+import { GeminiConnector } from "../connectors/llm-connector.js";
+import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
 import {
   bootstrapSupervisorSystem,
   buildSkillModuleOwnerPattern,
   deriveRuntimeAgentGraphFingerprint,
   type CompiledSupervisorGraph,
 } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import type { CapabilityDeps } from "../../runtime-agents/builtin-capabilities.js";
+import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,

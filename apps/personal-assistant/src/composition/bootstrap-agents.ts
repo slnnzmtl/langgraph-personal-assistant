@@ -1,4 +1,4 @@
-import type { AppConfig } from "../../config.js";
+import type { AppConfig } from "../config.js";
 import {
   DEFAULT_MODEL_KEY,
   resolveAgentCapabilityIds,

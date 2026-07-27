@@ -1,8 +1,8 @@
-import type { AppConfig } from "../../config.js";
+import type { AppConfig } from "../config.js";
 import path from "node:path";
-import { createCronJobRepositoryForConfig } from "../../cron/cron-job-repository.js";
-import type { CronJobRepository, RuntimeCronService } from "../../cron/types.js";
-import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../../cron-triggers.js";
+import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
+import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
+import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
 import {
   createRuntimeAgentRepository,
   deriveModelKeys,
@@ -18,17 +18,17 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
-import { logSystemPromptInvocation } from "../../logging/system-prompt-logger.js";
-import type { SupabaseMcpSession } from "../../mcp/supabase.js";
-import { loadSupervisorSystemPrompt } from "../../agents/load-system-prompt.js";
+import { logSystemPromptInvocation } from "../logging/system-prompt-logger.js";
+import type { SupabaseMcpSession } from "../mcp/supabase.js";
+import { loadSupervisorSystemPrompt } from "../agents/load-system-prompt.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
   type CapabilityDeps,
-} from "../../runtime-agents/builtin-capabilities.js";
-import { setupSupabaseSession } from "../../services/supabase.js";
-import type { IFileSender } from "../../telegram/file-sender.js";
-import { createSkillCatalog } from "../../runtime-agents/skills/skill-catalog.js";
+} from "../runtime-agents/builtin-capabilities.js";
+import { setupSupabaseSession } from "../services/supabase.js";
+import type { IFileSender } from "../telegram/file-sender.js";
+import { createSkillCatalog } from "../runtime-agents/skills/skill-catalog.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { applyLocalModuleAvailability } from "./bootstrap-agents.js";

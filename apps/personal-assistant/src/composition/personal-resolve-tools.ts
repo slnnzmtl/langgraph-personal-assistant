@@ -7,9 +7,9 @@ import {
   type RuntimeAgentDefinition,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
-import type { CapabilityDeps } from "../../runtime-agents/builtin-capabilities.js";
-import { toCapabilityAvailabilityContext } from "../../runtime-agents/builtin-capabilities.js";
-import { createReadSkillTool } from "../../runtime-agents/skills/skill-management.js";
+import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
+import { toCapabilityAvailabilityContext } from "../runtime-agents/builtin-capabilities.js";
+import { createReadSkillTool } from "../runtime-agents/skills/skill-management.js";
 
 export type PersonalResolveToolsOptions = {
   includeReadSkill?: boolean;

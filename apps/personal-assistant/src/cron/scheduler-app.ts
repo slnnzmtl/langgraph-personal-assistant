@@ -1,8 +1,8 @@
 import { Telegraf } from "telegraf";
 
-import { createSupervisorSystem } from "../app/composition/create-supervisor-system.js";
-import { watchRuntimeAgentDefinitions } from "../app/composition/runtime-agent-watcher.js";
-import type { RuntimeAgentWatcher } from "../app/composition/runtime-agent-watcher.js";
+import { createSupervisorSystem } from "../composition/create-supervisor-system.js";
+import { watchRuntimeAgentDefinitions } from "../composition/runtime-agent-watcher.js";
+import type { RuntimeAgentWatcher } from "../composition/runtime-agent-watcher.js";
 import type { AppConfig } from "../config.js";
 import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.js";
 import { watchCronJobDefinitions, type CronJobWatcher } from "./cron-job-watcher.js";
