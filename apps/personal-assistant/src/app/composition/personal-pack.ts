@@ -29,8 +29,8 @@ import {
 import { setupSupabaseSession } from "../../services/supabase.js";
 import type { IFileSender } from "../../telegram/file-sender.js";
 import { createSkillCatalog } from "../../runtime-agents/skills/skill-catalog.js";
-import { buildModelRegistry } from "../model-registry.js";
-import { buildAppRuntimeExecution } from "../register-defaults.js";
+import { buildModelRegistry } from "./model-registry.js";
+import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { applyLocalModuleAvailability } from "./bootstrap-agents.js";
 
 export type SupervisorSystemOptions = {

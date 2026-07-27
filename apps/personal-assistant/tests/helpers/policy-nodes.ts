@@ -10,7 +10,7 @@ import {
   type SubAgentStateUpdate,
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
-import { createDefaultRuntimeShellFormatters } from "../../src/app/register-defaults.js";
+import { createDefaultRuntimeShellFormatters } from "../../src/app/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../src/agents/load-system-prompt.js";
 import type { CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";

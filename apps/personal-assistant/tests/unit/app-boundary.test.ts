@@ -64,7 +64,6 @@ describe("app boundaries", () => {
     assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
       "app/composition/",
       "app/policies/",
-      "app/register-defaults",
     ]);
   });
 

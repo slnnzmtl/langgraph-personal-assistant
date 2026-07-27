@@ -15,7 +15,7 @@ import {
   buildPersonalCronGraphHooks,
   buildPersonalSkillCatalog,
 } from "../../src/app/composition/personal-pack.js";
-import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
+import { buildAppRuntimeExecution } from "../../src/app/composition/runtime-execution.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";

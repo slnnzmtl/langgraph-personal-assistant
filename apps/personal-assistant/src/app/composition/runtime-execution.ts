@@ -10,14 +10,14 @@ import {
   appendDynamicSections,
   formatSystemMetadata,
   loadSystemPromptByKey,
-} from "../agents/load-system-prompt.js";
-import { appendConfiguredSkillAttachments } from "../runtime-agents/skill-attachments.js";
+} from "../../agents/load-system-prompt.js";
+import { appendConfiguredSkillAttachments } from "../../runtime-agents/skill-attachments.js";
 import {
   appendAvailableSkills,
   appendRuntimeExecutionModel,
-} from "../runtime-agents/skills/prompt-enrichment.js";
-import { createPersonalResolveTools } from "./composition/personal-resolve-tools.js";
-import { createDefaultRuntimeAgentPolicy } from "./policies/runtime-agent-policy.js";
+} from "../../runtime-agents/skills/prompt-enrichment.js";
+import { createPersonalResolveTools } from "./personal-resolve-tools.js";
+import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
 
 export const createDefaultRuntimeShellFormatters = (
   skillCatalog?: SkillCatalog,

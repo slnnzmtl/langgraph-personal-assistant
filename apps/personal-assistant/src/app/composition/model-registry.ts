@@ -1,8 +1,8 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { AppConfig } from "../config.js";
-import { GeminiConnector } from "../connectors/llm-connector.js";
-import { resolveBuiltinModelName } from "../app/composition/bootstrap-agents.js";
+import type { AppConfig } from "../../config.js";
+import { GeminiConnector } from "../../connectors/llm-connector.js";
+import { resolveBuiltinModelName } from "./bootstrap-agents.js";
 
 export const buildModelRegistry = (
   config: AppConfig,

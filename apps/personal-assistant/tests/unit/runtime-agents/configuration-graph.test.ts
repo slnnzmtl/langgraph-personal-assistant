@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createDefaultRuntimeShellFormatters } from "../../../src/app/register-defaults.js";
+import { createDefaultRuntimeShellFormatters } from "../../../src/app/composition/runtime-execution.js";
 import { createDefaultRuntimeAgentPolicy } from "../../../src/app/policies/runtime-agent-policy.js";
 import { createPersonalResolveTools } from "../../../src/app/composition/personal-resolve-tools.js";
 import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../helpers/policy-nodes.js";

@@ -7,7 +7,7 @@ import {
   type RuntimeAgentExecutionContext,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
+import { buildAppRuntimeExecution } from "../../src/app/composition/runtime-execution.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
