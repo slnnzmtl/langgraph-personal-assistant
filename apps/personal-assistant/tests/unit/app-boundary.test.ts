@@ -23,7 +23,20 @@ import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
-const AGENTS_ROOT = path.join(appRoot, "src/agents");
+const PROMPT_LAYER_FILES = [path.join(appRoot, "src/load-system-prompt.ts")];
+
+const assertFilesAvoidImports = (
+  files: readonly string[],
+  forbiddenPathSegments: readonly string[],
+): void => {
+  for (const file of files) {
+    const content = readFileSync(file, "utf8");
+
+    for (const segment of forbiddenPathSegments) {
+      expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+    }
+  }
+};
 
 const collectSourceFiles = (dir: string): string[] => {
   const entries = readdirSync(dir);
@@ -67,8 +80,8 @@ describe("app boundaries", () => {
     ]);
   });
 
-  it("keeps agents free of runtime-agents imports", () => {
-    assertNoForbiddenImports(AGENTS_ROOT, ["runtime-agents/"]);
+  it("keeps prompt loading free of runtime-agents imports", () => {
+    assertFilesAvoidImports(PROMPT_LAYER_FILES, ["runtime-agents/"]);
   });
 
   it("rejects unavailable capability grants", () => {

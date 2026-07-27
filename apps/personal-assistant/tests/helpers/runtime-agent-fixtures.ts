@@ -8,13 +8,20 @@ import {
   RuntimeAgentsDocumentSchema,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
+import {
+  FINANCE_DOMAIN_CAPABILITY_ID,
+  OBSIDIAN_VAULT_CAPABILITY_ID,
+} from "../../src/runtime-agents/builtin-capabilities.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../fixtures/runtime-agents.json",
 );
 
-const DOMAIN_MODULE_CAPABILITY_IDS = new Set(["finance-domain", "obsidian-vault"]);
+const DOMAIN_MODULE_CAPABILITY_IDS = new Set<string>([
+  FINANCE_DOMAIN_CAPABILITY_ID,
+  OBSIDIAN_VAULT_CAPABILITY_ID,
+]);
 
 const isLocalModuleAgent = (definition: RuntimeAgentDefinition): boolean =>
   !isRuntimeAgentBuiltin(definition)

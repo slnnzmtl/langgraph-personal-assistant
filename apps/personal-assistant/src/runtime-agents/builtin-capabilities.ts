@@ -19,20 +19,24 @@ import {
   createObsidianVaultTools,
 } from "./tools/index.js";
 
+export const NONE_CAPABILITY_ID = "none" as const;
+export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;
+export const FINANCE_DOMAIN_CAPABILITY_ID = "finance-domain" as const;
+
 export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
-    id: "none",
+    id: NONE_CAPABILITY_ID,
     description: "Prompt-only agent with no tools.",
     configurable: true,
   },
   {
-    id: "obsidian-vault",
+    id: OBSIDIAN_VAULT_CAPABILITY_ID,
     description: "Read, write, search, and send files from the Obsidian vault.",
     requiresVault: true,
     configurable: true,
   },
   {
-    id: "finance-domain",
+    id: FINANCE_DOMAIN_CAPABILITY_ID,
     description: "Execute SQL, fetch Wise transactions, and load expense categories.",
     requiresSupabase: true,
     configurable: true,

@@ -17,15 +17,16 @@ import {
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
 import type { CapabilityCatalog } from "@personal-assistant/supervisor-framework";
-import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
+import {
+  OBSIDIAN_VAULT_CAPABILITY_ID,
+  type CapabilityDeps,
+} from "../runtime-agents/builtin-capabilities.js";
 import type { PersonalResolveTools } from "../composition/personal-resolve-tools.js";
 import {
   composeObsidianCapabilityHooks,
   mapObsidianSubAgentResult,
   selectObsidianToolsForTurn,
 } from "./obsidian-hooks.js";
-
-export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault";
 
 export const hasObsidianVaultCapability = (definition: RuntimeAgentDefinition): boolean =>
   resolveAgentCapabilityIds(definition).includes(OBSIDIAN_VAULT_CAPABILITY_ID);
