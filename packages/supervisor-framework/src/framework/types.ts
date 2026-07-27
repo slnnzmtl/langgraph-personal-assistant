@@ -12,14 +12,9 @@ import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
+import type { CronJobRepository } from "./cron/types.js";
 
-/** Minimal cron repository contract for pack bootstrap (duck-types cron impl). */
-export type CronJobRepository = {
-  loadJobs(): Promise<unknown[]>;
-  saveJobs(jobs: unknown[]): Promise<void>;
-  createJob(job: unknown): Promise<unknown>;
-  deleteJob(jobName: string): Promise<unknown>;
-};
+export type { CronJobRepository };
 
 export type SupervisorPaths = {
   runtimeAgentsFilePath: string;

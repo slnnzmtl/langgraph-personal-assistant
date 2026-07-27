@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { reconcileRuntimeCron } from "../../src/cron/reconcile-runtime-cron.js";
-import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
-import type { CronJobDefinition } from "../../src/cron/cron-launcher.js";
-import type { RuntimeCronService } from "../../src/cron/types.js";
+import { reconcileRuntimeCron } from "../../../src/framework/cron/reconcile-runtime-cron.js";
+import { createCronRepositoryFake } from "../../helpers/cron-repository-fake.js";
+import type { CronJobDefinition } from "../../../src/framework/cron/types.js";
+import type { RuntimeCronService } from "../../../src/framework/cron/runtime-cron-service.js";
 
 const dailyReportJob: CronJobDefinition = {
   jobName: "daily-report",

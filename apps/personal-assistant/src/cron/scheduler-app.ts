@@ -5,9 +5,12 @@ import { watchRuntimeAgentDefinitions } from "../composition/runtime-agent-watch
 import type { RuntimeAgentWatcher } from "../composition/runtime-agent-watcher.js";
 import type { AppConfig } from "../config.js";
 import { createLazyCron, startCron, type LazyCronService } from "./cron-startup.js";
-import { watchCronJobDefinitions, type CronJobWatcher } from "./cron-job-watcher.js";
-import type { CronJobRepository } from "./cron-job-repository.js";
-import type { RuntimeCronService } from "./types.js";
+import {
+  watchCronJobDefinitions,
+  type CronJobRepository,
+  type CronJobWatcher,
+  type RuntimeCronService,
+} from "@personal-assistant/supervisor-framework";
 import type { GeminiConnector } from "../models/gemini-connector.js";
 
 export type SchedulerApp = {

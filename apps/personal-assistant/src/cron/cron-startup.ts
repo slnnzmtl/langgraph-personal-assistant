@@ -3,10 +3,14 @@ import type { Telegram } from "telegraf";
 
 import type { AppConfig } from "../config.js";
 import { createTelegramCronReporter } from "../telegram/telegram-cron-reporter.js";
-import { startCronBootstrap } from "./cron-bootstrap.js";
-import type { CronJobRepository } from "./cron-job-repository.js";
-import { createLazyCronService, createRuntimeCronService } from "./runtime-cron-service.js";
-import { createCronRunner, type CronJobRun } from "./cron-runner.js";
+import {
+  createCronRunner,
+  createLazyCronService,
+  createRuntimeCronService,
+  startCronBootstrap,
+  type CronJobRepository,
+  type CronJobRun,
+} from "@personal-assistant/supervisor-framework";
 
 export type LazyCronService = ReturnType<typeof createLazyCronService>;
 
@@ -58,7 +62,6 @@ export const startCron = async (options: StartCronOptions): Promise<void> => {
   await startCronBootstrap({
     repository: cronJobRepository,
     config: {
-      appTimezone: config.appTimezone,
       schedulerEnabled: options.schedulerEnabled ?? config.schedulerEnabled,
     },
     runtimeCron: runtimeCronService,

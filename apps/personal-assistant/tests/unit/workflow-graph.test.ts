@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
-import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
+import { buildCronTriggerForJob, createCronJobRepository } from "@personal-assistant/supervisor-framework";
 import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeTestRuntimeAgent } from "../helpers/fakes.js";

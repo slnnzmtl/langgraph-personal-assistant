@@ -5,11 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCapabilityCatalog,
-  resolveAgentTools,
 } from "../../src/index.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const CORE_ROOT = path.join(packageRoot, "src/core");
 const FRAMEWORK_ROOT = path.join(packageRoot, "src/framework");
 
 const collectSourceFiles = (dir: string): string[] => {
@@ -55,6 +53,15 @@ const assertNoForbiddenImports = (
     }
   }
 };
+
+describe("framework boundaries", () => {
+  it("keeps cron kit free of app and Telegram imports", () => {
+    assertNoForbiddenImports(path.join(FRAMEWORK_ROOT, "cron"), [], [
+      "telegraf",
+      "apps/personal-assistant",
+    ]);
+  });
+});
 
 describe("capability catalog", () => {
   it("deduplicates tools resolved from multiple capability ids", () => {

@@ -7,7 +7,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { createReadSkillTool, createSkillCatalog } from "@personal-assistant/supervisor-framework";
-import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
+import type { CronJobDefinition, CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
 
 const defaultConfigurationCatalog = createPersonalCapabilityCatalog();

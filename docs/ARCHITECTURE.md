@@ -126,12 +126,12 @@ cron/index.ts
   └─ loadConfig()
   └─ createSchedulerApp()
        └─ createSupervisorSystem({ runtimeCron: lazyCron })
-       └─ startCron() — node-cron + cron job bootstrap
-       └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json
+       └─ startCron() — wires framework cron runner + node-cron service
+       └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json (framework)
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
 ```
 
-Cron jobs invoke the **same compiled graph** directly (`cron-runner.ts`) with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
+Cron jobs invoke the **same compiled graph** via the framework `createCronRunner()` with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. Generic cron mechanics (persistence, triggers, scheduling, reconciliation) live in `packages/supervisor-framework/src/framework/cron/`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
@@ -385,7 +385,7 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
 | **Wise** | REST API for transaction sync | `services/wise.ts` |
-| **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron/cron-triggers.ts`, `data/cron-jobs.json` |
+| **Cron** | Separate scheduler process; framework cron kit + app Telegram wiring | `packages/supervisor-framework/src/framework/cron/`, `apps/personal-assistant/src/cron/`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
 
@@ -407,7 +407,7 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | `apps/personal-assistant/src/composition/personal-resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
 | `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/cron/index.ts` |
 | `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
-| `src/cron/` | Scheduler infrastructure | Separate Docker service and entry point |
+| `src/cron/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
 | `src/services/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
 | `src/core/ports/gemini-connector.ts` | LLM port | Gemini implementation lives in `src/models/` |
 

@@ -10,7 +10,6 @@ export {
   type SystemAgentOptions,
   type SystemConfigDeps,
   type SystemConfigToolsOptions,
-  type SystemCronJob,
 } from "./definition.js";
 
 export {

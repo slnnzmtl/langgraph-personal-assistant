@@ -1,8 +1,8 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import { createCronRunner } from "../../src/cron/cron-runner.js";
-import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
+import { createCronRunner } from "../../../src/framework/cron/cron-runner.js";
+import { buildCronTriggerForJob } from "../../../src/framework/cron/cron-triggers.js";
 
 const financeSyncTrigger = buildCronTriggerForJob("finance", "finance-sync");
 

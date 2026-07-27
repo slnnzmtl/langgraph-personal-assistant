@@ -1,8 +1,8 @@
 import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import type { CronJobRepository } from "../../types.js";
-import type { SystemConfigToolsOptions, SystemCronJob } from "../definition.js";
+import type { CronJobRepository } from "../../cron/types.js";
+import type { CronJobDefinition } from "../../cron/types.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -18,7 +18,7 @@ const DeleteCronJobToolSchema = z.object({
 
 const ListCronJobsToolSchema = z.object({});
 
-export const formatCronJobForDisplay = (job: SystemCronJob): string => {
+export const formatCronJobForDisplay = (job: CronJobDefinition): string => {
   const lines = [
     `Job name: ${job.jobName}`,
     `Schedule: ${job.schedule}`,
@@ -42,9 +42,15 @@ const defaultValidateCronTargetRoute = (
   allowedRoutes: readonly string[],
 ): boolean => allowedRoutes.includes(route);
 
+export type CronToolsOptions = {
+  cronTargetAgentIds?: readonly string[];
+  validateCronTargetRoute?: (route: string, allowedRoutes: readonly string[]) => boolean;
+  writeAccess?: boolean;
+};
+
 export const createCronTools = (
   repository: CronJobRepository,
-  options: Pick<SystemConfigToolsOptions, "cronTargetAgentIds" | "validateCronTargetRoute" | "writeAccess"> = {},
+  options: CronToolsOptions = {},
 ): StructuredToolInterface[] => {
   const cronTargetAgentIds = options.cronTargetAgentIds ?? [];
   const validateRoute = options.validateCronTargetRoute ?? defaultValidateCronTargetRoute;
@@ -52,7 +58,7 @@ export const createCronTools = (
   const listCronJobs = tool(
     async () => {
       try {
-        const jobs = (await repository.loadJobs()) as SystemCronJob[];
+        const jobs = await repository.loadJobs();
         return jobs.length > 0 ? jobs.map(formatCronJobForDisplay).join("\n\n") : "No cron jobs configured.";
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -77,7 +83,7 @@ export const createCronTools = (
           throw new Error(`Unknown target route: ${input.targetRoute}`);
         }
 
-        const nextJob: SystemCronJob = {
+        const nextJob: CronJobDefinition = {
           jobName: input.jobName,
           schedule: input.schedule,
           targetRoute: input.targetRoute,
@@ -85,7 +91,7 @@ export const createCronTools = (
           ...(input.payload ? { payload: input.payload } : {}),
         };
 
-        const created = (await repository.createJob(nextJob)) as SystemCronJob;
+        const created = await repository.createJob(nextJob);
         return `Created cron job ${input.jobName} targeting ${input.targetRoute}.\n\n${formatCronJobForDisplay(created)}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

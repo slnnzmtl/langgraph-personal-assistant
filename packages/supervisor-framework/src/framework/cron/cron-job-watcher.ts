@@ -2,7 +2,8 @@ import { watch } from "node:fs";
 import path from "node:path";
 
 import { reconcileRuntimeCron } from "./reconcile-runtime-cron.js";
-import type { CronJobRepository, RuntimeCronService } from "./types.js";
+import type { CronJobRepository } from "./types.js";
+import type { RuntimeCronService } from "./runtime-cron-service.js";
 
 const RECONCILE_DEBOUNCE_MS = 250;
 

@@ -4,17 +4,9 @@ import {
   type CronTargetRoute,
 } from "./cron-triggers.js";
 import type { CronRunner } from "./cron-runner.js";
+import type { CronJobDefinition } from "./types.js";
 
 type ScheduleFn = (expression: string, task: () => void | Promise<void>, options?: { timezone?: string }) => unknown;
-
-export type CronJobDefinition = {
-  jobName: string;
-  schedule: string;
-  targetRoute: CronTargetRoute;
-  enabled?: boolean;
-  timezone?: string;
-  payload?: unknown;
-};
 
 export type SetupCronOptions = {
   enabled: boolean;
@@ -77,3 +69,5 @@ export const setupCron = (options: SetupCronOptions): void => {
     );
   }
 };
+
+export type { CronJobDefinition, CronTargetRoute };

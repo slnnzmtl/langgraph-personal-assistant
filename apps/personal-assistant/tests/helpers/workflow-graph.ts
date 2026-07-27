@@ -17,7 +17,7 @@ import {
 } from "../../src/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
 import type { ILLMConnector } from "../../src/models/gemini-connector.js";
-import type { CronJobRepository } from "../../src/cron/types.js";
+import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";

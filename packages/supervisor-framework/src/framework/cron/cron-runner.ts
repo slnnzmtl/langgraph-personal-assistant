@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage }
 import { randomUUID } from "node:crypto";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
+import { extractMessageTextContent } from "../../core/message-content.js";
 
 export type CronJobRun = {
   jobName: string;

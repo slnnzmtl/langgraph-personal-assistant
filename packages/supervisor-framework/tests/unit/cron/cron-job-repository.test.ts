@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createCronJobRepository } from "../../src/cron/cron-job-repository.js";
-import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
+import { createCronJobRepository } from "../../../src/framework/cron/cron-job-repository.js";
+import { defaultTestCronTargetAgentIds } from "../../helpers/cron-fixtures.js";
 
 const tempPaths: string[] = [];
 

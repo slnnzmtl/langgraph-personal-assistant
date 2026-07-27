@@ -42,8 +42,39 @@ export type {
   SystemAgentRepository,
   SystemConfigDeps,
   SystemConfigToolsOptions,
-  SystemCronJob,
 } from "./framework/system-agent/index.js";
+
+// --- Framework: cron kit ---
+export {
+  SUPERVISE_CRON_ROUTE,
+  createCronTriggerResolver,
+  buildCronTriggerForJob,
+  resolveCronTriggerRoute,
+  isCronTargetRoute,
+  createCronJobRepository,
+  createCronJobRepositoryForConfig,
+  validateCronJobs,
+  setupCron,
+  createRuntimeCronService,
+  createLazyCronService,
+  reconcileRuntimeCron,
+  watchCronJobDefinitions,
+  startCronBootstrap,
+  createCronRunner,
+  MAX_GRAPH_CONTINUATIONS,
+} from "./framework/cron/index.js";
+export type {
+  CronJobDefinition,
+  CronTargetRoute,
+  CronTriggerResolver,
+  SetupCronOptions,
+  RuntimeCronService,
+  CronJobWatcher,
+  CronJobRun,
+  CronJobResult,
+  CronRunner,
+  CronExecutionReporter,
+} from "./framework/cron/index.js";
 
 // --- Kernel: graph compile (advanced / tests; bootstrap wraps this) ---
 export { createAssistant, type AssistantConfig } from "./core/create-assistant.js";

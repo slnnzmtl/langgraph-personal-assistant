@@ -2,14 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HumanMessage } from "@langchain/core/messages";
 
-import { setupCron } from "../../src/cron/cron-launcher.js";
-import { defaultTestCronTargetAgentIds } from "../helpers/runtime-agent-fixtures.js";
+import { setupCron } from "../../../src/framework/cron/cron-launcher.js";
 import {
   buildCronTriggerForJob,
   isCronTargetRoute,
   resolveCronTriggerRoute,
   SUPERVISE_CRON_ROUTE,
-} from "../../src/cron-triggers.js";
+} from "../../../src/framework/cron/cron-triggers.js";
+import { defaultTestCronTargetAgentIds } from "../../helpers/cron-fixtures.js";
 
 describe("setupCron", () => {
   const cronTargetAgentIds = defaultTestCronTargetAgentIds();

@@ -1,19 +1,22 @@
 import type { AppConfig } from "../config.js";
 import path from "node:path";
-import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
-import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
-import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../cron/cron-triggers.js";
 import {
+  createCronJobRepositoryForConfig,
+  createCronTriggerResolver,
+  createSkillCatalog,
   createRuntimeAgentRepository,
   deriveModelKeys,
   deriveSkillModules,
   DEFAULT_MODEL_KEY,
   SYSTEM_AGENT_ID,
+  SUPERVISE_CRON_ROUTE,
   type CapabilityCatalog,
   type CapabilityProvider,
+  type CronJobRepository,
   type ILLMConnector,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
+  type RuntimeCronService,
   type SkillCatalog,
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
@@ -28,7 +31,6 @@ import {
 } from "../runtime-agents/builtin-capabilities.js";
 import { setupSupabaseSession } from "../services/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
-import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { applyLocalModuleAvailability } from "./bootstrap-agents.js";

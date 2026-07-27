@@ -10,7 +10,7 @@ import {
   type RuntimeAgentRepository,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
-import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
+import type { CronJobRepository, RuntimeCronService } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { IFileSender } from "../telegram/file-sender.js";
 

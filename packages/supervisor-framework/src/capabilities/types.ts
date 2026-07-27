@@ -16,8 +16,10 @@ export type CapabilityAvailabilityContext = {
   configurationReposAvailable?: boolean;
 };
 
+import type { CronJobRepository } from "../framework/cron/types.js";
+
 export const configurationReposAvailable = (deps: {
-  cronJobRepository?: unknown;
+  cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: unknown;
 }): boolean =>
   deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined;

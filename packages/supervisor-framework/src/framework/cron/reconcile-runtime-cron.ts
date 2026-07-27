@@ -1,4 +1,5 @@
-import type { CronJobDefinition, CronJobRepository, RuntimeCronService } from "./types.js";
+import type { CronJobDefinition, CronJobRepository } from "./types.js";
+import type { RuntimeCronService } from "./runtime-cron-service.js";
 
 const cronJobsEqual = (left: CronJobDefinition, right: CronJobDefinition): boolean =>
   left.jobName === right.jobName

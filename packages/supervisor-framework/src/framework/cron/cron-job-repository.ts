@@ -2,21 +2,14 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
-import { isCronTargetRoute } from "./cron-triggers.js";
 import {
   fileExists,
   readTextFile,
   resolveSafePath,
-  withSerializedFileWrite,
-} from "@personal-assistant/supervisor-framework";
-import type { CronJobDefinition } from "./cron-launcher.js";
-
-export type CronJobRepository = {
-  loadJobs(): Promise<CronJobDefinition[]>;
-  saveJobs(jobs: CronJobDefinition[]): Promise<void>;
-  createJob(job: CronJobDefinition): Promise<CronJobDefinition>;
-  deleteJob(jobName: string): Promise<CronJobDefinition>;
-};
+} from "../../core/persistence/file-system.js";
+import { withSerializedFileWrite } from "../../core/persistence/json-store.js";
+import { isCronTargetRoute } from "./cron-triggers.js";
+import type { CronJobDefinition, CronJobRepository } from "./types.js";
 
 const createCronJobSchema = (cronTargetAgentIds: readonly string[]) =>
   z.object({

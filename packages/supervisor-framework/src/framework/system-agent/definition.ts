@@ -8,7 +8,7 @@ import {
   type RuntimeAgentDefinition,
 } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
-import type { CronJobRepository } from "../types.js";
+import type { CronJobRepository } from "../cron/types.js";
 
 /** Virtual system admin agent id (skill module + executor name). */
 export const SYSTEM_AGENT_ID = CONFIGURATION_AGENT_ID;
@@ -20,14 +20,6 @@ export const SYSTEM_AGENT_EPOCH = "1970-01-01T00:00:00.000Z";
 export const SYSTEM_CONFIG_CAPABILITY_ID = "system-config" as const;
 
 export const SYSTEM_CONFIG_READ_CAPABILITY_ID = "system-config-read" as const;
-
-export type SystemCronJob = {
-  jobName: string;
-  schedule: string;
-  targetRoute: string;
-  timezone?: string;
-  payload?: unknown;
-};
 
 export type SystemConfigDeps = {
   cronJobRepository?: CronJobRepository;

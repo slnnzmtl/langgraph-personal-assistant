@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from "node-cron";
 
 import { buildCronTriggerForJob } from "./cron-triggers.js";
-import type { CronJobDefinition } from "./cron-launcher.js";
+import type { CronJobDefinition } from "./types.js";
 
 export type RuntimeCronService = {
   addJob(job: CronJobDefinition): Promise<void>;

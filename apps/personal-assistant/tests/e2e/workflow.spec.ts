@@ -6,7 +6,7 @@ import path from "node:path";
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
-import type { CronJobRepository } from "../../src/cron/types.js";
+import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import type { RuntimeAgentDefinition } from "@personal-assistant/supervisor-framework";

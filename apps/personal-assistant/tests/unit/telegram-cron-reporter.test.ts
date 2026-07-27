@@ -2,7 +2,7 @@ import { AIMessage } from "@langchain/core/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTelegramCronReporter } from "../../src/telegram/telegram-cron-reporter.js";
-import { buildCronTriggerForJob } from "../../src/cron-triggers.js";
+import { buildCronTriggerForJob } from "@personal-assistant/supervisor-framework";
 
 const financeSyncTrigger = buildCronTriggerForJob("finance", "finance-sync");
 

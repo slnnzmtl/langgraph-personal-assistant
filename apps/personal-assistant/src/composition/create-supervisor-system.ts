@@ -1,11 +1,11 @@
 import type { AppConfig } from "../config.js";
 import { GeminiConnector } from "../models/gemini-connector.js";
-import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
 import {
   bootstrapSupervisorSystem,
   buildSkillModuleOwnerPattern,
   deriveRuntimeAgentGraphFingerprint,
   type CompiledSupervisorGraph,
+  type CronJobRepository,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../mcp/supabase.js";
 import type { CapabilityDeps } from "../runtime-agents/builtin-capabilities.js";
@@ -22,7 +22,7 @@ export type SupervisorSystemContext = {
   config: AppConfig;
   getGraph(): CompiledSupervisorGraph;
   recompile(): Promise<boolean>;
-  cronJobRepository: ReturnType<typeof createCronJobRepositoryForConfig>;
+  cronJobRepository: CronJobRepository;
   cronTargetAgentIds: readonly string[];
   supervisorConnector: GeminiConnector;
   supabaseSession?: SupabaseMcpSession;
@@ -72,7 +72,7 @@ export const createSupervisorSystem = async (
     config: bootstrap.config,
     getGraph: () => bootstrap.graph,
     recompile,
-    cronJobRepository: bootstrap.cronJobRepository as ReturnType<typeof createCronJobRepositoryForConfig>,
+    cronJobRepository: bootstrap.cronJobRepository as CronJobRepository,
     cronTargetAgentIds: bootstrap.cronTargetAgentIds,
     supervisorConnector,
     skillModulePattern: buildSkillModuleOwnerPattern(bootstrap.skillCatalog.listModules()),
