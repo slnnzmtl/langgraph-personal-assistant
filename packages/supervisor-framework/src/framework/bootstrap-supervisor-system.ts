@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { createCapabilityCatalog } from "../capabilities/index.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
 import { DEFAULT_PRODUCT_EXECUTOR } from "../core/types/agent.js";
@@ -8,7 +9,7 @@ import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
 import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
 import {
-  mergeCapabilityCatalogs,
+  createSystemConfigCapabilityProviders,
   type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
@@ -53,7 +54,10 @@ export const bootstrapSupervisorSystem = async <
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
   const capabilityCatalog = pack.capabilityProviders
-    ? mergeCapabilityCatalogs(pack.capabilityProviders, systemAgentEnabled)
+    ? createCapabilityCatalog([
+        ...pack.capabilityProviders,
+        ...(systemAgentEnabled ? createSystemConfigCapabilityProviders() : []),
+      ])
     : pack.capabilityCatalog;
 
   if (!capabilityCatalog) {

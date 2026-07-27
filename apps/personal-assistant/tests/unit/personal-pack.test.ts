@@ -3,15 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   createSystemAgentDefinition,
   deriveCronTargetAgentIds,
-  mergeCapabilityCatalogs,
   type ILLMConnector,
 } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { buildPersonalSupervisorPack } from "../../src/app/composition/personal-pack.js";
 import type { AppConfig } from "../../src/config.js";
 import {
   createCapabilityDeps,
   createDefaultCapabilityCatalog,
-  createPersonalCapabilityProviders,
 } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
@@ -47,7 +46,7 @@ describe("buildPersonalSupervisorPack", () => {
       supervisorLlm: {} as ILLMConnector,
     });
     const skillCatalog = createSkillCatalog({ approvedModules: ["configuration"] });
-    const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
+    const capabilityCatalog = createPersonalCapabilityCatalog();
     const bootstrapContext = buildBootstrapContext(runtimeAgents, skillCatalog, capabilityCatalog);
     const { runtimeAgentPolicy } = pack.buildRuntimeExecution!(
       runtimeAgents,

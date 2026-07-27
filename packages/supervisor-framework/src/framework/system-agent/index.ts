@@ -19,7 +19,7 @@ export {
 } from "./repository.js";
 
 export {
-  mergeCapabilityCatalogs,
+  createSystemConfigCapabilityProviders,
   createSystemConfigTools,
 } from "./capabilities.js";
 

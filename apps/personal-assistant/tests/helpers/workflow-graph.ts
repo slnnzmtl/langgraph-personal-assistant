@@ -3,7 +3,6 @@ import {
   deriveCronTargetAgentIds,
   deriveModelKeys,
   DEFAULT_MESSAGE_HISTORY_MAX_TOKENS,
-  mergeCapabilityCatalogs,
   type CompiledSupervisorGraph,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
@@ -17,10 +16,10 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/app/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
-import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
 import type { ILLMConnector } from "../../src/connectors/llm-connector.js";
 import type { CronJobRepository } from "../../src/cron/types.js";
 import type { SupabaseMcpSession } from "../../src/mcp/supabase.js";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createRuntimeAgentRepositoryFake, FakeLLMConnector } from "./fakes.js";
 
@@ -65,7 +64,7 @@ export const createTestWorkflowGraph = ({
     ]),
   );
 
-  const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
+  const capabilityCatalog = createPersonalCapabilityCatalog();
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,

@@ -35,7 +35,7 @@ Import from `@personal-assistant/supervisor-framework`:
 - `createAssistant`, `createAgentPolicy` — graph and policy helpers
 - Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
 - Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
-- System admin (opt-in): `systemAgent` pack option, `wrapRepositoryWithSystemAgent`, `mergeCapabilityCatalogs`, `hasSystemConfigWriteCapability` / `resolveSystemConfigDeps`, `SYSTEM_AGENT_ID` (`"configuration"`)
+- System admin (opt-in): `systemAgent` pack option, `wrapRepositoryWithSystemAgent`, `createSystemConfigCapabilityProviders`, `hasSystemConfigWriteCapability` / `resolveSystemConfigDeps`, `SYSTEM_AGENT_ID` (`"configuration"`)
 
 Optional bootstrap hooks (omit for minimal packs):
 

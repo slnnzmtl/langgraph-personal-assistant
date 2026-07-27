@@ -2,20 +2,16 @@ import { vi } from "vitest";
 
 import {
   createSystemConfigTools,
-  mergeCapabilityCatalogs,
   SYSTEM_AGENT_ID,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityProviders } from "../../src/runtime-agents/builtin-capabilities.js";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
 import { createReadSkillTool } from "../../src/runtime-agents/skills/skill-management.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
 
-const defaultConfigurationCatalog = mergeCapabilityCatalogs(
-  createPersonalCapabilityProviders() as never,
-  true,
-);
+const defaultConfigurationCatalog = createPersonalCapabilityCatalog();
 
 export const createCronRepositoryFake = (
   initialJobs: CronJobDefinition[] = [],

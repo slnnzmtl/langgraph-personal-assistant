@@ -26,7 +26,7 @@ export {
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
   createSystemAgentDefinition,
   wrapRepositoryWithSystemAgent,
-  mergeCapabilityCatalogs,
+  createSystemConfigCapabilityProviders,
   createSystemConfigTools,
   createSkillCrudTools,
   hasSystemConfigWriteCapability,

@@ -1,8 +1,6 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import {
-  createCapabilityCatalog,
-  type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
 } from "../../capabilities/index.js";
@@ -87,12 +85,3 @@ export const createSystemConfigCapabilityProviders = <
     }),
   },
 ];
-
-export const mergeCapabilityCatalogs = (
-  baseProviders: CapabilityProvider<Record<string, unknown>>[],
-  includeSystemConfig = true,
-): CapabilityCatalog =>
-  createCapabilityCatalog([
-    ...baseProviders,
-    ...(includeSystemConfig ? createSystemConfigCapabilityProviders() : []),
-  ]);

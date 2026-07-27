@@ -7,9 +7,9 @@ import {
   createCapabilityCatalog,
   createSystemAgentDefinition,
   isCapabilityAvailable,
-  mergeCapabilityCatalogs,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
 import {
   createCapabilityDeps,
@@ -122,7 +122,7 @@ describe("app boundaries", () => {
   });
 
   it("exposes read-only system configuration separately from write", () => {
-    const catalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
+    const catalog = createPersonalCapabilityCatalog();
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),

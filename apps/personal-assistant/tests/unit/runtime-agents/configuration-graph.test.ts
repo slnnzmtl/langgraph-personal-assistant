@@ -15,10 +15,10 @@ import {
 } from "../../helpers/fakes.js";
 
 import { createSkillCatalog } from "../../../src/runtime-agents/skills/skill-catalog.js";
-import { mergeCapabilityCatalogs, createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityProviders } from "../../../src/runtime-agents/builtin-capabilities.js";
+import { createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
 
-const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
+const capabilityCatalog = createPersonalCapabilityCatalog();
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");

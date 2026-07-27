@@ -4,14 +4,13 @@ import {
   createRuntimeAgentExecutionContext as createCoreExecutionContext,
   deriveCronTargetAgentIds,
   deriveModelKeys,
-  mergeCapabilityCatalogs,
   type RuntimeAgentExecutionContext,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { buildAppRuntimeExecution } from "../../src/app/register-defaults.js";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
-  createPersonalCapabilityProviders,
   type CapabilityDeps,
 } from "../../src/runtime-agents/builtin-capabilities.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
@@ -28,7 +27,7 @@ export const createAppRuntimeExecutionContext = (
 ): RuntimeAgentExecutionContext<CapabilityDeps> => {
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
-  const capabilityCatalog = mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true);
+  const capabilityCatalog = createPersonalCapabilityCatalog();
   const skillCatalog = createSkillCatalog();
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,

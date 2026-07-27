@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   createSystemAgentDefinition,
   deriveCronTargetAgentIds,
-  mergeCapabilityCatalogs,
 } from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createSkillCatalog } from "../../src/runtime-agents/skills/skill-catalog.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import {
@@ -28,10 +28,7 @@ describe("builtin capabilities", () => {
   });
 
   it("resolves system-config tools when repositories are available", () => {
-    const catalog = mergeCapabilityCatalogs(
-      createPersonalCapabilityProviders() as never,
-      true,
-    );
+    const catalog = createPersonalCapabilityCatalog();
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
@@ -62,7 +59,7 @@ describe("builtin capabilities", () => {
     const withRepos = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityCatalog: mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true),
+      capabilityCatalog: createPersonalCapabilityCatalog(),
     });
 
     expect(listAvailableCapabilities(withoutRepos).map((entry) => entry.id)).not.toContain("system-config");
@@ -73,7 +70,7 @@ describe("builtin capabilities", () => {
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityCatalog: mergeCapabilityCatalogs(createPersonalCapabilityProviders() as never, true),
+      capabilityCatalog: createPersonalCapabilityCatalog(),
     });
 
     expect(() => validateGrantableCapabilityIds(["system-config"], deps)).toThrow(
