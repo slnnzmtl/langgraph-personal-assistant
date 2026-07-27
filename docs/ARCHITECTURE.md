@@ -383,8 +383,8 @@ Prompts are **read from disk on each invocation** (hot-reload in dev). For built
 | **Telegram** | Telegraf long-polling, MarkdownV2 formatting, file send | `telegram/` |
 | **Obsidian vault** | Local filesystem read/write | `services/obsidian.ts`, vault tools |
 | **Supabase** | Hosted MCP session with transport-error reconnect | `mcp/supabase.ts`, `mcp/self-healing-session.ts`, `services/supabase.ts` |
-| **Wise** | REST API for transaction sync | `services/wise/` |
-| **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron-triggers.ts`, `data/cron-jobs.json` |
+| **Wise** | REST API for transaction sync | `services/wise.ts` |
+| **Cron** | Separate scheduler process (`node-cron`), JSON persistence, Telegram reporting | `cron/`, `cron/cron-triggers.ts`, `data/cron-jobs.json` |
 
 Finance gracefully degrades: if Supabase is unconfigured, the finance agent is disabled at bootstrap and the policy returns a stub message rather than crashing.
 
@@ -425,7 +425,7 @@ personal-assistant/                 # pnpm workspace root
 ├── apps/
 │   └── personal-assistant/
 │       ├── src/
-│       │   ├── index.ts, app.ts, config.ts, cron-triggers.ts
+│       │   ├── index.ts, app.ts, config.ts
 │       │   ├── app/                # Composition & domain hooks
 │       │   ├── runtime-agents/     # Domain tools & capability catalog
 │       │   ├── cron/ telegram/ services/ mcp/ connectors/ ...

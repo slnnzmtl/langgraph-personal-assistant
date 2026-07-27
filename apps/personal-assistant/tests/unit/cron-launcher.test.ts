@@ -9,7 +9,7 @@ import {
   isCronTargetRoute,
   resolveCronTriggerRoute,
   SUPERVISE_CRON_ROUTE,
-} from "../../src/cron-triggers.js";
+} from "../../src/cron/cron-triggers.js";
 
 describe("setupCron", () => {
   const cronTargetAgentIds = defaultTestCronTargetAgentIds();

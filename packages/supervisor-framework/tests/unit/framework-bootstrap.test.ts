@@ -10,6 +10,8 @@ import {
   createRuntimeAgentRepository,
   resolveAgentTools,
   type RuntimeAgentDefinition,
+  type SkillCatalog,
+  type SupervisorBootstrapContext,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -48,10 +50,14 @@ describe("framework bootstrap", () => {
       supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
-      buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: SupervisorBootstrapContext,
+      ) => ({
         loadPromptByKey: () => "prompt",
         runtimeAgentPolicy: createAgentPolicy({
-          resolveTools: (definition, deps) =>
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
             resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
         }),
       }),
@@ -83,7 +89,7 @@ describe("framework bootstrap", () => {
       loadPromptByKey: () => "prompt",
       loadSupervisorPrompt: () => "Supervise requests.",
       runtimeAgentPolicy: createAgentPolicy({
-        resolveTools: (definition, deps) =>
+        resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
           resolveAgentTools(definition, catalog, deps, {}),
       }),
     });

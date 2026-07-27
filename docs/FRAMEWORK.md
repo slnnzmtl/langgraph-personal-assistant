@@ -11,7 +11,7 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 | Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
 | Personal app | `apps/personal-assistant/src/app/` | Composition, `createSupervisorSystem`, domain hooks |
 | Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
-| Agent prompts | `apps/personal-assistant/src/agents/` + content `agents/` | System prompt loading and metadata helpers |
+| Agent prompts | `apps/personal-assistant/src/prompts/` + content `agents/` | System prompt loading and metadata helpers |
 | Skills runtime | `apps/personal-assistant/src/runtime-agents/skills/` | Skill filesystem I/O, `SkillCatalog`, prompt enrichment |
 
 ## Intentional boundaries
@@ -52,7 +52,7 @@ Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps
 
 **Personal deployment:** `createSupervisorSystem()` in the personal app composition layer.
 
-**Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, policy registry, and optional cron/skills/repo hooks.
+**Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, `buildRuntimeExecution` (returns `runtimeAgentPolicy` via `createAgentPolicy`), and optional cron/skills/repo hooks. For tests or advanced compile-only wiring, `createAssistant()` is the lower-level entry (bootstrap wraps it).
 
 ## Adding a capability (personal app)
 

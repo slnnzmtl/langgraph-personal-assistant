@@ -13,7 +13,7 @@ import {
   loadObsidianSystemPrompt,
   loadPrompt,
   loadSupervisorSystemPrompt,
-} from "../../src/agents/load-system-prompt.js";
+} from "../../src/prompts/load-system-prompt.js";
 
 describe("named prompt loaders", () => {
   afterEach(() => {

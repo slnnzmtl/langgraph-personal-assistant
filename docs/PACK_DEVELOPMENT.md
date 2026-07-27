@@ -10,7 +10,7 @@ How to build a **client pack** on `@personal-assistant/supervisor-framework` ins
 | `bootstrapSupervisorSystem` | LLM connector (Gemini, OpenAI, …) |
 | Agent repository **contracts** | Concrete cron + skill storage |
 | Capability catalog **types** | Your capability providers + tools |
-| Policy registry API | Default runtime execution kit (`runtimeAgentPolicy`) + optional app-local capability behaviors |
+| `createAgentPolicy` / runtime execution kit | Default `runtimeAgentPolicy` + optional app-local capability behaviors |
 | Message trimming / state | Prompts, skills content, env config |
 
 ## Minimal bootstrap checklist
