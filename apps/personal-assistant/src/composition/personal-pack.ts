@@ -2,7 +2,7 @@ import type { AppConfig } from "../config.js";
 import path from "node:path";
 import { createCronJobRepositoryForConfig } from "../cron/cron-job-repository.js";
 import type { CronJobRepository, RuntimeCronService } from "../cron/types.js";
-import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../cron-triggers.js";
+import { createCronTriggerResolver, SUPERVISE_CRON_ROUTE } from "../cron/cron-triggers.js";
 import {
   createRuntimeAgentRepository,
   deriveModelKeys,
