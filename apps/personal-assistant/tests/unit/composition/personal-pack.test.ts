@@ -39,6 +39,15 @@ const buildBootstrapContext = (
 });
 
 describe("buildPersonalSupervisorPack", () => {
+  it("registers initializeDefaults to seed framework default content", () => {
+    const pack = buildPersonalSupervisorPack({
+      config: testConfig,
+      supervisorLlm: {} as ILLMConnector,
+    });
+
+    expect(pack.initializeDefaults).toBeTypeOf("function");
+  });
+
   it("buildRuntimeExecution uses the bootstrap capability catalog for configuration tools", () => {
     const runtimeAgents = buildTestRuntimeAgents();
     const pack = buildPersonalSupervisorPack({

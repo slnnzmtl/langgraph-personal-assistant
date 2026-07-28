@@ -258,7 +258,7 @@ describe("appendConfiguredSkillAttachments", () => {
 
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain('<attached_skill name="skill-bootstrap">');
-    expect(prompt).toContain("Never ask the user for description or content");
+    expect(prompt).toContain("Create exactly one skill unless the user explicitly requests multiple skills");
     expect(prompt).toContain("list_skills(module)");
   });
 });

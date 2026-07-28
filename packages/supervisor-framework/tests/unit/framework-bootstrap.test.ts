@@ -101,4 +101,59 @@ describe("framework bootstrap", () => {
   it("uses empty skill catalog by default", () => {
     expect(createEmptySkillCatalog().listModules()).toEqual([]);
   });
+
+  it("runs initializeDefaults before seedAgents and skill catalog creation", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const callOrder: string[] = [];
+    const runtimeAgentsFilePath = path.join(process.cwd(), ".tmp", `framework-init-${process.pid}.json`);
+    const cronJobsFilePath = path.join(process.cwd(), ".tmp", `framework-init-cron-${process.pid}.json`);
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      initializeDefaults: ({ systemAgentEnabled }) => {
+        callOrder.push(`initializeDefaults:${systemAgentEnabled}`);
+      },
+      seedAgents: async () => {
+        callOrder.push("seedAgents");
+        return [researcher];
+      },
+      buildSkillCatalog: () => {
+        callOrder.push("buildSkillCatalog");
+        return createEmptySkillCatalog();
+      },
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(callOrder).toEqual([
+      "initializeDefaults:false",
+      "seedAgents",
+      "buildSkillCatalog",
+    ]);
+  });
 });

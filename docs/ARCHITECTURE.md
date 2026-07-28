@@ -359,6 +359,7 @@ Flat skill store with XML playbooks (and optional `.md`):
 - Each skill has `name`, `module`, `description`
 - `module` controls which runtime agent can attach/use the skill (`finance`, `obsidian`, `configuration`, …)
 - Configuration agent writes via `create_skill` / `edit_skill` → `data/skills/{name}.xml`
+- **Auto-seed on boot:** if configuration skills are missing, the pack's `initializeDefaults` hook writes domain-agnostic defaults via `createDefaultContentSeeder()` before repositories and catalogs load. Existing files are never overwritten.
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
@@ -379,6 +380,8 @@ Current shipped skills: `cron`, `daily-routine-note-creation`, `expense-ledger-s
 | Chat-created runtime agents | `data/prompts/{id}.xml` | XML (writable data volume) |
 
 Prompts are **read from disk on each invocation** (hot-reload in dev). Agents with `promptSourceKey` store a bootstrap snapshot in JSON; the prompt file under `data/prompts/` is the runtime source of truth. Static domain rules come first; dynamic context (timestamps, vault tree, attached skills) is appended via hooks.
+
+**Auto-seed on boot:** if `supervisor.xml` or `configuration.xml` are missing from `data/prompts/`, the pack's `initializeDefaults` hook writes domain-agnostic defaults via `createDefaultContentSeeder()` before prompt loaders run. Existing files are never overwritten. Domain prompts (`finance.xml`, `obsidian.xml`) are not auto-seeded.
 
 ---
 

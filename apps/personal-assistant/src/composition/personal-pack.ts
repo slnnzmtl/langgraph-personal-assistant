@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   createCronJobRepositoryForConfig,
   createCronTriggerResolver,
+  createDefaultContentSeeder,
   createFilePromptLogger,
   createSkillCatalog,
   createRuntimeAgentRepository,
@@ -35,6 +36,12 @@ import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
+
+const personalDefaultContentSeeder = createDefaultContentSeeder({
+  promptsDir: path.resolve(process.cwd(), "data/prompts"),
+  skillsDir: path.resolve(process.cwd(), "data/skills"),
+  logger: (message) => console.log(`[DefaultContentSeeder] ${message}`),
+});
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
@@ -115,6 +122,9 @@ export const buildPersonalSupervisorPack = ({
   >[],
   supervisorLlm,
   loadSupervisorPrompt: loadSupervisorSystemPrompt,
+  initializeDefaults: () => {
+    personalDefaultContentSeeder.seedAll();
+  },
   systemAgent: {
     modelKey: "configuration",
   },

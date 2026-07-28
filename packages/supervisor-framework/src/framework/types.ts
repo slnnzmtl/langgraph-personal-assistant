@@ -67,6 +67,11 @@ export type RuntimeExecutionKit = {
   shellFormatters?: RuntimeShellFormatters;
 };
 
+export type InitializeDefaultsContext<TConfig extends SupervisorPaths> = {
+  config: TConfig;
+  systemAgentEnabled: boolean;
+};
+
 export type SupervisorPackBootstrap<
   TConfig extends SupervisorPaths,
   TDeps extends Record<string, unknown>,
@@ -77,6 +82,10 @@ export type SupervisorPackBootstrap<
   capabilityCatalog?: CapabilityCatalog;
   supervisorLlm: ILLMConnector;
   loadSupervisorPrompt: () => string;
+  /** Optional early hook for seeding default prompts/skills before repositories and catalogs load. */
+  initializeDefaults?: (
+    context: InitializeDefaultsContext<TConfig>,
+  ) => Promise<void> | void;
   createRuntimeAgentRepository?: (config: TConfig) => RuntimeAgentRepository;
   createCronJobRepository?: (
     cronJobsFilePath: string,

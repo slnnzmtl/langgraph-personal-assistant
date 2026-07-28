@@ -9,10 +9,24 @@ export {
 export { resolveAgentTools } from "./framework/resolve-agent-tools.js";
 export { createEmptySkillCatalog } from "./framework/defaults/empty-skill-catalog.js";
 export { createNoopCronJobRepository } from "./framework/defaults/noop-cron-job-repository.js";
+export {
+  DEFAULT_SUPERVISOR_PROMPT,
+  DEFAULT_CONFIGURATION_PROMPT,
+  DEFAULT_CRON_SKILL_XML,
+  DEFAULT_RUNTIME_AGENTS_SKILL_XML,
+  DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
+  DEFAULT_SKILL_BOOTSTRAP_SKILL_XML
+} from "./framework/defaults/index.js";
+export {
+  createDefaultContentSeeder,
+  type DefaultContentSeeder,
+  type DefaultContentSeederOptions,
+} from "./framework/defaults/create-default-content-seeder.js";
 export type {
   SupervisorPaths,
   SupervisorGraphHooks,
   SupervisorBootstrapContext,
+  InitializeDefaultsContext,
   SupervisorPackBootstrap,
   SupervisorSystemContext,
   CompiledSupervisorGraph,

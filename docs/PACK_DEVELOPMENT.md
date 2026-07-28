@@ -13,6 +13,44 @@ How to build a **client pack** on `@personal-assistant/supervisor-framework` ins
 | `createAgentPolicy` / runtime execution kit | Default `runtimeAgentPolicy` + optional app-local capability behaviors |
 | Message trimming / state | Prompts, skills content, env config |
 
+## Framework default content (optional)
+
+The framework exports domain-agnostic baseline content for a minimal supervisor + configuration agent setup. Use these when bootstrapping a new pack or seeding a fresh `data/` volume:
+
+| Export | Purpose |
+|---|---|
+| `DEFAULT_SUPERVISOR_PROMPT` | Routes only to `FINISH` and `configuration` |
+| `DEFAULT_CONFIGURATION_PROMPT` | Cron, runtime-agent, and skill CRUD instructions |
+| `DEFAULT_CRON_SKILL_XML` | Cron job management skill |
+| `DEFAULT_RUNTIME_AGENTS_SKILL_XML` | Runtime sub-agent CRUD skill |
+| `DEFAULT_SKILL_MANAGEMENT_SKILL_XML` | Skill list/preview/edit/delete skill |
+| `DEFAULT_SKILL_BOOTSTRAP_SKILL_XML` | Natural-language skill authoring skill |
+| `createDefaultContentSeeder()` | Atomic seed-missing-only writer for the six default files |
+| `initializeDefaults` pack hook | Optional early bootstrap hook invoked before repositories/catalogs load |
+
+None of these constants hardcode domain modules (`finance`, `obsidian`, etc.). Opt in from your pack:
+
+```typescript
+import {
+  bootstrapSupervisorSystem,
+  createDefaultContentSeeder,
+} from "@personal-assistant/supervisor-framework";
+
+const defaultContentSeeder = createDefaultContentSeeder({
+  promptsDir: "data/prompts",
+  skillsDir: "data/skills",
+});
+
+await bootstrapSupervisorSystem({
+  // ...
+  initializeDefaults: () => {
+    defaultContentSeeder.seedAll();
+  },
+});
+```
+
+The personal-assistant pack registers this hook in `buildPersonalSupervisorPack()`.
+
 ## Minimal bootstrap checklist
 
 1. Add a workspace dependency on `@personal-assistant/supervisor-framework` (or a path/git ref pre-publish).

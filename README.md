@@ -131,6 +131,8 @@ data/skills/
 
 The `module` attribute (`finance`, `obsidian`, or `configuration`) controls which runtime agent lists and auto-attaches the skill. Optional `<skill_attachments>` blocks define phrase/cron triggers for auto-attachment. The finance `expense-sync` skill drives the Wise → categorize → dedup-insert pipeline.
 
+On startup, if `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, or `skill-bootstrap.xml` are missing from `data/skills/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`) are not auto-seeded and must be present in the repo or host volume.
+
 ## System prompts
 
 All runtime prompts live under `data/prompts/` (tracked in git; writable via the Compose `./data` volume):
@@ -143,6 +145,8 @@ All runtime prompts live under `data/prompts/` (tracked in git; writable via the
 | Configuration | `data/prompts/configuration.xml` |
 
 Prompts are read from disk on each invocation, so edits take effect without restarting the process during local development.
+
+On startup, if `supervisor.xml` or `configuration.xml` are missing from `data/prompts/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific prompts (`finance.xml`, `obsidian.xml`) are not auto-seeded.
 
 ## Docker Compose
 
@@ -165,7 +169,7 @@ Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your
 
 Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. JSON writes are serialized within each process; concurrent writes from bot and scheduler can still race across processes.
 
-The production image copies `data/prompts/` and `data/skills/` into the container. Prompts, skills, and runtime state persist on the mounted `./data` volume. Ensure `data/prompts/` and `data/skills/` exist on the host (copy from the repo on first deploy).
+The production image copies `data/prompts/` and `data/skills/` into the container. Prompts, skills, and runtime state persist on the mounted `./data` volume. Configuration skills and supervisor/configuration prompts are auto-seeded from framework defaults when missing at boot; domain-specific skills and prompts still require the repo or host volume on first deploy.
 
 ### Development container
 

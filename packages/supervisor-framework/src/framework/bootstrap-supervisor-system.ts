@@ -30,6 +30,11 @@ export const bootstrapSupervisorSystem = async <
   const adapters = pack.setupAdapters ? await pack.setupAdapters(pack.config) : ({} as TAdapters);
   const systemAgentEnabled = pack.systemAgent !== undefined && pack.systemAgent !== false;
 
+  await pack.initializeDefaults?.({
+    config: pack.config,
+    systemAgentEnabled,
+  });
+
   const baseRuntimeAgentRepository =
     pack.createRuntimeAgentRepository?.(pack.config) ??
     createRuntimeAgentRepository(
