@@ -5,6 +5,8 @@ import {
   createCronTriggerResolver,
   createDefaultContentSeeder,
   createFilePromptLogger,
+  createReadOnlyCronJobRepository,
+  createReadOnlyRuntimeAgentRepository,
   createSkillCatalog,
   createRuntimeAgentRepository,
   deriveModelKeys,
@@ -46,6 +48,8 @@ const personalDefaultContentSeeder = createDefaultContentSeeder({
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
   fileSender?: IFileSender;
+  /** Bot entrypoints use writer; scheduler uses reader. Default writer. */
+  dataWriteRole?: "writer" | "reader";
 };
 
 type PersonalAdapters = { supabaseSession?: SupabaseMcpSession | undefined };
@@ -128,13 +132,24 @@ export const buildPersonalSupervisorPack = ({
   systemAgent: {
     modelKey: "configuration",
   },
-  createRuntimeAgentRepository: (appConfig) =>
-    createRuntimeAgentRepository(
+  createRuntimeAgentRepository: (appConfig) => {
+    const repository = createRuntimeAgentRepository(
       process.cwd(),
       path.relative(process.cwd(), appConfig.runtimeAgentsFilePath),
       createDataAgentPromptStore(),
-    ),
-  createCronJobRepository: createCronJobRepositoryForConfig,
+    );
+
+    return appConfig.allowDataWrites === false
+      ? createReadOnlyRuntimeAgentRepository(repository)
+      : repository;
+  },
+  createCronJobRepository: (cronJobsFilePath, cronTargetAgentIds) => {
+    const repository = createCronJobRepositoryForConfig(cronJobsFilePath, cronTargetAgentIds);
+
+    return config.allowDataWrites === false
+      ? createReadOnlyCronJobRepository(repository)
+      : repository;
+  },
   setupAdapters: async (appConfig) => ({
     supabaseSession: await setupSupabaseSession(appConfig),
   }),

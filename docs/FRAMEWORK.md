@@ -39,10 +39,13 @@ Import from `@personal-assistant/supervisor-framework`:
 - `resolveAgentTools` — catalog-based tool resolution
 - `createAssistant`, `createAgentPolicy` — graph and policy helpers
 - Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
-- Types: `SupervisorPackBootstrap`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
+- Types: `SupervisorPackBootstrap`, `SupervisorPaths`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 - System admin (opt-in): `systemAgent` pack option, `wrapRepositoryWithSystemAgent`, `createSystemConfigCapabilityProviders`, `hasSystemConfigWriteCapability` / `resolveSystemConfigDeps`, `SYSTEM_AGENT_ID` (`"configuration"`)
+- Read-only persistence (multi-process): `createReadOnlyRuntimeAgentRepository`, `createReadOnlyCronJobRepository` — mutating methods throw with a clear error; use when a second process must read shared JSON without writing
 
 Optional bootstrap hooks (omit for minimal packs):
+
+- `config.allowDataWrites?: boolean` on `SupervisorPaths` — when `false`, bootstrap skips `initializeDefaults` and `purgeLegacySystemAgent` (default `true`). Personal app sets this from `dataWriteRole: "writer" | "reader"` at the entrypoint.
 
 - `createRuntimeAgentRepository(config)` — defaults to file-backed JSON repo
 - `createCronJobRepository(...)` — defaults to in-memory no-op

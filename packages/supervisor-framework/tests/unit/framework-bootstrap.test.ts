@@ -1,4 +1,5 @@
 import path from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -199,5 +200,119 @@ describe("framework bootstrap", () => {
     );
 
     expect(seedAgents).not.toHaveBeenCalled();
+  });
+
+  it("skips initializeDefaults when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const initializeDefaults = vi.fn();
+    const runtimeAgentsFilePath = path.join(process.cwd(), ".tmp", `framework-readonly-init-${process.pid}.json`);
+    const cronJobsFilePath = path.join(process.cwd(), ".tmp", `framework-readonly-init-cron-${process.pid}.json`);
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      initializeDefaults,
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(initializeDefaults).not.toHaveBeenCalled();
+  });
+
+  it("skips purgeLegacySystemAgent when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const rootDir = path.join(process.cwd(), ".tmp", `framework-readonly-purge-${process.pid}`);
+    const relativePath = "data/runtime-agents.json";
+    const runtimeAgentsFilePath = path.join(rootDir, relativePath);
+    const repository = createRuntimeAgentRepository(rootDir, relativePath);
+    const saveAgents = vi.spyOn(repository, "saveAgents");
+
+    await mkdir(path.dirname(runtimeAgentsFilePath), { recursive: true });
+    await writeFile(
+      runtimeAgentsFilePath,
+      `${JSON.stringify({
+        version: 1,
+        agents: [
+          {
+            id: "configuration",
+            name: "Configuration",
+            description: "legacy",
+            systemPrompt: "legacy",
+            capabilityIds: ["system-config"],
+            executor: "configuration",
+            modelKey: "configuration",
+            builtin: true,
+            maxSteps: 10,
+            enabled: true,
+            createdAt: "1970-01-01T00:00:00.000Z",
+            updatedAt: "1970-01-01T00:00:00.000Z",
+          },
+        ],
+      }, null, 2)}\n`,
+      { flag: "w" },
+    );
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath: path.join(rootDir, "data/cron-jobs.json"),
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      systemAgent: { modelKey: "configuration" },
+      createRuntimeAgentRepository: () => repository,
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(saveAgents).not.toHaveBeenCalled();
   });
 });

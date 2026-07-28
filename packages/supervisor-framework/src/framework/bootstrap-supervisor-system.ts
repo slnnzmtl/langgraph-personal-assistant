@@ -36,11 +36,14 @@ export const bootstrapSupervisorSystem = async <
 ): Promise<SupervisorSystemContext<TConfig, TDeps, TAdapters>> => {
   const adapters = pack.setupAdapters ? await pack.setupAdapters(pack.config) : ({} as TAdapters);
   const systemAgentEnabled = pack.systemAgent !== undefined && pack.systemAgent !== false;
+  const allowDataWrites = pack.config.allowDataWrites !== false;
 
-  await pack.initializeDefaults?.({
-    config: pack.config,
-    systemAgentEnabled,
-  });
+  if (allowDataWrites) {
+    await pack.initializeDefaults?.({
+      config: pack.config,
+      systemAgentEnabled,
+    });
+  }
 
   const baseRuntimeAgentRepository =
     pack.createRuntimeAgentRepository?.(pack.config) ??
@@ -53,7 +56,7 @@ export const bootstrapSupervisorSystem = async <
     ? wrapRepositoryWithSystemAgent(baseRuntimeAgentRepository, pack.systemAgent as SystemAgentOptions)
     : baseRuntimeAgentRepository;
 
-  if (systemAgentEnabled) {
+  if (systemAgentEnabled && allowDataWrites) {
     await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
   }
 

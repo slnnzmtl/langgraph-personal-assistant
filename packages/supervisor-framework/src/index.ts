@@ -123,6 +123,11 @@ export {
   createRuntimeAgentRepository,
   type RuntimeAgentRepository,
 } from "./core/agents/repository.js";
+export {
+  createReadOnlyCronJobRepository,
+  createReadOnlyRuntimeAgentRepository,
+  DATA_WRITES_DISABLED_MESSAGE,
+} from "./core/persistence/read-only-repositories.js";
 export type { RuntimeAgentPromptStore } from "./core/ports/runtime-agent-prompt-store.js";
 export { formatDataAgentPromptBootstrap } from "./core/agents/agent-prompt-bootstrap.js";
 export {

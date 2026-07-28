@@ -22,6 +22,8 @@ export type SupervisorPaths = {
   runtimeAgentsFilePath: string;
   cronJobsFilePath: string;
   messageHistoryMaxTokens?: number;
+  /** When false, bootstrap skips data mutations (default true). */
+  allowDataWrites?: boolean;
 };
 
 export type SupervisorGraphHooks = {

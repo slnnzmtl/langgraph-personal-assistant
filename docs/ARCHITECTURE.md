@@ -116,16 +116,16 @@ flowchart TB
 
 ## Boot Sequence
 
-The assistant runs as **two processes** that share the same workflow graph wiring via `createSupervisorSystem()`:
+The assistant runs as **two processes** that share the same workflow graph wiring via `createSupervisorSystem()`. **Single-writer discipline:** the Telegram bot is the sole writer to `./data`; the scheduler process is read-only for runtime-agent and cron JSON (mutating repository methods throw; bootstrap skips `initializeDefaults` and `purgeLegacySystemAgent`).
 
-### Telegram bot (`src/index.ts`)
+### Telegram bot (`src/index.ts`) — data **writer**
 
 ```
 index.ts
   └─ loadConfig()
   └─ createApp()
        └─ createSupervisorSystem()
-            ├─ buildPersonalSupervisorPack() — registers initializeDefaults (framework default seeder)
+            ├─ buildPersonalSupervisorPack({ dataWriteRole: "writer" }) — read/write repositories
             ├─ createSupervisorRuntime() — shared checkpointer, stable cron repo, serialized soft recompile
             │    └─ bootstrapSupervisorSystem()
             │         ├─ initializeDefaults() — seed missing supervisor/configuration prompts + configuration skills (atomic wx, opt-in)
@@ -139,13 +139,13 @@ index.ts
        └─ launchApp()
 ```
 
-### Scheduler process (`src/scheduler/index.ts`)
+### Scheduler process (`src/scheduler/index.ts`) — data **reader**
 
 ```
 scheduler/index.ts
   └─ loadConfig()
   └─ createSchedulerApp()
-       └─ createSupervisorSystem({ runtimeCron }) — same pack + initializeDefaults path as bot
+       └─ createSupervisorSystem({ runtimeCron, dataWriteRole: "reader" }) — read-only repos; skips seeding/purge writes
        └─ startSchedulerRuntime() — wires framework cron runner + node-cron service
        └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json (framework)
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
@@ -318,11 +318,13 @@ This is a practical balance between context-window cost and LangGraph conversati
 | State | Storage | Shared between bot and scheduler? | Consequence |
 |---|---|---|---|
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
-| Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
-| Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
+| Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | **Bot writes; scheduler reads.** In-process write queues do not coordinate across processes; a second writer would require an advisory lock (see below). |
+| Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same single-writer rule as runtime agents. Configuration mutations belong on the bot/Telegram path. |
 | Skills and prompts | `data/skills/`, `data/prompts/` | Yes (shared Compose volume) | Git-tracked shipped files can be masked by an empty host mount; the pack's `initializeDefaults` hook seeds missing configuration baseline files from framework defaults before catalogs/prompt loaders run. Domain-specific finance/obsidian content is not auto-seeded. |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
+
+**Advisory lock fallback (not implemented):** if a second writer process is ever required (e.g. multiple schedulers or split configuration ownership), coordinate mutations with a lock file on the shared volume (e.g. `data/.write-lock`) before read-modify-write. Phase 1 enforces single-writer by role at the entrypoint instead.
 
 ---
 
@@ -390,7 +392,7 @@ initializeDefaults: () => {
 
 **Not auto-seeded:** domain prompts (`finance.xml`, `obsidian.xml`) and domain skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`). Those remain git-tracked app content.
 
-Both bot and scheduler call the same bootstrap path, so either process can populate a fresh `./data` volume on first boot. Concurrent startup uses exclusive file creation so two processes seeding the same missing file do not overwrite each other.
+Only the **bot** (writer role) runs `initializeDefaults` and `purgeLegacySystemAgent` on bootstrap; the scheduler (reader role) skips those writes and uses read-only repository wrappers. On first deploy, start the bot once (or ensure the writer process boots first) so framework defaults seed into `./data` before the scheduler reads them.
 
 ---
 

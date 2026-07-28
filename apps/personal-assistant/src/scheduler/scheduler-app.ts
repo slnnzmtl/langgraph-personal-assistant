@@ -27,7 +27,7 @@ export type SchedulerApp = {
 
 export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerApp> => {
   const runtimeCron: LazyCronService = createLazyCron();
-  const system = await createSupervisorSystem(config, { runtimeCron });
+  const system = await createSupervisorSystem(config, { runtimeCron, dataWriteRole: "reader" });
 
   const bot = new Telegraf(config.telegramBotToken);
 
@@ -72,7 +72,7 @@ export const waitForProcessShutdown = (): Promise<void> =>
   });
 
 export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
-  console.log("Scheduler running. Watching for job and runtime agent definition changes.");
+  console.log("Scheduler running in data read-only mode. Watching for job and runtime agent definition changes.");
 
   await waitForProcessShutdown();
   await app.shutdown();

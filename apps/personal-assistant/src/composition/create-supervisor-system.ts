@@ -36,9 +36,10 @@ export const createSupervisorSystem = async (
   options: SupervisorSystemOptions = {},
 ): Promise<PersonalSupervisorSystem> => {
   const supervisorConnector = new GeminiConnector(config.googleApiKey, config.supervisorModel);
+  const allowDataWrites = (options.dataWriteRole ?? "writer") === "writer";
   const runtime = await createSupervisorRuntime(
     buildPersonalSupervisorPack({
-      config,
+      config: { ...config, allowDataWrites },
       options,
       supervisorLlm: supervisorConnector,
     }),

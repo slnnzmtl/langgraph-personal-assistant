@@ -30,6 +30,8 @@ export interface AppConfig {
   cronJobsFilePath: string;
   runtimeAgentsFilePath: string;
   messageHistoryMaxTokens: number;
+  /** Set at composition time; bot writer, scheduler reader. */
+  allowDataWrites?: boolean;
   mcpMaxReconnectAttempts: number;
   mcpReconnectBaseDelayMs: number;
   mcpReconnectMaxDelayMs: number;
