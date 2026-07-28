@@ -41,10 +41,9 @@ Imagine a sibling repo (or package) that only needs a supervisor + one researche
 ### 1. Define agents
 
 ```typescript
-import type { RuntimeAgentDefinition } from "@personal-assistant/supervisor-framework";
+import type { CreateRuntimeAgentInput } from "@personal-assistant/supervisor-framework";
 
-const researcher: RuntimeAgentDefinition = {
-  id: "researcher",
+const researcherInput: CreateRuntimeAgentInput = {
   name: "Researcher",
   description: "Answer factual questions with web search.",
   systemPrompt: "You are a concise research assistant. Prefer short answers.",
@@ -52,8 +51,6 @@ const researcher: RuntimeAgentDefinition = {
   modelKey: "generic",
   maxSteps: 6,
   enabled: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
 };
 ```
 
@@ -62,7 +59,7 @@ const researcher: RuntimeAgentDefinition = {
 ### 2. Register capabilities (your tools)
 
 ```typescript
-import { createCapabilityCatalog } from "@personal-assistant/supervisor-framework";
+import { createCapabilityCatalog, NONE_CAPABILITY_PROVIDER } from "@personal-assistant/supervisor-framework";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
@@ -79,20 +76,14 @@ const webSearch = tool(
 );
 
 const catalog = createCapabilityCatalog([
-  {
-    descriptor: {
-      id: "none",
-      description: "Prompt-only agent.",
-      configurable: true,
-    },
-    resolveTools: () => [],
-  },
+  NONE_CAPABILITY_PROVIDER,
   {
     descriptor: {
       id: "web-search",
       description: "Search the public web.",
-      configurable: true,
+      grantable: true,
     },
+    isAvailable: () => true,
     resolveTools: () => [webSearch],
   },
 ]);
@@ -105,8 +96,8 @@ const catalog = createCapabilityCatalog([
 ```typescript
 import {
   bootstrapSupervisorSystem,
-  createAgentPolicy,
-  resolveAgentTools,
+  buildDefaultRuntimeExecution,
+  seedAgentsIfMissing,
 } from "@personal-assistant/supervisor-framework";
 
 const context = await bootstrapSupervisorSystem({
@@ -119,21 +110,9 @@ const context = await bootstrapSupervisorSystem({
   supervisorLlm: myLlmConnector,
   loadSupervisorPrompt: () =>
     "Route factual questions to researcher. Reply directly for greetings.",
-  seedAgents: async (repo) => {
-    const existing = await repo.listAgents();
-    if (existing.some((a) => a.id === researcher.id)) {
-      return existing;
-    }
-    await repo.createAgent(researcher);
-    return repo.listAgents();
-  },
-  buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
-    loadPromptByKey: async (key) => `Prompt for ${key}`,
-    runtimeAgentPolicy: createAgentPolicy({
-      resolveTools: (definition, deps) =>
-        resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
-    }),
-  }),
+  seedAgents: seedAgentsIfMissing([researcherInput]),
+  buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+    buildDefaultRuntimeExecution(ctx.capabilityCatalog),
   buildModels: () => ({ generic: myChatModel }),
   buildCapabilityDeps: () => ({}),
 });

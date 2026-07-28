@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { loadConfig } from "./config.js";
-import { runOneShot, runTerminalChat } from "./chat.js";
+import { runOneShot, runTerminalChat } from "./gateway/terminal.js";
 import { createMinimalSupervisorSystem } from "./supervisor.js";
 
 const main = async (): Promise<void> => {

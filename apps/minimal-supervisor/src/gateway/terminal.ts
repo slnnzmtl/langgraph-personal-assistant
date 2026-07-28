@@ -1,14 +1,23 @@
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
+import type { BaseMessage } from "@langchain/core/messages";
 import { HumanMessage } from "@langchain/core/messages";
+import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 
-import type { MinimalSupervisorSystem } from "./supervisor.js";
-import { formatMessageContent } from "./format-message.js";
+import type { MinimalSupervisorSystem } from "../supervisor.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", "q"]);
 
 const isExitCommand = (text: string): boolean => EXIT_COMMANDS.has(text.toLowerCase());
+
+const formatMessageContent = (content: BaseMessage["content"] | undefined): string => {
+  if (content === undefined) {
+    return "";
+  }
+
+  return extractMessageTextContent(content).trim();
+};
 
 export const runOneShot = async (
   graph: MinimalSupervisorSystem["graph"],

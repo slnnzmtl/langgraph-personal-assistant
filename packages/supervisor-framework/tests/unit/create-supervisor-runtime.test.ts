@@ -2,17 +2,15 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  createAgentPolicy,
+  buildDefaultRuntimeExecution,
   createCapabilityCatalog,
   createCronJobRepositoryForConfig,
   createRuntimeAgentRepository,
   createSupervisorRuntime,
   isCronTargetRoute,
-  resolveAgentTools,
-  type CapabilityCatalog,
+  NONE_CAPABILITY_PROVIDER,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
-  type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -34,13 +32,7 @@ const buildPack = (options: {
     Parameters<typeof createSupervisorRuntime>[0]["createCronJobRepository"]
   >;
 }) => {
-  const catalog = createCapabilityCatalog([
-    {
-      descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
-      isAvailable: () => true,
-      resolveTools: () => [],
-    },
-  ]);
+  const catalog = createCapabilityCatalog([NONE_CAPABILITY_PROVIDER]);
 
   const runtimeAgentsFilePath = path.join(
     process.cwd(),
@@ -71,17 +63,10 @@ const buildPack = (options: {
       ...(options.createCronJobRepository
         ? { createCronJobRepository: options.createCronJobRepository }
         : {}),
-      buildRuntimeExecution: (
-        _agents: RuntimeAgentDefinition[],
-        _skillCatalog: SkillCatalog,
-        ctx: { capabilityCatalog: CapabilityCatalog },
-      ) => ({
-        loadPromptByKey: () => "prompt",
-        runtimeAgentPolicy: createAgentPolicy({
-          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
-            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+      buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+        buildDefaultRuntimeExecution(ctx.capabilityCatalog, {
+          loadPromptByKey: () => "prompt",
         }),
-      }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),
       }),

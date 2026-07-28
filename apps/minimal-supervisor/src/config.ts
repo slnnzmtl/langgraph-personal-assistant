@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { getMessageHistoryMaxTokens } from "@personal-assistant/supervisor-framework";
+
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 export interface AppConfig {
@@ -34,6 +36,6 @@ export const loadConfig = (): AppConfig => {
     researcherModel: process.env.RESEARCHER_MODEL ?? defaultModel,
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
-    messageHistoryMaxTokens: 6000,
+    messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
   };
 };

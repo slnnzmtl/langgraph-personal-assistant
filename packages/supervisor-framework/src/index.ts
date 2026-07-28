@@ -12,6 +12,15 @@ export {
   deriveRuntimeAgentGraphFingerprint,
 } from "./framework/derive-agents.js";
 export { resolveAgentTools } from "./framework/resolve-agent-tools.js";
+export {
+  buildDefaultRuntimeExecution,
+  type BuildDefaultRuntimeExecutionOptions,
+} from "./framework/build-default-runtime-execution.js";
+export { seedAgentsIfMissing } from "./framework/seed-agents-if-missing.js";
+export {
+  NONE_CAPABILITY_ID,
+  NONE_CAPABILITY_PROVIDER,
+} from "./framework/defaults/none-capability.js";
 export { createEmptySkillCatalog } from "./framework/defaults/empty-skill-catalog.js";
 export { createNoopCronJobRepository } from "./framework/defaults/noop-cron-job-repository.js";
 export {
@@ -163,6 +172,7 @@ export {
   resolveAgentSkillModule,
   resolveAgentCapabilityIds,
   normalizeRuntimeAgentDefinition,
+  toRuntimeAgentId,
   isRuntimeAgentBuiltin,
   type RuntimeAgentDefinition,
   type CreateRuntimeAgentInput,
