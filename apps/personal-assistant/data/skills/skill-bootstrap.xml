@@ -1,0 +1,125 @@
+<skill name="skill-bootstrap" module="configuration" description="Create a complete, production-ready agent skill from a single natural-language request.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>create a skill,create skill,create a new skill,new skill,add skill,bootstrap skill,draft a skill,help me write a skill,author a skill,make a skill,build a skill</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<purpose>
+Turn one user prompt into a skill that is routable, operational, safe, and tailored to the target agent. Infer ordinary implementation details; ask a question only when a missing decision would change the skill's owner, permissions, or destructive behavior.
+</purpose>
+
+<execution_contract>
+  <single_prompt_mode>
+  - Treat a request to create, add, bootstrap, make, build, or author a skill as authorization to create it in this turn.
+  - Do not require a draft-review or confirmation round trip.
+  - Create exactly one skill unless the user explicitly requests multiple skills.
+  - If the user asks only to draft, preview, or propose a skill, return a draft and do not call `create_skill`.
+  </single_prompt_mode>
+
+  <safe_defaults>
+  - Prefer the module and agent explicitly named by the user.
+  - When no owner is named, infer it from the workflow: finance for money or ledger work; obsidian for vault or note work; configuration for agent, schedule, or system configuration work.
+  - Use the least-privileged available capability set. Do not invent tools, paths, schemas, or integrations.
+  - Preserve user-specified names, triggers, required tools, paths, and prohibited actions.
+  </safe_defaults>
+
+  <clarification_gate>
+  Ask one focused question and stop only when:
+  - no target module can be inferred;
+  - the requested workflow requires a capability unavailable to every plausible target agent;
+  - the request leaves an irreversible, destructive, or approval-sensitive action unspecified.
+  Otherwise, continue with sensible defaults and state those defaults in the creation result.
+  </clarification_gate>
+</execution_contract>
+
+<intent_routing>
+1. CREATE (create, add, bootstrap, make, build, author):
+   - Run `discover_context`, `design_skill`, and `create_skill` in order.
+   - Create the finished skill in the same response.
+
+2. DRAFT (draft, propose, preview, show me):
+   - Run `discover_context` and `design_skill`.
+   - Return the generated definition without calling `create_skill`.
+
+3. REVISE (revise, change, update, tweak):
+   - If the named skill exists, call `preview_skill(module, name)` first.
+   - Apply the user's requested changes, preserving valid existing content.
+   - Call `edit_skill(module, name, description, content)` when the user authorizes the update; otherwise return a revised draft.
+</intent_routing>
+
+<discover_context>
+1. Resolve ownership:
+   - Call `list_runtime_agents` when the module or target agent is not explicit.
+   - Call `preview_runtime_agent(id)` when the selected agent's prompt, scope, or configured capabilities affect the design.
+
+2. Resolve implementation constraints:
+   - Call `list_capabilities` when the workflow needs named tools or the capability set is uncertain.
+   - Reference only capabilities granted to the target agent. If a needed capability is absent, either omit that operation or ask the clarification-gate question.
+
+3. Learn local conventions and prevent duplication:
+   - Call `list_skills(module)` before creation.
+   - Call `preview_skill(module, name)` for the closest matching skill when its structure, trigger style, or safety rules can inform the new one.
+   - Choose a distinct name. If the requested purpose already exists, improve or revise that skill only when the user asked to update it; otherwise create a clearly differentiated skill.
+</discover_context>
+
+<design_skill>
+  <definition>
+  - `name`: concise, unique kebab-case identifier describing the user outcome.
+  - `description`: one precise catalog-facing sentence that states the outcome and relevant system or data.
+  - `content`: body only; never include the root `skill` element because `create_skill` supplies its attributes.
+  </definition>
+
+  <body_structure>
+  Build a compact XML body from the sections relevant to the task:
+  - `skill_attachments`: wrap each trigger set in an `<attachment>` element. Use comma-separated `anyPhrases` for alternative triggers, or `allPhrases` when every phrase must appear. Example:
+    <skill_attachments>
+      <attachment>
+        <anyPhrases>create training,design workout,build program</anyPhrases>
+      </attachment>
+    </skill_attachments>
+  - `intent_routing`: distinguish materially different user intents or modes.
+  - `workflow`: ordered, executable steps; name each required tool and its ordering or parallelism.
+  - `input_rules` and `validation_rules`: accepted formats, required data, validation, and fallback behavior.
+  - `path_rules`, `data_rules`, or `mapping_rules`: only when the workflow depends on files, schemas, fields, dates, or categorization.
+  - `templates`: include exact output, query, note, or message templates when they improve repeatability.
+  - `safety_rules` and `prohibited`: confirmations, idempotency, privacy, destructive-action constraints, and hard prohibitions.
+  - `output_contract`: what to report, including successes, skipped items, failures, and uncertainty.
+  </body_structure>
+
+  <authoring_rules>
+  - Make every instruction actionable and unambiguous; prefer explicit tool calls over implied actions.
+  - Keep XML element names kebab-case or snake_case consistently with existing skills, and nest related rules under descriptive elements.
+  - Escape literal XML-sensitive content when necessary; do not put a root `skill` tag in `content`.
+  - Include only rules supported by the target agent's prompt and capabilities.
+  - Make mutations safe: validate before writing, use idempotent operations where possible, and require confirmation for irreversible operations unless the user's request already supplies explicit authorization.
+  - Avoid generic filler, duplicated instructions, implementation speculation, and unsupported claims.
+  </authoring_rules>
+</design_skill>
+
+<create_skill>
+1. Call `create_skill(module, name, description, content)` after `discover_context` and `design_skill` complete.
+2. Never create a skill with a colliding name or a body that references unavailable capabilities.
+3. Report:
+   <creation_result>
+   Module: [module]
+   Skill Name: [name]
+   Description: [description]
+   Status: Created
+   Triggers: [phrases or "None configured"]
+   Key behavior: [one concise summary]
+   Assumptions: [inferred defaults or "None"]
+   </creation_result>
+</create_skill>
+
+<draft_result>
+Module: [module]
+Skill Name: [name]
+Description: [description]
+Status: Draft
+
+Content:
+[body only]
+</draft_result>
+
+</skill>

@@ -7,7 +7,7 @@ import {
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { ILLMConnector } from "../ports/llm-connector.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 import { defaultReplyUxConfig, type ReplyUxConfig } from "./reply-ux.js";
 
 /** Keep in sync with apps/personal-assistant/src/telegram/media-group-buffer.ts CAPTIONLESS_PHOTO_TEXT */

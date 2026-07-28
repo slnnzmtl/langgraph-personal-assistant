@@ -6,6 +6,7 @@ import {
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
+  scopeDelegatedSubAgentMessages,
   TOOL_RESULT_RECOVERY_DIRECTIVE,
   scopeSubAgentMessages,
 } from "../../src/core/execution/sub-agent-messages.js";
@@ -46,6 +47,46 @@ describe("scopeSubAgentMessages", () => {
     const messages = [new AIMessage("orphan reply")];
 
     expect(scopeSubAgentMessages(messages)).toEqual(messages);
+  });
+});
+
+describe("scopeDelegatedSubAgentMessages", () => {
+  it("returns only the delegation prompt without prior thread turns", () => {
+    const messages = [
+      new HumanMessage("hi"),
+      new AIMessage("Hello!"),
+      new HumanMessage("show me today's plan and expenses"),
+      new AIMessage("Which day?"),
+      new HumanMessage("today"),
+    ];
+
+    const result = scopeDelegatedSubAgentMessages(messages, "Show today's plan.");
+
+    expect(result).toHaveLength(1);
+    expect(String(result[0]?.content)).toBe("Show today's plan.");
+  });
+
+  it("preserves multimodal parts from the latest human turn", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage("where is the note?"),
+      new AIMessage("Checking."),
+      new HumanMessage([
+        { type: "text", text: "add this screenshot to my plan" },
+        imagePart,
+      ]),
+    ];
+
+    const result = scopeDelegatedSubAgentMessages(messages, "Append screenshot to today's plan.");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.content).toEqual([
+      { type: "text", text: "Append screenshot to today's plan." },
+      imagePart,
+    ]);
   });
 });
 

@@ -212,4 +212,74 @@ describe("config", () => {
       maxDelayMs: 500,
     });
   });
+
+  it("uses default health and logging settings", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("HEALTH_PORT", undefined);
+    vi.stubEnv("HEALTH_ENABLED", undefined);
+    vi.stubEnv("LOG_DIR", undefined);
+    vi.stubEnv("LOG_TO_FILE", undefined);
+    vi.stubEnv("NODE_ENV", undefined);
+
+    const config = loadConfig();
+
+    expect(config.healthPort).toBe(8080);
+    expect(config.healthEnabled).toBe(true);
+    expect(config.logsDir.endsWith(`${path.sep}logs`)).toBe(true);
+    expect(config.logToFile).toBe(false);
+  });
+
+  it("parses health and logging env overrides", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("HEALTH_PORT", "9090");
+    vi.stubEnv("HEALTH_ENABLED", "0");
+    vi.stubEnv("LOG_DIR", "/tmp/personal-assistant-logs");
+    vi.stubEnv("LOG_TO_FILE", "1");
+
+    const config = loadConfig();
+
+    expect(config.healthPort).toBe(9090);
+    expect(config.healthEnabled).toBe(false);
+    expect(config.logsDir).toBe("/tmp/personal-assistant-logs");
+    expect(config.logToFile).toBe(true);
+  });
+
+  it("defaults allowedTelegramChatId to allowedTelegramUserId", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("ALLOWED_TELEGRAM_CHAT_ID", undefined);
+
+    const loaded = loadConfig();
+
+    expect(loaded.allowedTelegramChatId).toBe(REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+  });
+
+  it("defaults stateDbPath and enables persistence", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("STATE_DB_PATH", undefined);
+    vi.stubEnv("PERSISTENCE_ENABLED", undefined);
+
+    const loaded = loadConfig();
+
+    expect(loaded.stateDbPath).toMatch(/data\/state\.db$/);
+    expect(loaded.persistenceEnabled).toBe(true);
+  });
+
+  it("disables persistence when PERSISTENCE_ENABLED is false", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("PERSISTENCE_ENABLED", "false");
+
+    const loaded = loadConfig();
+
+    expect(loaded.persistenceEnabled).toBe(false);
+  });
 });

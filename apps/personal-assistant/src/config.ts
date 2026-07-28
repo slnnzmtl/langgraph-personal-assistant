@@ -18,6 +18,7 @@ type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
 export interface AppConfig {
   telegramBotToken: string;
   allowedTelegramUserId: string;
+  allowedTelegramChatId: string;
   googleApiKey: string;
   geminiModel: string;
   supervisorModel: string;
@@ -30,6 +31,14 @@ export interface AppConfig {
   cronJobsFilePath: string;
   runtimeAgentsFilePath: string;
   messageHistoryMaxTokens: number;
+  /** Set at composition time; bot writer, scheduler reader. */
+  allowDataWrites?: boolean;
+  stateDbPath: string;
+  persistenceEnabled: boolean;
+  healthPort: number;
+  healthEnabled: boolean;
+  logsDir: string;
+  logToFile: boolean;
   mcpMaxReconnectAttempts: number;
   mcpReconnectBaseDelayMs: number;
   mcpReconnectMaxDelayMs: number;
@@ -48,6 +57,14 @@ export const getDefaultCronJobsPath = (cwd = process.cwd()): string =>
 export const getDefaultRuntimeAgentsPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "data/runtime-agents.json");
 
+export const getDefaultStateDbPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "data/state.db");
+
+export const getDefaultLogsPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "logs");
+
+const DEFAULT_HEALTH_PORT = 8080;
+
 const isTruthyEnv = (value: string | undefined): boolean =>
   value !== undefined && value !== "false" && value !== "0";
 
@@ -59,6 +76,15 @@ const getRequiredEnv = (name: RequiredEnvVar): string => {
   }
 
   return value;
+};
+
+const parsePositiveInt = (raw: string | undefined, defaultValue: number): number => {
+  if (!raw) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 };
 
 const parseNonNegativeInt = (raw: string | undefined, defaultValue: number): number => {
@@ -108,12 +134,11 @@ export const loadConfig = (): AppConfig => {
     mcpReconnectMaxDelayMs,
   );
 
-  console.log("[Config Debug] SUPABASE_PROJECT_REF set:", !!process.env.SUPABASE_PROJECT_REF);
-  console.log("[Config Debug] SUPABASE_ACCESS_TOKEN set:", !!process.env.SUPABASE_ACCESS_TOKEN);
-
   return {
     telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
     allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
+    allowedTelegramChatId:
+      process.env.ALLOWED_TELEGRAM_CHAT_ID ?? getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
     googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
     geminiModel: defaultGeminiModel,
     supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,
@@ -125,7 +150,19 @@ export const loadConfig = (): AppConfig => {
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
+    stateDbPath: process.env.STATE_DB_PATH ?? getDefaultStateDbPath(),
+    persistenceEnabled:
+      process.env.PERSISTENCE_ENABLED === undefined
+        ? true
+        : isTruthyEnv(process.env.PERSISTENCE_ENABLED),
     messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
+    healthPort: parsePositiveInt(process.env.HEALTH_PORT, DEFAULT_HEALTH_PORT),
+    healthEnabled: process.env.HEALTH_ENABLED === undefined ? true : isTruthyEnv(process.env.HEALTH_ENABLED),
+    logsDir: process.env.LOG_DIR ?? getDefaultLogsPath(),
+    logToFile:
+      process.env.LOG_TO_FILE !== undefined
+        ? isTruthyEnv(process.env.LOG_TO_FILE)
+        : process.env.NODE_ENV === "production",
     mcpMaxReconnectAttempts: parseNonNegativeInt(
       process.env.MCP_MAX_RECONNECT_ATTEMPTS,
       DEFAULT_MCP_MAX_RECONNECT_ATTEMPTS,

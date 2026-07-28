@@ -1,7 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { isConsumedToolMarker } from "../message-compaction.js";
-import { extractMessageTextContent } from "../messages/message-content.js";
+import { extractMessageTextContent } from "../message-content.js";
 
 const MAX_TOOL_CONTEXT_CHARS = 2_000;
 
@@ -17,6 +17,24 @@ export type RuntimeAgentHandoff = {
 
 const truncate = (value: string, max = MAX_TOOL_CONTEXT_CHARS): string =>
   value.length > max ? `${value.slice(0, max)}…` : value;
+
+export const hasTrailingToolError = (messages: BaseMessage[]): boolean => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!(message instanceof ToolMessage)) {
+      continue;
+    }
+
+    const body = extractMessageTextContent(message.content).trim();
+    if (body.length === 0 || isConsumedToolMarker(body)) {
+      continue;
+    }
+
+    return body.startsWith("Error:");
+  }
+
+  return false;
+};
 
 export const formatRecentToolResultsForHandoff = (messages: BaseMessage[]): string => {
   const toolSnippets: string[] = [];
@@ -49,6 +67,7 @@ export const resolveRuntimeAgentHandoffStatus = (
   message: AIMessage,
   stepCount: number,
   maxSteps: number,
+  agentMessages: BaseMessage[] = [],
 ): RuntimeAgentHandoffStatus => {
   if (stepCount >= maxSteps) {
     return "max_steps";
@@ -59,6 +78,10 @@ export const resolveRuntimeAgentHandoffStatus = (
 
   if (responseText.length === 0 && toolCalls.length === 0) {
     return "empty";
+  }
+
+  if (hasTrailingToolError(agentMessages)) {
+    return "error";
   }
 
   return "ok";
@@ -74,7 +97,12 @@ export const buildRuntimeAgentHandoff = (args: {
   explicitStatus?: RuntimeAgentHandoffStatus;
 }): RuntimeAgentHandoff => {
   const status = args.explicitStatus
-    ?? resolveRuntimeAgentHandoffStatus(args.message, args.stepCount, args.maxSteps);
+    ?? resolveRuntimeAgentHandoffStatus(
+      args.message,
+      args.stepCount,
+      args.maxSteps,
+      args.agentMessages,
+    );
 
   const responseText = extractMessageTextContent(args.message.content).trim();
   const toolContext = formatRecentToolResultsForHandoff(args.agentMessages);

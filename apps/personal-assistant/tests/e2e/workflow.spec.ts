@@ -6,7 +6,7 @@ import path from "node:path";
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 
 import { createTestWorkflowGraph } from "../helpers/workflow-graph.js";
-import type { CronJobRepository } from "../../src/cron/types.js";
+import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
 import type { RuntimeAgentDefinition } from "@personal-assistant/supervisor-framework";
@@ -276,7 +276,7 @@ test.describe("workflow graph", () => {
     );
 
     expect(finalState.messages.at(-1)?.content).toBe(
-      "Supabase session is not configured.",
+      "I couldn't finish routing your request. Unknown or disabled runtime agent route: finance",
     );
   });
 
@@ -773,8 +773,6 @@ test.describe("workflow graph", () => {
         description: "Summarize the user's day in plain language.",
         systemPrompt: "You are a daily summary specialist.",
         capabilityIds: ["none"],
-        executor: "generic",
-        builtin: false,
         maxSteps: 4,
         enabled: true,
         createdAt: "2026-07-16T00:00:00.000Z",

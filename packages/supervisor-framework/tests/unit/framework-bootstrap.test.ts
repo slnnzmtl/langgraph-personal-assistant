@@ -1,5 +1,6 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { mkdir, writeFile } from "node:fs/promises";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   bootstrapSupervisorSystem,
@@ -7,10 +8,13 @@ import {
   createAssistant,
   createCapabilityCatalog,
   createEmptySkillCatalog,
-  createPolicyRegistry,
   createRuntimeAgentRepository,
+  createSystemConfigCapabilityProviders,
   resolveAgentTools,
+  SYSTEM_CONFIG_CAPABILITY_ID,
   type RuntimeAgentDefinition,
+  type SkillCatalog,
+  type CapabilityCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -20,8 +24,6 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions.",
   systemPrompt: "You are a concise research assistant.",
   capabilityIds: ["none"],
-  executor: "generic",
-  builtin: false,
   maxSteps: 6,
   enabled: true,
   createdAt: new Date().toISOString(),
@@ -32,7 +34,8 @@ describe("framework bootstrap", () => {
   it("compiles a supervisor graph from a generic pack", async () => {
     const catalog = createCapabilityCatalog([
       {
-        descriptor: { id: "none", description: "Prompt-only agent.", configurable: true },
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
         resolveTools: () => [],
       },
     ]);
@@ -50,15 +53,16 @@ describe("framework bootstrap", () => {
       supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
       loadSupervisorPrompt: () => "Supervise requests.",
       seedAgents: async () => [researcher],
-      buildPolicyRegistry: () => ({
-        loadPromptByKey: async () => "prompt",
-        policyRegistry: createPolicyRegistry([
-          createAgentPolicy({
-            executor: "generic",
-            resolveTools: (definition, deps) =>
-              resolveAgentTools(definition, catalog, deps, {}),
-          }),
-        ]),
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
       }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),
@@ -74,7 +78,8 @@ describe("framework bootstrap", () => {
   it("exports createAssistant through the same compilation path", () => {
     const catalog = createCapabilityCatalog([
       {
-        descriptor: { id: "none", description: "Prompt-only agent.", configurable: true },
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
         resolveTools: () => [],
       },
     ]);
@@ -85,15 +90,12 @@ describe("framework bootstrap", () => {
       runtimeAgents: [researcher],
       runtimeAgentRepository: createRuntimeAgentRepository(process.cwd(), ".tmp/framework-test-agents.json"),
       capabilityDeps: {},
-      loadPromptByKey: async () => "prompt",
+      loadPromptByKey: () => "prompt",
       loadSupervisorPrompt: () => "Supervise requests.",
-      policyRegistry: createPolicyRegistry([
-        createAgentPolicy({
-          executor: "generic",
-          resolveTools: (definition, deps) =>
-            resolveAgentTools(definition, catalog, deps, {}),
-        }),
-      ]),
+      runtimeAgentPolicy: createAgentPolicy({
+        resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+          resolveAgentTools(definition, catalog, deps),
+      }),
     });
 
     expect(graph.invoke).toBeTypeOf("function");
@@ -101,5 +103,266 @@ describe("framework bootstrap", () => {
 
   it("uses empty skill catalog by default", () => {
     expect(createEmptySkillCatalog().listModules()).toEqual([]);
+  });
+
+  it("runs initializeDefaults before seedAgents and skill catalog creation", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const callOrder: string[] = [];
+    const runtimeAgentsFilePath = path.join(process.cwd(), ".tmp", `framework-init-${process.pid}.json`);
+    const cronJobsFilePath = path.join(process.cwd(), ".tmp", `framework-init-cron-${process.pid}.json`);
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      initializeDefaults: ({ systemAgentEnabled }) => {
+        callOrder.push(`initializeDefaults:${systemAgentEnabled}`);
+      },
+      seedAgents: async () => {
+        callOrder.push("seedAgents");
+        return [researcher];
+      },
+      buildSkillCatalog: () => {
+        callOrder.push("buildSkillCatalog");
+        return createEmptySkillCatalog();
+      },
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(callOrder).toEqual([
+      "initializeDefaults:false",
+      "seedAgents",
+      "buildSkillCatalog",
+    ]);
+  });
+
+  it("reuses preparedRuntimeAgents instead of calling seedAgents again", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const seedAgents = vi.fn(async () => [researcher]);
+    const runtimeAgentsFilePath = path.join(process.cwd(), ".tmp", `framework-prepared-${process.pid}.json`);
+    const cronJobsFilePath = path.join(process.cwd(), ".tmp", `framework-prepared-cron-${process.pid}.json`);
+
+    await bootstrapSupervisorSystem(
+      {
+        config: {
+          runtimeAgentsFilePath,
+          cronJobsFilePath,
+        },
+        capabilityCatalog: catalog,
+        supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+        loadSupervisorPrompt: () => "Supervise requests.",
+        seedAgents,
+        buildRuntimeExecution: (
+          _agents: RuntimeAgentDefinition[],
+          _skillCatalog: SkillCatalog,
+          ctx: { capabilityCatalog: CapabilityCatalog },
+        ) => ({
+          loadPromptByKey: () => "prompt",
+          runtimeAgentPolicy: createAgentPolicy({
+            resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+              resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+          }),
+        }),
+        buildModels: () => ({
+          generic: new FakeLLMConnector(() => "ok").getModel(),
+        }),
+        buildCapabilityDeps: () => ({}),
+      },
+      { preparedRuntimeAgents: [researcher] },
+    );
+
+    expect(seedAgents).not.toHaveBeenCalled();
+  });
+
+  it("skips initializeDefaults when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const initializeDefaults = vi.fn();
+    const runtimeAgentsFilePath = path.join(process.cwd(), ".tmp", `framework-readonly-init-${process.pid}.json`);
+    const cronJobsFilePath = path.join(process.cwd(), ".tmp", `framework-readonly-init-cron-${process.pid}.json`);
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      initializeDefaults,
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(initializeDefaults).not.toHaveBeenCalled();
+  });
+
+  it("skips purgeLegacySystemAgent when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+    const rootDir = path.join(process.cwd(), ".tmp", `framework-readonly-purge-${process.pid}`);
+    const relativePath = "data/runtime-agents.json";
+    const runtimeAgentsFilePath = path.join(rootDir, relativePath);
+    const repository = createRuntimeAgentRepository(rootDir, relativePath);
+    const saveAgents = vi.spyOn(repository, "saveAgents");
+
+    await mkdir(path.dirname(runtimeAgentsFilePath), { recursive: true });
+    await writeFile(
+      runtimeAgentsFilePath,
+      `${JSON.stringify({
+        version: 1,
+        agents: [
+          {
+            id: "configuration",
+            name: "Configuration",
+            description: "legacy",
+            systemPrompt: "legacy",
+            capabilityIds: ["system-config"],
+            executor: "configuration",
+            modelKey: "configuration",
+            builtin: true,
+            maxSteps: 10,
+            enabled: true,
+            createdAt: "1970-01-01T00:00:00.000Z",
+            updatedAt: "1970-01-01T00:00:00.000Z",
+          },
+        ],
+      }, null, 2)}\n`,
+      { flag: "w" },
+    );
+
+    await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath: path.join(rootDir, "data/cron-jobs.json"),
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      systemAgent: { modelKey: "configuration" },
+      createRuntimeAgentRepository: () => repository,
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (
+        _agents: RuntimeAgentDefinition[],
+        _skillCatalog: SkillCatalog,
+        ctx: { capabilityCatalog: CapabilityCatalog },
+      ) => ({
+        loadPromptByKey: () => "prompt",
+        runtimeAgentPolicy: createAgentPolicy({
+          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+        }),
+      }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    expect(saveAgents).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-grantable capabilities on persisted agents at bootstrap", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+      ...createSystemConfigCapabilityProviders(),
+    ]);
+    const tamperedAgent: RuntimeAgentDefinition = {
+      ...researcher,
+      id: "evil",
+      capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
+    };
+
+    await expect(
+      bootstrapSupervisorSystem({
+        config: {
+          runtimeAgentsFilePath: path.join(process.cwd(), ".tmp", `framework-evil-${process.pid}.json`),
+          cronJobsFilePath: path.join(process.cwd(), ".tmp", `framework-evil-cron-${process.pid}.json`),
+        },
+        capabilityCatalog: catalog,
+        supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+        loadSupervisorPrompt: () => "Supervise requests.",
+        systemAgent: { modelKey: "configuration" },
+        seedAgents: async () => [tamperedAgent],
+        buildRuntimeExecution: (
+          _agents: RuntimeAgentDefinition[],
+          _skillCatalog: SkillCatalog,
+          ctx: { capabilityCatalog: CapabilityCatalog },
+        ) => ({
+          loadPromptByKey: () => "prompt",
+          runtimeAgentPolicy: createAgentPolicy({
+            resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+              resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+          }),
+        }),
+        buildModels: () => ({
+          generic: new FakeLLMConnector(() => "ok").getModel(),
+        }),
+        buildCapabilityDeps: () => ({
+          cronJobRepository: {},
+          runtimeAgentRepository: {},
+        }),
+      }),
+    ).rejects.toThrow(/cannot be granted|not grantable|Invalid capability|unavailable/i);
   });
 });

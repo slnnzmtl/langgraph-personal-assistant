@@ -16,9 +16,9 @@ describe("stripToolsForSupervisor", () => {
 
     expect(cleaned).toHaveLength(2);
     expect(cleaned[0]).toBeInstanceOf(HumanMessage);
-    expect(cleaned[0].content).toBe("first human\nsecond human");
+    expect(cleaned[0]!.content).toBe("first human\nsecond human");
     expect(cleaned[1]).toBeInstanceOf(AIMessage);
-    expect(cleaned[1].content).toBe("first ai\nsecond ai");
+    expect(cleaned[1]!.content).toBe("first ai\nsecond ai");
   });
 
   it("drops tool messages from the Gemini history", () => {

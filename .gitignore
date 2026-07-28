@@ -6,8 +6,14 @@ logs/
 .github/agents/
 .pnpm-store/
 test-results/*
+*.tsbuildinfo
 .tmp
 data/*
 cron-jobs.json
 obsidian-vault/*
-apps/personal-assistant/data/
+apps/personal-assistant/data/*
+!apps/personal-assistant/data/prompts/
+!apps/personal-assistant/data/prompts/**
+!apps/personal-assistant/data/skills/
+!apps/personal-assistant/data/skills/**
+.cursor/agents

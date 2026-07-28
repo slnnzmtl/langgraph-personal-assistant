@@ -3,9 +3,12 @@ export {
   type CapabilityCatalog,
 } from "./catalog.js";
 export {
-  isCapabilityAvailable,
+  validatePersistedAgentCapabilities,
+  type ValidatePersistedAgentCapabilitiesOptions,
+} from "./validate-persisted-agents.js";
+export {
+  configurationReposAvailable,
   isCapabilityGrantable,
-  type CapabilityAvailabilityContext,
   type CapabilityDescriptor,
   type CapabilityProvider,
 } from "./types.js";

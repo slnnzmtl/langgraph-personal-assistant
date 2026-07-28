@@ -6,7 +6,7 @@ This repo splits **kernel + pack SDK** from **this personal assistant**. Another
 | Layer | Path | Reuse in another project? |
 |---|---|---|
 | Framework package | `packages/supervisor-framework/` | **Yes — import `@personal-assistant/supervisor-framework`** |
-| Personal app | `apps/personal-assistant/src/app/` | No — copy the pattern, not the code |
+| Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | No — copy the pattern, not the code |
 | Domain tools | `apps/personal-assistant/src/runtime-agents/` | No — write your own providers |
 | Telegram / cron / services | `apps/personal-assistant/src/...` | No — your I/O stack |
 
@@ -18,14 +18,14 @@ Architecture note: the framework is a **workspace package** in this monorepo (no
 
 ## What you implement vs what the framework owns
 
-**Framework owns:** agent repository, policy registry API, supervisor routing, flat prepare / llm ⇄ tools / finalize loops, `bootstrapSupervisorSystem()`, `resolveAgentTools()`.
+**Framework owns:** agent repository, runtime execution kit API, supervisor routing, flat prepare / llm ⇄ tools / finalize loops, `bootstrapSupervisorSystem()`, `resolveAgentTools()`.
 
 **Your pack owns:**
 
 1. Agent definitions (JSON and/or seed)
 2. Capability catalog + tool factories
 3. LLM connector and chat models
-4. Policy registry (usually one `generic` executor)
+4. Default runtime policy via `buildRuntimeExecution` (`createAgentPolicy` + capability catalog)
 5. Cron repository factory (or a stub)
 6. Skill catalog (or an empty stub)
 7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
@@ -49,8 +49,7 @@ const researcher: RuntimeAgentDefinition = {
   description: "Answer factual questions with web search.",
   systemPrompt: "You are a concise research assistant. Prefer short answers.",
   capabilityIds: ["web-search"],
-  executor: "generic",
-  builtin: false,
+  modelKey: "generic",
   maxSteps: 6,
   enabled: true,
   createdAt: new Date().toISOString(),
@@ -107,7 +106,6 @@ const catalog = createCapabilityCatalog([
 import {
   bootstrapSupervisorSystem,
   createAgentPolicy,
-  createPolicyRegistry,
   resolveAgentTools,
 } from "@personal-assistant/supervisor-framework";
 
@@ -129,15 +127,12 @@ const context = await bootstrapSupervisorSystem({
     await repo.createAgent(researcher);
     return repo.listAgents();
   },
-  buildPolicyRegistry: () => ({
+  buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
     loadPromptByKey: async (key) => `Prompt for ${key}`,
-    policyRegistry: createPolicyRegistry([
-      createAgentPolicy({
-        executor: "generic",
-        resolveTools: (definition, deps) =>
-          resolveAgentTools(definition, catalog, deps, {}),
-      }),
-    ]),
+    runtimeAgentPolicy: createAgentPolicy({
+      resolveTools: (definition, deps) =>
+        resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
+    }),
   }),
   buildModels: () => ({ generic: myChatModel }),
   buildCapabilityDeps: () => ({}),
@@ -174,12 +169,14 @@ console.log(typeof last?.content === "string" ? last.content : last?.content);
 This assistant wraps framework bootstrap with product wiring. **Do not copy this into another project** unless you want the same Telegram / Gemini / finance stack.
 
 ```typescript
-import { createSupervisorSystem } from "../apps/personal-assistant/src/app/composition/create-supervisor-system.js";
+import { createSupervisorSystem } from "../apps/personal-assistant/src/composition/create-supervisor-system.js";
 
-const { graph, cronJobRepository } = await createSupervisorSystem(config, { fileSender });
+const system = await createSupervisorSystem(config, { fileSender });
+const graph = system.getGraph();
+const cronJobRepository = system.getCronJobRepository();
 ```
 
-Personal policies use `createAppExecutionKit()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
+The pack wires capabilities and optional app-local behaviors via `buildAppRuntimeExecution()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
 
 ---
 
@@ -199,7 +196,7 @@ const graph = createAssistant({
   runtimeAgentRepository,
   capabilityDeps: {},
   loadPromptByKey,
-  policyRegistry,
+  runtimeAgentPolicy,
   loadSupervisorPrompt: () => "<supervisor prompt>",
 });
 ```
@@ -213,10 +210,10 @@ Prefer `bootstrapSupervisorSystem()` for a second deployment — it standardizes
 ## Checklist for a second project
 
 1. Import from `@personal-assistant/supervisor-framework` (workspace package in this monorepo).
-2. Provide at least one enabled agent and a matching `executor` policy (usually `generic`).
+2. Provide at least one enabled agent. Product agents use the pack's default `runtimeAgentPolicy` (usually `generic`); only the virtual system agent uses `configuration`.
 3. Put tools behind capability IDs; grant them via `capabilityIds` on agent definitions.
-4. Supply your own LLM connector / models; do not import `src/connectors/` unless you want Gemini.
-5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/app/` + `runtime-agents/`.
-6. Restart (or recompile the graph) after adding agents — routing nodes are fixed at `createAssistant()` time.
+4. Supply your own LLM connector / models; do not import `src/models/` unless you want Gemini.
+5. Keep product policies and domain tools in your app pack — mirror `apps/personal-assistant/src/composition/` + `src/policies/` + `runtime-agents/`.
+6. After adding agents, wait for soft graph recompile (file watcher, ~seconds) or restart the process — routing nodes are fixed until the next compile.
 
 For layer boundaries and the personal pack entrypoint, see [docs/FRAMEWORK.md](../docs/FRAMEWORK.md), [docs/PACK_DEVELOPMENT.md](../docs/PACK_DEVELOPMENT.md), and [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).

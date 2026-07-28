@@ -14,9 +14,15 @@ export type ReplyUxConfig = {
   buildPostHandoffFinishSystemPrompt: (ctx: PostHandoffFinishContext) => string;
   buildPostHandoffFinishSafeFallback: (ctx: PostHandoffFinishContext) => string;
   buildFailureReplyInstruction: (failureContext: string) => string;
+  genericCompletionFallbacks?: ReadonlySet<string>;
 };
 
+export const DEFAULT_GENERIC_COMPLETION_FALLBACKS = new Set([
+  "Completed the configuration task.",
+]);
+
 export const defaultReplyUxConfig: ReplyUxConfig = {
+  genericCompletionFallbacks: DEFAULT_GENERIC_COMPLETION_FALLBACKS,
   buildEmptyReplySystemPrompt: ({ agentName, toolContext }) => [
     "You write a final user-facing status message for a specialized agent that stopped without replying.",
     "Return plain text only. Do not return JSON, routing instructions, tool calls, or a plan for future work.",

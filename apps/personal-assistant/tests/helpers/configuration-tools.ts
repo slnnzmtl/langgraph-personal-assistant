@@ -1,11 +1,18 @@
 import { vi } from "vitest";
 
-import { createSystemConfigDomainTools } from "../../src/runtime-agents/tools/configuration.js";
-import { CONFIGURATOR_AGENT_ID } from "../../src/app/composition/bootstrap-agents.js";
-import type { RuntimeAgentRepository } from "@personal-assistant/supervisor-framework";
-import type { CronJobDefinition, CronJobRepository } from "../../src/cron/types.js";
-import { createReadSkillTool } from "../../src/tools/skill-management.js";
+import {
+  createSystemConfigTools,
+  SYSTEM_AGENT_ID,
+  type RuntimeAgentRepository,
+} from "@personal-assistant/supervisor-framework";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
+import { createReadSkillTool } from "@personal-assistant/supervisor-framework";
+import { createTestSkillCatalog } from "./test-skills-dir.js";
+import type { CronJobDefinition, CronJobRepository } from "@personal-assistant/supervisor-framework";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
+
+const defaultConfigurationCatalog = createPersonalCapabilityCatalog();
 
 export const createCronRepositoryFake = (
   initialJobs: CronJobDefinition[] = [],
@@ -40,16 +47,20 @@ export const createCronRepositoryFake = (
 export const createConfigurationTools = (
   repository: CronJobRepository = createCronRepositoryFake(),
   runtimeAgentRepository: RuntimeAgentRepository = createRuntimeAgentRepositoryFake(),
-  skillModule: string = CONFIGURATOR_AGENT_ID,
+  skillModule: string = SYSTEM_AGENT_ID,
+  capabilityDepsOverrides: Partial<PersonalCapabilityDeps> = {},
 ) => {
   const capabilityDeps = {
     ...defaultConfigurationCapabilityDeps,
     cronJobRepository: repository,
     runtimeAgentRepository,
+    capabilityCatalog: defaultConfigurationCatalog,
+    skillCatalog: createTestSkillCatalog([skillModule, "finance", "obsidian"]),
+    ...capabilityDepsOverrides,
   };
 
   return [
-    createReadSkillTool(skillModule, "xml"),
-    ...createSystemConfigDomainTools(capabilityDeps),
+    createReadSkillTool(skillModule, "xml", { skillCatalog: createTestSkillCatalog([skillModule, "finance", "obsidian"]) }),
+    ...createSystemConfigTools(capabilityDeps),
   ];
 };

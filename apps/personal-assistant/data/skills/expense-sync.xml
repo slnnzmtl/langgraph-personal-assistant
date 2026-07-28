@@ -1,0 +1,27 @@
+<skill name="expense-sync" module="finance" description="Sync Wise transactions into the expense ledger.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>sync expenses,sync expense,import transactions,fetch wise,wise transactions</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<sync_intent>
+0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` for table names, date bounds, and category mapping.
+1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)`
+2. `exec_sql` multi-row INSERT:
+   <insert_sql>
+   INSERT INTO public.expense (name, amount, category, paid_date, paid)
+   VALUES (...), (...)
+   ON CONFLICT (name, amount, paid_date) DO NOTHING;
+   </insert_sql>
+   - Round amounts up to integer
+   - `paid_date` = Wise `createdOn` (`YYYY-MM-DD`); `paid = true` for completed outward
+   - Map each row using `<category_matching>` from `expense-ledger-schema`
+3. Report insert count + range only after INSERT returns.
+
+<prohibited>
+  - Do not syncronize withdrawal transactions
+</prohibited>
+</sync_intent>
+
+</skill>

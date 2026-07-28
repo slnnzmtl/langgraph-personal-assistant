@@ -3,14 +3,15 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import type { LoadPromptByKey } from "../agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../agents/repository.js";
 import type { PromptLoggingHook } from "../ports/prompt-logging.js";
-import type { PolicyRegistry } from "../policies/registry.js";
 import type { PolicyContext } from "../types/policy-context.js";
+import type { RuntimeAgentPolicy } from "../types/policy.js";
+import { DEFAULT_MODEL_KEY } from "../types/agent.js";
 
 export type RuntimeAgentExecutionContext<
   TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
 > = PolicyContext<TCapabilityDeps> & {
   loadPromptByKey: LoadPromptByKey;
-  policyRegistry: PolicyRegistry;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
   promptLogging?: PromptLoggingHook;
 };
 
@@ -22,7 +23,7 @@ export type CreateRuntimeAgentExecutionContextInput<
   repository: RuntimeAgentRepository;
   capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
-  policyRegistry: PolicyRegistry;
+  runtimeAgentPolicy: RuntimeAgentPolicy;
   promptLogging?: PromptLoggingHook;
 };
 
@@ -46,10 +47,10 @@ export const createRuntimeAgentExecutionContext = <
   input: CreateRuntimeAgentExecutionContextInput<TCapabilityDeps>,
 ): RuntimeAgentExecutionContext<TCapabilityDeps> => ({
   models: input.models,
-  defaultModelKey: input.defaultModelKey ?? "generic",
+  defaultModelKey: input.defaultModelKey ?? DEFAULT_MODEL_KEY,
   repository: input.repository,
   capabilityDeps: input.capabilityDeps,
   loadPromptByKey: input.loadPromptByKey,
-  policyRegistry: input.policyRegistry,
+  runtimeAgentPolicy: input.runtimeAgentPolicy,
   ...(input.promptLogging ? { promptLogging: input.promptLogging } : {}),
 });

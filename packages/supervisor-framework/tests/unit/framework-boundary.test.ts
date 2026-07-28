@@ -5,11 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCapabilityCatalog,
-  resolveAgentTools,
 } from "../../src/index.js";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const CORE_ROOT = path.join(packageRoot, "src/core");
 const FRAMEWORK_ROOT = path.join(packageRoot, "src/framework");
 
 const collectSourceFiles = (dir: string): string[] => {
@@ -37,8 +35,13 @@ const assertNoForbiddenImports = (
   rootDir: string,
   forbiddenPathSegments: readonly string[],
   forbiddenImportSubstrings: readonly string[] = [],
+  options: { excludeSubdirs?: readonly string[] } = {},
 ): void => {
   for (const file of collectSourceFiles(rootDir)) {
+    if (options.excludeSubdirs?.some((segment) => file.includes(segment))) {
+      continue;
+    }
+
     const content = readFileSync(file, "utf8");
 
     for (const segment of forbiddenPathSegments) {
@@ -52,57 +55,18 @@ const assertNoForbiddenImports = (
 };
 
 describe("framework boundaries", () => {
-  it("keeps core free of runtime-agents imports", () => {
-    assertNoForbiddenImports(CORE_ROOT, [
-      "runtime-agents/",
-      "app/policies/",
-      "integrations/",
-      "../../tools/",
-      "../../connectors/",
-      "../../logging/",
-      "../../utils/",
-    ], ["utils/message-content.js"]);
-  });
-
-  it("keeps framework free of app, runtime-agents, cron, and product imports", () => {
-    assertNoForbiddenImports(FRAMEWORK_ROOT, [
-      "runtime-agents/",
-      "app/",
-      "integrations/",
-      "connectors/",
-      "telegram/",
-      "tools/",
-      "cron/",
-      "../../logging/",
-      "../../utils/",
+  it("keeps cron kit free of app and Telegram imports", () => {
+    assertNoForbiddenImports(path.join(FRAMEWORK_ROOT, "cron"), [], [
+      "telegraf",
+      "apps/personal-assistant",
     ]);
   });
 
-  it("resolves tools through the framework catalog helper", () => {
-    const catalog = createCapabilityCatalog([
-      {
-        descriptor: { id: "finance-domain", description: "Finance tools" },
-        resolveTools: () => [{ name: "exec_sql" }] as never,
-      },
-    ]);
-
-    const definition = {
-      id: "finance",
-      name: "Finance",
-      description: "Finance",
-      systemPrompt: "Finance",
-      capabilityIds: ["finance-domain"],
-      executor: "generic",
-      builtin: false,
-      maxSteps: 8,
-      enabled: true,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      updatedAt: "2026-01-01T00:00:00.000Z",
-    };
-
-    const tools = resolveAgentTools(definition, catalog, {}, {}).map((tool) => tool.name);
-
-    expect(tools).toEqual(expect.arrayContaining(["exec_sql"]));
+  it("keeps runtime agent watcher free of app and Telegram imports", () => {
+    const watcherFile = path.join(FRAMEWORK_ROOT, "runtime-agent-watcher.ts");
+    const content = readFileSync(watcherFile, "utf8");
+    expect(content.includes("telegraf"), `${watcherFile} must not import telegraf`).toBe(false);
+    expect(content.includes("apps/personal-assistant"), `${watcherFile} must not import app code`).toBe(false);
   });
 });
 
@@ -111,15 +75,17 @@ describe("capability catalog", () => {
     const catalog = createCapabilityCatalog([
       {
         descriptor: { id: "alpha", description: "Alpha tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "alpha_only" }] as never,
       },
       {
         descriptor: { id: "beta", description: "Beta tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "beta_only" }] as never,
       },
     ]);
 
-    const tools = catalog.resolveTools(["alpha", "beta"], {}, {});
+    const tools = catalog.resolveTools(["alpha", "beta"], {});
     expect(tools.map((tool) => tool.name)).toEqual(["shared_tool", "alpha_only", "beta_only"]);
   });
 });

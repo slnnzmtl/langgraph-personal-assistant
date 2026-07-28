@@ -1,7 +1,8 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { AIMessage } from "@langchain/core/messages";
+import type { z } from "zod";
 
-import type { ILLMConnector } from "../../src/index.js";
+import type { ILLMConnector, RoutingChain } from "../../src/index.js";
 
 export class FakeLLMConnector implements ILLMConnector {
   constructor(private readonly handler: (input: unknown) => unknown) {}
@@ -12,19 +13,19 @@ export class FakeLLMConnector implements ILLMConnector {
       bindTools: () => ({
         invoke: async (input: unknown) => this.handler(input),
       }),
-    } as BaseChatModel;
+    } as unknown as BaseChatModel;
   }
 
-  getRoutingChain(): ReturnType<ILLMConnector["getRoutingChain"]> {
+  bindRoutingTools<TRoute extends Record<string, unknown>>(_schema: z.ZodType<TRoute>): RoutingChain<TRoute> {
     return {
       invoke: async (input: unknown) => {
-        const result = this.handler(input);
+        const result = await Promise.resolve(this.handler(input));
         if (result instanceof AIMessage) {
-          return result;
+          return result as unknown as TRoute;
         }
 
-        return new AIMessage(typeof result === "string" ? result : JSON.stringify(result));
+        return result as TRoute;
       },
-    } as ReturnType<ILLMConnector["getRoutingChain"]>;
+    };
   }
 }

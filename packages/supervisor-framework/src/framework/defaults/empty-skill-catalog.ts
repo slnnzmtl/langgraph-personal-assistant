@@ -11,9 +11,9 @@ export const createEmptySkillCatalog = (): SkillCatalog => ({
     module: "",
     fileName: "",
   }),
-  createSkill: (): string => "skills disabled",
-  updateSkill: (): string => "skills disabled",
-  deleteSkill: (): string => "skills disabled",
+  createSkill: async (): Promise<string> => "skills disabled",
+  updateSkill: async (): Promise<string> => "skills disabled",
+  deleteSkill: async (): Promise<string> => "skills disabled",
   formatForDisplay: (
     _module: string,
     _skills: SkillMeta[],

@@ -1,16 +1,20 @@
 import type { BaseMessage } from "@langchain/core/messages";
-import { AIMessage, HumanMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { Telegraf, type Context } from "telegraf";
 
 import type { AppConfig } from "../config.js";
 import type { AgentState, CompiledSupervisorGraph } from "@personal-assistant/supervisor-framework";
-import type { IFileSender } from "./file-sender.js";
+import type { IFileSender } from "../ports/file-sender.js";
 import { fetchImageAsDataUrl } from "./image-content.js";
 import {
   DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
   MediaGroupBuffer,
 } from "./media-group-buffer.js";
 import { GraphRecursionError } from "@langchain/langgraph";
+
+export type WorkflowGraphSource = {
+  getGraph(): CompiledSupervisorGraph;
+};
 
 export type ParseInboundResult = HumanMessage | "media-group-buffered" | null;
 
@@ -160,18 +164,20 @@ const MAX_TRACKED_UPDATE_IDS = 1_000;
 export class TelegramAdapter implements ITelegramAdapter {
   private readonly bot: Telegraf<Context>;
   private readonly allowedTelegramUserId: string;
+  private readonly allowedTelegramChatId: string;
   private readonly processedUpdateIds = new Set<number>();
   private readonly threadQueues = new Map<string, Promise<void>>();
   private readonly mediaGroupBuffer: MediaGroupBuffer;
 
   constructor(
-    private readonly app: CompiledSupervisorGraph,
+    private readonly graphSource: WorkflowGraphSource,
     config: AppConfig,
     bot: Telegraf<Context>,
     private readonly fileSender?: IFileSender,
   ) {
     this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
+    this.allowedTelegramChatId = config.allowedTelegramChatId;
     this.mediaGroupBuffer = new MediaGroupBuffer(
       DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
       async (ctx, message) => this.processInboundMessage(ctx, message),
@@ -220,9 +226,12 @@ export class TelegramAdapter implements ITelegramAdapter {
       return null;
     }
 
-    if (ctx.message && "text" in ctx.message) {
-      logTelegramMessage("user", ctx.message.text);
+    if (ctx.chat?.id?.toString() !== this.allowedTelegramChatId) {
+      console.warn(`Unauthorized access attempt from Telegram chat ID: ${ctx.chat?.id}`);
+      return null;
+    }
 
+    if (ctx.message && "text" in ctx.message) {
       return new HumanMessage(ctx.message.text);
     }
 
@@ -255,9 +264,12 @@ export class TelegramAdapter implements ITelegramAdapter {
   }
 
   async triggerWorkflow(message: HumanMessage, threadId: string): Promise<AgentState> {
-    return this.app.invoke(
+    return this.graphSource.getGraph().invoke(
       { messages: [message] },
-      { configurable: { thread_id: threadId } },
+      {
+        configurable: { thread_id: threadId },
+        recursionLimit: 40,
+      },
     );
   }
 

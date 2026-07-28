@@ -4,6 +4,7 @@ import {
   createConfigurationTools,
   createCronRepositoryFake,
 } from "../helpers/configuration-tools.js";
+import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 describe("createConfigurationTools", () => {
   it("includes skill CRUD tools and cron tools on the agent", () => {
@@ -16,7 +17,6 @@ describe("createConfigurationTools", () => {
         "read_skill",
         "list_skills",
         "preview_skill",
-        "read_skill_for_edit",
         "create_skill",
         "edit_skill",
         "delete_skill",
@@ -41,19 +41,6 @@ describe("createConfigurationTools", () => {
         "preview_skill",
       ]),
     );
-  });
-
-  it("loads cron skill instructions without appending a tools preview", async () => {
-    const repository = createCronRepositoryFake();
-    const tools = createConfigurationTools(repository);
-    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
-    expect(readSkillTool).toBeDefined();
-
-    const result = String(await readSkillTool!.invoke({ name: "cron" }));
-
-    expect(result).toContain("<cron_intent_routing>");
-    expect(result).toContain("list_cron_jobs");
-    expect(result).not.toContain("<available_tools>");
   });
 
   it("lists saved cron jobs from the repository", async () => {
@@ -144,7 +131,10 @@ describe("createConfigurationTools", () => {
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
 
-    const result = await deleteTool!.invoke({ jobName: "finance-sync" });
+    const result = await deleteTool!.invoke({
+      jobName: "finance-sync",
+      confirmToken: "delete-cron-job:finance-sync",
+    });
 
     expect(result).toContain("Deleted cron job finance-sync");
     expect(repository.deleteJob).toHaveBeenCalledWith("finance-sync");
@@ -163,7 +153,10 @@ describe("createConfigurationTools", () => {
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
 
-    const result = await deleteTool!.invoke({ jobName: "non-existent" });
+    const result = await deleteTool!.invoke({
+      jobName: "non-existent",
+      confirmToken: "delete-cron-job:non-existent",
+    });
 
     expect(result).toContain("Error:");
     expect(result).toContain("not found");
@@ -204,10 +197,86 @@ describe("createConfigurationTools", () => {
     });
 
     expect(created).toContain("daily-summary");
-    expect(created).toContain("Restart the bot and scheduler processes");
+    expect(created).toContain("pick up routing changes automatically");
 
     const listed = await listTool!.invoke({});
     expect(listed).toContain("Agent ID: daily-summary");
     expect(listed).not.toContain("daily summary specialist");
+  });
+
+  it("keeps capability discovery, schema, and assignment aligned for vault-backed capabilities", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const tools = createConfigurationTools(repository, runtimeAgentRepository);
+    const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
+    const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listed = await listCapabilitiesTool!.invoke({});
+    expect(listed).toContain("obsidian-vault");
+
+    const created = await createTool!.invoke({
+      name: "Vault Helper",
+      description: "Manage vault files.",
+      systemPrompt: "You help with Obsidian vault files.",
+      capabilityIds: ["obsidian-vault"],
+    });
+
+    expect(created).toContain("vault-helper");
+    expect(created).toContain("Capabilities: obsidian-vault");
+  });
+
+  it("omits vault capabilities when the vault path is unavailable", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const tools = createConfigurationTools(repository, runtimeAgentRepository, "configuration", {
+      obsidianVaultPath: "",
+    });
+    const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
+    const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listed = await listCapabilitiesTool!.invoke({});
+    expect(listed).not.toContain("obsidian-vault");
+
+    await expect(createTool!.invoke({
+      name: "Vault Helper",
+      description: "Manage vault files.",
+      systemPrompt: "You help with Obsidian vault files.",
+      capabilityIds: ["obsidian-vault"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
+  });
+
+  it("keeps finance capability assignment aligned with Supabase availability", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const toolsWithoutSupabase = createConfigurationTools(repository, runtimeAgentRepository);
+    const listCapabilitiesTool = toolsWithoutSupabase.find((tool) => tool.name === "list_capabilities");
+    const createTool = toolsWithoutSupabase.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listedWithoutSupabase = await listCapabilitiesTool!.invoke({});
+    expect(listedWithoutSupabase).not.toContain("finance-domain");
+    expect(listedWithoutSupabase).not.toContain("finance-domain-read");
+
+    await expect(createTool!.invoke({
+      name: "Finance Helper",
+      description: "Manage finances.",
+      systemPrompt: "You help with finance.",
+      capabilityIds: ["finance-domain"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
+
+    await expect(createTool!.invoke({
+      name: "Finance Reader",
+      description: "Read finances.",
+      systemPrompt: "You read finance data.",
+      capabilityIds: ["finance-domain-read"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
   });
 });

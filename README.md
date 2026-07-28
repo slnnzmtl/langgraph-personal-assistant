@@ -4,93 +4,40 @@ A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.
 
 ## Architecture
 
-The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. The graph entry point is `createAssistant()`; deployments compile it via `bootstrapSupervisorSystem()` (personal pack: `createSupervisorSystem()` in the app).
+The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
 
 ```mermaid
 graph TD
     User((User)) <-->|Telegram| Adapter[Telegram Adapter]
-    Cron[node-cron Scheduler] -->|SYSTEM_CRON_TRIGGER:agentId:jobName| Graph
+    Cron[node-cron Scheduler] -->|SYSTEM_CRON_TRIGGER| CreateAssistant
 
     subgraph AppLayer [App layer]
-        AppTS[app.ts bootstrap]
+        AppTS[app.ts]
         PersonalPack[createSupervisorSystem]
-        AppKit[createAppExecutionKit]
-        AppPolicies[finance / obsidian / configuration policies]
+        AppPolicy[default runtime agent policy]
     end
 
     subgraph FrameworkLayer [Framework layer]
+        Runtime[createSupervisorRuntime]
         Bootstrap[bootstrapSupervisorSystem]
-    end
-
-    subgraph CoreKernel [Execution kernel]
         CreateAssistant[createAssistant]
-        Supervisor{Supervisor}
-        Prepare["agent__prepare"]
-        Llm["agent__llm"]
-        Tools["agent__tools"]
-        Finalize["agent__finalize"]
     end
 
-    subgraph RootGraph [Root LangGraph]
-        Adapter --> AppTS --> PersonalPack --> Bootstrap --> CreateAssistant
-        CreateAssistant --> Supervisor
-        Supervisor -->|agent id| Prepare
-        Prepare --> Llm
-        Llm --> Tools
-        Tools --> Llm
-        Llm --> Finalize
-        Finalize --> Supervisor
-        Supervisor -->|FINISH| Adapter
-        Cron --> Graph
-    end
-
-    AppKit --> CreateAssistant
-    AppPolicies --> AppKit
-
-    subgraph RuntimePolicies [Policy executors]
-        Llm --> FinancePolicy[finance]
-        Llm --> ObsidianPolicy[obsidian]
-        Llm --> ConfigurationPolicy[configuration]
-        Llm --> GenericPolicy[generic agents]
-    end
-
-    FinancePolicy <-->|MCP| Supabase[(Supabase)]
-    FinancePolicy <-->|REST| Wise[Wise API]
-    ObsidianPolicy <-->|Read / Write| Vault[(Obsidian Vault)]
+    Adapter --> AppTS --> PersonalPack --> Runtime --> Bootstrap --> CreateAssistant
+    CreateAssistant --> Supervisor{Supervisor}
+    Supervisor -->|agent id| RuntimeLoop[prepare / llm / tools / finalize]
+    RuntimeLoop --> Capabilities[capabilityIds to tools and hooks]
+    Capabilities --> Supabase[(Supabase MCP)]
+    Capabilities --> Wise[Wise API]
+    Capabilities --> Vault[(Obsidian Vault)]
+    Supervisor -->|FINISH| Adapter
 ```
 
-### Layer responsibilities
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for request lifecycle, state, and persistence boundaries.
 
-| Layer | Path | Responsibility |
-|---|---|---|
-| **Framework package** | `packages/supervisor-framework/` | Execution kernel + pack SDK (`bootstrapSupervisorSystem`, `createAssistant`, capabilities) |
-| **App layer** | `apps/personal-assistant/src/app/` | Built-in policies, per-domain LLM hooks, prompt wiring, `createAppExecutionKit()` |
-| **Domain runtime** | `apps/personal-assistant/src/runtime-agents/` | Tool bundles, domain tools (finance / obsidian / configuration), skill attachments |
-| **Infrastructure** | `apps/personal-assistant/src/cron/`, `telegram/`, `tools/`, `services/` | Scheduler, Telegram I/O, shared tool plumbing, external integrations |
+Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Creating a new agent via the configuration agent is picked up when the bot and scheduler recompile from `data/runtime-agents.json` (usually within a few seconds).
 
-Each `createAssistant()` call builds an isolated **execution context** with its own `PolicyRegistry` and `loadPromptByKey`, so multiple assistant instances do not share global policy or prompt state.
-
-### Runtime flow
-
-1. **Supervisor** reads the latest user message (or cron trigger) and routes to `FINISH` or a runtime agent id.
-2. **Prepare** scopes recent parent messages into `agentMessages`; **llm ⇄ tools** runs the specialist loop; **finalize** merges the final reply back into parent `messages`.
-3. Domain behavior is injected through **hooks** in `apps/personal-assistant/src/app/policies/*-hooks.ts`.
-4. Control returns to the supervisor until it chooses `FINISH`.
-
-Routing uses **agent ids** (`finance`, `obsidian`, `configuration`, or custom ids from the runtime-agent repository). Only agents wired at graph compile time are routable; creating a new agent via the configuration agent requires a **process restart** before routing works.
-
-| Component | Role |
-|---|---|
-| **Supervisor** | Intent routing via structured JSON output (`FINISH` or a wired runtime agent id) |
-| **Runtime agent loop** | Flat prepare / llm ⇄ tools / finalize nodes per enabled agent |
-| **Finance policy** | Expense tracking, Wise transaction sync, SQL via Supabase MCP |
-| **Obsidian policy** | Markdown vault read/write with multi-step tool loops |
-| **Configuration policy** | Cron job management, runtime-agent CRUD, and skill CRUD |
-| **Generic policy** | User-created runtime agents with grantable capabilities |
-| **Skills** | Reusable step-by-step playbooks in flat `skills/` with a `module` attribute, injected into agent prompts |
-| **Scheduler** | Optional `node-cron` daemon that injects `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages into the graph |
-
-Message history is trimmed to a configurable token budget (default ~6,000 estimated tokens via `MESSAGE_HISTORY_MAX_TOKENS`), while preserving in-flight tool-call sequences as atomic units.
+Message history is trimmed to a configurable token budget (default ~6,000 estimated tokens via `MESSAGE_HISTORY_MAX_TOKENS`).
 
 ## Prerequisites
 
@@ -112,6 +59,9 @@ pnpm dev
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) |
 | `ALLOWED_TELEGRAM_USER_ID` | Only this Telegram user can interact with the bot |
+| `ALLOWED_TELEGRAM_CHAT_ID` | Optional; chat id that may receive bot traffic (defaults to user id for private chats) |
+| `STATE_DB_PATH` | Optional; SQLite file for conversation checkpoints and cron run ledger (default `data/state.db`) |
+| `PERSISTENCE_ENABLED` | When false, use in-memory checkpoints and skip the cron ledger (default true) |
 | `GOOGLE_API_KEY` | Google AI API key for Gemini models |
 
 ### Optional environment variables
@@ -120,8 +70,9 @@ pnpm dev
 |---|---|---|
 | `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Fallback model for all agents |
 | `SUPERVISOR_MODEL` | `GEMINI_MODEL` | Model for the root supervisor |
-| `OBSIDIAN_MODEL` | `GEMINI_MODEL` | Model for the Obsidian sub-graph |
-| `FINANCE_MODEL` | `GEMINI_MODEL` | Model for the Finance sub-graph |
+| `OBSIDIAN_MODEL` | `GEMINI_MODEL` | Model for agents with `modelKey: obsidian` |
+| `FINANCE_MODEL` | `GEMINI_MODEL` | Model for agents with `modelKey: finance` |
+| `CONFIGURATION_MODEL` | `OBSIDIAN_MODEL` then `GEMINI_MODEL` | Model for agents with `modelKey: configuration` |
 | `APP_TIMEZONE` | `UTC` | IANA timezone for date hints and cron scheduling |
 | `OBSIDIAN_VAULT_PATH` | `src/obsidian-vault` | Local path to the markdown vault |
 | `ENABLE_SCHEDULER` | unset (disabled) | Enables the dedicated scheduler process (`pnpm dev:scheduler` / `personal-assistant-scheduler`). When disabled, that process stays idle until shutdown instead of scheduling jobs. The Telegram bot never runs in-process cron. |
@@ -166,31 +117,40 @@ Production Docker runs scheduling in the separate `personal-assistant-scheduler`
 
 ## Skills
 
-Skills are XML playbooks stored in a flat `skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
+Skills are XML playbooks stored in a flat `data/skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
 
 ```
-skills/
-  sync-expenses.xml
-  daily-routine-note-creation.xml
+data/skills/
   cron.xml
+  daily-routine-note-creation.xml
+  expense-ledger-schema.xml
+  expense-sync.xml
+  expense-update.xml
+  expense-view.xml
+  finance-summary.xml
   runtime-agents.xml
+  skill-bootstrap.xml
   skill-management.xml
 ```
 
-The `module` attribute (`finance`, `obsidian`, or `configuration`) controls which runtime agent lists and auto-attaches the skill. Optional `<skill_attachments>` blocks define phrase/cron triggers for auto-attachment. Agent prompts list available skills for their module and expose `read_skill` (execution agents) or full CRUD tools (configuration). The finance `sync-expenses` skill drives the Wise → categorize → dedup-insert pipeline.
+The `module` attribute (`finance`, `obsidian`, or `configuration`) controls which runtime agent lists and auto-attaches the skill. Optional `<skill_attachments>` blocks define phrase/cron triggers for auto-attachment. The finance `expense-sync` skill drives the Wise → categorize → dedup-insert pipeline.
+
+On startup, if `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, or `skill-bootstrap.xml` are missing from `data/skills/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`) are not auto-seeded and must be present in the repo or host volume.
 
 ## System prompts
 
-Prompt sources of truth live under `prompts/`:
+All runtime prompts live under `data/prompts/` (tracked in git; writable via the Compose `./data` volume):
 
 | Agent | File |
 |---|---|
-| Supervisor | `prompts/supervisor.xml` |
-| Obsidian | `prompts/obsidian.xml` |
-| Finance | `prompts/finance.xml` |
-| Configuration | `prompts/configuration.md` |
+| Supervisor | `data/prompts/supervisor.xml` |
+| Obsidian | `data/prompts/obsidian.xml` |
+| Finance | `data/prompts/finance.xml` |
+| Configuration | `data/prompts/configuration.xml` |
 
 Prompts are read from disk on each invocation, so edits take effect without restarting the process during local development.
+
+On startup, if `supervisor.xml` or `configuration.xml` are missing from `data/prompts/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific prompts (`finance.xml`, `obsidian.xml`) are not auto-seeded.
 
 ## Docker Compose
 
@@ -207,13 +167,16 @@ docker compose up --build
 | Mount | Host default | Container path |
 |---|---|---|
 | Obsidian vault | `./src/obsidian-vault` | `/data/obsidian-vault` |
-| Persisted JSON (`runtime-agents`, cron jobs) | `./data` | `/app/data` |
+| Persisted JSON (`runtime-agents`, cron jobs), prompts, skills | `./data` | `/app/apps/personal-assistant/data` |
+| Process logs (when file logging enabled) | `./logs` | `/app/apps/personal-assistant/logs` |
 
 Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
 
-Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. JSON writes are serialized within each process; concurrent writes from bot and scheduler can still race across processes.
+Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. The shared volume also holds `state.db` (conversation checkpoints and cron run ledger) when persistence is enabled. **Single-writer discipline:** the bot process owns all `./data` JSON mutations; the scheduler reads definitions and watches for changes but cannot persist runtime-agent or cron JSON (read-only repository wrappers). The scheduler may write cron execution metadata to `state.db` only.
 
-The production image copies `prompts/` and `skills/` into the container. To override skill playbooks from the host, add a bind mount in a Compose override file, for example `./skills:/app/skills`.
+Each production service exposes HTTP health endpoints on `HEALTH_PORT` (default `8080`): `/health/live` (process up) and `/health/ready` (bootstrap complete). Compose `healthcheck` blocks use readiness so `restart: unless-stopped` can recover wedged processes. Mount `./logs` (override with `LOGS_HOST_PATH`) for append-only process logs when `LOG_TO_FILE` is enabled (default on in production). Only one scheduler instance may run at a time; a lock file at `data/.scheduler-lock` refuses a duplicate scheduler container.
+
+The production image copies `data/prompts/` and `data/skills/` into the container. Prompts, skills, and runtime state persist on the mounted `./data` volume. Configuration skills and supervisor/configuration prompts are auto-seeded from framework defaults when missing at boot; domain-specific skills and prompts still require the repo or host volume on first deploy.
 
 ### Development container
 
@@ -247,11 +210,13 @@ packages/
 apps/
   personal-assistant/         # This Telegram deployment
     src/
-      app/                    # Policies, composition, createSupervisorSystem()
-      runtime-agents/         # Domain tools and builtin capability providers
-      cron/ telegram/ tools/ services/ connectors/ ...
-    prompts/ skills/ data/ sql/
-    tests/                    # App + integration unit tests, e2e
+      composition/            # createSupervisorSystem, personal-pack, runtime-execution
+      policies/               # Domain capability hooks
+      runtime-agents/         # Domain folders (finance/, obsidian/), capabilities, resolve-tools
+      ports/ integrations/    # External I/O clients (Obsidian, Wise, Supabase MCP)
+      scheduler/ telegram/ models/ ...
+    data/prompts/ data/skills/ data/ sql/
+    tests/unit/               # Layer-aligned unit tests; e2e in tests/e2e/
     Dockerfile docker-compose.yml
 
 docs/                         # Architecture and pack development guides
@@ -264,5 +229,5 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 
 ### Extending the assistant
 
-- **New built-in domain agent:** add tools under `apps/personal-assistant/src/runtime-agents/tools/`, a policy + hooks under `apps/personal-assistant/src/app/policies/`, and register the factory in `DOMAIN_POLICY_FACTORIES` inside `apps/personal-assistant/src/app/register-defaults.ts`. Restart required.
-- **New custom runtime agent:** create via the configuration agent with `capabilityIds`; restart required before routing works. Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
+- **New specialist (default):** create via the configuration agent with a prompt, optional skills, and grantable `capabilityIds`. Routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
+- **New tool domain (rare):** add a capability descriptor + provider in `capabilities.ts`, implement tools under `runtime-agents/<domain>/`, and register capability behavior in `src/policies/runtime-agent-policy.ts` when that capability is granted.

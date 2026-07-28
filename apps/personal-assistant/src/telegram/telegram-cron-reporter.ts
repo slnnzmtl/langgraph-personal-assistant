@@ -1,6 +1,6 @@
 import { Telegraf } from "telegraf";
 
-import type { CronExecutionReporter, CronJobResult, CronJobRun } from "../cron/cron-runner.js";
+import type { CronExecutionReporter, CronJobResult, CronJobRun } from "@personal-assistant/supervisor-framework";
 
 type TelegramCronReporterOptions = {
   telegram: Telegraf["telegram"];

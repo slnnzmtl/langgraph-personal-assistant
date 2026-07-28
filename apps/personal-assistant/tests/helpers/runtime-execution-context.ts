@@ -3,38 +3,40 @@ import type { BaseChatModel } from "@langchain/core/language_models/chat_models"
 import {
   createRuntimeAgentExecutionContext as createCoreExecutionContext,
   deriveCronTargetAgentIds,
-  deriveExecutors,
   deriveModelKeys,
   type RuntimeAgentExecutionContext,
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
-import { createAppExecutionKit } from "../../src/app/register-defaults.js";
+import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
+import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
-import { createDefaultCapabilityCatalog, type CapabilityDeps } from "../../src/runtime-agents/builtin-capabilities.js";
-import { createSkillCatalog } from "../../src/prompts/skill-catalog.js";
+import {
+  type PersonalCapabilityDeps,
+} from "../../src/runtime-agents/capabilities.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
+import { createTestSkillCatalog } from "./test-skills-dir.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
   repository?: RuntimeAgentRepository;
-  capabilityDeps: CapabilityDeps;
-  executors?: Iterable<string>;
+  capabilityDeps: PersonalCapabilityDeps;
 };
 
 export const createAppRuntimeExecutionContext = (
   input: CreateAppRuntimeExecutionContextInput,
-): RuntimeAgentExecutionContext<CapabilityDeps> => {
+): RuntimeAgentExecutionContext<PersonalCapabilityDeps> => {
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
-  const executors = input.executors ?? deriveExecutors(runtimeAgents);
-  const { loadPromptByKey, policyRegistry } = createAppExecutionKit(executors, {
-    skillCatalog: createSkillCatalog(),
-    capabilityCatalog: createDefaultCapabilityCatalog(),
+  const capabilityCatalog = createPersonalCapabilityCatalog();
+  const skillCatalog = createTestSkillCatalog();
+  const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
+    skillCatalog,
+    capabilityCatalog,
   });
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);
 
-  return createCoreExecutionContext<CapabilityDeps>({
+  return createCoreExecutionContext<PersonalCapabilityDeps>({
     models: Object.fromEntries(
       [...deriveModelKeys(runtimeAgents, defaultModelKey)].map((modelKey) => [
         modelKey,
@@ -46,8 +48,9 @@ export const createAppRuntimeExecutionContext = (
     capabilityDeps: {
       ...input.capabilityDeps,
       cronTargetAgentIds,
+      capabilityCatalog,
     },
     loadPromptByKey,
-    policyRegistry,
+    runtimeAgentPolicy,
   });
 };

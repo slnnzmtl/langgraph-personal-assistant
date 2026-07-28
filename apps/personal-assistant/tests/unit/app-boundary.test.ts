@@ -5,22 +5,36 @@ import { describe, expect, it } from "vitest";
 
 import {
   createCapabilityCatalog,
-  isCapabilityAvailable,
+  createSystemAgentDefinition,
+  SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { buildDefaultRuntimeAgents } from "../../src/app/composition/bootstrap-agents.js";
-import { createPersonalResolveTools } from "../../src/app/composition/personal-resolve-tools.js";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
+import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
 import {
-  BUILTIN_CAPABILITY_DESCRIPTORS,
   createCapabilityDeps,
-  createDefaultCapabilityCatalog,
+  createDomainCapabilityCatalog,
   resolveCapabilities,
-  toCapabilityAvailabilityContext,
-} from "../../src/runtime-agents/builtin-capabilities.js";
+} from "../../src/runtime-agents/capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
+const POLICIES_ROOT = path.join(appRoot, "src/policies");
+const PROMPT_LAYER_FILES = [path.join(appRoot, "src/prompts/load.ts")];
+
+const assertFilesAvoidImports = (
+  files: readonly string[],
+  forbiddenPathSegments: readonly string[],
+): void => {
+  for (const file of files) {
+    const content = readFileSync(file, "utf8");
+
+    for (const segment of forbiddenPathSegments) {
+      expect(content.includes(segment), `${file} must not import ${segment}`).toBe(false);
+    }
+  }
+};
 
 const collectSourceFiles = (dir: string): string[] => {
   const entries = readdirSync(dir);
@@ -59,29 +73,42 @@ const assertNoForbiddenImports = (
 describe("app boundaries", () => {
   it("keeps runtime-agents free of app composition and policy imports", () => {
     assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
-      "app/composition/",
-      "app/policies/",
-      "app/register-defaults",
+      "composition/",
+      "policies/",
     ]);
   });
 
+  it("keeps policies free of composition imports", () => {
+    assertNoForbiddenImports(POLICIES_ROOT, [
+      "composition/",
+    ]);
+  });
+
+  it("keeps runtime-agents free of telegram process imports", () => {
+    assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
+      "telegram/",
+    ]);
+  });
+
+  it("keeps prompt loading free of runtime-agents imports", () => {
+    assertFilesAvoidImports(PROMPT_LAYER_FILES, ["runtime-agents/"]);
+  });
+
   it("rejects unavailable capability grants", () => {
-    const catalog = createDefaultCapabilityCatalog();
+    const catalog = createDomainCapabilityCatalog();
 
     expect(() =>
       catalog.validateIds(["finance-domain"], {
-        supabaseAvailable: false,
         obsidianVaultPath: "/tmp/vault",
-        configurationReposAvailable: false,
       }),
     ).toThrow(/unavailable/i);
   });
 
-  it("resolves finance tools for generic executor agents with finance-domain capability", () => {
-    const catalog = createDefaultCapabilityCatalog();
+  it("resolves finance tools for agents with finance-domain capability", () => {
+    const catalog = createDomainCapabilityCatalog();
     const resolveTools = createPersonalResolveTools(catalog);
     const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
       capabilityCatalog: catalog,
     });
 
@@ -92,9 +119,7 @@ describe("app boundaries", () => {
       systemPrompt: "Finance",
       promptSourceKey: "finance",
       capabilityIds: ["finance-domain"],
-      executor: "generic",
       modelKey: "finance",
-      builtin: false,
       maxSteps: 8,
       enabled: true,
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -106,33 +131,70 @@ describe("app boundaries", () => {
 
     expect(unified).toEqual(expect.arrayContaining(capabilityOnly));
     expect(unified).toContain("read_skill");
+    expect(capabilityOnly).toContain("fetch_wise_transactions");
+  });
+
+  it("exposes read-only finance capabilities separately from write", () => {
+    const catalog = createPersonalCapabilityCatalog();
+    const deps = createCapabilityDeps("/tmp/vault", {
+      supabaseReadSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
+      capabilityCatalog: catalog,
+    });
+
+    const readTools = resolveCapabilities(["finance-domain-read"], deps).map((tool) => tool.name);
+    const writeTools = resolveCapabilities(["finance-domain"], deps).map((tool) => tool.name);
+
+    expect(readTools).toEqual(expect.arrayContaining(["exec_sql", "get_categories"]));
+    expect(readTools).not.toContain("fetch_wise_transactions");
+    expect(writeTools).toEqual(expect.arrayContaining(["exec_sql", "get_categories", "fetch_wise_transactions"]));
   });
 
   it("seeds only the configuration built-in from code", () => {
-    expect(buildDefaultRuntimeAgents().map((agent) => agent.id)).toEqual(["configuration"]);
+    const agent = createSystemAgentDefinition({
+      modelKey: "configuration",
+    });
+
+    expect(agent.id).toBe("configuration");
   });
 
   it("exposes read-only system configuration separately from write", () => {
+    const catalog = createPersonalCapabilityCatalog();
     const deps = createCapabilityDeps("/tmp/vault", {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+      capabilityCatalog: catalog,
     });
 
     const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
     const writeTools = resolveCapabilities(["system-config"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
+    expect(readTools).toContain("list_runtime_agents");
+    expect(readTools).not.toContain("preview_runtime_agent");
     expect(readTools).not.toContain("create_cron_job");
     expect(writeTools).toContain("create_cron_job");
+    expect(writeTools).toContain("preview_runtime_agent");
   });
 
-  it("marks configurable capabilities in the catalog", () => {
-    const configurable = BUILTIN_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable);
-    expect(configurable.map((entry) => entry.id)).toEqual(
-      expect.arrayContaining(["none", "obsidian-vault", "finance-domain", "system-config-read"]),
+  it("marks grantable capabilities in the catalog", () => {
+    const catalog = createDomainCapabilityCatalog();
+    const deps = createCapabilityDeps("/tmp/vault", {
+      supabaseReadSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
+    });
+
+    const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);
+
+    expect(grantableIds).toEqual(
+      expect.arrayContaining(["none", "obsidian-vault", "finance-domain-read"]),
     );
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
-    expect(isCapabilityAvailable(BUILTIN_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
+    expect(grantableIds).not.toContain("finance-domain");
+    expect(grantableIds).not.toContain(SYSTEM_CONFIG_READ_CAPABILITY_ID);
+
+    const withoutVault = createCapabilityDeps("");
+    expect(catalog.listAvailable(withoutVault).map((entry) => entry.id)).not.toContain("obsidian-vault");
+    expect(catalog.listAvailable(deps).map((entry) => entry.id)).toContain("obsidian-vault");
   });
 });
 
@@ -141,15 +203,17 @@ describe("capability catalog", () => {
     const catalog = createCapabilityCatalog([
       {
         descriptor: { id: "alpha", description: "Alpha tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "alpha_only" }] as never,
       },
       {
         descriptor: { id: "beta", description: "Beta tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "beta_only" }] as never,
       },
     ]);
 
-    const tools = catalog.resolveTools(["alpha", "beta"], {}, {});
+    const tools = catalog.resolveTools(["alpha", "beta"], {});
     expect(tools.map((tool) => tool.name)).toEqual(["shared_tool", "alpha_only", "beta_only"]);
   });
 });
