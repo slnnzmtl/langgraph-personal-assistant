@@ -13,6 +13,13 @@ services:
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
       - ${DATA_HOST_PATH:-./data}:/app/apps/personal-assistant/data
+      - ${LOGS_HOST_PATH:-./logs}:/app/apps/personal-assistant/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   personal-assistant-scheduler:
@@ -28,6 +35,13 @@ services:
     volumes:
       - ${OBSIDIAN_VAULT_HOST_PATH:-./src/obsidian-vault}:/data/obsidian-vault
       - ${DATA_HOST_PATH:-./data}:/app/apps/personal-assistant/data
+      - ${LOGS_HOST_PATH:-./logs}:/app/apps/personal-assistant/logs
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
 
   personal-assistant-dev:

@@ -165,10 +165,13 @@ docker compose up --build
 |---|---|---|
 | Obsidian vault | `./src/obsidian-vault` | `/data/obsidian-vault` |
 | Persisted JSON (`runtime-agents`, cron jobs), prompts, skills | `./data` | `/app/apps/personal-assistant/data` |
+| Process logs (when file logging enabled) | `./logs` | `/app/apps/personal-assistant/logs` |
 
 Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
 
 Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. **Single-writer discipline:** the bot process owns all `./data` mutations; the scheduler reads definitions and watches for changes but cannot persist runtime-agent or cron JSON (read-only repository wrappers).
+
+Each production service exposes HTTP health endpoints on `HEALTH_PORT` (default `8080`): `/health/live` (process up) and `/health/ready` (bootstrap complete). Compose `healthcheck` blocks use readiness so `restart: unless-stopped` can recover wedged processes. Mount `./logs` (override with `LOGS_HOST_PATH`) for append-only process logs when `LOG_TO_FILE` is enabled (default on in production). Only one scheduler instance may run at a time; a lock file at `data/.scheduler-lock` refuses a duplicate scheduler container.
 
 The production image copies `data/prompts/` and `data/skills/` into the container. Prompts, skills, and runtime state persist on the mounted `./data` volume. Configuration skills and supervisor/configuration prompts are auto-seeded from framework defaults when missing at boot; domain-specific skills and prompts still require the repo or host volume on first deploy.
 

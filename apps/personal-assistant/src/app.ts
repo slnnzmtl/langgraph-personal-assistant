@@ -1,9 +1,6 @@
 import { Telegraf } from "telegraf";
 
-import {
-  watchRuntimeAgentDefinitions,
-  type RuntimeAgentWatcher,
-} from "@personal-assistant/supervisor-framework";
+import { getLogger, watchRuntimeAgentDefinitions, type RuntimeAgentWatcher } from "@personal-assistant/supervisor-framework";
 import {
   createSupervisorSystem,
   type PersonalSupervisorSystem,
@@ -44,5 +41,5 @@ export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp
 
 export const launchApp = async (app: PersonalAssistantApp): Promise<void> => {
   await app.telegramAdapter.launch();
-  console.log("Telegram adapter launched in long-polling mode.");
+  getLogger().info("Telegram adapter launched in long-polling mode.");
 };

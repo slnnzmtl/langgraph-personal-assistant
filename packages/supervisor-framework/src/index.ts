@@ -105,6 +105,14 @@ export type {
 
 // --- Framework: optional prompt logging ---
 export { createFilePromptLogger } from "./framework/logging/file-prompt-logger.js";
+export {
+  createCompositeLogger,
+  createConsoleLogger,
+  createFileLogger,
+  getLogger,
+  setLogger,
+  type Logger,
+} from "./framework/logging/app-logger.js";
 export { noopPromptLogging } from "./core/ports/prompt-logging.js";
 export type { FilePromptLoggerOptions } from "./framework/logging/file-prompt-logger.js";
 export type { PromptLoggingHook } from "./core/ports/prompt-logging.js";
@@ -326,3 +334,10 @@ export {
   writeTextFile,
 } from "./core/persistence/file-system.js";
 export { withSerializedFileWrite } from "./core/persistence/json-store.js";
+export {
+  acquireProcessLock,
+  ProcessLockError,
+  type AcquireProcessLockOptions,
+  type ProcessLock,
+  type ProcessLockMetadata,
+} from "./core/persistence/process-lock.js";

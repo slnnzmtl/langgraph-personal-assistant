@@ -1,19 +1,25 @@
 import { Telegraf } from "telegraf";
 
 import {
-  createSupervisorSystem,
-  type PersonalSupervisorSystem,
-} from "../composition/create-supervisor-system.js";
-import {
+  getLogger,
   watchCronJobDefinitions,
   watchRuntimeAgentDefinitions,
   type CronJobWatcher,
+  type ProcessLock,
   type RuntimeAgentWatcher,
   type RuntimeCronService,
 } from "@personal-assistant/supervisor-framework";
+import {
+  createSupervisorSystem,
+  type PersonalSupervisorSystem,
+} from "../composition/create-supervisor-system.js";
 import type { AppConfig } from "../config.js";
 import { createLazyCron, startSchedulerRuntime, type LazyCronService } from "./scheduler-runtime.js";
 import type { GeminiConnector } from "../models/gemini-connector.js";
+
+export type CreateSchedulerAppOptions = {
+  processLock?: ProcessLock;
+};
 
 export type SchedulerApp = {
   config: AppConfig;
@@ -22,10 +28,14 @@ export type SchedulerApp = {
   jobWatcher: CronJobWatcher;
   agentWatcher: RuntimeAgentWatcher;
   supervisorConnector: GeminiConnector;
+  processLock?: ProcessLock;
   shutdown(): Promise<void>;
 };
 
-export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerApp> => {
+export const createSchedulerApp = async (
+  config: AppConfig,
+  options: CreateSchedulerAppOptions = {},
+): Promise<SchedulerApp> => {
   const runtimeCron: LazyCronService = createLazyCron();
   const system = await createSupervisorSystem(config, { runtimeCron, dataWriteRole: "reader" });
 
@@ -55,11 +65,13 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
     runtimeCron,
     jobWatcher,
     agentWatcher,
+    ...(options.processLock ? { processLock: options.processLock } : {}),
     shutdown: async () => {
       jobWatcher.close();
       agentWatcher.close();
       await runtimeCron.stopAll();
       await system.shutdownAdapters();
+      await options.processLock?.release();
     },
   };
 };
@@ -71,10 +83,20 @@ export const waitForProcessShutdown = (): Promise<void> =>
     process.once("SIGTERM", shutdown);
   });
 
-export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
-  console.log("Scheduler running in data read-only mode. Watching for job and runtime agent definition changes.");
+export type LaunchSchedulerOptions = {
+  onShutdown?: () => Promise<void>;
+};
+
+export const launchScheduler = async (
+  app: SchedulerApp,
+  options: LaunchSchedulerOptions = {},
+): Promise<void> => {
+  getLogger().info(
+    "Scheduler running in data read-only mode. Watching for job and runtime agent definition changes.",
+  );
 
   await waitForProcessShutdown();
   await app.shutdown();
+  await options.onShutdown?.();
   process.exit(0);
 };

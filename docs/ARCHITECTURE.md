@@ -159,7 +159,7 @@ Each process compiles its own graph instance at startup from enabled runtime age
 
 **Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` via the framework `watchRuntimeAgentDefinitions()` helper and recompile graph nodes automatically when the fingerprint changes (enabled agents, model keys, capabilities, step limits).
 
-Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services.
+Local dev: `pnpm dev` (Telegram bot), `pnpm dev:scheduler` (cron). Production Docker: `personal-assistant` + `personal-assistant-scheduler` services. Both processes expose `/health/live` and `/health/ready` on `HEALTH_PORT` (default 8080). Readiness turns true after bootstrap and graph compile; Compose health checks use readiness so wedged processes can restart. The scheduler acquires `data/.scheduler-lock` on the shared volume and exits if another scheduler is already running.
 
 ---
 
@@ -324,7 +324,16 @@ This is a practical balance between context-window cost and LangGraph conversati
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
-**Advisory lock fallback (not implemented):** if a second writer process is ever required (e.g. multiple schedulers or split configuration ownership), coordinate mutations with a lock file on the shared volume (e.g. `data/.write-lock`) before read-modify-write. Phase 1 enforces single-writer by role at the entrypoint instead.
+**Advisory lock fallback:** Phase 2 implements a scheduler singleton lock at `data/.scheduler-lock` so duplicate scheduler containers cannot double-fire cron jobs. If a second **writer** is ever required, coordinate JSON mutations with a separate lock file (e.g. `data/.write-lock`) before read-modify-write; Phase 1 enforces single-writer by role at the entrypoint instead.
+
+### Deployment and ops (Phase 2)
+
+| Concern | Mechanism | Notes |
+|---|---|---|
+| Liveness | `GET /health/live` | Always 200 once the HTTP server is listening. |
+| Readiness | `GET /health/ready` | 503 until bootstrap + graph compile finish; used by Compose `healthcheck`. |
+| Scheduler singleton | `acquireProcessLock` on `data/.scheduler-lock` | Second scheduler exits with an error; stale locks are reclaimed when the recorded pid is dead. |
+| Logging | `getLogger()` / `setLogger()` | Console by default; optional append-only file logs under `LOG_DIR` (`logs/`). No rotation yet — mount `logs/` in Docker to persist across recreates. |
 
 ---
 

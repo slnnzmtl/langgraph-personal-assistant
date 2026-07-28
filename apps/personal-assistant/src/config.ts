@@ -32,6 +32,10 @@ export interface AppConfig {
   messageHistoryMaxTokens: number;
   /** Set at composition time; bot writer, scheduler reader. */
   allowDataWrites?: boolean;
+  healthPort: number;
+  healthEnabled: boolean;
+  logsDir: string;
+  logToFile: boolean;
   mcpMaxReconnectAttempts: number;
   mcpReconnectBaseDelayMs: number;
   mcpReconnectMaxDelayMs: number;
@@ -50,6 +54,11 @@ export const getDefaultCronJobsPath = (cwd = process.cwd()): string =>
 export const getDefaultRuntimeAgentsPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "data/runtime-agents.json");
 
+export const getDefaultLogsPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "logs");
+
+const DEFAULT_HEALTH_PORT = 8080;
+
 const isTruthyEnv = (value: string | undefined): boolean =>
   value !== undefined && value !== "false" && value !== "0";
 
@@ -61,6 +70,15 @@ const getRequiredEnv = (name: RequiredEnvVar): string => {
   }
 
   return value;
+};
+
+const parsePositiveInt = (raw: string | undefined, defaultValue: number): number => {
+  if (!raw) {
+    return defaultValue;
+  }
+
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 };
 
 const parseNonNegativeInt = (raw: string | undefined, defaultValue: number): number => {
@@ -125,6 +143,13 @@ export const loadConfig = (): AppConfig => {
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
     messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
+    healthPort: parsePositiveInt(process.env.HEALTH_PORT, DEFAULT_HEALTH_PORT),
+    healthEnabled: process.env.HEALTH_ENABLED === undefined ? true : isTruthyEnv(process.env.HEALTH_ENABLED),
+    logsDir: process.env.LOG_DIR ?? getDefaultLogsPath(),
+    logToFile:
+      process.env.LOG_TO_FILE !== undefined
+        ? isTruthyEnv(process.env.LOG_TO_FILE)
+        : process.env.NODE_ENV === "production",
     mcpMaxReconnectAttempts: parseNonNegativeInt(
       process.env.MCP_MAX_RECONNECT_ATTEMPTS,
       DEFAULT_MCP_MAX_RECONNECT_ATTEMPTS,

@@ -9,6 +9,7 @@ import {
   createReadOnlyRuntimeAgentRepository,
   createSkillCatalog,
   createRuntimeAgentRepository,
+  getLogger,
   deriveModelKeys,
   deriveSkillModules,
   DEFAULT_MODEL_KEY,
@@ -42,7 +43,7 @@ import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
 const personalDefaultContentSeeder = createDefaultContentSeeder({
   promptsDir: path.resolve(process.cwd(), "data/prompts"),
   skillsDir: path.resolve(process.cwd(), "data/skills"),
-  logger: (message) => console.log(`[DefaultContentSeeder] ${message}`),
+  logger: (message) => getLogger().info(message),
 });
 
 export type SupervisorSystemOptions = {
