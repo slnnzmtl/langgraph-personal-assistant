@@ -201,11 +201,11 @@ describe("applyPromptFileAvailability", () => {
     const agents = applyPromptFileAvailability([
       ...buildTestRuntimeAgents(),
       {
-        id: "trainer",
-        name: "Trainer",
+        id: "missing-prompt-fixture",
+        name: "Missing Prompt",
         description: "Missing prompt file.",
-        systemPrompt: "Runtime prompt is loaded from data/prompts/trainer.xml via promptSourceKey.",
-        promptSourceKey: "trainer",
+        systemPrompt: "Runtime prompt is loaded from data/prompts/missing-prompt-fixture.xml via promptSourceKey.",
+        promptSourceKey: "missing-prompt-fixture",
         capabilityIds: ["none"],
         maxSteps: 8,
         enabled: true,

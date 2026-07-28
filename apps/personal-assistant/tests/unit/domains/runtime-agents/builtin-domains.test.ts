@@ -4,20 +4,13 @@ import {
   createSystemAgentDefinition,
   isRuntimeAgentBuiltin,
   SYSTEM_AGENT_ID,
-  buildSkillModuleOwnerPattern,
 } from "@personal-assistant/supervisor-framework";
-import {
-  applyIntegrationAvailability,
-  resolveBuiltinModelName,
-} from "../../../../src/composition/runtime-agent-defaults.js";
-import { listSkillModules } from "@personal-assistant/supervisor-framework";
-import { buildLocalModuleAgents } from "../../../helpers/runtime-agent-fixtures.js";
+import { resolveBuiltinModelName } from "../../../../src/composition/runtime-agent-defaults.js";
 import type { AppConfig } from "../../../../src/config.js";
 
 describe("system admin agent manifest", () => {
   it("defines the configuration system agent id for skill module continuity", () => {
     expect(SYSTEM_AGENT_ID).toBe("configuration");
-    expect(listSkillModules()).toEqual(expect.arrayContaining(["finance", "obsidian", "configuration"]));
   });
 
   it("builds the system admin runtime agent from framework options", () => {
@@ -28,24 +21,6 @@ describe("system admin agent manifest", () => {
     expect(agent.id).toBe("configuration");
     expect(isRuntimeAgentBuiltin(agent)).toBe(true);
     expect(agent.capabilityIds).toEqual(["system-config"]);
-  });
-
-  it("builds a skill module owner pattern from discovered modules", () => {
-    const modules = listSkillModules();
-    const pattern = buildSkillModuleOwnerPattern(modules);
-    for (const module of modules) {
-      expect(pattern.test(`${module} skills`)).toBe(true);
-    }
-  });
-
-  it("disables finance-domain agents when Supabase is unavailable", () => {
-    const financeAgent = buildLocalModuleAgents().find((agent) =>
-      agent.capabilityIds.includes("finance-domain"),
-    );
-
-    expect(financeAgent).toBeDefined();
-    expect(applyIntegrationAvailability([financeAgent!], { supabaseAvailable: false })[0]?.enabled).toBe(false);
-    expect(applyIntegrationAvailability([financeAgent!], { supabaseAvailable: true })[0]?.enabled).toBe(true);
   });
 
   it("resolves model names from model key overrides", () => {

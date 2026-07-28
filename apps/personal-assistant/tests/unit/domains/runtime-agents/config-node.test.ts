@@ -6,7 +6,7 @@ import {
   CONFIGURATION_COMPLETION_FALLBACK,
   mapConfigurationSubAgentResult,
 } from "@personal-assistant/supervisor-framework";
-import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../../helpers/policy-nodes.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
   createCronRepositoryFake,
@@ -41,7 +41,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -66,7 +66,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -102,7 +102,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -138,7 +138,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -166,7 +166,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -209,7 +209,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -252,7 +252,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -294,7 +294,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -336,7 +336,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -364,7 +364,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({
@@ -411,7 +411,7 @@ describe("configuration runtime node hooks", () => {
       } as never,
       configurationDefinition,
       createConfigurationTools(repository),
-      configurationRuntimeNodeConfig(),
+      buildNodeConfigForTest(configurationDefinition),
     );
 
     const result = await node({

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../../src/integrations/mcp/supabase.js";
 import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
-import { createTestRuntimeAgentNode, financeRuntimeNodeConfig } from "../../../helpers/policy-nodes.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools } from "../../../helpers/finance-tools.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
@@ -17,7 +17,7 @@ const createCompiledFinanceSubgraph = (
 ) => createCompiledSubAgentGraph(
   "Finance",
   financeDefinition.maxSteps,
-  createTestRuntimeAgentNode(model, financeDefinition, tools, financeRuntimeNodeConfig()),
+  createTestRuntimeAgentNode(model, financeDefinition, tools, buildNodeConfigForTest(financeDefinition)),
   tools,
 );
 
@@ -28,7 +28,7 @@ describe("finance subgraph tool batching", () => {
       financeCalls += 1;
       return new AIMessage("should not run");
     }).getModel();
-    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
+    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], buildNodeConfigForTest(financeDefinition));
 
     const update = await financeNode({
       agentMessages: [
@@ -107,7 +107,7 @@ describe("finance subgraph tool batching", () => {
       return new AIMessage("");
     }).getModel();
 
-    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, tools, financeRuntimeNodeConfig());
+    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, tools, buildNodeConfigForTest(financeDefinition));
     const update = await financeNode({
       agentMessages: [
         new HumanMessage("get yesterday transactions"),
@@ -144,7 +144,7 @@ describe("finance subgraph tool batching", () => {
       return new AIMessage("The last expense date in the database is 2026-07-16.");
     }).getModel();
 
-    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, tools, financeRuntimeNodeConfig());
+    const financeNode = createTestRuntimeAgentNode(model, financeDefinition, tools, buildNodeConfigForTest(financeDefinition));
     const update = await financeNode({
       agentMessages: [
         new HumanMessage("what the last expense date in db?"),

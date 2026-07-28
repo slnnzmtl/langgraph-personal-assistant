@@ -359,7 +359,7 @@ describe("TelegramAdapter", () => {
 
     expect(app.invoke).toHaveBeenCalledWith(
       { messages: [message] },
-      { configurable: { thread_id: "chat-123" } },
+      { configurable: { thread_id: "chat-123" }, recursionLimit: 40 },
     );
     expect(logSpy).not.toHaveBeenCalled();
   });

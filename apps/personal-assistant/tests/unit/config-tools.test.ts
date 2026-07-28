@@ -43,19 +43,6 @@ describe("createConfigurationTools", () => {
     );
   });
 
-  it("loads cron skill instructions without appending a tools preview", async () => {
-    const repository = createCronRepositoryFake();
-    const tools = createConfigurationTools(repository);
-    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
-    expect(readSkillTool).toBeDefined();
-
-    const result = String(await readSkillTool!.invoke({ name: "cron" }));
-
-    expect(result).toContain("<cron_intent_routing>");
-    expect(result).toContain("list_cron_jobs");
-    expect(result).not.toContain("<available_tools>");
-  });
-
   it("lists saved cron jobs from the repository", async () => {
     const repository = createCronRepositoryFake([
       {

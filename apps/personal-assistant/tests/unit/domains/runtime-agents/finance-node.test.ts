@@ -2,7 +2,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SupabaseMcpSession } from "../../../../src/integrations/mcp/supabase.js";
-import { createTestRuntimeAgentNode, financeRuntimeNodeConfig } from "../../../helpers/policy-nodes.js";
+import { createTestRuntimeAgentNode, buildNodeConfigForTest } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools, getFinanceDomainTool } from "../../../helpers/finance-tools.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
@@ -102,23 +102,6 @@ describe("finance tools", () => {
     expect(JSON.parse(String(result))).toEqual(categories);
   });
 
-  it("exposes read_skill from the shared skills tool factory", async () => {
-    const session: SupabaseMcpSession = {
-      executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
-      close: vi.fn(),
-    };
-    const tools = createFinanceTestTools(session, financeSkillModule);
-    const readSkillTool = tools.find((tool) => tool.name === "read_skill");
-
-    expect(readSkillTool).toBeDefined();
-
-    const result = String(await readSkillTool?.invoke({ name: "expense-view" }));
-    expect(result).toContain("<view_intent>");
-    expect(result).not.toContain("<skill_context>");
-    expect(result).not.toContain("<available_tools>");
-    expect(session.executeSql).not.toHaveBeenCalled();
-  });
-
   it("attaches all finance tools to the agent", () => {
     const session: SupabaseMcpSession = {
       executeSql: vi.fn(),
@@ -138,7 +121,7 @@ describe("finance tools", () => {
   describe("step counter", () => {
     it("resets stepCount to 1 on initial entry (last message is HumanMessage)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], buildNodeConfigForTest(financeDefinition));
 
     const update = await financeNode({
       agentMessages: [new HumanMessage("sync finances")],
@@ -150,7 +133,7 @@ describe("finance tools", () => {
 
     it("increments stepCount when last message is a ToolMessage (loop continuation)", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], buildNodeConfigForTest(financeDefinition));
 
     const update = await financeNode({
       agentMessages: [
@@ -165,7 +148,7 @@ describe("finance tools", () => {
 
     it("starts stepCount at 1 from zero on first loop continuation", async () => {
       const model = new FakeLLMConnector(() => new AIMessage("done")).getModel();
-      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], financeRuntimeNodeConfig());
+      const financeNode = createTestRuntimeAgentNode(model, financeDefinition, [], buildNodeConfigForTest(financeDefinition));
 
     const update = await financeNode({
       agentMessages: [

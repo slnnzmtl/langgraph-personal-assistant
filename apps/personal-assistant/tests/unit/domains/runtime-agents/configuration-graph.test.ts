@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createDefaultRuntimeShellFormatters } from "../../../../src/composition/runtime-execution.js";
 import { createDefaultRuntimeAgentPolicy } from "../../../../src/policies/runtime-agent-policy.js";
 import { createPersonalResolveTools } from "../../../../src/runtime-agents/resolve-tools.js";
-import { createTestRuntimeAgentNode, configurationRuntimeNodeConfig } from "../../../helpers/policy-nodes.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import { createConfigurationTools, createCronRepositoryFake } from "../../../helpers/configuration-tools.js";
 import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
 import {
@@ -14,9 +14,9 @@ import {
   getRuntimeAgentFixture,
 } from "../../../helpers/fakes.js";
 
-import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../../../helpers/capability-catalog.js";
+import { createTestSkillCatalog } from "../../../helpers/test-skills-dir.js";
 
 const capabilityCatalog = createPersonalCapabilityCatalog();
 const resolveTools = createPersonalResolveTools(capabilityCatalog);
@@ -64,13 +64,14 @@ describe("configuration subgraph", () => {
       cronJobRepository: repository as never,
       llmConnector,
     });
-    const shellFormatters = createDefaultRuntimeShellFormatters(createSkillCatalog());
+    const skillCatalog = createTestSkillCatalog();
+    const shellFormatters = createDefaultRuntimeShellFormatters(skillCatalog);
     const shellHooks = createRuntimeShellHooks(shellFormatters);
     const policy = createDefaultRuntimeAgentPolicy(shellHooks, {
       shellFormatters,
       capabilityCatalog,
       resolveTools,
-      skillCatalog: createSkillCatalog(),
+      skillCatalog,
     });
     const bundle = policy.createGraphBundle(context, configurationDefinition);
     const prepared = bundle.prepare(asAgentState({
@@ -99,7 +100,7 @@ describe("configuration subgraph", () => {
       configCalls += 1;
       return new AIMessage("should not run");
     }).getModel();
-    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, [], configurationRuntimeNodeConfig());
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, [], buildNodeConfigForTest(configurationDefinition));
 
     const update = await configNode({
       agentMessages: [
@@ -152,7 +153,7 @@ describe("configuration subgraph", () => {
       return new AIMessage("Configuration updated.");
     }).getModel();
 
-    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, tools, configurationRuntimeNodeConfig());
+    const configNode = createTestRuntimeAgentNode(model, configurationDefinition, tools, buildNodeConfigForTest(configurationDefinition));
     const subgraph = createCompiledSubAgentGraph("Configuration", 10, configNode, tools);
     const result = await subgraph.invoke({
       agentMessages: [new HumanMessage("update cron jobs")],

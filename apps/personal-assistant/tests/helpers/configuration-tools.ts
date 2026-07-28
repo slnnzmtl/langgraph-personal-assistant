@@ -6,7 +6,8 @@ import {
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
-import { createReadSkillTool, createSkillCatalog } from "@personal-assistant/supervisor-framework";
+import { createReadSkillTool } from "@personal-assistant/supervisor-framework";
+import { createTestSkillCatalog } from "./test-skills-dir.js";
 import type { CronJobDefinition, CronJobRepository } from "@personal-assistant/supervisor-framework";
 import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
@@ -54,12 +55,12 @@ export const createConfigurationTools = (
     cronJobRepository: repository,
     runtimeAgentRepository,
     capabilityCatalog: defaultConfigurationCatalog,
-    skillCatalog: createSkillCatalog({ approvedModules: [skillModule, "finance", "obsidian"] }),
+    skillCatalog: createTestSkillCatalog([skillModule, "finance", "obsidian"]),
     ...capabilityDepsOverrides,
   };
 
   return [
-    createReadSkillTool(skillModule, "xml"),
+    createReadSkillTool(skillModule, "xml", { skillCatalog: createTestSkillCatalog([skillModule, "finance", "obsidian"]) }),
     ...createSystemConfigTools(capabilityDeps),
   ];
 };

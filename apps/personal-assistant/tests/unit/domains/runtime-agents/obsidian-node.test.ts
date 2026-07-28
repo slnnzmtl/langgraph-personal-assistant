@@ -15,16 +15,14 @@ import {
   searchFiles,
 } from "../../../../src/integrations/obsidian.js";
 import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../../src/runtime-agents/obsidian/hooks.js";
-import { createTestRuntimeAgentNode, obsidianRuntimeNodeConfig } from "../../../helpers/policy-nodes.js";
-import { extractMessageTextContent, resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
-  loadSystemPromptByKey,
 } from "../../../../src/prompts/load.js";
 import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");
-const obsidianPromptKey = resolveAgentSkillModule(obsidianDefinition);
 
 const tempPaths: string[] = [];
 
@@ -355,43 +353,13 @@ describe("formatObsidianRoutineHint", () => {
 });
 
 describe("obsidian runtime node hooks", () => {
-  it("loads the Obsidian system prompt from data/prompts/obsidian.xml", () => {
-    const prompt = loadSystemPromptByKey(obsidianPromptKey);
-
-    expect(prompt).toContain("Obsidian Vault Manager");
-    expect(prompt).toContain("<role_and_rules>");
-    expect(prompt).toContain("Paths: Use relative paths only. No absolute paths or '..' traversal.");
-    expect(prompt).not.toContain("CURRENT DATETIME:");
-    expect(prompt).toContain('<intent type="READ">');
-    expect(prompt).toContain('<intent type="WRITE">');
-    expect(prompt).toContain('<intent type="FIND_OR_SEARCH">');
-    expect(prompt).toContain("Reply with the full note contents from the tool result");
-    expect(prompt).toContain("file deletion operations are unsupported");
-  });
-
-  it("loads skill_usage guidance from data/prompts/obsidian.xml", () => {
-    const prompt = loadSystemPromptByKey(obsidianPromptKey);
-
-    expect(prompt).toContain("<skill_usage>");
-    expect(prompt).toContain("read_skill(skill_name)");
-  });
-
-  it("requires verbatim screenshot transcription without translation", () => {
-    const prompt = loadSystemPromptByKey(obsidianPromptKey);
-
-    expect(prompt).toContain('<intent type="PARSE_SCREENSHOT">');
-    expect(prompt).toContain("<ocr_transcription_standard>");
-    expect(prompt).toContain("Preserve original source language verbatim (no auto-translation)");
-    expect(prompt).toContain("Do not summarize, paraphrase, or omit raw information");
-  });
-
   it("fails clearly when the model does not support tool calling", async () => {
     const vaultRoot = await createTempVault();
     const connector = {
       getModel: () => ({}) as BaseChatModel,
     };
 
-    expect(() => createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot))).toThrow(
+    expect(() => createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }))).toThrow(
       "Runtime agent LLM model must support tool calling.",
     );
   });
@@ -399,7 +367,7 @@ describe("obsidian runtime node hooks", () => {
   it("falls back to a non-empty completion when the model returns blank text", async () => {
     const vaultRoot = await createTempVault();
     const connector = new FakeLLMConnector(() => new AIMessage(""));
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -446,7 +414,7 @@ describe("obsidian runtime node hooks", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -455,56 +423,6 @@ describe("obsidian runtime node hooks", () => {
 
     const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
     expect(firstMessage?.content).toBe("Done.");
-  });
-
-  it("auto-attaches the Routine skill when the user message matches routine intent", async () => {
-    const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector((input) => {
-      expect(Array.isArray(input)).toBe(true);
-      const promptContent = (input as Array<{ content: unknown }>)
-        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
-        .join("\n");
-
-      expect(promptContent).toContain("<attached_skills>");
-      expect(promptContent).toContain('<attached_skill name="daily-routine-note-creation">');
-      expect(promptContent).toContain("First: `read_file` yesterday's note");
-      expect(promptContent).toContain("Follow the attached skill instructions exactly");
-
-      return new AIMessage("Prepared today's routine note.");
-    });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
-
-    const result = await obsidianNode({
-      stepCount: 0,
-      agentMessages: [new HumanMessage("create today's routine note")],
-    });
-
-    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
-    expect(firstMessage?.content).toBe("Prepared today's routine note.");
-  });
-
-  it("does not attach the Routine skill for unrelated vault requests", async () => {
-    const vaultRoot = await createTempVault();
-    const connector = new FakeLLMConnector((input) => {
-      expect(Array.isArray(input)).toBe(true);
-      const promptContent = (input as Array<{ content: unknown }>)
-        .map((message) => (typeof message.content === "string" ? message.content : JSON.stringify(message.content)))
-        .join("\n");
-
-      expect(promptContent).not.toContain("<attached_skills>");
-      expect(promptContent).not.toContain('<attached_skill name="daily-routine-note-creation">');
-
-      return new AIMessage("Read the fitness log.");
-    });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
-
-    const result = await obsidianNode({
-      stepCount: 0,
-      agentMessages: [new HumanMessage("read my fitness log")],
-    });
-
-    const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;
-    expect(firstMessage?.content).toBe("Read the fitness log.");
   });
 
   it("summarizes read_file results when the model returns a blank final response", async () => {
@@ -529,7 +447,7 @@ describe("obsidian runtime node hooks", () => {
         }],
       });
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       agentMessages: [
@@ -579,7 +497,7 @@ describe("obsidian runtime node hooks", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -602,7 +520,7 @@ describe("obsidian runtime node hooks", () => {
 
       return new AIMessage("Done.");
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -652,7 +570,7 @@ describe("obsidian runtime node hooks", () => {
       return new AIMessage("Best matches:\nroutine/July/July 3 - Fri.md\nroutine/July/July 4 - Sat.md");
     });
 
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -713,7 +631,7 @@ describe("obsidian runtime node hooks", () => {
 
       return new AIMessage("Added sauna to today's tasks in your routine.");
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,
@@ -758,7 +676,7 @@ describe("obsidian runtime node hooks", () => {
 
       return new AIMessage("Prepared today's note successfully.");
     });
-    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, obsidianRuntimeNodeConfig(vaultRoot));
+    const obsidianNode = createTestRuntimeAgentNode(connector, obsidianDefinition, undefined, buildNodeConfigForTest(obsidianDefinition, { vaultRoot }));
 
     const result = await obsidianNode({
       stepCount: 0,

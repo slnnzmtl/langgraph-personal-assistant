@@ -13,8 +13,8 @@ import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   type PersonalCapabilityDeps,
 } from "../../src/runtime-agents/capabilities.js";
-import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
+import { createTestSkillCatalog } from "./test-skills-dir.js";
 
 export type CreateAppRuntimeExecutionContextInput = {
   defaultModel: BaseChatModel;
@@ -28,7 +28,7 @@ export const createAppRuntimeExecutionContext = (
   const runtimeAgents = buildTestRuntimeAgents();
   const defaultModelKey = "generic";
   const capabilityCatalog = createPersonalCapabilityCatalog();
-  const skillCatalog = createSkillCatalog();
+  const skillCatalog = createTestSkillCatalog();
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog,

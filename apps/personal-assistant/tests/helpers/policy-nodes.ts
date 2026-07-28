@@ -13,13 +13,13 @@ import {
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load.js";
 import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
-import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import {
   buildRuntimeAgentNodeConfigForDefinition,
   resolveCapabilityBehavior,
 } from "../../src/policies/runtime-agent-policy.js";
+import { createTestSkillCatalog } from "./test-skills-dir.js";
 
-const testSkillCatalog = createSkillCatalog();
+const testSkillCatalog = createTestSkillCatalog();
 const testShellFormatters = createDefaultRuntimeShellFormatters(testSkillCatalog);
 const testShellHooks = createRuntimeShellHooks(testShellFormatters);
 
@@ -74,46 +74,3 @@ export const createTestRuntimeAgentNode = (
     tools,
     config,
   ) as (state: SubAgentState) => Promise<SubAgentStateUpdate>;
-
-/** @deprecated Use buildNodeConfigForTest(definition) */
-export const financeRuntimeNodeConfig = (): RuntimeAgentNodeConfig =>
-  buildNodeConfigForTest({
-    id: "finance",
-    name: "Finance",
-    description: "",
-    systemPrompt: "",
-    capabilityIds: ["finance-domain"],
-    maxSteps: 8,
-    enabled: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-
-/** @deprecated Use buildNodeConfigForTest(definition, { vaultRoot }) */
-export const obsidianRuntimeNodeConfig = (vaultRoot: string): RuntimeAgentNodeConfig =>
-  buildNodeConfigForTest({
-    id: "obsidian",
-    name: "Obsidian",
-    description: "",
-    systemPrompt: "",
-    capabilityIds: ["obsidian-vault"],
-    maxSteps: 8,
-    enabled: true,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  }, { vaultRoot });
-
-/** @deprecated Use buildNodeConfigForTest(definition) */
-export const configurationRuntimeNodeConfig = (): RuntimeAgentNodeConfig =>
-  buildNodeConfigForTest({
-    id: "configuration",
-    name: "Configuration",
-    description: "",
-    systemPrompt: "",
-    capabilityIds: ["system-config"],
-    modelKey: "configuration",
-    maxSteps: 10,
-    enabled: true,
-    createdAt: "1970-01-01T00:00:00.000Z",
-    updatedAt: "1970-01-01T00:00:00.000Z",
-  });
