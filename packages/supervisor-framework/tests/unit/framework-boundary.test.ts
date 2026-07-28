@@ -75,15 +75,17 @@ describe("capability catalog", () => {
     const catalog = createCapabilityCatalog([
       {
         descriptor: { id: "alpha", description: "Alpha tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "alpha_only" }] as never,
       },
       {
         descriptor: { id: "beta", description: "Beta tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "beta_only" }] as never,
       },
     ]);
 
-    const tools = catalog.resolveTools(["alpha", "beta"], {}, {});
+    const tools = catalog.resolveTools(["alpha", "beta"], {});
     expect(tools.map((tool) => tool.name)).toEqual(["shared_tool", "alpha_only", "beta_only"]);
   });
 });

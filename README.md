@@ -113,10 +113,10 @@ Production Docker runs scheduling in the separate `personal-assistant-scheduler`
 
 ## Skills
 
-Skills are XML playbooks stored in a flat `skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
+Skills are XML playbooks stored in a flat `data/skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
 
 ```
-skills/
+data/skills/
   cron.xml
   daily-routine-note-creation.xml
   expense-ledger-schema.xml
@@ -165,7 +165,7 @@ Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your
 
 Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. JSON writes are serialized within each process; concurrent writes from bot and scheduler can still race across processes.
 
-The production image copies `skills/` into the container. Prompts and runtime state persist on the mounted `./data` volume (`data/prompts/`, `data/skills/`, etc.). Ensure `data/prompts/` exists on the host (copy from the repo on first deploy).
+The production image copies `data/prompts/` and `data/skills/` into the container. Prompts, skills, and runtime state persist on the mounted `./data` volume. Ensure `data/prompts/` and `data/skills/` exist on the host (copy from the repo on first deploy).
 
 ### Development container
 
@@ -204,7 +204,7 @@ apps/
       runtime-agents/         # Domain folders (finance/, obsidian/), capabilities, resolve-tools
       ports/ integrations/    # External I/O clients (Obsidian, Wise, Supabase MCP)
       scheduler/ telegram/ models/ ...
-    data/prompts/ skills/ data/ sql/
+    data/prompts/ data/skills/ data/ sql/
     tests/unit/               # Layer-aligned unit tests; e2e in tests/e2e/
     Dockerfile docker-compose.yml
 

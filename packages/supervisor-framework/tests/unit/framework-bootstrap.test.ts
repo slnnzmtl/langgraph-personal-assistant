@@ -31,7 +31,8 @@ describe("framework bootstrap", () => {
   it("compiles a supervisor graph from a generic pack", async () => {
     const catalog = createCapabilityCatalog([
       {
-        descriptor: { id: "none", description: "Prompt-only agent.", configurable: true },
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
         resolveTools: () => [],
       },
     ]);
@@ -57,7 +58,7 @@ describe("framework bootstrap", () => {
         loadPromptByKey: () => "prompt",
         runtimeAgentPolicy: createAgentPolicy({
           resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
-            resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
+            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
         }),
       }),
       buildModels: () => ({
@@ -74,7 +75,8 @@ describe("framework bootstrap", () => {
   it("exports createAssistant through the same compilation path", () => {
     const catalog = createCapabilityCatalog([
       {
-        descriptor: { id: "none", description: "Prompt-only agent.", configurable: true },
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
         resolveTools: () => [],
       },
     ]);
@@ -89,7 +91,7 @@ describe("framework bootstrap", () => {
       loadSupervisorPrompt: () => "Supervise requests.",
       runtimeAgentPolicy: createAgentPolicy({
         resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
-          resolveAgentTools(definition, catalog, deps, {}),
+          resolveAgentTools(definition, catalog, deps),
       }),
     });
 

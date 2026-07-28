@@ -1,6 +1,6 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import type { CapabilityAvailabilityContext, CapabilityCatalog } from "../capabilities/index.js";
+import type { CapabilityCatalog } from "../capabilities/index.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import { resolveAgentCapabilityIds } from "../core/types/agent.js";
 
@@ -24,7 +24,6 @@ export const resolveAgentTools = <TDeps extends Record<string, unknown>>(
   definition: RuntimeAgentDefinition,
   catalog: CapabilityCatalog,
   deps: TDeps,
-  availability: CapabilityAvailabilityContext,
   options: {
     includeReadSkill?: boolean;
     readSkillTool?: StructuredToolInterface;
@@ -36,7 +35,7 @@ export const resolveAgentTools = <TDeps extends Record<string, unknown>>(
     return [];
   }
 
-  const capabilityTools = catalog.resolveTools(capabilityIds, deps, availability);
+  const capabilityTools = catalog.resolveTools(capabilityIds, deps);
   const includeReadSkill = options.includeReadSkill ?? true;
 
   if (!includeReadSkill || !options.readSkillTool) {

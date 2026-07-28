@@ -11,10 +11,6 @@ import {
   type LoadPromptByKey,
 } from "../../../core/agents/resolve-system-prompt.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
-import {
-  configurationReposAvailable,
-  type CapabilityAvailabilityContext,
-} from "../../../capabilities/types.js";
 import type { SystemConfigDeps } from "../definition.js";
 
 const CreateRuntimeAgentToolSchema = z.object({
@@ -76,10 +72,6 @@ const formatPromptFileNote = (
   return location ? `\nPrompt file: ${location}` : "";
 };
 
-const toAvailabilityContext = (deps: SystemConfigDeps): CapabilityAvailabilityContext => ({
-  configurationReposAvailable: configurationReposAvailable(deps),
-});
-
 export const createRuntimeAgentTools = (
   repository: RuntimeAgentRepository,
   deps: SystemConfigDeps,
@@ -90,8 +82,7 @@ export const createRuntimeAgentTools = (
   }
 
   const capabilityCatalog = options.capabilityCatalog;
-  const availabilityContext = toAvailabilityContext(deps);
-  const capabilityIdSchema = capabilityCatalog.createIdSchema();
+  const capabilityIdSchema = capabilityCatalog.createGrantableIdSchema(deps);
   const loadPromptByKey = options.loadPromptByKey ?? deps.loadPromptByKey;
 
   const listRuntimeAgents = tool(
@@ -135,7 +126,7 @@ export const createRuntimeAgentTools = (
   );
 
   const listCapabilities = tool(
-    async () => capabilityCatalog.formatGrantableCatalog(availabilityContext),
+    async () => capabilityCatalog.formatGrantableCatalog(deps),
     {
       name: "list_capabilities",
       description: "List grantable capabilities available in this deployment.",
@@ -152,8 +143,7 @@ export const createRuntimeAgentTools = (
   const createRuntimeAgent = tool(
     async (input: z.infer<typeof CreateRuntimeAgentToolSchema>) => {
       try {
-        capabilityCatalog.validateGrantableIds(input.capabilityIds, availabilityContext);
-        capabilityCatalog.validateIds(input.capabilityIds, availabilityContext);
+        capabilityCatalog.validateGrantableIds(input.capabilityIds, deps);
         const agent = await repository.createAgent({
           name: input.name,
           description: input.description,
@@ -183,8 +173,7 @@ export const createRuntimeAgentTools = (
     async (input: z.infer<typeof UpdateRuntimeAgentToolSchema>) => {
       try {
         if (input.capabilityIds) {
-          capabilityCatalog.validateGrantableIds(input.capabilityIds, availabilityContext);
-          capabilityCatalog.validateIds(input.capabilityIds, availabilityContext);
+          capabilityCatalog.validateGrantableIds(input.capabilityIds, deps);
         }
 
         const agent = await repository.updateAgent(input.id, {

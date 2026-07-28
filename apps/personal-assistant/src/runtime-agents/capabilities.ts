@@ -1,9 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import {
-  configurationReposAvailable,
   createCapabilityCatalog,
-  type CapabilityAvailabilityContext,
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
@@ -26,19 +24,17 @@ export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
     id: NONE_CAPABILITY_ID,
     description: "Prompt-only agent with no tools.",
-    configurable: true,
+    grantable: true,
   },
   {
     id: OBSIDIAN_VAULT_CAPABILITY_ID,
     description: "Read, write, search, and send files from the Obsidian vault.",
-    requiresVault: true,
-    configurable: true,
+    grantable: true,
   },
   {
     id: FINANCE_DOMAIN_CAPABILITY_ID,
     description: "Execute SQL, fetch Wise transactions, and load expense categories.",
-    requiresSupabase: true,
-    configurable: true,
+    grantable: true,
   },
 ];
 
@@ -105,14 +101,17 @@ export const createCapabilityDeps = (
 export const createPersonalCapabilityProviders = (): CapabilityProvider<PersonalCapabilityDeps>[] => [
   {
     descriptor: getDescriptor("none"),
+    isAvailable: () => true,
     resolveTools: () => [],
   },
   {
     descriptor: getDescriptor("obsidian-vault"),
+    isAvailable: (deps) => Boolean(deps.obsidianVaultPath),
     resolveTools: (deps) => createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender),
   },
   {
     descriptor: getDescriptor("finance-domain"),
+    isAvailable: (deps) => deps.supabaseSession !== undefined,
     resolveTools: (deps) => {
       if (!deps.supabaseSession) {
         throw new Error("finance-domain capability requires a configured Supabase session.");
@@ -127,42 +126,30 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Personal
 export const createDomainCapabilityCatalog = (): CapabilityCatalog =>
   createCapabilityCatalog(createPersonalCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[]);
 
-export const toCapabilityAvailabilityContext = (
-  deps: PersonalCapabilityDeps,
-): CapabilityAvailabilityContext => ({
-  obsidianVaultPath: deps.obsidianVaultPath,
-  supabaseAvailable: deps.supabaseSession !== undefined,
-  configurationReposAvailable: configurationReposAvailable(deps),
-});
-
 export const getCapabilityCatalog = (deps: PersonalCapabilityDeps): CapabilityCatalog =>
   deps.capabilityCatalog ?? createDomainCapabilityCatalog();
 
 export const listAvailableCapabilities = (
   deps: PersonalCapabilityDeps,
 ): CapabilityDescriptor[] =>
-  getCapabilityCatalog(deps).listAvailable(toCapabilityAvailabilityContext(deps));
+  getCapabilityCatalog(deps).listAvailable(deps);
 
 export const validateCapabilityIds = (
   capabilityIds: readonly string[],
   deps: PersonalCapabilityDeps,
 ): void => {
-  getCapabilityCatalog(deps).validateIds(capabilityIds, toCapabilityAvailabilityContext(deps));
+  getCapabilityCatalog(deps).validateIds(capabilityIds, deps);
 };
 
 export const validateGrantableCapabilityIds = (
   capabilityIds: readonly string[],
   deps: PersonalCapabilityDeps,
 ): void => {
-  getCapabilityCatalog(deps).validateGrantableIds(capabilityIds, toCapabilityAvailabilityContext(deps));
+  getCapabilityCatalog(deps).validateGrantableIds(capabilityIds, deps);
 };
 
 export const resolveCapabilities = (
   capabilityIds: readonly string[],
   deps: PersonalCapabilityDeps,
 ): StructuredToolInterface[] =>
-  getCapabilityCatalog(deps).resolveTools(
-    capabilityIds,
-    deps,
-    toCapabilityAvailabilityContext(deps),
-  );
+  getCapabilityCatalog(deps).resolveTools(capabilityIds, deps);

@@ -30,7 +30,7 @@ export type SystemConfigDeps = {
   skillCatalog?: SkillCatalog;
   capabilityCatalog?: CapabilityCatalog;
   loadPromptByKey?: LoadPromptByKey;
-};
+} & Record<string, unknown>;
 
 export type SystemAgentOptions = {
   modelKey?: string;

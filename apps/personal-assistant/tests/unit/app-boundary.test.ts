@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import {
   createCapabilityCatalog,
   createSystemAgentDefinition,
-  isCapabilityAvailable,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
@@ -14,7 +13,6 @@ import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-too
 import {
   createCapabilityDeps,
   createDomainCapabilityCatalog,
-  PERSONAL_CAPABILITY_DESCRIPTORS,
   resolveCapabilities,
 } from "../../src/runtime-agents/capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
@@ -101,9 +99,7 @@ describe("app boundaries", () => {
 
     expect(() =>
       catalog.validateIds(["finance-domain"], {
-        supabaseAvailable: false,
         obsidianVaultPath: "/tmp/vault",
-        configurationReposAvailable: false,
       }),
     ).toThrow(/unavailable/i);
   });
@@ -164,16 +160,22 @@ describe("app boundaries", () => {
     expect(writeTools).toContain("preview_runtime_agent");
   });
 
-  it("marks configurable capabilities in the catalog", () => {
-    const configurable = [
-      ...PERSONAL_CAPABILITY_DESCRIPTORS.filter((entry) => entry.configurable),
-      { id: SYSTEM_CONFIG_READ_CAPABILITY_ID, configurable: true },
-    ];
-    expect(configurable.map((entry) => entry.id)).toEqual(
-      expect.arrayContaining(["none", "obsidian-vault", "finance-domain", "system-config-read"]),
+  it("marks grantable capabilities in the catalog", () => {
+    const catalog = createDomainCapabilityCatalog();
+    const deps = createCapabilityDeps("/tmp/vault", {
+      supabaseSession: { executeSql: async () => [] } as never,
+    });
+
+    const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);
+
+    expect(grantableIds).toEqual(
+      expect.arrayContaining(["none", "obsidian-vault", "finance-domain"]),
     );
-    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, { obsidianVaultPath: "/vault" })).toBe(true);
-    expect(isCapabilityAvailable(PERSONAL_CAPABILITY_DESCRIPTORS[1]!, {})).toBe(false);
+    expect(grantableIds).not.toContain(SYSTEM_CONFIG_READ_CAPABILITY_ID);
+
+    const withoutVault = createCapabilityDeps("");
+    expect(catalog.listAvailable(withoutVault).map((entry) => entry.id)).not.toContain("obsidian-vault");
+    expect(catalog.listAvailable(deps).map((entry) => entry.id)).toContain("obsidian-vault");
   });
 });
 
@@ -182,15 +184,17 @@ describe("capability catalog", () => {
     const catalog = createCapabilityCatalog([
       {
         descriptor: { id: "alpha", description: "Alpha tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "alpha_only" }] as never,
       },
       {
         descriptor: { id: "beta", description: "Beta tools" },
+        isAvailable: () => true,
         resolveTools: () => [{ name: "shared_tool" }, { name: "beta_only" }] as never,
       },
     ]);
 
-    const tools = catalog.resolveTools(["alpha", "beta"], {}, {});
+    const tools = catalog.resolveTools(["alpha", "beta"], {});
     expect(tools.map((tool) => tool.name)).toEqual(["shared_tool", "alpha_only", "beta_only"]);
   });
 });

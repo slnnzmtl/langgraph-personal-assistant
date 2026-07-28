@@ -12,7 +12,7 @@ Creation goes through the **Configuration** agent — there is no separate UI or
    - “Create a runtime agent named Daily Summary that summarizes my notes”
    - “Add a new agent for coding help with no tools”
 2. The supervisor routes to `configuration`.
-3. Configuration follows the `runtime-agents` skill (`skills/runtime-agents.xml`):
+3. Configuration follows the `runtime-agents` skill (`data/skills/runtime-agents.xml`):
    - Calls `list_capabilities` when capability choice is unclear
    - Calls `create_runtime_agent(name, description, systemPrompt, capabilityIds, maxSteps?, enabled?)`
 4. The tool persists the agent and notes that routing picks up automatically within a few seconds.
@@ -85,7 +85,7 @@ Pick capabilities from the allowlisted catalog. Some need deployment deps:
 
 ### Optional follow-ups (after recompile)
 
-- **Skills** — Add playbooks under `skills/` with `module="<agent-id>"` (or matching `promptSourceKey`) so `read_skill` and auto-attachments work. Configure triggers in each skill’s `<skill_attachments>` block.
+- **Skills** — Add playbooks under `data/skills/` with `module="<agent-id>"` (or matching `promptSourceKey`) so `read_skill` and auto-attachments work. Configure triggers in each skill’s `<skill_attachments>` block.
 - **Cron** — Schedule jobs targeting the new agent id via Configuration (`create_cron_job`). **Known gap:** soft recompile refreshes graph routing, but the scheduler’s cron-target allowlist is captured at startup. If a cron job targeting a brand-new agent id fails validation, restart the scheduler process once so it picks up the new id.
 
 ---

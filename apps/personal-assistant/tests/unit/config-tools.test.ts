@@ -4,6 +4,7 @@ import {
   createConfigurationTools,
   createCronRepositoryFake,
 } from "../helpers/configuration-tools.js";
+import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 describe("createConfigurationTools", () => {
   it("includes skill CRUD tools and cron tools on the agent", () => {
@@ -208,5 +209,73 @@ describe("createConfigurationTools", () => {
     const listed = await listTool!.invoke({});
     expect(listed).toContain("Agent ID: daily-summary");
     expect(listed).not.toContain("daily summary specialist");
+  });
+
+  it("keeps capability discovery, schema, and assignment aligned for vault-backed capabilities", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const tools = createConfigurationTools(repository, runtimeAgentRepository);
+    const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
+    const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listed = await listCapabilitiesTool!.invoke({});
+    expect(listed).toContain("obsidian-vault");
+
+    const created = await createTool!.invoke({
+      name: "Vault Helper",
+      description: "Manage vault files.",
+      systemPrompt: "You help with Obsidian vault files.",
+      capabilityIds: ["obsidian-vault"],
+    });
+
+    expect(created).toContain("vault-helper");
+    expect(created).toContain("Capabilities: obsidian-vault");
+  });
+
+  it("omits vault capabilities when the vault path is unavailable", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const tools = createConfigurationTools(repository, runtimeAgentRepository, "configuration", {
+      obsidianVaultPath: "",
+    });
+    const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
+    const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listed = await listCapabilitiesTool!.invoke({});
+    expect(listed).not.toContain("obsidian-vault");
+
+    await expect(createTool!.invoke({
+      name: "Vault Helper",
+      description: "Manage vault files.",
+      systemPrompt: "You help with Obsidian vault files.",
+      capabilityIds: ["obsidian-vault"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
+  });
+
+  it("keeps finance capability assignment aligned with Supabase availability", async () => {
+    const repository = createCronRepositoryFake();
+    const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
+    const toolsWithoutSupabase = createConfigurationTools(repository, runtimeAgentRepository);
+    const listCapabilitiesTool = toolsWithoutSupabase.find((tool) => tool.name === "list_capabilities");
+    const createTool = toolsWithoutSupabase.find((tool) => tool.name === "create_runtime_agent");
+
+    expect(listCapabilitiesTool).toBeDefined();
+    expect(createTool).toBeDefined();
+
+    const listedWithoutSupabase = await listCapabilitiesTool!.invoke({});
+    expect(listedWithoutSupabase).not.toContain("finance-domain");
+
+    await expect(createTool!.invoke({
+      name: "Finance Helper",
+      description: "Manage finances.",
+      systemPrompt: "You help with finance.",
+      capabilityIds: ["finance-domain"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
   });
 });

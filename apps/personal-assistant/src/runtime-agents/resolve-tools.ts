@@ -9,7 +9,6 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import type { PersonalCapabilityDeps } from "./capabilities.js";
-import { toCapabilityAvailabilityContext } from "./capabilities.js";
 
 export type PersonalResolveToolsOptions = {
   includeReadSkill?: boolean;
@@ -37,7 +36,6 @@ export const createPersonalResolveTools = (catalog: CapabilityCatalog): Personal
       definition,
       catalog,
       capabilityDeps,
-      toCapabilityAvailabilityContext(capabilityDeps),
       includeReadSkill && readSkillTool
         ? { includeReadSkill, readSkillTool }
         : { includeReadSkill },

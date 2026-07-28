@@ -300,7 +300,7 @@ This is a practical balance between context-window cost and LangGraph conversati
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
 | Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
 | Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
-| Skills and prompts | Local files (`skills/`, `data/skills/`, `data/prompts/`) | No database coordination | Prompts and chat-created skills live under `data/` (Compose volume). Shipped defaults are tracked in git at `data/prompts/`. |
+| Skills and prompts | Local files (`data/skills/`, `data/prompts/`) | No database coordination | Prompts and skills live under `data/` (Compose volume). Shipped defaults are tracked in git at `data/prompts/` and `data/skills/`. |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
@@ -354,14 +354,11 @@ Flat skill store with XML playbooks (and optional `.md`):
 
 | Layer | Path | Role |
 |---|---|---|
-| Shipped skills | `skills/*.xml` | Product defaults (image + git) |
-| Writable skills | `data/skills/*.xml` | Configuration CRUD output (Compose volume) |
+| Skills | `data/skills/*.xml` | Product playbooks (image + git; writable via Compose volume) |
 
 - Each skill has `name`, `module`, `description`
 - `module` controls which runtime agent can attach/use the skill (`finance`, `obsidian`, `configuration`, …)
-- Lookup merges both roots; **`data/skills/` wins on same skill name** (copy-on-write override)
-- Configuration agent writes via `create_skill` / `edit_skill` → `data/skills/{name}.xml`; deleting a data override restores the shipped default
-- Shipped-only skills cannot be deleted via chat (remove the data override to revert edits)
+- Configuration agent writes via `create_skill` / `edit_skill` → `data/skills/{name}.xml`
 - Optional `<skill_attachments>` for phrase/cron auto-attachment
 - Configuration agent has full CRUD; execution agents get `read_skill`
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
@@ -440,7 +437,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── policies/           # Capability behavior registry
 │       │   ├── runtime-agents/     # Domain folders (finance/, obsidian/), capabilities, resolve-tools
 │       │   ├── ports/ integrations/ scheduler/ telegram/ models/ prompts/ ...
-│       ├── data/prompts/ skills/ data/ sql/
+│       ├── data/prompts/ data/skills/ data/ sql/
 │       ├── tests/unit/{composition,policies,domains,integrations,processes}/
 │       └── Dockerfile docker-compose.yml
 ├── docs/ examples/

@@ -33,7 +33,7 @@ RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/packages/supervisor-framework/dist ./packages/supervisor-framework/dist
 COPY --from=build /app/apps/personal-assistant/dist ./apps/personal-assistant/dist
 COPY apps/personal-assistant/data/prompts ./apps/personal-assistant/data/prompts
-COPY apps/personal-assistant/skills ./apps/personal-assistant/skills
+COPY apps/personal-assistant/data/skills ./apps/personal-assistant/data/skills
 
 WORKDIR /app/apps/personal-assistant
 

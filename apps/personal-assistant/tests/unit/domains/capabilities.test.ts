@@ -82,8 +82,6 @@ describe("builtin capabilities", () => {
 
     catalog.validateGrantableIds(["none"], {
       obsidianVaultPath: "/tmp/vault",
-      supabaseAvailable: false,
-      configurationReposAvailable: false,
     });
   });
 });

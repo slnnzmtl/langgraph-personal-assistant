@@ -57,8 +57,7 @@ type PersonalCapabilityDepsOptions = {
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
   createSkillCatalog({
-    skillsDir: path.resolve(process.cwd(), "skills"),
-    writableSkillsDir: path.resolve(process.cwd(), "data/skills"),
+    skillsDir: path.resolve(process.cwd(), "data/skills"),
     approvedModules: [SYSTEM_AGENT_ID, ...deriveSkillModules(agents)],
   });
 

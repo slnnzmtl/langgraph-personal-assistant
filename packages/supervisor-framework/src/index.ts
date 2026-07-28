@@ -130,11 +130,10 @@ export {
 export {
   createCapabilityCatalog,
   configurationReposAvailable,
-  isCapabilityAvailable,
+  isCapabilityGrantable,
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
-  type CapabilityAvailabilityContext,
 } from "./capabilities/index.js";
 
 // --- Kernel: skills ---

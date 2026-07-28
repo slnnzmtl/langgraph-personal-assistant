@@ -1,22 +1,13 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
+import type { CronJobRepository } from "../framework/cron/types.js";
+
 export type CapabilityDescriptor = {
   id: string;
   description: string;
-  requiresVault?: boolean;
-  requiresSupabase?: boolean;
-  requiresConfigurationRepos?: boolean;
-  /** When true, a configuration agent may grant this capability to other agents. */
-  configurable?: boolean;
+  /** When false, a configuration agent may not grant this capability to other agents. Default true. */
+  grantable?: boolean;
 };
-
-export type CapabilityAvailabilityContext = {
-  obsidianVaultPath?: string;
-  supabaseAvailable?: boolean;
-  configurationReposAvailable?: boolean;
-};
-
-import type { CronJobRepository } from "../framework/cron/types.js";
 
 export const configurationReposAvailable = (deps: {
   cronJobRepository?: CronJobRepository;
@@ -26,27 +17,18 @@ export const configurationReposAvailable = (deps: {
 
 export type CapabilityProvider<TDeps = Record<string, unknown>> = {
   descriptor: CapabilityDescriptor;
+  isAvailable: (deps: TDeps) => boolean;
+  isGrantable?: (deps: TDeps) => boolean;
   resolveTools: (deps: TDeps) => StructuredToolInterface[];
 };
 
-export const isCapabilityAvailable = (
-  descriptor: CapabilityDescriptor,
-  context: CapabilityAvailabilityContext,
+export const isCapabilityGrantable = (
+  provider: CapabilityProvider,
+  deps: Record<string, unknown>,
 ): boolean => {
-  if (descriptor.requiresVault && !context.obsidianVaultPath) {
-    return false;
+  if (provider.isGrantable) {
+    return provider.isGrantable(deps);
   }
 
-  if (descriptor.requiresSupabase && !context.supabaseAvailable) {
-    return false;
-  }
-
-  if (descriptor.requiresConfigurationRepos && !context.configurationReposAvailable) {
-    return false;
-  }
-
-  return true;
+  return provider.descriptor.grantable !== false && provider.isAvailable(deps);
 };
-
-export const isCapabilityGrantable = (descriptor: CapabilityDescriptor): boolean =>
-  descriptor.configurable !== false;

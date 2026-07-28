@@ -1,6 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
 import {
+  configurationReposAvailable,
   type CapabilityDescriptor,
   type CapabilityProvider,
 } from "../../capabilities/index.js";
@@ -18,14 +19,12 @@ export const SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
     id: SYSTEM_CONFIG_CAPABILITY_ID,
     description: "Manage cron jobs, runtime agents, and skill definitions (read and write).",
-    requiresConfigurationRepos: true,
-    configurable: false,
+    grantable: false,
   },
   {
     id: SYSTEM_CONFIG_READ_CAPABILITY_ID,
     description: "List cron jobs, runtime agent summaries, skills, and available capabilities (no full agent prompts).",
-    requiresConfigurationRepos: true,
-    configurable: true,
+    grantable: true,
   },
 ];
 
@@ -72,6 +71,7 @@ export const createSystemConfigCapabilityProviders = <
 >(): CapabilityProvider<TDeps>[] => [
   {
     descriptor: SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS[0]!,
+    isAvailable: (deps) => configurationReposAvailable(deps),
     resolveTools: (deps) => resolveSystemConfigTools(deps, true, {
       ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
       ...(deps.capabilityCatalog ? { capabilityCatalog: deps.capabilityCatalog } : {}),
@@ -80,6 +80,7 @@ export const createSystemConfigCapabilityProviders = <
   },
   {
     descriptor: SYSTEM_CONFIG_CAPABILITY_DESCRIPTORS[1]!,
+    isAvailable: (deps) => configurationReposAvailable(deps),
     resolveTools: (deps) => resolveSystemConfigTools(deps, false, {
       ...(deps.skillCatalog ? { skillCatalog: deps.skillCatalog } : {}),
       ...(deps.capabilityCatalog ? { capabilityCatalog: deps.capabilityCatalog } : {}),
