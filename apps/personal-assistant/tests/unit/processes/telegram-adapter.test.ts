@@ -27,6 +27,8 @@ const config: AppConfig = {
   schedulerEnabled: false,
   cronJobsFilePath: "/tmp/cron-jobs.json",
   runtimeAgentsFilePath: "/tmp/runtime-agents.json",
+  stateDbPath: "/tmp/state.db",
+  persistenceEnabled: false,
   messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
   healthPort: 8080,
   healthEnabled: true,

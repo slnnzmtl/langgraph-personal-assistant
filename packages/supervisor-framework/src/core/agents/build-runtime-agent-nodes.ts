@@ -9,7 +9,7 @@ import type { AgentState, AgentStateUpdate } from "../state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentGraphBundle } from "./runtime-agent-graph-bundle.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../execution/tool-routing.js";
-import { applyDelegationPrompt } from "../execution/sub-agent-messages.js";
+import { scopeDelegatedSubAgentMessages } from "../execution/sub-agent-messages.js";
 import type { SubAgentState } from "../execution/sub-agent-state.js";
 
 export const runtimeAgentPrepareNodeName = (agentId: string): string => `${agentId}__prepare`;
@@ -49,8 +49,9 @@ export const buildRuntimeAgentGraphNodeSets = (
 export const createRuntimeAgentPrepareNode = (bundle: RuntimeAgentGraphBundle) =>
   (state: AgentState): AgentStateUpdate => {
     const prepared = bundle.prepare(state);
-    const agentMessages = state.delegationPrompt
-      ? applyDelegationPrompt(prepared.agentMessages, state.delegationPrompt)
+    const delegationPrompt = state.delegationPrompt?.trim();
+    const agentMessages = delegationPrompt
+      ? scopeDelegatedSubAgentMessages(state.messages, delegationPrompt)
       : prepared.agentMessages;
 
     return {

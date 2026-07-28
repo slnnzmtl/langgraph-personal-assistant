@@ -10,6 +10,7 @@ import {
   startCronBootstrap,
   type CronJobRepository,
   type CronJobRun,
+  type CronRunLedger,
 } from "@personal-assistant/supervisor-framework";
 
 export type LazyCronService = ReturnType<typeof createLazyCronService>;
@@ -27,6 +28,7 @@ export type StartSchedulerRuntimeOptions = {
   runtimeCron: LazyCronService;
   cronJobRepository: CronJobRepository;
   telegram: Telegram;
+  cronRunLedger?: CronRunLedger;
   cronTargetAgentIds?: readonly string[];
   schedulerEnabled?: boolean;
 };
@@ -48,6 +50,7 @@ export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOption
     summaryModel,
     onError: onJobError,
     reporter: cronReporter,
+    ...(options.cronRunLedger ? { ledger: options.cronRunLedger } : {}),
   });
 
   const runtimeCronService = createRuntimeCronService({

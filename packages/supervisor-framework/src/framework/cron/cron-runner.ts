@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { extractMessageTextContent } from "../../core/message-content.js";
+import type { CronRunLedger } from "./cron-run-ledger.js";
 
 export type CronJobRun = {
   jobName: string;
@@ -28,6 +29,7 @@ type CronRunnerOptions = {
   summaryModel: BaseChatModel;
   onError(error: unknown, context: CronJobRun): void;
   reporter?: CronExecutionReporter;
+  ledger?: CronRunLedger;
 };
 
 export type CronExecutionReporter = {
@@ -128,12 +130,20 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
 
   return {
     async run(job: CronJobRun): Promise<void> {
-      if (inFlightJobs.has(job.jobName)) {
+      const activeRun = options.ledger?.tryBeginRun(job) ?? null;
+      if (options.ledger && !activeRun) {
+        console.warn(`[Cron] Skipping overlapping run for job: ${job.jobName} (ledger)`);
+        return;
+      }
+
+      if (!options.ledger && inFlightJobs.has(job.jobName)) {
         console.warn(`[Cron] Skipping overlapping run for job: ${job.jobName}`);
         return;
       }
 
-      inFlightJobs.add(job.jobName);
+      if (!options.ledger) {
+        inFlightJobs.add(job.jobName);
+      }
 
       console.log(`[Cron] Running job: ${job.jobName} with trigger: ${job.trigger}`);
       if (options.reporter?.onStart) {
@@ -169,12 +179,23 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
         }
 
         const summary = await summarizeJobResult(options.summaryModel, job, messages);
+        if (activeRun) {
+          options.ledger?.completeRun(activeRun.runId, { status: "succeeded" });
+        }
         await report(() => options.reporter?.onSuccess?.({ ...job, ...resultObject, summary }));
       } catch (error) {
+        if (activeRun) {
+          options.ledger?.completeRun(activeRun.runId, {
+            status: "failed",
+            errorMessage: error instanceof Error ? error.message : String(error),
+          });
+        }
         options.onError(error, job);
         await report(() => options.reporter?.onError?.(error, job));
       } finally {
-        inFlightJobs.delete(job.jobName);
+        if (!options.ledger) {
+          inFlightJobs.delete(job.jobName);
+        }
       }
     },
   };

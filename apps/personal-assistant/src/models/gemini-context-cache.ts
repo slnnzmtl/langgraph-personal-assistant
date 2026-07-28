@@ -76,10 +76,21 @@ export const buildCacheSeedContents = (
     estimateTokenCount(CACHE_SEED_EPILOGUE) +
     estimateTokenCount(CACHE_SEED_ACK);
 
-  const deficitTokens = Math.max(
+  // extraDeficitTokens (used on retry, sourced from Gemini's reported shortfall) must
+  // add on top of the clamped estimate-based deficit, not inside the clamp — otherwise
+  // an inflated initial estimate (common for dense XML prompts, where chars/4 overshoots
+  // the real tokenizer) makes the inner sum negative and silently swallows the retry's
+  // padding, causing every retry to fail identically forever.
+  // extraDeficitTokens (used on retry, sourced from Gemini's reported shortfall) must
+  // add on top of the clamped estimate-based deficit, not inside the clamp — otherwise
+  // an inflated initial estimate (common for dense XML prompts, where chars/4 overshoots
+  // the real tokenizer) makes the inner sum negative and silently swallows the retry's
+  // padding, causing every retry to fail identically forever.
+  const estimateDeficitTokens = Math.max(
     0,
-    minTokens - fixedEstimate + computeSafetyMarginTokens(fixedEstimate) + extraDeficitTokens,
+    minTokens - fixedEstimate + computeSafetyMarginTokens(fixedEstimate),
   );
+  const deficitTokens = estimateDeficitTokens + extraDeficitTokens;
   // Repeated "pad " approximates chars/4; highly repetitive text may tokenize tighter.
   const padding = deficitTokens > 0 ? "pad ".repeat(deficitTokens) : "";
 
@@ -227,7 +238,9 @@ export const createGeminiContextCacheManager = (
           throw error;
         }
 
-        created = await attemptCreate(shortfall);
+        // Pad beyond the reported shortfall so tokenizer variance in the padding
+        // text itself can't land the retry right back on the boundary.
+        created = await attemptCreate(shortfall + computeSafetyMarginTokens(shortfall));
       }
 
       if (!created.name) {

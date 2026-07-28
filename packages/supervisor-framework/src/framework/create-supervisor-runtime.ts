@@ -1,4 +1,5 @@
 import { MemorySaver } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 import { bootstrapSupervisorSystem } from "./bootstrap-supervisor-system.js";
 import type { CronTargetAgentIdsSource } from "./cron/cron-job-repository.js";
@@ -28,6 +29,7 @@ export type SupervisorRuntime<
 > = {
   getGraph(): CompiledSupervisorGraph;
   getBootstrap(): SupervisorSystemContext<TConfig, TDeps, TAdapters>;
+  getCheckpointer(): BaseCheckpointSaver;
   recompile(): Promise<boolean>;
   getCronJobRepository(): CronJobRepository;
   getCronTargetAgentIds(): readonly string[];
@@ -42,7 +44,12 @@ export const createSupervisorRuntime = async <
   pack: SupervisorPackBootstrap<TConfig, TDeps, TAdapters>,
   options: SupervisorRuntimeOptions<TAdapters> = {},
 ): Promise<SupervisorRuntime<TConfig, TDeps, TAdapters>> => {
-  const checkpointer = new MemorySaver();
+  let stableCheckpointer: BaseCheckpointSaver | undefined;
+  const defaultCheckpointer = new MemorySaver();
+
+  const resolveCheckpointer = (): BaseCheckpointSaver =>
+    stableCheckpointer ?? defaultCheckpointer;
+
   const cronTargetAgentIdsRef = { ids: [] as readonly string[] };
   let stableCronJobRepository: CronJobRepository | undefined;
 
@@ -62,10 +69,28 @@ export const createSupervisorRuntime = async <
   const runtimePack: SupervisorPackBootstrap<TConfig, TDeps, TAdapters> = {
     ...pack,
     createCronJobRepository: (cronJobsFilePath) => resolveCronJobRepository(cronJobsFilePath),
-    buildGraphHooks: (context) => ({
-      ...(pack.buildGraphHooks?.(context) ?? pack.graphHooks ?? {}),
-      checkpointer,
-    }),
+    ...(pack.createCheckpointer
+      ? {
+          createCheckpointer: async (context) => {
+            if (!stableCheckpointer) {
+              stableCheckpointer = await pack.createCheckpointer!(context);
+            }
+
+            return stableCheckpointer;
+          },
+        }
+      : {}),
+    buildGraphHooks: (context) => {
+      const hooks = pack.buildGraphHooks?.(context) ?? pack.graphHooks ?? {};
+
+      if (pack.createCheckpointer) {
+        return stableCheckpointer
+          ? { ...hooks, checkpointer: stableCheckpointer }
+          : hooks;
+      }
+
+      return { ...hooks, checkpointer: resolveCheckpointer() };
+    },
   };
 
   let bootstrap = await bootstrapSupervisorSystem(runtimePack);
@@ -110,6 +135,7 @@ export const createSupervisorRuntime = async <
   return {
     getGraph: () => bootstrap.graph,
     getBootstrap: () => bootstrap,
+    getCheckpointer: () => resolveCheckpointer(),
     recompile,
     getCronJobRepository: () => stableCronJobRepository ?? bootstrap.cronJobRepository,
     getCronTargetAgentIds: () => bootstrap.cronTargetAgentIds,

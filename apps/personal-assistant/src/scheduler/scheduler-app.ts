@@ -50,6 +50,9 @@ export const createSchedulerApp = async (
     telegram: bot.telegram,
     cronTargetAgentIds: system.getCronTargetAgentIds(),
     schedulerEnabled: config.schedulerEnabled,
+    ...(system.getDurabilityStore()
+      ? { cronRunLedger: system.getDurabilityStore()!.getCronRunLedger() }
+      : {}),
   });
 
   const jobWatcher = watchCronJobDefinitions(config.cronJobsFilePath, {

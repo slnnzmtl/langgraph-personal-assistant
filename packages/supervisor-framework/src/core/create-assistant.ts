@@ -1,4 +1,5 @@
 import { END, MemorySaver, START, StateGraph } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "./ports/llm-connector.js";
@@ -48,7 +49,7 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
   replyUx?: ReplyUxConfig;
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: Parameters<typeof createSupervisorNode>[1]["cronTriggerResolver"];
-  checkpointer?: MemorySaver;
+  checkpointer?: BaseCheckpointSaver;
   graphName?: string;
   messageHistoryMaxTokens?: number;
   maxErrorRetries?: number;

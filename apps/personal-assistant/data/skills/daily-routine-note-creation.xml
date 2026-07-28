@@ -7,10 +7,6 @@
     <allPhrases>task</allPhrases>
     <anyPhrases>today,yesterday,daily,routine,move,carry,forward,unchecked</anyPhrases>
   </attachment>
-  <attachment>
-    <allPhrases>plan</allPhrases>
-    <anyPhrases>today,tomorrow,yesterday</anyPhrases>
-  </attachment>
 </skill_attachments>
 
 <path_rules>

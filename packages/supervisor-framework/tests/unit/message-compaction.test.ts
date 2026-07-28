@@ -32,7 +32,7 @@ describe("compactConsumedToolResults", () => {
     expect(compacted[2]?.content).toContain("Long setup body");
   });
 
-  it("replaces consumed tool bodies after the next assistant message arrives", () => {
+  it("keeps raw tool bodies while the agent tool loop is still in flight", () => {
     const readToolResult = new ToolMessage({
       tool_call_id: "read-1",
       name: "read_file",
@@ -64,8 +64,8 @@ describe("compactConsumedToolResults", () => {
     const compacted = compactConsumedToolResults(messages);
 
     expect((compacted[2] as ToolMessage).tool_call_id).toBe("read-1");
-    expect(compacted[2]?.content).toBe(formatConsumedToolMarker("read_file"));
-    expect(compacted[2]?.content).not.toContain("Long setup body");
+    expect(compacted[2]?.content).toContain("Long setup body");
+    expect(compacted[2]?.content).not.toBe(formatConsumedToolMarker("read_file"));
   });
 
   it("compacts all completed rounds once a final reply is appended", () => {

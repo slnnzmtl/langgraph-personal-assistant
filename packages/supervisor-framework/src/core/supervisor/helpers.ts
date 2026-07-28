@@ -44,7 +44,9 @@ export const buildPostHandoffReplanHint = (
     "<post_handoff_replan_context>",
     `The runtime agent "${handoff.agentId}" just completed with status "${handoff.status}".`,
     `Latest user message: ${latestUserText || "(none)"}`,
-    "Default to FINISH with a synthesized user-facing reply from visible thread history.",
+    "If the user's request covered multiple domains (e.g. plan AND expenses), route any remaining specialists before FINISH.",
+    "When FINISHing, synthesize a user-facing reply from the specialist's output in visible thread history.",
+    "Quote or summarize the specialist's actual findings—never reply with a generic greeting or filler.",
     "Do not re-route to the same agent unless the user explicitly asks to retry.",
   ];
 

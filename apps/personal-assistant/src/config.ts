@@ -33,6 +33,8 @@ export interface AppConfig {
   messageHistoryMaxTokens: number;
   /** Set at composition time; bot writer, scheduler reader. */
   allowDataWrites?: boolean;
+  stateDbPath: string;
+  persistenceEnabled: boolean;
   healthPort: number;
   healthEnabled: boolean;
   logsDir: string;
@@ -54,6 +56,9 @@ export const getDefaultCronJobsPath = (cwd = process.cwd()): string =>
 
 export const getDefaultRuntimeAgentsPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "data/runtime-agents.json");
+
+export const getDefaultStateDbPath = (cwd = process.cwd()): string =>
+  path.resolve(cwd, "data/state.db");
 
 export const getDefaultLogsPath = (cwd = process.cwd()): string =>
   path.resolve(cwd, "logs");
@@ -145,6 +150,11 @@ export const loadConfig = (): AppConfig => {
     schedulerEnabled: isTruthyEnv(process.env.ENABLE_SCHEDULER),
     cronJobsFilePath: process.env.CRON_JOBS_FILE_PATH ?? getDefaultCronJobsPath(),
     runtimeAgentsFilePath: process.env.RUNTIME_AGENTS_FILE_PATH ?? getDefaultRuntimeAgentsPath(),
+    stateDbPath: process.env.STATE_DB_PATH ?? getDefaultStateDbPath(),
+    persistenceEnabled:
+      process.env.PERSISTENCE_ENABLED === undefined
+        ? true
+        : isTruthyEnv(process.env.PERSISTENCE_ENABLED),
     messageHistoryMaxTokens: getMessageHistoryMaxTokens(),
     healthPort: parsePositiveInt(process.env.HEALTH_PORT, DEFAULT_HEALTH_PORT),
     healthEnabled: process.env.HEALTH_ENABLED === undefined ? true : isTruthyEnv(process.env.HEALTH_ENABLED),

@@ -1,5 +1,5 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { MemorySaver } from "@langchain/langgraph";
+import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
@@ -32,7 +32,7 @@ export type SupervisorGraphHooks = {
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: AssistantConfig["cronTriggerResolver"];
   messageHistoryMaxTokens?: number;
-  checkpointer?: MemorySaver;
+  checkpointer?: BaseCheckpointSaver;
 };
 
 export type CompiledSupervisorGraph = ReturnType<typeof createAssistant>;
@@ -131,4 +131,7 @@ export type SupervisorPackBootstrap<
     catalog: CapabilityCatalog,
     deps: TDeps,
   ) => void;
+  createCheckpointer?: (
+    ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
+  ) => BaseCheckpointSaver | Promise<BaseCheckpointSaver>;
 };

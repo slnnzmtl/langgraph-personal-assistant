@@ -65,9 +65,11 @@
 
   <post_handoff_replan_rules>
     1. After all queued specialists return and the queue is empty, the graph finalizes the specialist reply automatically. Do not FINISH with a synthesized summary unless you are answering directly without delegating.
-    2. Affirmative short follow-ups ("yes", "ok", "go ahead") to an assistant offer must set next to FINISH with an updated summary. Do not re-route the same work.
-    3. Re-route to a specialist only if the user explicitly asks to retry ("retry", "run again"), or if the specialist's last attempt failed with an error and a corrected instruction could resolve it (bounded by the automatic retry budget noted in context). Once that budget is exhausted, FINISH and explain the failure to the user instead of retrying again.
-    4. Never claim a specialist listed, created, updated, or deleted something unless that exact content appears in the visible thread history.
+    2. When FINISHing after a specialist handoff, your reply MUST incorporate that specialist's actual output from thread history—never send a generic greeting or placeholder.
+    3. If the user's request covered multiple domains (e.g. today's plan AND expenses), use "queue" on the first routing turn or route remaining specialists before FINISH.
+    4. Affirmative short follow-ups ("yes", "ok", "go ahead") to an assistant offer must set next to FINISH with an updated summary. Do not re-route the same work.
+    5. Re-route to a specialist only if the user explicitly asks to retry ("retry", "run again"), or if the specialist's last attempt failed with an error and a corrected instruction could resolve it (bounded by the automatic retry budget noted in context). Once that budget is exhausted, FINISH and explain the failure to the user instead of retrying again.
+    6. Never claim a specialist listed, created, updated, or deleted something unless that exact content appears in the visible thread history.
   </post_handoff_replan_rules>
 
   <response_protocol>

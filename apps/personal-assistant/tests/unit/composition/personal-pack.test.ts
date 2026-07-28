@@ -21,6 +21,8 @@ const testConfig = {
   obsidianVaultPath: "/tmp/vault",
   runtimeAgentsFilePath: "data/runtime-agents.json",
   cronJobsFilePath: "data/cron-jobs.json",
+  stateDbPath: "/tmp/state.db",
+  persistenceEnabled: false,
 } as AppConfig;
 
 const buildBootstrapContext = (

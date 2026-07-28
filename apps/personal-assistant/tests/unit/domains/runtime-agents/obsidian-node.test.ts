@@ -404,7 +404,6 @@ describe("obsidian runtime node hooks", () => {
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
       expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
-      expect(promptContent).toContain("<attached_skills>");
       expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
         promptContent.indexOf("CURRENT DATETIME:"),
       );
@@ -418,7 +417,7 @@ describe("obsidian runtime node hooks", () => {
 
     const result = await obsidianNode({
       stepCount: 0,
-      agentMessages: [new HumanMessage("give me a plan for today")],
+      agentMessages: [new HumanMessage("show me today's plan")],
     });
 
     const firstMessage = Array.isArray(result.agentMessages) ? result.agentMessages[0] : undefined;

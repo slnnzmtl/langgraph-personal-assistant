@@ -58,6 +58,7 @@ describe("supervisor replan helpers", () => {
 
     expect(hint).toContain('runtime agent "finance" just completed');
     expect(hint).toContain("Latest user message: yes");
+    expect(hint).toContain("specialist's actual findings");
     expect(hint).toContain("affirmative follow-up");
   });
 

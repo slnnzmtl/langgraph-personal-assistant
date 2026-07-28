@@ -34,8 +34,6 @@ describe("matchesSkillAttachmentRule", () => {
     "create today's routine note",
     "move unchecked todos from yesterday",
     "carry forward tasks from yesterday into today",
-    "today's plan",
-    "give me a plan for today",
     "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today's routine note.",
   ])("matches routine attachment rules for %j", (text) => {
     expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(true);
@@ -48,6 +46,9 @@ describe("matchesSkillAttachmentRule", () => {
     "show me routine",
     "show routine",
     "read routine",
+    "today's plan",
+    "give me a plan for today",
+    "show me today's plan",
   ])("does not match routine attachment rules for %j", (text) => {
     expect(routineRules().some((rule) => matchesSkillAttachmentRule(text, rule))).toBe(false);
   });

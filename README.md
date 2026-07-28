@@ -60,6 +60,8 @@ pnpm dev
 | `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) |
 | `ALLOWED_TELEGRAM_USER_ID` | Only this Telegram user can interact with the bot |
 | `ALLOWED_TELEGRAM_CHAT_ID` | Optional; chat id that may receive bot traffic (defaults to user id for private chats) |
+| `STATE_DB_PATH` | Optional; SQLite file for conversation checkpoints and cron run ledger (default `data/state.db`) |
+| `PERSISTENCE_ENABLED` | When false, use in-memory checkpoints and skip the cron ledger (default true) |
 | `GOOGLE_API_KEY` | Google AI API key for Gemini models |
 
 ### Optional environment variables
@@ -170,7 +172,7 @@ docker compose up --build
 
 Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
 
-Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. **Single-writer discipline:** the bot process owns all `./data` mutations; the scheduler reads definitions and watches for changes but cannot persist runtime-agent or cron JSON (read-only repository wrappers).
+Both `personal-assistant` and `personal-assistant-scheduler` mount the same `data/` volume so runtime-agent and cron definitions changed through Telegram are visible to both processes. The shared volume also holds `state.db` (conversation checkpoints and cron run ledger) when persistence is enabled. **Single-writer discipline:** the bot process owns all `./data` JSON mutations; the scheduler reads definitions and watches for changes but cannot persist runtime-agent or cron JSON (read-only repository wrappers). The scheduler may write cron execution metadata to `state.db` only.
 
 Each production service exposes HTTP health endpoints on `HEALTH_PORT` (default `8080`): `/health/live` (process up) and `/health/ready` (bootstrap complete). Compose `healthcheck` blocks use readiness so `restart: unless-stopped` can recover wedged processes. Mount `./logs` (override with `LOGS_HOST_PATH`) for append-only process logs when `LOG_TO_FILE` is enabled (default on in production). Only one scheduler instance may run at a time; a lock file at `data/.scheduler-lock` refuses a duplicate scheduler container.
 

@@ -258,4 +258,28 @@ describe("config", () => {
 
     expect(loaded.allowedTelegramChatId).toBe(REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
   });
+
+  it("defaults stateDbPath and enables persistence", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("STATE_DB_PATH", undefined);
+    vi.stubEnv("PERSISTENCE_ENABLED", undefined);
+
+    const loaded = loadConfig();
+
+    expect(loaded.stateDbPath).toMatch(/data\/state\.db$/);
+    expect(loaded.persistenceEnabled).toBe(true);
+  });
+
+  it("disables persistence when PERSISTENCE_ENABLED is false", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("PERSISTENCE_ENABLED", "false");
+
+    const loaded = loadConfig();
+
+    expect(loaded.persistenceEnabled).toBe(false);
+  });
 });

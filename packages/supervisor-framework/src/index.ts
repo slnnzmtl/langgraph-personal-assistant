@@ -99,7 +99,12 @@ export type {
   CronJobResult,
   CronRunner,
   CronExecutionReporter,
+  CronRunLedger,
+  CronRunRecord,
+  CronRunStatus,
 } from "./framework/cron/index.js";
+
+export type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 // --- Framework: runtime agent watcher ---
 export { watchRuntimeAgentDefinitions } from "./framework/runtime-agent-watcher.js";

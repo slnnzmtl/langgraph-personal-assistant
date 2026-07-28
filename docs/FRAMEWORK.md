@@ -35,7 +35,9 @@ Boundary tests:
 Import from `@personal-assistant/supervisor-framework`:
 
 - `bootstrapSupervisorSystem` — one-shot pack bootstrap (graph compile)
-- `createSupervisorRuntime` — long-lived runtime shell: shared checkpointer, stable cron repo with live target-route validation, serialized soft recompile
+- `createSupervisorRuntime` — long-lived runtime shell: shared checkpointer (pack-supplied or `MemorySaver`), stable cron repo with live target-route validation, serialized soft recompile
+- `createCheckpointer` pack hook — supply `BaseCheckpointSaver` (e.g. `@langchain/langgraph-checkpoint-sqlite` or Postgres) after adapters are ready
+- `CronRunLedger` — optional durable cron overlap guard; wire into `createCronRunner({ ledger })`
 - `resolveAgentTools` — catalog-based tool resolution
 - `createAssistant`, `createAgentPolicy` — graph and policy helpers
 - Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
@@ -64,7 +66,9 @@ Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps
 
 **Personal deployment:** `createSupervisorSystem()` wraps `createSupervisorRuntime(buildPersonalSupervisorPack(...))` with Telegram/scheduler-specific adapter hooks.
 
-**Long-lived runtime:** `createSupervisorRuntime(pack)` — use when the process supports soft recompile (file watcher). Owns shared checkpointer, stable cron repository, and serialized recompile.
+**Long-lived runtime:** `createSupervisorRuntime(pack)` — use when the process supports soft recompile (file watcher). Owns shared checkpointer (via `createCheckpointer` or default `MemorySaver`), stable cron repository, and serialized recompile.
+
+**Persistent checkpoints:** Implement `createCheckpointer` on the pack to return any LangGraph `BaseCheckpointSaver`. The personal app uses SQLite (`@langchain/langgraph-checkpoint-sqlite`); other deployments may use `@langchain/langgraph-checkpoint-postgres` `PostgresSaver` instead.
 
 **Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, `buildRuntimeExecution` (returns `runtimeAgentPolicy` via `createAgentPolicy`), and optional cron/skills/repo hooks. For tests or advanced compile-only wiring, `createAssistant()` is the lower-level entry (bootstrap wraps it).
 

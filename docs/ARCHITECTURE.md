@@ -155,7 +155,7 @@ Cron jobs invoke the **same compiled graph** via the framework `createCronRunner
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
-Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. `createSupervisorRuntime()` reuses one in-memory checkpointer (`MemorySaver`) across soft recompiles within a process; conversation state is still lost when that process restarts.
+Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. `createSupervisorRuntime()` reuses one checkpointer across soft recompiles within a process (SQLite on `state.db` when persistence is enabled, otherwise in-memory `MemorySaver`).
 
 **Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` via the framework `watchRuntimeAgentDefinitions()` helper and recompile graph nodes automatically when the fingerprint changes (enabled agents, model keys, capabilities, step limits).
 
@@ -317,7 +317,8 @@ This is a practical balance between context-window cost and LangGraph conversati
 
 | State | Storage | Shared between bot and scheduler? | Consequence |
 |---|---|---|---|
-| Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
+| Conversation checkpoints | SQLite `state.db` on shared volume (`PERSISTENCE_ENABLED`) | Yes (bot + scheduler read/write ledger; bot owns Telegram thread checkpoints) | Survives process restarts; cron threads use unique ids per run. |
+| Cron run ledger | `cron_runs` in `state.db` | Yes | Cross-process overlap detection and execution history. |
 | Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | **Bot writes; scheduler reads.** In-process write queues do not coordinate across processes; a second writer would require an advisory lock (see below). |
 | Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same single-writer rule as runtime agents. Configuration mutations belong on the bot/Telegram path. |
 | Skills and prompts | `data/skills/`, `data/prompts/` | Yes (shared Compose volume) | Git-tracked shipped files can be masked by an empty host mount; the pack's `initializeDefaults` hook seeds missing configuration baseline files from framework defaults before catalogs/prompt loaders run. Domain-specific finance/obsidian content is not auto-seeded. |
@@ -343,6 +344,15 @@ The file repositories validate data and runtime-agent writes use a temporary fil
 | SQL read-only | `finance-domain-read` + MCP `read_only=true` | Custom agents get read SQL only; persisted `finance` agent keeps write capability via reserved exemption. |
 | Destructive deletes | `confirmToken` on delete tools | Must match `delete-skill:{module}:{name}`, `delete-runtime-agent:{id}`, or `delete-cron-job:{jobName}`. |
 | Telegram ingress | User id + chat id | `ALLOWED_TELEGRAM_USER_ID` and `ALLOWED_TELEGRAM_CHAT_ID` (defaults to user id for private chats). Cron delivery uses chat id. |
+
+### Durability (Phase 4)
+
+| Concern | Mechanism | Notes |
+|---|---|---|
+| Conversation checkpoints | SQLite `state.db` via LangGraph `SqliteSaver` | Telegram threads use `thread_id = chat id`; survives bot process restarts when `PERSISTENCE_ENABLED=true`. |
+| Cron run ledger | `cron_runs` table in same DB | At-most-once overlap guard across scheduler processes; authoritative vs in-process `inFlightJobs`. |
+| Scheduler singleton | `data/.scheduler-lock` | Kept as belt-and-suspenders; ledger is the primary overlap guard. |
+| Single-writer exception | Scheduler writes ledger rows only | Phase 1 JSON/skill writes remain bot-only; ledger is execution metadata, not agent/cron definitions. |
 
 ---
 
@@ -544,8 +554,8 @@ The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-ag
 
 | Finding | Why it matters | Recommendation |
 |---|---|---|
-| **Conversation state is in memory** | Process restarts lose conversation state; the two processes cannot see each other's checkpoints. | Keep `MemorySaver` for a disposable personal bot. Introduce a persistent LangGraph checkpointer only when restart continuity or shared process state is a stated requirement. |
-| **Cron execution is at-least-once only operationally** | A process restart, duplicate scheduler deployment, or failed delivery can create duplicate or untracked executions. | Add job-run IDs and durable execution records before running more than one scheduler or depending on non-idempotent tasks. |
+| **Conversation state is in memory** | Process restarts lose conversation state; the two processes cannot see each other's checkpoints. | **Addressed in Phase 4:** optional SQLite checkpointer on `data/state.db`. Set `PERSISTENCE_ENABLED=false` to revert to in-memory `MemorySaver`. |
+| **Cron execution is at-least-once only operationally** | A process restart, duplicate scheduler deployment, or failed delivery can create duplicate or untracked executions. | **Addressed in Phase 4:** `cron_runs` ledger with running-job unique index. Scheduler singleton lock retained as secondary guard. |
 | **MCP recovery uses configurable backoff** | Transport errors trigger reconnect with optional exponential delay; defaults preserve one immediate retry. | Tune `MCP_RECONNECT_*` env vars when outages are observed; add circuit-breaking only if backoff is insufficient. |
 | **Prompts and skills are read from disk during execution** | This is convenient for local iteration but means concurrent file edits can change behavior between turns. | Keep it in development. For production, deploy immutable prompt/skill artifacts or reload them explicitly at a controlled boundary. |
 

@@ -7,6 +7,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { PersonalCapabilityDeps } from "../runtime-agents/capabilities.js";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
+import type { DurabilityStore } from "../persistence/durability-store.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,
@@ -17,6 +18,7 @@ export type { SupervisorSystemOptions } from "./personal-pack.js";
 type PersonalAdapters = {
   supabaseReadSession?: SupabaseMcpSession;
   supabaseWriteSession?: SupabaseMcpSession;
+  durabilityStore?: DurabilityStore;
 };
 
 const closeSupabaseSessions = async (adapters: PersonalAdapters): Promise<void> => {
@@ -26,12 +28,18 @@ const closeSupabaseSessions = async (adapters: PersonalAdapters): Promise<void> 
   ]);
 };
 
+const closeAdapters = async (adapters: PersonalAdapters): Promise<void> => {
+  await closeSupabaseSessions(adapters);
+  adapters.durabilityStore?.close();
+};
+
 export type PersonalSupervisorSystem = {
   config: AppConfig;
   getGraph(): CompiledSupervisorGraph;
   recompile(): Promise<boolean>;
   getCronJobRepository(): CronJobRepository;
   getCronTargetAgentIds(): readonly string[];
+  getDurabilityStore(): DurabilityStore | undefined;
   supervisorConnector: GeminiConnector;
   shutdownAdapters(): Promise<void>;
 };
@@ -49,8 +57,8 @@ export const createSupervisorSystem = async (
       supervisorLlm: supervisorConnector,
     }),
     {
-      onBeforeRecompile: closeSupabaseSessions,
-      onShutdownAdapters: closeSupabaseSessions,
+      onBeforeRecompile: closeAdapters,
+      onShutdownAdapters: closeAdapters,
     },
   );
 
@@ -60,6 +68,7 @@ export const createSupervisorSystem = async (
     recompile: () => runtime.recompile(),
     getCronJobRepository: () => runtime.getCronJobRepository(),
     getCronTargetAgentIds: () => runtime.getCronTargetAgentIds(),
+    getDurabilityStore: () => runtime.getBootstrap().adapters.durabilityStore,
     supervisorConnector,
     shutdownAdapters: () => runtime.shutdownAdapters(),
   };

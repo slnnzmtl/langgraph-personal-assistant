@@ -94,6 +94,44 @@ const buildPack = (options: {
 };
 
 describe("createSupervisorRuntime", () => {
+  it("reuses the same injected checkpointer across recompiles", async () => {
+    const checkpointer = { kind: "mock-checkpointer" } as never;
+    let createCheckpointerCalls = 0;
+    let seedCalls = 0;
+
+    const { pack } = buildPack({
+      seedAgents: async () => {
+        seedCalls += 1;
+        return seedCalls === 1
+          ? [baseResearcher]
+          : [
+              baseResearcher,
+              {
+                ...baseResearcher,
+                id: "analyst",
+                name: "Analyst",
+                description: "Analyze data.",
+              },
+            ];
+      },
+    });
+
+    const runtime = await createSupervisorRuntime({
+      ...pack,
+      createCheckpointer: async () => {
+        createCheckpointerCalls += 1;
+        return checkpointer;
+      },
+    });
+    expect(runtime.getCheckpointer()).toBe(checkpointer);
+    expect(createCheckpointerCalls).toBe(1);
+
+    await runtime.recompile();
+
+    expect(runtime.getCheckpointer()).toBe(checkpointer);
+    expect(createCheckpointerCalls).toBe(1);
+  });
+
   it("reuses one cron repository and dynamic target ids across recompiles", async () => {
     let seedCalls = 0;
     const { pack } = buildPack({

@@ -32,7 +32,39 @@ const getToolBatchEndIndex = (messages: BaseMessage[], toolCallIndex: number): n
   return batchEnd;
 };
 
-const isSubstantiveFollowUp = (message: BaseMessage | undefined): boolean => {
+const isTerminalAgentReply = (message: BaseMessage | undefined): boolean => {
+  if (!(message instanceof AIMessage)) {
+    return false;
+  }
+
+  const text = extractMessageTextContent(message.content).trim();
+  return text.length > 0 && (message.tool_calls?.length ?? 0) === 0;
+};
+
+/** True while the trailing suffix is still inside a specialist tool loop. */
+export const isAgentToolLoopInFlight = (messages: BaseMessage[]): boolean => {
+  const last = messages[messages.length - 1];
+
+  if (!last) {
+    return false;
+  }
+
+  if (last instanceof ToolMessage) {
+    return true;
+  }
+
+  if (last instanceof AIMessage) {
+    if ((last.tool_calls?.length ?? 0) > 0) {
+      return true;
+    }
+
+    return !isTerminalAgentReply(last);
+  }
+
+  return false;
+};
+
+const isConsumingFollowUp = (message: BaseMessage | undefined): boolean => {
   if (!message) {
     return false;
   }
@@ -63,7 +95,7 @@ const collectConsumedToolIndexes = (messages: BaseMessage[]): Set<number> => {
 
     // Keep raw tool bodies while the only follow-up is an empty AI reply so empty
     // handoffs can still surface authoritative tool results to the supervisor.
-    if (!isSubstantiveFollowUp(messages[batchEnd + 1])) {
+    if (!isConsumingFollowUp(messages[batchEnd + 1])) {
       continue;
     }
 
@@ -78,6 +110,10 @@ const collectConsumedToolIndexes = (messages: BaseMessage[]): Set<number> => {
 };
 
 export const compactConsumedToolResults = (messages: BaseMessage[]): BaseMessage[] => {
+  if (isAgentToolLoopInFlight(messages)) {
+    return messages;
+  }
+
   const consumedIndexes = collectConsumedToolIndexes(messages);
 
   if (consumedIndexes.size === 0) {

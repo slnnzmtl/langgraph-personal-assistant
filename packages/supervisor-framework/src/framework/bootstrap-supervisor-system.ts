@@ -121,6 +121,11 @@ export const bootstrapSupervisorSystem = async <
   const messageHistoryMaxTokens =
     graphHooks.messageHistoryMaxTokens ?? pack.config.messageHistoryMaxTokens;
 
+  let checkpointer = graphHooks.checkpointer;
+  if (!checkpointer && pack.createCheckpointer) {
+    checkpointer = await pack.createCheckpointer(bootstrapContext);
+  }
+
   const graph = createAssistant<TDeps>({
     supervisorLlm: pack.supervisorLlm,
     models,
@@ -139,7 +144,7 @@ export const bootstrapSupervisorSystem = async <
     ...(graphHooks.promptLogging ? { promptLogging: graphHooks.promptLogging } : {}),
     ...(graphHooks.cronTriggerResolver ? { cronTriggerResolver: graphHooks.cronTriggerResolver } : {}),
     ...(messageHistoryMaxTokens !== undefined ? { messageHistoryMaxTokens } : {}),
-    ...(graphHooks.checkpointer ? { checkpointer: graphHooks.checkpointer } : {}),
+    ...(checkpointer ? { checkpointer } : {}),
   });
 
   return {

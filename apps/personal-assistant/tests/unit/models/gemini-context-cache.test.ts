@@ -250,6 +250,55 @@ describe("gemini context cache helpers", () => {
     }
   });
 
+  it("createGeminiContextCacheManager retries with real padding even when the initial estimate overshoots the model minimum", async () => {
+    // Reproduces production: a large/dense prompt whose chars/4 estimate makes buildCacheSeedContents
+    // believe no padding is needed (deficit clamped to 0 on the first attempt), yet Gemini's real
+    // tokenizer counts far fewer tokens and rejects the first attempt as too small. The retry must
+    // add real padding on top, not get swallowed by the (still deeply negative) original estimate gap.
+    const oversizedStaticInstruction = "static prompt ".repeat(3000);
+    const createRequests: Array<{ contents?: unknown }> = [];
+    let callCount = 0;
+    const createSpy = vi
+      .spyOn(GoogleAICacheManager.prototype, "create")
+      .mockImplementation(async (request) => {
+        callCount += 1;
+        createRequests.push(request);
+        if (callCount === 1) {
+          throw new Error(
+            "[GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/cachedContents: [400 Bad Request] Cached content is too small. total_token_count=1697, min_total_token_count=2048",
+          );
+        }
+
+        return {
+          name: "cachedContents/retry-success",
+          model: "models/gemini-2.5-flash",
+        } as never;
+      });
+
+    try {
+      const manager = createGeminiContextCacheManager("test-key", true);
+      const handle = await manager.getOrCreate({
+        modelName: "gemini-2.5-flash",
+        staticSystemInstruction: oversizedStaticInstruction,
+        tools: [],
+        displayName: "obsidian",
+      });
+
+      expect(callCount).toBe(2);
+      // The retry must add real padding on top of the (possibly zero) estimate-based deficit.
+      expect(seedTextLength(createRequests[1]?.contents as ReturnType<typeof buildCacheSeedContents>))
+        .toBeGreaterThan(
+          seedTextLength(createRequests[0]?.contents as ReturnType<typeof buildCacheSeedContents>),
+        );
+      expect(handle).toEqual({
+        cacheName: "cachedContents/retry-success",
+        model: "models/gemini-2.5-flash",
+      });
+    } finally {
+      createSpy.mockRestore();
+    }
+  });
+
   it("createGeminiContextCacheManager falls back after two consecutive too-small errors", async () => {
     let callCount = 0;
     const createSpy = vi

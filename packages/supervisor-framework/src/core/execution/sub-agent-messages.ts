@@ -68,6 +68,43 @@ export const scopeSubAgentMessages = (
   return stripStaleNonTextFromOlderHumans(messages.slice(startIndex));
 };
 
+/**
+ * When the supervisor delegates, pass only the delegation prompt (plus any
+ * multimodal parts from the latest human turn) instead of the full thread.
+ */
+export const scopeDelegatedSubAgentMessages = (
+  parentMessages: BaseMessage[],
+  delegationPrompt: string,
+): BaseMessage[] => {
+  const trimmed = delegationPrompt.trim();
+  if (trimmed.length === 0) {
+    return [];
+  }
+
+  let lastHuman: BaseMessage | undefined;
+
+  for (let index = parentMessages.length - 1; index >= 0; index -= 1) {
+    const message = parentMessages[index];
+    if (message && isHumanMessage(message)) {
+      lastHuman = message;
+      break;
+    }
+  }
+
+  const preservedParts = lastHuman
+    ? extractNonTextContentParts(lastHuman.content)
+    : [];
+
+  if (preservedParts.length === 0) {
+    return [new HumanMessage(trimmed)];
+  }
+
+  return [new HumanMessage([
+    { type: "text", text: trimmed },
+    ...preservedParts,
+  ])];
+};
+
 export const applyDelegationPrompt = (
   messages: BaseMessage[],
   prompt: string,

@@ -66,6 +66,36 @@ describe("createCronRunner", () => {
     expect(input?.messages[0]?.content).toContain("Sync the Wise transactions for yesterday.");
   });
 
+  it("skips overlapping runs when the ledger rejects a concurrent claim", async () => {
+    const invoke = vi.fn().mockResolvedValue({ messages: [new AIMessage("Completed")] });
+    const ledger = {
+      tryBeginRun: vi
+        .fn()
+        .mockReturnValueOnce({
+          runId: "run-1",
+          jobName: "finance-sync",
+          trigger: financeSyncTrigger,
+          status: "running" as const,
+          startedAt: new Date().toISOString(),
+        })
+        .mockReturnValueOnce(null),
+      completeRun: vi.fn(),
+      getLatestRun: vi.fn(),
+    };
+    const runner = createCronRunner({
+      getGraph: () => ({ invoke }),
+      summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never,
+      onError: vi.fn(),
+      ledger,
+    });
+
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
+    await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
+
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(ledger.completeRun).toHaveBeenCalledWith("run-1", { status: "succeeded" });
+  });
+
   it("skips overlapping runs for the same job while a prior run is still active", async () => {
     const inFlight = deferred<void>();
     const invoke = vi.fn().mockReturnValue(inFlight.promise);

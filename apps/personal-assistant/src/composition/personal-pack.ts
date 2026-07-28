@@ -27,8 +27,10 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
+import { MemorySaver } from "@langchain/langgraph";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import { setupSupabaseSessions } from "../integrations/supabase.js";
+import { openDurabilityStore, type DurabilityStore } from "../persistence/durability-store.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
 import {
@@ -63,6 +65,7 @@ export type SupervisorSystemOptions = {
 type PersonalAdapters = {
   supabaseReadSession?: SupabaseMcpSession;
   supabaseWriteSession?: SupabaseMcpSession;
+  durabilityStore?: DurabilityStore;
 };
 
 type PersonalCapabilityDepsOptions = {
@@ -174,7 +177,22 @@ export const buildPersonalSupervisorPack = ({
       ...(sessions.supabaseWriteSession
         ? { supabaseWriteSession: sessions.supabaseWriteSession }
         : {}),
+      ...(appConfig.persistenceEnabled
+        ? { durabilityStore: openDurabilityStore(appConfig) }
+        : {}),
     };
+  },
+  createCheckpointer: async (context) => {
+    if (!context.config.persistenceEnabled) {
+      return new MemorySaver();
+    }
+
+    const store = context.adapters.durabilityStore;
+    if (!store) {
+      throw new Error("Persistence is enabled but durabilityStore adapter is missing.");
+    }
+
+    return store.getCheckpointer();
   },
   seedAgents: async (repository, { adapters }) =>
     prepareRuntimeAgents(await repository.loadAgents(), {
