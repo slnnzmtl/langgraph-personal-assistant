@@ -72,7 +72,12 @@ Turn one user prompt into a skill that is routable, operational, safe, and tailo
 
   <body_structure>
   Build a compact XML body from the sections relevant to the task:
-  - `skill_attachments`: include only known, high-signal `anyPhrases`, `allPhrases`, or `cronJobName` routing cues.
+  - `skill_attachments`: wrap each trigger set in an `<attachment>` element. Use comma-separated `anyPhrases` for alternative triggers, or `allPhrases` when every phrase must appear. Example:
+    <skill_attachments>
+      <attachment>
+        <anyPhrases>create training,design workout,build program</anyPhrases>
+      </attachment>
+    </skill_attachments>
   - `intent_routing`: distinguish materially different user intents or modes.
   - `workflow`: ordered, executable steps; name each required tool and its ordering or parallelism.
   - `input_rules` and `validation_rules`: accepted formats, required data, validation, and fallback behavior.
