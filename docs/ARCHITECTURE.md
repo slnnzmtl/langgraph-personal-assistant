@@ -47,7 +47,17 @@ flowchart TB
     end
 
     subgraph FrameworkLayer["Framework (src/framework/)"]
+        RUNTIME[createSupervisorRuntime]
         BOOT[bootstrapSupervisorSystem]
+        SEED[initializeDefaults → createDefaultContentSeeder]
+        DEF[framework/defaults/ DEFAULT_* constants]
+    end
+
+    subgraph DataLayer["Shared data volume (Compose: ./data)"]
+        RA[data/runtime-agents.json]
+        CJ[data/cron-jobs.json]
+        PR[data/prompts/]
+        SK[data/skills/]
     end
 
     subgraph Core["Core Framework (src/core/)"]
@@ -75,13 +85,18 @@ flowchart TB
         WISE[Wise API]
     end
 
-    TG --> IDX --> WFC --> BOOT --> CA
+    TG --> IDX --> WFC --> RUNTIME --> BOOT --> CA
     CRIDX --> CRON
     CRON --> WFC
+    WFC --> RUNTIME
     CRON -->|graph.invoke| CA
     CRON -->|summary report| TG
     WFC --> KIT --> CA
     KIT --> POL
+    BOOT --> SEED
+    SEED --> DEF
+    SEED -->|seed-missing-only wx writes| PR & SK
+    BOOT --> RA & CJ
     CA --> SUP
     SUP -->|agent id| PREP
     PREP --> LLM
@@ -110,11 +125,16 @@ index.ts
   └─ loadConfig()
   └─ createApp()
        └─ createSupervisorSystem()
+            ├─ buildPersonalSupervisorPack() — registers initializeDefaults (framework default seeder)
+            ├─ createSupervisorRuntime() — shared checkpointer, stable cron repo, serialized soft recompile
+            │    └─ bootstrapSupervisorSystem()
+            │         ├─ initializeDefaults() — seed missing supervisor/configuration prompts + configuration skills (atomic wx, opt-in)
+            │         ├─ setupAdapters() — optional Supabase MCP (when configured)
+            │         ├─ runtime agent repository + purgeLegacySystemAgent() + virtual configuration agent
+            │         ├─ seedAgents() — load persisted specialists from data/runtime-agents.json
+            │         ├─ buildSkillCatalog() — read data/skills/
+            │         └─ createAssistant() — compile root graph from enabled agents
             ├─ GeminiConnector (supervisor model)
-            ├─ setupSupabaseSession() — optional, wrapped in self-healing MCP session
-            ├─ Runtime agent repository (data/runtime-agents.json, user agents only)
-            ├─ purgeLegacySystemAgent() + inject virtual system admin agent (framework)
-            ├─ bootstrapSupervisorSystem() → createAssistant()
        ├─ TelegramAdapter (Telegraf long-polling)
        └─ launchApp()
 ```
@@ -125,7 +145,7 @@ index.ts
 scheduler/index.ts
   └─ loadConfig()
   └─ createSchedulerApp()
-       └─ createSupervisorSystem({ runtimeCron })
+       └─ createSupervisorSystem({ runtimeCron }) — same pack + initializeDefaults path as bot
        └─ startSchedulerRuntime() — wires framework cron runner + node-cron service
        └─ watchCronJobDefinitions() — hot-reload data/cron-jobs.json (framework)
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
@@ -135,7 +155,7 @@ Cron jobs invoke the **same compiled graph** via the framework `createCronRunner
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
-Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. Invocations use a thread-scoped in-memory checkpointer (`MemorySaver`); conversation state is lost whenever that process restarts.
+Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. `createSupervisorRuntime()` reuses one in-memory checkpointer (`MemorySaver`) across soft recompiles within a process; conversation state is still lost when that process restarts.
 
 **Compile-time agent registry:** enabled runtime agents are wired into the root graph when `createAssistant()` runs. Adding or editing an agent via the configuration agent persists to JSON; the bot and scheduler **watch** `data/runtime-agents.json` via the framework `watchRuntimeAgentDefinitions()` helper and recompile graph nodes automatically when the fingerprint changes (enabled agents, model keys, capabilities, step limits).
 
@@ -300,7 +320,7 @@ This is a practical balance between context-window cost and LangGraph conversati
 | Conversation checkpoints | Per-process `MemorySaver` | No | Restarts drop context; cron cannot use bot conversation state. |
 | Runtime-agent definitions | `data/runtime-agents.json` | Yes (shared Compose volume) | Concurrent read-modify-write updates can still lose changes across processes; writes are serialized within each process. |
 | Cron definitions | `data/cron-jobs.json` | Yes (shared Compose volume) | Same concurrency constraint as runtime agents. |
-| Skills and prompts | Local files (`data/skills/`, `data/prompts/`) | No database coordination | Prompts and skills live under `data/` (Compose volume). Shipped defaults are tracked in git at `data/prompts/` and `data/skills/`. |
+| Skills and prompts | `data/skills/`, `data/prompts/` | Yes (shared Compose volume) | Git-tracked shipped files can be masked by an empty host mount; the pack's `initializeDefaults` hook seeds missing configuration baseline files from framework defaults before catalogs/prompt loaders run. Domain-specific finance/obsidian content is not auto-seeded. |
 
 The file repositories validate data and runtime-agent writes use a temporary file plus rename. That protects against a partially written file, but it does not serialize two independent read-modify-write operations or provide cross-process transactions.
 
@@ -345,6 +365,32 @@ type RuntimeAgentPolicy = {
 ```
 
 `createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`; the policy registry in `runtime-agent-policy.ts` selects behaviors by capability id.
+
+---
+
+## Default Content Bootstrap
+
+Generic supervisor/configuration baseline content lives in the framework package (`packages/supervisor-framework/src/framework/defaults/`). Packs opt in; the framework never writes files unless a pack registers `initializeDefaults`.
+
+| Component | Location | Role |
+|---|---|---|
+| `DEFAULT_*` constants | `framework/defaults/*.ts` | Domain-agnostic supervisor prompt, configuration prompt, and four configuration skills (`cron`, `runtime-agents`, `skill-management`, `skill-bootstrap`) |
+| `createDefaultContentSeeder()` | `framework/defaults/create-default-content-seeder.ts` | Atomic seed-missing-only writer (`flag: "wx"`, ignore `EEXIST`) for six files |
+| `initializeDefaults` hook | `SupervisorPackBootstrap` | Invoked at the start of `bootstrapSupervisorSystem()`, before repositories, `seedAgents`, prompt loaders, or skill catalogs |
+
+Personal-assistant registers the hook in `buildPersonalSupervisorPack()`:
+
+```typescript
+initializeDefaults: () => {
+  personalDefaultContentSeeder.seedAll(); // data/prompts + data/skills
+}
+```
+
+**Seeded when missing:** `supervisor.xml`, `configuration.xml`, `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, `skill-bootstrap.xml`.
+
+**Not auto-seeded:** domain prompts (`finance.xml`, `obsidian.xml`) and domain skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`). Those remain git-tracked app content.
+
+Both bot and scheduler call the same bootstrap path, so either process can populate a fresh `./data` volume on first boot. Concurrent startup uses exclusive file creation so two processes seeding the same missing file do not overwrite each other.
 
 ---
 
@@ -412,7 +458,7 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 
 | Path | Role | Why keep separate |
 |---|---|---|
-| `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`) | Generic orchestration; workspace package for reuse |
+| `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`), default content (`createDefaultContentSeeder`, `DEFAULT_*`) | Generic orchestration; workspace package for reuse |
 | `apps/personal-assistant/src/runtime-agents/resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
 | `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/scheduler/index.ts` |
 | `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
@@ -429,7 +475,7 @@ personal-assistant/                 # pnpm workspace root
 ├── packages/
 │   └── supervisor-framework/       # @personal-assistant/supervisor-framework
 │       ├── src/core/               # Execution kernel
-│       ├── src/framework/          # bootstrapSupervisorSystem, resolveAgentTools
+│       ├── src/framework/          # bootstrapSupervisorSystem, defaults/, resolveAgentTools
 │       ├── src/capabilities/
 │       └── tests/unit/             # Framework boundary + kernel tests
 ├── apps/
@@ -520,4 +566,4 @@ Use the configuration agent in Telegram — creates an agent with selected capab
 
 The execution architecture keeps routing simple: a supervisor delegates to compile-time-registered runtime agents, and every domain shares the same flat prepare/llm/tools/finalize loop. That is a good KISS/DRY trade-off for this assistant. The more sophisticated parts—token budgeting, tool-result compaction, empty-handoff recovery, and flat graph topology for LangSmith tracing—address concrete LangGraph and LLM constraints rather than speculative extensibility.
 
-The immediate priority is making the Docker deployment match the filesystem contracts already assumed by the application. Phase 1 deployment fixes (shared `data/`, skills at `/app/skills`, scheduler enablement, unified cron registry, in-process write serialization) are implemented. Introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.
+The immediate priority is operational clarity around the shared `./data` Compose volume: runtime JSON, prompts, and skills all live there, with framework-managed seed-missing-only defaults for the configuration baseline. Introduce durability, distributed coordination, or tenancy only in response to a concrete product requirement.

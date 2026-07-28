@@ -50,14 +50,14 @@ export type SkillCatalog = {
     description: string,
     body: string,
     module: string,
-  ): string;
+  ): Promise<string>;
   updateSkill(
     name: string,
     description: string,
     body: string,
     module: string,
-  ): string;
-  deleteSkill(name: string, module: string): string;
+  ): Promise<string>;
+  deleteSkill(name: string, module: string): Promise<string>;
   formatForDisplay(
     module: string,
     skills: SkillMeta[],

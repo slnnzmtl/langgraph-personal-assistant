@@ -60,20 +60,20 @@ export const createSkillCatalog = (
     readFull: (name, readOptions) =>
       readFullSkill(name, resolveOptions(readOptions?.module)),
 
-    createSkill: (name, description, body, module) =>
+    createSkill: async (name, description, body, module) =>
       formatWriteLocation(
         name,
-        createSkillFile(name, description, body, module, storeOptions),
+        await createSkillFile(name, description, body, module, storeOptions),
       ),
 
-    updateSkill: (name, description, body, module) =>
+    updateSkill: async (name, description, body, module) =>
       formatWriteLocation(
         name,
-        updateSkillFile(name, description, body, module, storeOptions),
+        await updateSkillFile(name, description, body, module, storeOptions),
       ),
 
-    deleteSkill: (name, _module) => {
-      deleteSkillFile(name, storeOptions);
+    deleteSkill: async (name, _module) => {
+      await deleteSkillFile(name, storeOptions);
       return writableSkillsDir ? describeWritableSkillLocation(name) : `${name}.xml`;
     },
 

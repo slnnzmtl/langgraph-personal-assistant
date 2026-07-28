@@ -11,17 +11,48 @@ import { withSerializedFileWrite } from "../../core/persistence/json-store.js";
 import { isCronTargetRoute } from "./cron-triggers.js";
 import type { CronJobDefinition, CronJobRepository } from "./types.js";
 
-const createCronJobSchema = (cronTargetAgentIds: readonly string[]) =>
-  z.object({
-    jobName: z.string().min(1),
-    schedule: z.string().min(1),
-    targetRoute: z.string().refine((value) => isCronTargetRoute(value, cronTargetAgentIds), {
-      message: "Invalid cron job target route",
-    }),
-    enabled: z.boolean().optional(),
-    timezone: z.string().min(1).optional(),
-    payload: z.any().optional(),
-  });
+export type CronTargetAgentIdsSource = readonly string[] | (() => readonly string[]);
+
+const resolveCronTargetAgentIds = (source: CronTargetAgentIdsSource): readonly string[] =>
+  typeof source === "function" ? source() : source;
+
+const cronJobFieldsSchema = z.object({
+  jobName: z.string().min(1),
+  schedule: z.string().min(1),
+  targetRoute: z.string(),
+  enabled: z.boolean().optional(),
+  timezone: z.string().min(1).optional(),
+  payload: z.any().optional(),
+});
+
+const parseCronJob = (
+  job: unknown,
+  cronTargetAgentIds: CronTargetAgentIdsSource,
+): CronJobDefinition => {
+  const parsed = cronJobFieldsSchema.safeParse(job);
+
+  if (!parsed.success) {
+    throw new Error("Invalid cron job data provided for persistence");
+  }
+
+  const targetAgentIds = resolveCronTargetAgentIds(cronTargetAgentIds);
+  if (!isCronTargetRoute(parsed.data.targetRoute, targetAgentIds)) {
+    throw new Error("Invalid cron job target route");
+  }
+
+  return parsed.data as CronJobDefinition;
+};
+
+const parseCronJobs = (
+  jobs: unknown,
+  cronTargetAgentIds: CronTargetAgentIdsSource,
+): CronJobDefinition[] => {
+  if (!Array.isArray(jobs)) {
+    throw new Error("Invalid cron job data provided for persistence");
+  }
+
+  return jobs.map((job) => parseCronJob(job, cronTargetAgentIds));
+};
 
 const writeJobsAtomically = async (
   rootDir: string,
@@ -39,10 +70,8 @@ const writeJobsAtomically = async (
 export const createCronJobRepository = (
   rootDir: string,
   relativePath: string,
-  cronTargetAgentIds: readonly string[] = [],
+  cronTargetAgentIds: CronTargetAgentIdsSource = [],
 ): CronJobRepository => {
-  const cronJobSchema = createCronJobSchema(cronTargetAgentIds);
-  const cronJobsSchema = z.array(cronJobSchema);
   const fileKey = resolveSafePath(rootDir, relativePath);
 
   const loadJobsFromDisk = async (): Promise<CronJobDefinition[]> => {
@@ -52,23 +81,17 @@ export const createCronJobRepository = (
 
     const rawContent = await readTextFile(rootDir, relativePath);
     const parsed = JSON.parse(rawContent) as unknown;
-    const result = cronJobsSchema.safeParse(parsed);
 
-    if (!result.success) {
+    try {
+      return parseCronJobs(parsed, cronTargetAgentIds);
+    } catch {
       throw new Error(`Invalid cron job data in ${relativePath}`);
     }
-
-    return result.data as CronJobDefinition[];
   };
 
   const persistJobs = async (jobs: CronJobDefinition[]): Promise<void> => {
-    const result = cronJobsSchema.safeParse(jobs);
-
-    if (!result.success) {
-      throw new Error("Invalid cron job data provided for persistence");
-    }
-
-    await writeJobsAtomically(rootDir, relativePath, `${JSON.stringify(result.data, null, 2)}\n`);
+    const validated = parseCronJobs(jobs, cronTargetAgentIds);
+    await writeJobsAtomically(rootDir, relativePath, `${JSON.stringify(validated, null, 2)}\n`);
   };
 
   return {
@@ -82,18 +105,13 @@ export const createCronJobRepository = (
     },
     async createJob(job: CronJobDefinition): Promise<CronJobDefinition> {
       return withSerializedFileWrite(fileKey, async () => {
-        const parsed = cronJobSchema.safeParse(job);
-
-        if (!parsed.success) {
-          throw new Error("Invalid cron job data provided for persistence");
-        }
+        const created = parseCronJob(job, cronTargetAgentIds);
 
         const jobs = await loadJobsFromDisk();
-        if (jobs.some((existing) => existing.jobName === parsed.data.jobName)) {
-          throw new Error(`Cron job already exists: ${parsed.data.jobName}`);
+        if (jobs.some((existing) => existing.jobName === created.jobName)) {
+          throw new Error(`Cron job already exists: ${created.jobName}`);
         }
 
-        const created = parsed.data as CronJobDefinition;
         await persistJobs([...jobs, created]);
         return created;
       });
@@ -116,7 +134,7 @@ export const createCronJobRepository = (
 
 export const createCronJobRepositoryForConfig = (
   cronJobsFilePath: string,
-  cronTargetAgentIds: readonly string[] = [],
+  cronTargetAgentIds: CronTargetAgentIdsSource = [],
   cwd = process.cwd(),
 ): CronJobRepository =>
   createCronJobRepository(cwd, path.relative(cwd, cronJobsFilePath), cronTargetAgentIds);

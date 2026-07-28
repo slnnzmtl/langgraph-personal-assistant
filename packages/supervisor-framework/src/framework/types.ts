@@ -1,4 +1,5 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import type { MemorySaver } from "@langchain/langgraph";
 
 import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
@@ -13,6 +14,7 @@ import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
 import type { CronJobRepository } from "./cron/types.js";
+import type { CronTargetAgentIdsSource } from "./cron/cron-job-repository.js";
 
 export type { CronJobRepository };
 
@@ -27,6 +29,7 @@ export type SupervisorGraphHooks = {
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: AssistantConfig["cronTriggerResolver"];
   messageHistoryMaxTokens?: number;
+  checkpointer?: MemorySaver;
 };
 
 export type CompiledSupervisorGraph = ReturnType<typeof createAssistant>;
@@ -53,6 +56,7 @@ export type SupervisorSystemContext<
 > = {
   config: TConfig;
   graph: CompiledSupervisorGraph;
+  runtimeAgentRepository: RuntimeAgentRepository;
   cronJobRepository: CronJobRepository;
   cronTargetAgentIds: readonly string[];
   runtimeAgents: RuntimeAgentDefinition[];
@@ -89,7 +93,7 @@ export type SupervisorPackBootstrap<
   createRuntimeAgentRepository?: (config: TConfig) => RuntimeAgentRepository;
   createCronJobRepository?: (
     cronJobsFilePath: string,
-    cronTargetAgentIds: readonly string[],
+    cronTargetAgentIds: CronTargetAgentIdsSource,
   ) => CronJobRepository;
   seedAgents: (
     repository: RuntimeAgentRepository,
@@ -109,6 +113,7 @@ export type SupervisorPackBootstrap<
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => TDeps;
+  /** Prefer `buildGraphHooks` for context-aware hooks. Static hooks remain for legacy packs. */
   graphHooks?: SupervisorGraphHooks;
   buildGraphHooks?: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,

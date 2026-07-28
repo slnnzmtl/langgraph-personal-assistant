@@ -1,5 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
+
+import { withSerializedFileWrite } from "../persistence/json-store.js";
 
 import type { SkillAttachmentRule, SkillDisplayStatus, SkillMeta, ListSkillsOptions, SkillSource, SkillStoreOptions } from "./catalog.js";
 
@@ -458,107 +461,142 @@ export const readFullSkill = (
   };
 };
 
+const writeSkillFileAtomically = async (
+  filePath: string,
+  content: string,
+): Promise<void> => {
+  const tempPath = `${filePath}.tmp`;
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(tempPath, content, "utf8");
+  await rename(tempPath, filePath);
+};
+
+const resolveSkillWriteLockKey = (writeDir: string): string => path.resolve(writeDir);
+
+const writeSkillContent = async (
+  fileName: string,
+  name: string,
+  description: string,
+  body: string,
+  module: string | undefined,
+  skillsDir: string,
+): Promise<string> => {
+  validateSkillFields(name, description, module);
+
+  const filePath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
+  const content = serializeSkillFile(
+    { name, description, ...(module ? { module } : {}) },
+    body,
+    fileName,
+  );
+  await writeSkillFileAtomically(filePath, content);
+  return filePath;
+};
+
 /**
- * Write a skill file to disk, creating the directory if needed.
+ * Write a skill file to disk atomically, creating the directory if needed.
  */
-export const writeSkillFile = (
+export const writeSkillFile = async (
   fileName: string,
   name: string,
   description: string,
   body: string,
   module?: string,
   skillsDir: string = SKILLS_ROOT,
-): string => {
-  validateSkillFields(name, description, module);
-
-  const filePath = assertPathWithinDir(path.join(skillsDir, fileName), skillsDir);
-  mkdirSync(skillsDir, { recursive: true });
-  writeFileSync(
-    filePath,
-    serializeSkillFile({ name, description, ...(module ? { module } : {}) }, body, fileName),
-    "utf8",
+): Promise<string> =>
+  withSerializedFileWrite(resolveSkillWriteLockKey(skillsDir), async () =>
+    writeSkillContent(fileName, name, description, body, module, skillsDir),
   );
-  return filePath;
-};
 
 /**
  * Create a new skill file. Throws if the skill already exists.
  */
-export const createSkillFile = (
+export const createSkillFile = async (
   name: string,
   description: string,
   body: string,
   module: string,
   skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
-): string => {
+): Promise<string> => {
   validateSkillFields(name, description, module);
 
   const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
   const writeDir = resolveWriteDir(storeOptions);
-  const existingSkills = listSkills(storeOptions);
-
-  if (existingSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
-    throw new Error(`Skill already exists: ${name}`);
-  }
-
   const fileName = `${name}.xml`;
-  const targetPath = assertPathWithinDir(path.join(writeDir, fileName), writeDir);
-  if (existsSync(targetPath)) {
-    throw new Error(`Skill file already exists: ${fileName}`);
-  }
 
-  return writeSkillFile(fileName, name, description, body, module, writeDir);
+  return withSerializedFileWrite(resolveSkillWriteLockKey(writeDir), async () => {
+    const existingSkills = listSkills(storeOptions);
+
+    if (existingSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`Skill already exists: ${name}`);
+    }
+
+    const targetPath = assertPathWithinDir(path.join(writeDir, fileName), writeDir);
+    if (existsSync(targetPath)) {
+      throw new Error(`Skill file already exists: ${fileName}`);
+    }
+
+    return writeSkillContent(fileName, name, description, body, module, writeDir);
+  });
 };
 
 /**
  * Replace an existing skill's metadata and body.
  */
-export const updateSkillFile = (
+export const updateSkillFile = async (
   name: string,
   description: string,
   body: string,
   module: string,
   skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
-): string => {
+): Promise<string> => {
   validateSkillFields(name, description, module);
   const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
   const { meta } = resolveSkillMeta(name, storeOptions);
   const writeDir = resolveWriteDir(storeOptions);
-  return writeSkillFile(meta.fileName, meta.name, description, body, module, writeDir);
+
+  return withSerializedFileWrite(resolveSkillWriteLockKey(writeDir), async () =>
+    writeSkillContent(meta.fileName, meta.name, description, body, module, writeDir),
+  );
 };
 
 /**
  * Delete an existing skill file.
  */
-export const deleteSkillFile = (
+export const deleteSkillFile = async (
   name: string,
   skillsDirOrOptions: string | SkillStoreOptions = SKILLS_ROOT,
-): string => {
+): Promise<string> => {
   const storeOptions = normalizeStoreOptions(skillsDirOrOptions);
   const writeDir = storeOptions.writableSkillsDir;
 
   if (!writeDir) {
     const { meta, filePath } = resolveSkillMeta(name, storeOptions);
-    unlinkSync(filePath);
-    return meta.fileName;
+
+    return withSerializedFileWrite(resolveSkillWriteLockKey(path.dirname(filePath)), async () => {
+      await unlink(filePath);
+      return meta.fileName;
+    });
   }
 
-  const dataSkills = listSkillsFromDirectory(writeDir, "data");
-  const dataSkill = dataSkills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
+  return withSerializedFileWrite(resolveSkillWriteLockKey(writeDir), async () => {
+    const dataSkills = listSkillsFromDirectory(writeDir, "data");
+    const dataSkill = dataSkills.find((skill) => skill.name.toLowerCase() === name.toLowerCase());
 
-  if (dataSkill) {
-    const filePath = assertPathWithinDir(path.join(writeDir, dataSkill.fileName), writeDir);
-    unlinkSync(filePath);
-    return dataSkill.fileName;
-  }
+    if (dataSkill) {
+      const filePath = assertPathWithinDir(path.join(writeDir, dataSkill.fileName), writeDir);
+      await unlink(filePath);
+      return dataSkill.fileName;
+    }
 
-  const shippedDir = storeOptions.skillsDir ?? SKILLS_ROOT;
-  const shippedSkills = listSkillsFromDirectory(shippedDir, "shipped");
-  if (shippedSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
-    throw new Error(`Cannot delete shipped skill: ${name}`);
-  }
+    const shippedDir = storeOptions.skillsDir ?? SKILLS_ROOT;
+    const shippedSkills = listSkillsFromDirectory(shippedDir, "shipped");
+    if (shippedSkills.some((skill) => skill.name.toLowerCase() === name.toLowerCase())) {
+      throw new Error(`Cannot delete shipped skill: ${name}`);
+    }
 
-  throw new Error(`Skill not found: ${name}`);
+    throw new Error(`Skill not found: ${name}`);
+  });
 };
 
 /**

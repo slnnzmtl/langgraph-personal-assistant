@@ -14,11 +14,17 @@ import {
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
+import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import type {
   SupervisorPackBootstrap,
   SupervisorPaths,
   SupervisorSystemContext,
 } from "./types.js";
+
+export type BootstrapSupervisorSystemOptions = {
+  /** Reuse agents already prepared during a soft recompile fingerprint pass. */
+  preparedRuntimeAgents?: RuntimeAgentDefinition[];
+};
 
 export const bootstrapSupervisorSystem = async <
   TConfig extends SupervisorPaths,
@@ -26,6 +32,7 @@ export const bootstrapSupervisorSystem = async <
   TAdapters extends Record<string, unknown> = Record<string, never>,
 >(
   pack: SupervisorPackBootstrap<TConfig, TDeps, TAdapters>,
+  options: BootstrapSupervisorSystemOptions = {},
 ): Promise<SupervisorSystemContext<TConfig, TDeps, TAdapters>> => {
   const adapters = pack.setupAdapters ? await pack.setupAdapters(pack.config) : ({} as TAdapters);
   const systemAgentEnabled = pack.systemAgent !== undefined && pack.systemAgent !== false;
@@ -50,7 +57,9 @@ export const bootstrapSupervisorSystem = async <
     await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
   }
 
-  const runtimeAgents = await pack.seedAgents(runtimeAgentRepository, { adapters });
+  const runtimeAgents =
+    options.preparedRuntimeAgents
+    ?? await pack.seedAgents(runtimeAgentRepository, { adapters });
 
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const cronJobRepository =
@@ -104,11 +113,13 @@ export const bootstrapSupervisorSystem = async <
     ...(graphHooks.promptLogging ? { promptLogging: graphHooks.promptLogging } : {}),
     ...(graphHooks.cronTriggerResolver ? { cronTriggerResolver: graphHooks.cronTriggerResolver } : {}),
     ...(messageHistoryMaxTokens !== undefined ? { messageHistoryMaxTokens } : {}),
+    ...(graphHooks.checkpointer ? { checkpointer: graphHooks.checkpointer } : {}),
   });
 
   return {
     config: pack.config,
     graph,
+    runtimeAgentRepository,
     cronJobRepository,
     cronTargetAgentIds,
     runtimeAgents,

@@ -4,7 +4,7 @@ A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.
 
 ## Architecture
 
-The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. Entry point: `createSupervisorSystem()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
+The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
 
 ```mermaid
 graph TD
@@ -18,11 +18,12 @@ graph TD
     end
 
     subgraph FrameworkLayer [Framework layer]
+        Runtime[createSupervisorRuntime]
         Bootstrap[bootstrapSupervisorSystem]
         CreateAssistant[createAssistant]
     end
 
-    Adapter --> AppTS --> PersonalPack --> Bootstrap --> CreateAssistant
+    Adapter --> AppTS --> PersonalPack --> Runtime --> Bootstrap --> CreateAssistant
     CreateAssistant --> Supervisor{Supervisor}
     Supervisor -->|agent id| RuntimeLoop[prepare / llm / tools / finalize]
     RuntimeLoop --> Capabilities[capabilityIds to tools and hooks]
@@ -163,7 +164,7 @@ docker compose up --build
 | Mount | Host default | Container path |
 |---|---|---|
 | Obsidian vault | `./src/obsidian-vault` | `/data/obsidian-vault` |
-| Persisted JSON (`runtime-agents`, cron jobs) | `./data` | `/app/data` |
+| Persisted JSON (`runtime-agents`, cron jobs), prompts, skills | `./data` | `/app/apps/personal-assistant/data` |
 
 Override host paths with `OBSIDIAN_VAULT_HOST_PATH` and `DATA_HOST_PATH` in your shell or `.env`. Inside the container, `OBSIDIAN_VAULT_PATH` is set to `/data/obsidian-vault`.
 

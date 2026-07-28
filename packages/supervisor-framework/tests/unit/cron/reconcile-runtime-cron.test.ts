@@ -24,6 +24,7 @@ describe("reconcileRuntimeCron", () => {
       addJob: vi.fn().mockResolvedValue(undefined),
       removeJob: vi.fn().mockResolvedValue(undefined),
       listActiveJobs: vi.fn().mockReturnValue([dailyReportJob]),
+      stopAll: vi.fn().mockResolvedValue(undefined),
     };
 
     await reconcileRuntimeCron(repository, runtimeCron);
@@ -44,6 +45,7 @@ describe("reconcileRuntimeCron", () => {
       listActiveJobs: vi.fn()
         .mockReturnValueOnce([dailyReportJob])
         .mockReturnValueOnce([]),
+      stopAll: vi.fn().mockResolvedValue(undefined),
     };
 
     await reconcileRuntimeCron(repository, runtimeCron);
@@ -58,6 +60,7 @@ describe("reconcileRuntimeCron", () => {
       addJob: vi.fn().mockResolvedValue(undefined),
       removeJob: vi.fn().mockResolvedValue(undefined),
       listActiveJobs: vi.fn().mockReturnValue([]),
+      stopAll: vi.fn().mockResolvedValue(undefined),
     };
 
     await reconcileRuntimeCron(repository, runtimeCron);

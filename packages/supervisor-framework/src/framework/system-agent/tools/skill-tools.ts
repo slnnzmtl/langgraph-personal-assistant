@@ -105,7 +105,7 @@ export const createSkillCrudTools = (
   const createSkillTool = tool(
     async (input: z.infer<typeof CreateSkillToolSchema>) => {
       try {
-        const filePath = skillCatalog.createSkill(
+        const filePath = await skillCatalog.createSkill(
           input.name,
           input.description,
           input.content,
@@ -128,7 +128,7 @@ export const createSkillCrudTools = (
     async (input: z.infer<typeof EditSkillToolSchema>) => {
       try {
         assertKnownModule(input.module, skillCatalog);
-        const filePath = skillCatalog.updateSkill(
+        const filePath = await skillCatalog.updateSkill(
           input.name,
           input.description,
           input.content,
@@ -151,7 +151,7 @@ export const createSkillCrudTools = (
     async (input: z.infer<typeof DeleteSkillToolSchema>) => {
       try {
         assertKnownModule(input.module, skillCatalog);
-        const location = skillCatalog.deleteSkill(input.name, input.module);
+        const location = await skillCatalog.deleteSkill(input.name, input.module);
         return `Removed skill ${input.name} for module ${input.module}.\nPath: ${location}`;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

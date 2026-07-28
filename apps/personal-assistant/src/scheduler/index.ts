@@ -9,6 +9,7 @@ const main = async (): Promise<void> => {
   if (!config.schedulerEnabled) {
     console.log("Scheduler disabled via ENABLE_SCHEDULER; idle until shutdown.");
     await waitForProcessShutdown();
+    process.exit(0);
     return;
   }
 

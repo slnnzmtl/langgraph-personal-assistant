@@ -34,7 +34,8 @@ Boundary tests:
 
 Import from `@personal-assistant/supervisor-framework`:
 
-- `bootstrapSupervisorSystem` — generic pack bootstrap
+- `bootstrapSupervisorSystem` — one-shot pack bootstrap (graph compile)
+- `createSupervisorRuntime` — long-lived runtime shell: shared checkpointer, stable cron repo with live target-route validation, serialized soft recompile
 - `resolveAgentTools` — catalog-based tool resolution
 - `createAssistant`, `createAgentPolicy` — graph and policy helpers
 - Defaults: `createNoopCronJobRepository`, `createEmptySkillCatalog`
@@ -50,11 +51,13 @@ Optional bootstrap hooks (omit for minimal packs):
 - `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
 - `buildRuntimeExecution(agents, skillCatalog, ctx)` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters; use `ctx.capabilityCatalog` (personal pack uses `buildAppRuntimeExecution()`)
 
-Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/composition/create-supervisor-system.ts).
+Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/composition/create-supervisor-system.ts), which delegates lifecycle concerns to `createSupervisorRuntime()`.
 
 ## Composition entry points
 
-**Personal deployment:** `createSupervisorSystem()` in the personal app composition layer.
+**Personal deployment:** `createSupervisorSystem()` wraps `createSupervisorRuntime(buildPersonalSupervisorPack(...))` with Telegram/scheduler-specific adapter hooks.
+
+**Long-lived runtime:** `createSupervisorRuntime(pack)` — use when the process supports soft recompile (file watcher). Owns shared checkpointer, stable cron repository, and serialized recompile.
 
 **Pack bootstrap:** `bootstrapSupervisorSystem()` — pass capability catalog, seed agents, `buildRuntimeExecution` (returns `runtimeAgentPolicy` via `createAgentPolicy`), and optional cron/skills/repo hooks. For tests or advanced compile-only wiring, `createAssistant()` is the lower-level entry (bootstrap wraps it).
 

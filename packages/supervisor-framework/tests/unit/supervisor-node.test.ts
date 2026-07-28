@@ -9,7 +9,6 @@ import {
   asAgentState,
   createRuntimeAgentRepositoryFake,
   firstStateUpdateMessage,
-  getMessageText,
   getStateUpdateMessages,
   getStateUpdateRuntimeAgentId,
   makeHumanState,

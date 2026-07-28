@@ -1,11 +1,13 @@
-// Telegram bot process entry — distinct from src/scheduler/ scheduler entry.
 import { Telegraf } from "telegraf";
 
 import {
   watchRuntimeAgentDefinitions,
   type RuntimeAgentWatcher,
 } from "@personal-assistant/supervisor-framework";
-import { createSupervisorSystem } from "./composition/create-supervisor-system.js";
+import {
+  createSupervisorSystem,
+  type PersonalSupervisorSystem,
+} from "./composition/create-supervisor-system.js";
 import type { AppConfig } from "./config.js";
 import { TelegramAdapter } from "./telegram/telegram-adapter.js";
 import { TelegramFileSender } from "./telegram/file-sender.js";
@@ -13,8 +15,10 @@ import { TelegramFileSender } from "./telegram/file-sender.js";
 export type PersonalAssistantApp = {
   config: AppConfig;
   bot: Telegraf;
+  system: PersonalSupervisorSystem;
   agentWatcher: RuntimeAgentWatcher;
   telegramAdapter: TelegramAdapter;
+  shutdown(): Promise<void>;
 };
 
 export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp> => {
@@ -27,8 +31,14 @@ export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp
   return {
     config,
     bot,
+    system,
     agentWatcher,
     telegramAdapter,
+    shutdown: async () => {
+      agentWatcher.close();
+      bot.stop();
+      await system.shutdownAdapters();
+    },
   };
 };
 

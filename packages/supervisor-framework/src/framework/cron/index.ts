@@ -10,6 +10,7 @@ export {
 export {
   createCronJobRepository,
   createCronJobRepositoryForConfig,
+  type CronTargetAgentIdsSource,
 } from "./cron-job-repository.js";
 export {
   validateCronJobs,

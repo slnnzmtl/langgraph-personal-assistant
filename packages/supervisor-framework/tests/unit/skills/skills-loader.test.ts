@@ -478,9 +478,9 @@ Body
   });
 
   describe("skill file writes", () => {
-    it("creates a skill file with valid xml metadata", () => {
+    it("creates a skill file with valid xml metadata", async () => {
       const skillsDir = path.join(tempDir, "write-create");
-      const filePath = createSkillFile(
+      const filePath = await createSkillFile(
         "new-skill",
         "A new skill",
         "# Body\nDo the thing",
@@ -495,20 +495,20 @@ Body
       expect(readSkillContent("new-skill", { skillsDir })).toBe("# Body\nDo the thing");
     });
 
-    it("rejects duplicate skill names on create", () => {
+    it("rejects duplicate skill names on create", async () => {
       const skillsDir = path.join(tempDir, "write-duplicate");
-      createSkillFile("dup-skill", "First", "Body one", "finance", skillsDir);
+      await createSkillFile("dup-skill", "First", "Body one", "finance", skillsDir);
 
-      expect(() => createSkillFile("dup-skill", "Second", "Body two", "finance", skillsDir)).toThrow(
-        /already exists/i,
-      );
+      await expect(
+        createSkillFile("dup-skill", "Second", "Body two", "finance", skillsDir),
+      ).rejects.toThrow(/already exists/i);
     });
 
-    it("updates an existing skill with full replacement", () => {
+    it("updates an existing skill with full replacement", async () => {
       const skillsDir = path.join(tempDir, "write-update");
-      createSkillFile("update-me", "Old description", "Old body", "obsidian", skillsDir);
+      await createSkillFile("update-me", "Old description", "Old body", "obsidian", skillsDir);
 
-      const filePath = updateSkillFile(
+      const filePath = await updateSkillFile(
         "update-me",
         "New description",
         "New body",
@@ -522,31 +522,31 @@ Body
       expect(readFileSync(filePath, "utf8")).toContain('description="New description"');
     });
 
-    it("deletes an existing skill file", () => {
+    it("deletes an existing skill file", async () => {
       const skillsDir = path.join(tempDir, "write-delete");
-      createSkillFile("delete-me", "Delete me", "Body", "configuration", skillsDir);
+      await createSkillFile("delete-me", "Delete me", "Body", "configuration", skillsDir);
 
-      const fileName = deleteSkillFile("delete-me", skillsDir);
+      const fileName = await deleteSkillFile("delete-me", skillsDir);
 
       expect(fileName).toBe("delete-me.xml");
       expect(existsSync(path.join(skillsDir, "delete-me.xml"))).toBe(false);
       expect(() => readSkillContent("delete-me", { skillsDir })).toThrow(/Skill not found/);
     });
 
-    it("throws when deleting a missing skill", () => {
+    it("throws when deleting a missing skill", async () => {
       const skillsDir = path.join(tempDir, "write-delete-missing");
       mkdirSync(skillsDir, { recursive: true });
 
-      expect(() => deleteSkillFile("missing", skillsDir)).toThrow(/Skill not found/);
+      await expect(deleteSkillFile("missing", skillsDir)).rejects.toThrow(/Skill not found/);
     });
 
-    it("rejects path traversal attempts on write", () => {
+    it("rejects path traversal attempts on write", async () => {
       const skillsDir = path.join(tempDir, "write-traverse");
       mkdirSync(skillsDir, { recursive: true });
 
-      expect(() => createSkillFile("../secret", "Bad", "Body", "finance", skillsDir)).toThrow(
-        /Path traversal/i,
-      );
+      await expect(
+        createSkillFile("../secret", "Bad", "Body", "finance", skillsDir),
+      ).rejects.toThrow(/Path traversal/i);
     });
   });
 
@@ -578,14 +578,14 @@ Body
       );
     });
 
-    it("writes create and update operations to the writable skills dir", () => {
+    it("writes create and update operations to the writable skills dir", async () => {
       const shippedDir = path.join(tempDir, "dual-write-shipped");
       const dataDir = path.join(tempDir, "dual-write-data");
       mkdirSync(shippedDir, { recursive: true });
       mkdirSync(dataDir, { recursive: true });
       const storeOptions = { skillsDir: shippedDir, writableSkillsDir: dataDir };
 
-      const createdPath = createSkillFile(
+      const createdPath = await createSkillFile(
         "custom-finance",
         "Custom finance skill",
         "Custom body",
@@ -602,7 +602,7 @@ Body
         "utf8",
       );
 
-      updateSkillFile(
+      await updateSkillFile(
         "expense-view",
         "Updated view",
         "Updated body",
@@ -615,7 +615,7 @@ Body
       expect(readFileSync(path.join(shippedDir, "expense-view.xml"), "utf8")).toContain("Shipped view body");
     });
 
-    it("blocks deleting shipped-only skills and removes data overrides", () => {
+    it("blocks deleting shipped-only skills and removes data overrides", async () => {
       const shippedDir = path.join(tempDir, "dual-delete-shipped");
       const dataDir = path.join(tempDir, "dual-delete-data");
       mkdirSync(shippedDir, { recursive: true });
@@ -628,10 +628,10 @@ Body
         "utf8",
       );
 
-      expect(() => deleteSkillFile("expense-sync", storeOptions)).toThrow(/Cannot delete shipped skill/i);
+      await expect(deleteSkillFile("expense-sync", storeOptions)).rejects.toThrow(/Cannot delete shipped skill/i);
 
-      createSkillFile("custom-skill", "Custom", "Body", "obsidian", storeOptions);
-      expect(deleteSkillFile("custom-skill", storeOptions)).toBe("custom-skill.xml");
+      await createSkillFile("custom-skill", "Custom", "Body", "obsidian", storeOptions);
+      expect(await deleteSkillFile("custom-skill", storeOptions)).toBe("custom-skill.xml");
       expect(existsSync(path.join(dataDir, "custom-skill.xml"))).toBe(false);
 
       writeFileSync(
@@ -639,7 +639,7 @@ Body
         '<skill name="expense-sync" module="finance" description="Override">\nOverride body\n</skill>\n',
         "utf8",
       );
-      expect(deleteSkillFile("expense-sync", storeOptions)).toBe("expense-sync.xml");
+      expect(await deleteSkillFile("expense-sync", storeOptions)).toBe("expense-sync.xml");
       expect(readSkillContent("expense-sync", storeOptions)).toBe("Shipped body");
     });
   });

@@ -7,6 +7,7 @@ export type RuntimeCronService = {
   addJob(job: CronJobDefinition): Promise<void>;
   removeJob(jobName: string): Promise<void>;
   listActiveJobs(): CronJobDefinition[];
+  stopAll(): Promise<void>;
 };
 
 export const createRuntimeCronService = (options: {
@@ -64,6 +65,12 @@ export const createRuntimeCronService = (options: {
     listActiveJobs(): CronJobDefinition[] {
       return Array.from(activeJobs.values()).map(({ job }) => job);
     },
+
+    async stopAll(): Promise<void> {
+      for (const jobName of [...activeJobs.keys()]) {
+        await this.removeJob(jobName);
+      }
+    },
   };
 };
 
@@ -94,6 +101,11 @@ export const createLazyCronService = (): RuntimeCronService & { setService(servi
     listActiveJobs(): CronJobDefinition[] {
       if (!delegate) return [];
       return delegate.listActiveJobs();
+    },
+
+    async stopAll(): Promise<void> {
+      if (!delegate) return;
+      await delegate.stopAll();
     },
   };
 };

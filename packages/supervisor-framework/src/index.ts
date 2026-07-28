@@ -1,5 +1,10 @@
 // --- Pack bootstrap ---
-export { bootstrapSupervisorSystem } from "./framework/bootstrap-supervisor-system.js";
+export { bootstrapSupervisorSystem, type BootstrapSupervisorSystemOptions } from "./framework/bootstrap-supervisor-system.js";
+export {
+  createSupervisorRuntime,
+  type SupervisorRuntime,
+  type SupervisorRuntimeOptions,
+} from "./framework/create-supervisor-runtime.js";
 export {
   deriveModelKeys,
   deriveSkillModules,
@@ -67,6 +72,7 @@ export {
   isCronTargetRoute,
   createCronJobRepository,
   createCronJobRepositoryForConfig,
+  type CronTargetAgentIdsSource,
   validateCronJobs,
   setupCron,
   createRuntimeCronService,

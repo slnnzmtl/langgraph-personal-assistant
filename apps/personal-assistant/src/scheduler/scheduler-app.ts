@@ -1,10 +1,12 @@
 import { Telegraf } from "telegraf";
 
-import { createSupervisorSystem } from "../composition/create-supervisor-system.js";
+import {
+  createSupervisorSystem,
+  type PersonalSupervisorSystem,
+} from "../composition/create-supervisor-system.js";
 import {
   watchCronJobDefinitions,
   watchRuntimeAgentDefinitions,
-  type CronJobRepository,
   type CronJobWatcher,
   type RuntimeAgentWatcher,
   type RuntimeCronService,
@@ -15,12 +17,12 @@ import type { GeminiConnector } from "../models/gemini-connector.js";
 
 export type SchedulerApp = {
   config: AppConfig;
-  cronJobRepository: CronJobRepository;
-  cronTargetAgentIds: readonly string[];
-  supervisorConnector: GeminiConnector;
+  system: PersonalSupervisorSystem;
   runtimeCron: RuntimeCronService;
   jobWatcher: CronJobWatcher;
   agentWatcher: RuntimeAgentWatcher;
+  supervisorConnector: GeminiConnector;
+  shutdown(): Promise<void>;
 };
 
 export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerApp> => {
@@ -34,26 +36,31 @@ export const createSchedulerApp = async (config: AppConfig): Promise<SchedulerAp
     summaryModel: system.supervisorConnector.getModel(),
     config,
     runtimeCron,
-    cronJobRepository: system.cronJobRepository,
+    cronJobRepository: system.getCronJobRepository(),
     telegram: bot.telegram,
-    cronTargetAgentIds: system.cronTargetAgentIds,
+    cronTargetAgentIds: system.getCronTargetAgentIds(),
     schedulerEnabled: config.schedulerEnabled,
   });
 
   const jobWatcher = watchCronJobDefinitions(config.cronJobsFilePath, {
-    repository: system.cronJobRepository,
+    repository: system.getCronJobRepository(),
     runtimeCron,
   });
   const agentWatcher = watchRuntimeAgentDefinitions(config.runtimeAgentsFilePath, system);
 
   return {
     config: system.config,
-    cronJobRepository: system.cronJobRepository,
-    cronTargetAgentIds: system.cronTargetAgentIds,
+    system,
     supervisorConnector: system.supervisorConnector,
     runtimeCron,
     jobWatcher,
     agentWatcher,
+    shutdown: async () => {
+      jobWatcher.close();
+      agentWatcher.close();
+      await runtimeCron.stopAll();
+      await system.shutdownAdapters();
+    },
   };
 };
 
@@ -68,6 +75,6 @@ export const launchScheduler = async (app: SchedulerApp): Promise<void> => {
   console.log("Scheduler running. Watching for job and runtime agent definition changes.");
 
   await waitForProcessShutdown();
-  app.jobWatcher.close();
-  app.agentWatcher.close();
+  await app.shutdown();
+  process.exit(0);
 };

@@ -6,17 +6,21 @@ import { loadConfig } from "./config.js";
 const main = async (): Promise<void> => {
   const app = await createApp(loadConfig());
 
-  const shutdown = (): void => {
-    app.agentWatcher.close();
+  const shutdown = async (): Promise<void> => {
+    await app.shutdown();
     process.exit(0);
   };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", () => {
+    void shutdown();
+  });
+  process.once("SIGTERM", () => {
+    void shutdown();
+  });
 
   await launchApp(app);
 };
 
 main().catch((error: unknown) => {
-  console.error("Failed to start Phase 1 application:", error);
+  console.error("Failed to start personal assistant:", error);
   process.exitCode = 1;
 });

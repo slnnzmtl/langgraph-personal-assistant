@@ -17,6 +17,7 @@ describe("startCronBootstrap", () => {
     addJob: vi.fn().mockResolvedValue(undefined),
     removeJob: vi.fn().mockResolvedValue(undefined),
     listActiveJobs: vi.fn().mockReturnValue([]),
+    stopAll: vi.fn().mockResolvedValue(undefined),
   });
 
   const createRepository = (jobs: CronJobDefinition[]) => {
