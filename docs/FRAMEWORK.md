@@ -42,6 +42,8 @@ Import from `@personal-assistant/supervisor-framework`:
 - Types: `SupervisorPackBootstrap`, `SupervisorPaths`, `CompiledSupervisorGraph`, `RuntimeAgentDefinition`, `CapabilityCatalog`
 - System admin (opt-in): `systemAgent` pack option, `wrapRepositoryWithSystemAgent`, `createSystemConfigCapabilityProviders`, `hasSystemConfigWriteCapability` / `resolveSystemConfigDeps`, `SYSTEM_AGENT_ID` (`"configuration"`)
 - Read-only persistence (multi-process): `createReadOnlyRuntimeAgentRepository`, `createReadOnlyCronJobRepository` — mutating methods throw with a clear error; use when a second process must read shared JSON without writing
+- Persisted agent validation: `validatePersistedAgentCapabilities` — fail-fast grantability check at bootstrap/recompile
+- Destructive delete helpers: `buildDeleteSkillConfirmToken`, `buildDeleteRuntimeAgentConfirmToken`, `buildDeleteCronJobConfirmToken`, `requireDestructiveConfirmToken`
 - Process lock: `acquireProcessLock`, `ProcessLockError` — exclusive lock file for cross-process singleton guards (scheduler uses `data/.scheduler-lock`)
 - Logging: `Logger`, `createConsoleLogger`, `createFileLogger`, `createCompositeLogger`, `getLogger`, `setLogger`
 

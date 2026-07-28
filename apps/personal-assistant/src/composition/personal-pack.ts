@@ -27,12 +27,13 @@ import {
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
-import { setupSupabaseSession } from "../integrations/supabase.js";
+import { setupSupabaseSessions } from "../integrations/supabase.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
 import {
   createCapabilityDeps,
   createPersonalCapabilityProviders,
+  PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
   type PersonalCapabilityDeps,
 } from "../runtime-agents/capabilities.js";
 import type { IFileSender } from "../ports/file-sender.js";
@@ -53,7 +54,10 @@ export type SupervisorSystemOptions = {
   dataWriteRole?: "writer" | "reader";
 };
 
-type PersonalAdapters = { supabaseSession?: SupabaseMcpSession | undefined };
+type PersonalAdapters = {
+  supabaseReadSession?: SupabaseMcpSession;
+  supabaseWriteSession?: SupabaseMcpSession;
+};
 
 type PersonalCapabilityDepsOptions = {
   cronTargetAgentIds: readonly string[];
@@ -61,6 +65,9 @@ type PersonalCapabilityDepsOptions = {
   skillCatalog: SkillCatalog;
   cronJobRepository?: CronJobRepository | undefined;
   runtimeAgentRepository?: RuntimeAgentRepository | undefined;
+  supabaseReadSession?: SupabaseMcpSession | undefined;
+  supabaseWriteSession?: SupabaseMcpSession | undefined;
+  /** @deprecated Test/back-compat alias; maps to write session when write session is unset. */
   supabaseSession?: SupabaseMcpSession | undefined;
   fileSender?: IFileSender | undefined;
   runtimeCron?: RuntimeCronService | undefined;
@@ -100,6 +107,8 @@ export const buildPersonalCapabilityDeps = (
     ...(options.runtimeAgentRepository
       ? { runtimeAgentRepository: options.runtimeAgentRepository }
       : {}),
+    ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
+    ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
     ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
     ...(options.fileSender ? { fileSender: options.fileSender } : {}),
     ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
@@ -133,6 +142,7 @@ export const buildPersonalSupervisorPack = ({
   systemAgent: {
     modelKey: "configuration",
   },
+  reservedCapabilitiesByAgentId: PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
   createRuntimeAgentRepository: (appConfig) => {
     const repository = createRuntimeAgentRepository(
       process.cwd(),
@@ -151,12 +161,19 @@ export const buildPersonalSupervisorPack = ({
       ? createReadOnlyCronJobRepository(repository)
       : repository;
   },
-  setupAdapters: async (appConfig) => ({
-    supabaseSession: await setupSupabaseSession(appConfig),
-  }),
+  setupAdapters: async (appConfig) => {
+    const sessions = await setupSupabaseSessions(appConfig);
+    return {
+      ...(sessions.supabaseReadSession ? { supabaseReadSession: sessions.supabaseReadSession } : {}),
+      ...(sessions.supabaseWriteSession
+        ? { supabaseWriteSession: sessions.supabaseWriteSession }
+        : {}),
+    };
+  },
   seedAgents: async (repository, { adapters }) =>
     prepareRuntimeAgents(await repository.loadAgents(), {
-      supabaseAvailable: adapters.supabaseSession !== undefined,
+      supabaseAvailable:
+        adapters.supabaseWriteSession !== undefined || adapters.supabaseReadSession !== undefined,
     }),
   buildSkillCatalog: buildPersonalSkillCatalog,
   buildRuntimeExecution: (_agents, skillCatalog, ctx) =>
@@ -171,7 +188,8 @@ export const buildPersonalSupervisorPack = ({
       capabilityCatalog: context.capabilityCatalog,
       skillCatalog: context.skillCatalog,
       fileSender: options.fileSender,
-      supabaseSession: context.adapters.supabaseSession,
+      supabaseReadSession: context.adapters.supabaseReadSession,
+      supabaseWriteSession: context.adapters.supabaseWriteSession,
       runtimeCron: options.runtimeCron,
       loadPromptByKey: loadSystemPromptByKey,
     }),

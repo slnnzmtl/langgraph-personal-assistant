@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { createCapabilityCatalog } from "../capabilities/index.js";
+import { validatePersistedAgentCapabilities } from "../capabilities/validate-persisted-agents.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
 import { DEFAULT_MODEL_KEY } from "../core/types/agent.js";
@@ -93,6 +94,20 @@ export const bootstrapSupervisorSystem = async <
   };
 
   const capabilityDeps = pack.buildCapabilityDeps(bootstrapContext);
+
+  if (pack.validatePersistedAgents) {
+    pack.validatePersistedAgents(runtimeAgents, capabilityCatalog, capabilityDeps);
+  } else {
+    validatePersistedAgentCapabilities(
+      runtimeAgents,
+      capabilityCatalog,
+      capabilityDeps,
+      pack.reservedCapabilitiesByAgentId
+        ? { reservedCapabilitiesByAgentId: pack.reservedCapabilitiesByAgentId }
+        : {},
+    );
+  }
+
   const defaultModelKey = DEFAULT_MODEL_KEY;
   const models = pack.buildModels(pack.config, runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } =

@@ -5,10 +5,11 @@ import {
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
+  type CronJobRepository,
   type RuntimeAgentRepository,
+  type RuntimeCronService,
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
-import type { CronJobRepository, RuntimeCronService } from "@personal-assistant/supervisor-framework";
 import type { LoadPromptByKey } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import type { IFileSender } from "../ports/file-sender.js";
@@ -19,6 +20,7 @@ import { createObsidianVaultTools } from "./obsidian/tools.js";
 export const NONE_CAPABILITY_ID = "none" as const;
 export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;
 export const FINANCE_DOMAIN_CAPABILITY_ID = "finance-domain" as const;
+export const FINANCE_DOMAIN_READ_CAPABILITY_ID = "finance-domain-read" as const;
 
 export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
@@ -34,9 +36,18 @@ export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
   {
     id: FINANCE_DOMAIN_CAPABILITY_ID,
     description: "Execute SQL, fetch Wise transactions, and load expense categories.",
+    grantable: false,
+  },
+  {
+    id: FINANCE_DOMAIN_READ_CAPABILITY_ID,
+    description: "Query the expense ledger with read-only SQL and category lookup.",
     grantable: true,
   },
 ];
+
+export const PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID: Record<string, readonly string[]> = {
+  finance: [FINANCE_DOMAIN_CAPABILITY_ID],
+};
 
 export type BuiltinCapabilityId = (typeof PERSONAL_CAPABILITY_DESCRIPTORS)[number]["id"];
 
@@ -56,6 +67,9 @@ const getDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
 export type PersonalDomainDeps = {
   obsidianVaultPath: string;
   fileSender?: IFileSender;
+  supabaseReadSession?: SupabaseMcpSession;
+  supabaseWriteSession?: SupabaseMcpSession;
+  /** @deprecated Use supabaseWriteSession. */
   supabaseSession?: SupabaseMcpSession;
 };
 
@@ -75,6 +89,8 @@ export const createCapabilityDeps = (
   obsidianVaultPath: string,
   options: {
     fileSender?: PersonalDomainDeps["fileSender"];
+    supabaseReadSession?: PersonalDomainDeps["supabaseReadSession"];
+    supabaseWriteSession?: PersonalDomainDeps["supabaseWriteSession"];
     supabaseSession?: PersonalDomainDeps["supabaseSession"];
     cronTargetAgentIds?: PersonalSystemDeps["cronTargetAgentIds"];
     cronJobRepository?: PersonalSystemDeps["cronJobRepository"];
@@ -87,16 +103,19 @@ export const createCapabilityDeps = (
 ): PersonalCapabilityDeps => ({
   obsidianVaultPath,
   ...(options.fileSender ? { fileSender: options.fileSender } : {}),
+  ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
+  ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
   ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
   ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
-  ...(options.runtimeAgentRepository ? { runtimeAgentRepository: options.runtimeAgentRepository } : {}),
+  ...(options.runtimeAgentRepository
+    ? { runtimeAgentRepository: options.runtimeAgentRepository }
+    : {}),
   ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
   ...(options.capabilityCatalog ? { capabilityCatalog: options.capabilityCatalog } : {}),
   ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
   ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
 });
-
 
 export const createPersonalCapabilityProviders = (): CapabilityProvider<PersonalCapabilityDeps>[] => [
   {
@@ -111,13 +130,28 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Personal
   },
   {
     descriptor: getDescriptor("finance-domain"),
-    isAvailable: (deps) => deps.supabaseSession !== undefined,
+    isAvailable: (deps) =>
+      deps.supabaseWriteSession !== undefined || deps.supabaseSession !== undefined,
     resolveTools: (deps) => {
-      if (!deps.supabaseSession) {
-        throw new Error("finance-domain capability requires a configured Supabase session.");
+      const session = deps.supabaseWriteSession ?? deps.supabaseSession;
+      if (!session) {
+        throw new Error("finance-domain capability requires a configured Supabase write session.");
       }
 
-      return createFinanceDomainToolsFromSession(deps.supabaseSession);
+      return createFinanceDomainToolsFromSession(session, { writeAccess: true });
+    },
+  },
+  {
+    descriptor: getDescriptor("finance-domain-read"),
+    isAvailable: (deps) =>
+      deps.supabaseReadSession !== undefined || deps.supabaseSession !== undefined,
+    resolveTools: (deps) => {
+      const session = deps.supabaseReadSession ?? deps.supabaseSession;
+      if (!session) {
+        throw new Error("finance-domain-read capability requires a configured Supabase read session.");
+      }
+
+      return createFinanceDomainToolsFromSession(session, { writeAccess: false });
     },
   },
 ];
@@ -153,3 +187,7 @@ export const resolveCapabilities = (
   deps: PersonalCapabilityDeps,
 ): StructuredToolInterface[] =>
   getCapabilityCatalog(deps).resolveTools(capabilityIds, deps);
+
+export const hasFinanceCapability = (capabilityIds: readonly string[]): boolean =>
+  capabilityIds.includes(FINANCE_DOMAIN_CAPABILITY_ID)
+  || capabilityIds.includes(FINANCE_DOMAIN_READ_CAPABILITY_ID);

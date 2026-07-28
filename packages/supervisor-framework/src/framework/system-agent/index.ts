@@ -25,6 +25,13 @@ export {
 export { createSkillCrudTools } from "./tools/skill-tools.js";
 
 export {
+  buildDeleteSkillConfirmToken,
+  buildDeleteRuntimeAgentConfirmToken,
+  buildDeleteCronJobConfirmToken,
+  requireDestructiveConfirmToken,
+} from "./tools/destructive-confirm.js";
+
+export {
   CONFIGURATION_COMPLETION_FALLBACK,
   buildConfigurationCompletionSummary,
   mapConfigurationSubAgentResult,

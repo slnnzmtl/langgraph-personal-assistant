@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import type { CronJobRepository } from "../../cron/types.js";
 import type { CronJobDefinition } from "../../cron/types.js";
+import {
+  buildDeleteCronJobConfirmToken,
+  requireDestructiveConfirmToken,
+} from "./destructive-confirm.js";
 
 const CreateCronJobToolSchema = z.object({
   jobName: z.string().min(1),
@@ -14,6 +18,10 @@ const CreateCronJobToolSchema = z.object({
 
 const DeleteCronJobToolSchema = z.object({
   jobName: z.string().min(1),
+  confirmToken: z
+    .string()
+    .min(1)
+    .describe('Must equal delete-cron-job:{jobName} after explicit user confirmation'),
 });
 
 const ListCronJobsToolSchema = z.object({});
@@ -108,6 +116,10 @@ export const createCronTools = (
   const deleteCronJob = tool(
     async (input: z.infer<typeof DeleteCronJobToolSchema>) => {
       try {
+        requireDestructiveConfirmToken(
+          input.confirmToken,
+          buildDeleteCronJobConfirmToken(input.jobName),
+        );
         await repository.deleteJob(input.jobName);
         return `Deleted cron job ${input.jobName}`;
       } catch (error) {
@@ -117,7 +129,8 @@ export const createCronTools = (
     },
     {
       name: "delete_cron_job",
-      description: "Delete a persisted cron job definition.",
+      description:
+        "Delete a persisted cron job definition. Requires confirmToken matching delete-cron-job:{jobName}.",
       schema: DeleteCronJobToolSchema,
     },
   );

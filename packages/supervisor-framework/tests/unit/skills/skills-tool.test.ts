@@ -213,7 +213,11 @@ describe("createSkillCrudTools", () => {
     expect(readResult).toContain("# Updated cron");
 
     const deleteResult = String(
-      await deleteTool!.invoke({ module: "configuration", name: "manage-cron" }),
+      await deleteTool!.invoke({
+        module: "configuration",
+        name: "manage-cron",
+        confirmToken: "delete-skill:configuration:manage-cron",
+      }),
     );
     expect(deleteResult).toContain("Removed skill manage-cron");
     expect(() => readFileSync(path.join(tempRoot, "manage-cron.xml"), "utf8")).toThrow();
@@ -244,7 +248,11 @@ describe("createSkillCrudTools", () => {
     expect(duplicateResult).toContain("already exists");
 
     const deleteResult = String(
-      await deleteTool!.invoke({ module: "finance", name: "missing-skill" }),
+      await deleteTool!.invoke({
+        module: "finance",
+        name: "missing-skill",
+        confirmToken: "delete-skill:finance:missing-skill",
+      }),
     );
     expect(deleteResult).toContain("Error:");
     expect(deleteResult).toContain("not found");
@@ -300,7 +308,11 @@ describe("createSkillCrudTools", () => {
     expect(editResult).toContain("Path: data/skills/expense-view.xml");
 
     const shippedDelete = String(
-      await deleteTool!.invoke({ module: "finance", name: "expense-view" }),
+      await deleteTool!.invoke({
+        module: "finance",
+        name: "expense-view",
+        confirmToken: "delete-skill:finance:expense-view",
+      }),
     );
     expect(shippedDelete).toContain("Removed skill expense-view");
     expect(shippedDelete).toContain("Path: data/skills/expense-view.xml");

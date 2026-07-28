@@ -80,7 +80,12 @@ export const createTestWorkflowGraph = ({
     cronTargetAgentIds,
     runtimeAgentRepository: resolvedRuntimeAgentRepository,
     ...(cronJobRepository ? { cronJobRepository } : {}),
-    ...(supabaseSession ? { supabaseSession } : {}),
+    ...(supabaseSession
+      ? {
+          supabaseReadSession: supabaseSession,
+          supabaseWriteSession: supabaseSession,
+        }
+      : {}),
     ...(fileSender ? { fileSender } : {}),
   });
 

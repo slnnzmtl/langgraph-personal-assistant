@@ -2,6 +2,10 @@ import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import type { SkillCatalog } from "../../../core/skills/catalog.js";
+import {
+  buildDeleteSkillConfirmToken,
+  requireDestructiveConfirmToken,
+} from "./destructive-confirm.js";
 
 const ListSkillsToolSchema = z.object({
   module: z.string().min(1).describe("The skill module to list skills for"),
@@ -29,6 +33,10 @@ const EditSkillToolSchema = z.object({
 const DeleteSkillToolSchema = z.object({
   module: z.string().min(1).describe("The skill module that owns the skill"),
   name: z.string().min(1).describe("The skill name to delete"),
+  confirmToken: z
+    .string()
+    .min(1)
+    .describe('Must equal delete-skill:{module}:{name} after explicit user confirmation'),
 });
 
 export type SkillCrudToolsOptions = {
@@ -150,6 +158,10 @@ export const createSkillCrudTools = (
   const deleteSkillTool = tool(
     async (input: z.infer<typeof DeleteSkillToolSchema>) => {
       try {
+        requireDestructiveConfirmToken(
+          input.confirmToken,
+          buildDeleteSkillConfirmToken(input.module, input.name),
+        );
         assertKnownModule(input.module, skillCatalog);
         const location = await skillCatalog.deleteSkill(input.name, input.module);
         return `Removed skill ${input.name} for module ${input.module}.\nPath: ${location}`;
@@ -160,7 +172,8 @@ export const createSkillCrudTools = (
     },
     {
       name: "delete_skill",
-      description: "Delete a persisted skill for a skill module.",
+      description:
+        "Delete a persisted skill for a skill module. Requires confirmToken matching delete-skill:{module}:{name}.",
       schema: DeleteSkillToolSchema,
     },
   );

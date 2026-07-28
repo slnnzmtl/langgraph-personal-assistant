@@ -9,6 +9,7 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import type { PersonalCapabilityDeps } from "./capabilities.js";
+import { PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID } from "./capabilities.js";
 
 export type PersonalResolveToolsOptions = {
   includeReadSkill?: boolean;
@@ -36,8 +37,9 @@ export const createPersonalResolveTools = (catalog: CapabilityCatalog): Personal
       definition,
       catalog,
       capabilityDeps,
-      includeReadSkill && readSkillTool
-        ? { includeReadSkill, readSkillTool }
-        : { includeReadSkill },
+      {
+        ...(includeReadSkill && readSkillTool ? { includeReadSkill, readSkillTool } : { includeReadSkill }),
+        reservedCapabilitiesByAgentId: PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
+      },
     );
   };

@@ -42,6 +42,7 @@ export type {
 // --- System agent (opt-in admin kit) ---
 export {
   SYSTEM_AGENT_ID,
+  SYSTEM_CONFIG_CAPABILITY_ID,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
   createSystemAgentDefinition,
   wrapRepositoryWithSystemAgent,
@@ -55,6 +56,10 @@ export {
   CONFIGURATION_COMPLETION_FALLBACK,
   buildConfigurationCompletionSummary,
   mapConfigurationSubAgentResult,
+  buildDeleteSkillConfirmToken,
+  buildDeleteRuntimeAgentConfirmToken,
+  buildDeleteCronJobConfirmToken,
+  requireDestructiveConfirmToken,
 } from "./framework/system-agent/index.js";
 export type {
   SystemAgentOptions,
@@ -164,9 +169,11 @@ export {
   createCapabilityCatalog,
   configurationReposAvailable,
   isCapabilityGrantable,
+  validatePersistedAgentCapabilities,
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
+  type ValidatePersistedAgentCapabilitiesOptions,
 } from "./capabilities/index.js";
 
 // --- Kernel: skills ---

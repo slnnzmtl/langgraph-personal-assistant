@@ -131,7 +131,10 @@ describe("createConfigurationTools", () => {
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
 
-    const result = await deleteTool!.invoke({ jobName: "finance-sync" });
+    const result = await deleteTool!.invoke({
+      jobName: "finance-sync",
+      confirmToken: "delete-cron-job:finance-sync",
+    });
 
     expect(result).toContain("Deleted cron job finance-sync");
     expect(repository.deleteJob).toHaveBeenCalledWith("finance-sync");
@@ -150,7 +153,10 @@ describe("createConfigurationTools", () => {
     const deleteTool = tools.find((tool) => tool.name === "delete_cron_job");
     expect(deleteTool).toBeDefined();
 
-    const result = await deleteTool!.invoke({ jobName: "non-existent" });
+    const result = await deleteTool!.invoke({
+      jobName: "non-existent",
+      confirmToken: "delete-cron-job:non-existent",
+    });
 
     expect(result).toContain("Error:");
     expect(result).toContain("not found");
@@ -257,12 +263,20 @@ describe("createConfigurationTools", () => {
 
     const listedWithoutSupabase = await listCapabilitiesTool!.invoke({});
     expect(listedWithoutSupabase).not.toContain("finance-domain");
+    expect(listedWithoutSupabase).not.toContain("finance-domain-read");
 
     await expect(createTool!.invoke({
       name: "Finance Helper",
       description: "Manage finances.",
       systemPrompt: "You help with finance.",
       capabilityIds: ["finance-domain"],
+    })).rejects.toThrow(/Invalid option|did not match expected schema/i);
+
+    await expect(createTool!.invoke({
+      name: "Finance Reader",
+      description: "Read finances.",
+      systemPrompt: "You read finance data.",
+      capabilityIds: ["finance-domain-read"],
     })).rejects.toThrow(/Invalid option|did not match expected schema/i);
   });
 });

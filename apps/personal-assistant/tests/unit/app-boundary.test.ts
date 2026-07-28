@@ -108,7 +108,7 @@ describe("app boundaries", () => {
     const catalog = createDomainCapabilityCatalog();
     const resolveTools = createPersonalResolveTools(catalog);
     const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
       capabilityCatalog: catalog,
     });
 
@@ -131,6 +131,23 @@ describe("app boundaries", () => {
 
     expect(unified).toEqual(expect.arrayContaining(capabilityOnly));
     expect(unified).toContain("read_skill");
+    expect(capabilityOnly).toContain("fetch_wise_transactions");
+  });
+
+  it("exposes read-only finance capabilities separately from write", () => {
+    const catalog = createPersonalCapabilityCatalog();
+    const deps = createCapabilityDeps("/tmp/vault", {
+      supabaseReadSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
+      capabilityCatalog: catalog,
+    });
+
+    const readTools = resolveCapabilities(["finance-domain-read"], deps).map((tool) => tool.name);
+    const writeTools = resolveCapabilities(["finance-domain"], deps).map((tool) => tool.name);
+
+    expect(readTools).toEqual(expect.arrayContaining(["exec_sql", "get_categories"]));
+    expect(readTools).not.toContain("fetch_wise_transactions");
+    expect(writeTools).toEqual(expect.arrayContaining(["exec_sql", "get_categories", "fetch_wise_transactions"]));
   });
 
   it("seeds only the configuration built-in from code", () => {
@@ -163,14 +180,16 @@ describe("app boundaries", () => {
   it("marks grantable capabilities in the catalog", () => {
     const catalog = createDomainCapabilityCatalog();
     const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseSession: { executeSql: async () => [] } as never,
+      supabaseReadSession: { executeSql: async () => [] } as never,
+      supabaseWriteSession: { executeSql: async () => [] } as never,
     });
 
     const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);
 
     expect(grantableIds).toEqual(
-      expect.arrayContaining(["none", "obsidian-vault", "finance-domain"]),
+      expect.arrayContaining(["none", "obsidian-vault", "finance-domain-read"]),
     );
+    expect(grantableIds).not.toContain("finance-domain");
     expect(grantableIds).not.toContain(SYSTEM_CONFIG_READ_CAPABILITY_ID);
 
     const withoutVault = createCapabilityDeps("");

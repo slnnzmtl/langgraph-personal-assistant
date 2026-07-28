@@ -335,6 +335,15 @@ The file repositories validate data and runtime-agent writes use a temporary fil
 | Scheduler singleton | `acquireProcessLock` on `data/.scheduler-lock` | Second scheduler exits with an error; stale locks are reclaimed when the recorded pid is dead. |
 | Logging | `getLogger()` / `setLogger()` | Console by default; optional append-only file logs under `LOG_DIR` (`logs/`). No rotation yet — mount `logs/` in Docker to persist across recreates. |
 
+### Authorization (Phase 3)
+
+| Concern | Mechanism | Notes |
+|---|---|---|
+| Grantability at load | `validatePersistedAgentCapabilities` during bootstrap/recompile | Hand-edited `runtime-agents.json` cannot grant non-grantable capabilities (e.g. `system-config`). Reserved map allows `finance` → `finance-domain`. |
+| SQL read-only | `finance-domain-read` + MCP `read_only=true` | Custom agents get read SQL only; persisted `finance` agent keeps write capability via reserved exemption. |
+| Destructive deletes | `confirmToken` on delete tools | Must match `delete-skill:{module}:{name}`, `delete-runtime-agent:{id}`, or `delete-cron-job:{jobName}`. |
+| Telegram ingress | User id + chat id | `ALLOWED_TELEGRAM_USER_ID` and `ALLOWED_TELEGRAM_CHAT_ID` (defaults to user id for private chats). Cron delivery uses chat id. |
+
 ---
 
 ## Runtime Agent Model

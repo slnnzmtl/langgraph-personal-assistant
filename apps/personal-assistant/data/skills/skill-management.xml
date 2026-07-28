@@ -37,7 +37,7 @@ Manage skill definitions without executing their workflows. Preserve existing sk
 
 5. DELETE (remove, delete):
    - Require explicit confirmation that identifies the skill name and module before deleting.
-   - Call `delete_skill(module, name)`.
+   - Call `delete_skill(module, name, confirmToken)` with confirmToken equal to `delete-skill:{module}:{name}`.
    - Report the deletion only after the tool succeeds.
 </intent_routing>
 

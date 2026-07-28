@@ -12,6 +12,10 @@ import {
 } from "../../../core/agents/resolve-system-prompt.js";
 import type { CapabilityCatalog } from "../../../capabilities/index.js";
 import type { SystemConfigDeps } from "../definition.js";
+import {
+  buildDeleteRuntimeAgentConfirmToken,
+  requireDestructiveConfirmToken,
+} from "./destructive-confirm.js";
 
 const CreateRuntimeAgentToolSchema = z.object({
   name: z.string().min(1),
@@ -37,6 +41,13 @@ const RuntimeAgentIdToolSchema = z.object({
 });
 
 const ListRuntimeAgentsToolSchema = z.object({});
+
+const DeleteRuntimeAgentToolSchema = RuntimeAgentIdToolSchema.extend({
+  confirmToken: z
+    .string()
+    .min(1)
+    .describe('Must equal delete-runtime-agent:{id} after explicit user confirmation'),
+});
 
 export const RUNTIME_AGENT_RELOAD_NOTE =
   "The bot and scheduler will pick up routing changes automatically within a few seconds.";
@@ -203,8 +214,12 @@ export const createRuntimeAgentTools = (
   );
 
   const deleteRuntimeAgent = tool(
-    async (input: z.infer<typeof RuntimeAgentIdToolSchema>) => {
+    async (input: z.infer<typeof DeleteRuntimeAgentToolSchema>) => {
       try {
+        requireDestructiveConfirmToken(
+          input.confirmToken,
+          buildDeleteRuntimeAgentConfirmToken(input.id),
+        );
         const deleted = await repository.deleteAgent(input.id);
         return `Deleted runtime agent ${deleted.name} (${deleted.id}).`;
       } catch (error) {
@@ -215,8 +230,8 @@ export const createRuntimeAgentTools = (
     {
       name: "delete_runtime_agent",
       description:
-        "Delete a persisted runtime agent definition. Requires explicit user confirmation before calling.",
-      schema: RuntimeAgentIdToolSchema,
+        "Delete a persisted runtime agent definition. Requires confirmToken matching delete-runtime-agent:{id}.",
+      schema: DeleteRuntimeAgentToolSchema,
     },
   );
 

@@ -121,4 +121,11 @@ export type SupervisorPackBootstrap<
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => SupervisorGraphHooks;
   setupAdapters?: (config: TConfig) => Promise<TAdapters>;
+  /** Non-grantable capabilities allowed only on specific persisted agent ids (e.g. finance → finance-domain). */
+  reservedCapabilitiesByAgentId?: Record<string, readonly string[]>;
+  validatePersistedAgents?: (
+    agents: RuntimeAgentDefinition[],
+    catalog: CapabilityCatalog,
+    deps: TDeps,
+  ) => void;
 };

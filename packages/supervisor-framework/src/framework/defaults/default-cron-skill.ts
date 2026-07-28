@@ -9,7 +9,8 @@ export const DEFAULT_CRON_SKILL_XML = `<skill name="cron" module="configuration"
    - \`targetRoute\` must be an enabled runtime agent id. Call \`list_runtime_agents()\` first if the target is unclear.
 
 3. DELETE (remove, delete, cancel):
-   - Call \`delete_cron_job(jobName)\`.
+   - Require explicit user confirmation that names the exact jobName.
+   - Call \`delete_cron_job(jobName, confirmToken)\` with confirmToken equal to \`delete-cron-job:{jobName}\`.
 </cron_intent_routing>
 
 <relative_schedule_rules>

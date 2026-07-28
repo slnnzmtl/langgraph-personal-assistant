@@ -40,7 +40,7 @@ export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOption
 
   const cronReporter = createTelegramCronReporter({
     telegram,
-    chatId: config.allowedTelegramUserId,
+    chatId: config.allowedTelegramChatId,
   });
 
   const cronRunner = createCronRunner({

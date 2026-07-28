@@ -3,6 +3,7 @@ import {
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
+import { hasFinanceCapability } from "../runtime-agents/capabilities.js";
 import { promptFileExists } from "../prompts/prompt-store.js";
 
 const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {
@@ -27,7 +28,7 @@ export const applyIntegrationAvailability = (
   }
 
   return agents.map((agent) => {
-    if (resolveAgentCapabilityIds(agent).includes("finance-domain")) {
+    if (hasFinanceCapability(resolveAgentCapabilityIds(agent))) {
       return {
         ...agent,
         enabled: false,

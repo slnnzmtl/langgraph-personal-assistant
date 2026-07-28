@@ -247,4 +247,15 @@ describe("config", () => {
     expect(config.logsDir).toBe("/tmp/personal-assistant-logs");
     expect(config.logToFile).toBe(true);
   });
+
+  it("defaults allowedTelegramChatId to allowedTelegramUserId", () => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", REQUIRED_ENV.TELEGRAM_BOT_TOKEN);
+    vi.stubEnv("ALLOWED_TELEGRAM_USER_ID", REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+    vi.stubEnv("GOOGLE_API_KEY", REQUIRED_ENV.GOOGLE_API_KEY);
+    vi.stubEnv("ALLOWED_TELEGRAM_CHAT_ID", undefined);
+
+    const loaded = loadConfig();
+
+    expect(loaded.allowedTelegramChatId).toBe(REQUIRED_ENV.ALLOWED_TELEGRAM_USER_ID);
+  });
 });

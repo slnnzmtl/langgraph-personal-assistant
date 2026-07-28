@@ -18,6 +18,7 @@ type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
 export interface AppConfig {
   telegramBotToken: string;
   allowedTelegramUserId: string;
+  allowedTelegramChatId: string;
   googleApiKey: string;
   geminiModel: string;
   supervisorModel: string;
@@ -131,6 +132,8 @@ export const loadConfig = (): AppConfig => {
   return {
     telegramBotToken: getRequiredEnv("TELEGRAM_BOT_TOKEN"),
     allowedTelegramUserId: getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
+    allowedTelegramChatId:
+      process.env.ALLOWED_TELEGRAM_CHAT_ID ?? getRequiredEnv("ALLOWED_TELEGRAM_USER_ID"),
     googleApiKey: getRequiredEnv("GOOGLE_API_KEY"),
     geminiModel: defaultGeminiModel,
     supervisorModel: process.env.SUPERVISOR_MODEL ?? defaultGeminiModel,

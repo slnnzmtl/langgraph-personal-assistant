@@ -79,9 +79,20 @@ Pick capabilities from the allowlisted catalog. Some need deployment deps:
 |---|---|---|
 | `none` | yes | — (prompt-only) |
 | `obsidian-vault` | yes | Obsidian vault path configured |
-| `finance-domain` | yes | Supabase; agents using it are auto-disabled if Supabase is missing |
+| `finance-domain` | no | Reserved for the persisted Finance agent (write SQL + Wise sync) |
+| `finance-domain-read` | yes | Supabase read MCP session; `exec_sql` + `get_categories` only |
 | `system-config-read` | yes | Cron + agent repositories |
 | `system-config` | no | Reserved for the configurator (read + write) |
+
+### Destructive delete confirmation
+
+Delete tools require a resource-bound `confirmToken` after explicit user confirmation:
+
+| Tool | confirmToken |
+|---|---|
+| `delete_skill` | `delete-skill:{module}:{name}` |
+| `delete_runtime_agent` | `delete-runtime-agent:{id}` |
+| `delete_cron_job` | `delete-cron-job:{jobName}` |
 
 ### Optional follow-ups (after recompile)
 

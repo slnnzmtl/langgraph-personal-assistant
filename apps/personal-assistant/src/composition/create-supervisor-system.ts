@@ -6,6 +6,7 @@ import {
   type CronJobRepository,
 } from "@personal-assistant/supervisor-framework";
 import type { PersonalCapabilityDeps } from "../runtime-agents/capabilities.js";
+import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
 import {
   buildPersonalSupervisorPack,
   type SupervisorSystemOptions,
@@ -13,12 +14,16 @@ import {
 
 export type { SupervisorSystemOptions } from "./personal-pack.js";
 
-type PersonalAdapters = { supabaseSession?: PersonalCapabilityDeps["supabaseSession"] };
+type PersonalAdapters = {
+  supabaseReadSession?: SupabaseMcpSession;
+  supabaseWriteSession?: SupabaseMcpSession;
+};
 
-const closeSupabaseSession = async (adapters: PersonalAdapters): Promise<void> => {
-  if (adapters.supabaseSession?.close) {
-    await adapters.supabaseSession.close().catch(() => undefined);
-  }
+const closeSupabaseSessions = async (adapters: PersonalAdapters): Promise<void> => {
+  await Promise.all([
+    adapters.supabaseReadSession?.close?.().catch(() => undefined),
+    adapters.supabaseWriteSession?.close?.().catch(() => undefined),
+  ]);
 };
 
 export type PersonalSupervisorSystem = {
@@ -44,8 +49,8 @@ export const createSupervisorSystem = async (
       supervisorLlm: supervisorConnector,
     }),
     {
-      onBeforeRecompile: closeSupabaseSession,
-      onShutdownAdapters: closeSupabaseSession,
+      onBeforeRecompile: closeSupabaseSessions,
+      onShutdownAdapters: closeSupabaseSessions,
     },
   );
 

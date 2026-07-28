@@ -15,6 +15,7 @@ import {
 const config: AppConfig = {
   telegramBotToken: "123:abc",
   allowedTelegramUserId: "42",
+  allowedTelegramChatId: "42",
   googleApiKey: "key",
   geminiModel: "gemini-1.5-flash",
   supervisorModel: "gemini-1.5-flash",
@@ -172,11 +173,26 @@ describe("TelegramAdapter", () => {
 
     const result = await adapter.parseInbound({
       from: { id: 99 },
+      chat: { id: 42 },
       message: { text: "hello" },
     } as never);
 
     expect(result).toBeNull();
     expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it("drops messages from an unauthorized chat id", async () => {
+    const adapter = createAdapter();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const result = await adapter.parseInbound({
+      from: { id: 42 },
+      chat: { id: 99 },
+      message: { text: "hello" },
+    } as never);
+
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unauthorized access attempt from Telegram chat ID"));
   });
 
   it("normalizes text and photo inbound messages", async () => {
@@ -193,6 +209,7 @@ describe("TelegramAdapter", () => {
 
     const textMessage = await adapter.parseInbound({
       from: { id: 42 },
+      chat: { id: 42 },
       message: { text: "hello" },
     } as never);
 
@@ -372,7 +389,7 @@ describe("TelegramAdapter", () => {
     const ctx = {
       update: { update_id: 1001 },
       from: { id: 42 },
-      chat: { id: 555 },
+      chat: { id: 42 },
       message: { text: "hello" },
       sendChatAction,
       telegram: { sendMessage: vi.fn(async () => undefined) },
@@ -413,7 +430,7 @@ describe("TelegramAdapter", () => {
     const sendMessage = vi.fn(async () => undefined);
     const baseCtx = {
       from: { id: 42 },
-      chat: { id: 555 },
+      chat: { id: 42 },
       sendChatAction: vi.fn(async () => undefined),
       telegram: { sendMessage },
     };
@@ -451,13 +468,13 @@ describe("TelegramAdapter", () => {
     await adapter.handleMessage({
       update: { update_id: 3001 },
       from: { id: 42 },
-      chat: { id: 555 },
+      chat: { id: 42 },
       message: { text: "send me a file" },
       sendChatAction: vi.fn(async () => undefined),
       telegram: { sendMessage },
     } as never);
 
-    expect(mockFileSender.setCurrentChatId).toHaveBeenCalledWith(555);
+    expect(mockFileSender.setCurrentChatId).toHaveBeenCalledWith(42);
     expect(app.invoke).toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalled();
   });

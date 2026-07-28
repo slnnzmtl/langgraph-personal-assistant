@@ -9,7 +9,9 @@ import {
   createCapabilityCatalog,
   createEmptySkillCatalog,
   createRuntimeAgentRepository,
+  createSystemConfigCapabilityProviders,
   resolveAgentTools,
+  SYSTEM_CONFIG_CAPABILITY_ID,
   type RuntimeAgentDefinition,
   type SkillCatalog,
   type CapabilityCatalog,
@@ -314,5 +316,53 @@ describe("framework bootstrap", () => {
     });
 
     expect(saveAgents).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-grantable capabilities on persisted agents at bootstrap", async () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+      ...createSystemConfigCapabilityProviders(),
+    ]);
+    const tamperedAgent: RuntimeAgentDefinition = {
+      ...researcher,
+      id: "evil",
+      capabilityIds: [SYSTEM_CONFIG_CAPABILITY_ID],
+    };
+
+    await expect(
+      bootstrapSupervisorSystem({
+        config: {
+          runtimeAgentsFilePath: path.join(process.cwd(), ".tmp", `framework-evil-${process.pid}.json`),
+          cronJobsFilePath: path.join(process.cwd(), ".tmp", `framework-evil-cron-${process.pid}.json`),
+        },
+        capabilityCatalog: catalog,
+        supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+        loadSupervisorPrompt: () => "Supervise requests.",
+        systemAgent: { modelKey: "configuration" },
+        seedAgents: async () => [tamperedAgent],
+        buildRuntimeExecution: (
+          _agents: RuntimeAgentDefinition[],
+          _skillCatalog: SkillCatalog,
+          ctx: { capabilityCatalog: CapabilityCatalog },
+        ) => ({
+          loadPromptByKey: () => "prompt",
+          runtimeAgentPolicy: createAgentPolicy({
+            resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
+              resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+          }),
+        }),
+        buildModels: () => ({
+          generic: new FakeLLMConnector(() => "ok").getModel(),
+        }),
+        buildCapabilityDeps: () => ({
+          cronJobRepository: {},
+          runtimeAgentRepository: {},
+        }),
+      }),
+    ).rejects.toThrow(/cannot be granted|not grantable|Invalid capability|unavailable/i);
   });
 });

@@ -164,6 +164,7 @@ const MAX_TRACKED_UPDATE_IDS = 1_000;
 export class TelegramAdapter implements ITelegramAdapter {
   private readonly bot: Telegraf<Context>;
   private readonly allowedTelegramUserId: string;
+  private readonly allowedTelegramChatId: string;
   private readonly processedUpdateIds = new Set<number>();
   private readonly threadQueues = new Map<string, Promise<void>>();
   private readonly mediaGroupBuffer: MediaGroupBuffer;
@@ -176,6 +177,7 @@ export class TelegramAdapter implements ITelegramAdapter {
   ) {
     this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;
+    this.allowedTelegramChatId = config.allowedTelegramChatId;
     this.mediaGroupBuffer = new MediaGroupBuffer(
       DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
       async (ctx, message) => this.processInboundMessage(ctx, message),
@@ -221,6 +223,11 @@ export class TelegramAdapter implements ITelegramAdapter {
   async parseInbound(ctx: Context): Promise<ParseInboundResult> {
     if (ctx.from?.id.toString() !== this.allowedTelegramUserId) {
       console.warn(`Unauthorized access attempt from Telegram ID: ${ctx.from?.id}`);
+      return null;
+    }
+
+    if (ctx.chat?.id?.toString() !== this.allowedTelegramChatId) {
+      console.warn(`Unauthorized access attempt from Telegram chat ID: ${ctx.chat?.id}`);
       return null;
     }
 

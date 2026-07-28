@@ -59,6 +59,7 @@ pnpm dev
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) |
 | `ALLOWED_TELEGRAM_USER_ID` | Only this Telegram user can interact with the bot |
+| `ALLOWED_TELEGRAM_CHAT_ID` | Optional; chat id that may receive bot traffic (defaults to user id for private chats) |
 | `GOOGLE_API_KEY` | Google AI API key for Gemini models |
 
 ### Optional environment variables

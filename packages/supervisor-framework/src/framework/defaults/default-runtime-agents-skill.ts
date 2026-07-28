@@ -27,7 +27,7 @@ export const DEFAULT_RUNTIME_AGENTS_SKILL_XML = `<skill name="runtime-agents" mo
 
 5. DELETE (remove, delete):
    - Require explicit user confirmation before deleting.
-   - Call \`delete_runtime_agent(id)\`.
+   - Call \`delete_runtime_agent(id, confirmToken)\` with confirmToken equal to \`delete-runtime-agent:{id}\`.
 </runtime_agent_intent_routing>
 
 </skill>`;
