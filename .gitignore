@@ -12,6 +12,7 @@ data/*
 cron-jobs.json
 obsidian-vault/*
 apps/personal-assistant/data/*
+apps/minimal-supervisor/data/*
 !apps/personal-assistant/data/prompts/
 !apps/personal-assistant/data/prompts/**
 !apps/personal-assistant/data/skills/
