@@ -256,10 +256,15 @@ export type {
 } from "./core/skills/catalog.js";
 
 // --- Kernel: runtime agent execution loop ---
-export type { ILLMConnector, RoutingChain } from "./core/ports/llm-connector.js";
+export type {
+  BindRoutingToolsOptions,
+  ILLMConnector,
+  RoutingChain,
+} from "./core/ports/llm-connector.js";
 export type { ReplyUxConfig } from "./core/supervisor/reply-ux.js";
 export {
   createRuntimeAgentNode,
+  type ModelForTurn,
   type RuntimeAgentNodeConfig,
   type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
@@ -292,7 +297,22 @@ export {
   processBlankToolLoopResponse,
   type ToolBodyPredicate,
 } from "./core/execution/tool-completion-summary.js";
-export { SUB_AGENT_CONTEXT_HUMAN_TURNS } from "./core/execution/sub-agent-messages.js";
+export { SUB_AGENT_CONTEXT_HUMAN_TURNS, buildRuntimeAgentPromptMessages } from "./core/execution/sub-agent-messages.js";
+export type {
+  ContextCacheHandle,
+  ContextCacheKit,
+  ContextCacheManager,
+  ContextCacheSpec,
+  CreateCachedModel,
+} from "./core/llm/context-cache-types.js";
+export {
+  buildCachedRuntimePromptMessages,
+  buildRuntimePromptParts,
+  buildStaticRuntimePrompt,
+  buildTurnContextMessage,
+  RUNTIME_READ_SKILL_HINT,
+  type RuntimePromptParts,
+} from "./framework/system-agent/cache-prompt.js";
 
 // --- Kernel: runtime agent graph nodes ---
 export {

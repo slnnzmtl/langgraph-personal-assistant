@@ -113,6 +113,7 @@ export const createSkillCrudTools = (
   const createSkillTool = tool(
     async (input: z.infer<typeof CreateSkillToolSchema>) => {
       try {
+        assertKnownModule(input.module, skillCatalog);
         const filePath = await skillCatalog.createSkill(
           input.name,
           input.description,

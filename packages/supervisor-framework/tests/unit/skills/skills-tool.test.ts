@@ -223,6 +223,24 @@ describe("createSkillCrudTools", () => {
     expect(() => readFileSync(path.join(tempRoot, "manage-cron.xml"), "utf8")).toThrow();
   });
 
+  it("returns an error when create_skill targets an unknown module", async () => {
+    tempRoot = createTempSkillsRoot();
+    const tools = createCrudTools(tempRoot);
+    const createTool = tools.find((tool) => tool.name === "create_skill");
+
+    const result = String(
+      await createTool!.invoke({
+        module: "unknown-module",
+        name: "orphan-skill",
+        description: "Orphan skill",
+        content: "# Body",
+      }),
+    );
+
+    expect(result).toContain("Error:");
+    expect(result).toContain("Unknown skill module: unknown-module");
+  });
+
   it("returns errors for duplicate create and missing delete", async () => {
     tempRoot = createTempSkillsRoot();
     const tools = createCrudTools(tempRoot);

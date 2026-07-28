@@ -1,5 +1,6 @@
 import { SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 import type { ILLMConnector } from "../ports/llm-connector.js";
 import { noopPromptLogging, type PromptLoggingHook } from "../ports/prompt-logging.js";
@@ -22,6 +23,8 @@ import {
   tryCronRouteUpdate,
 } from "./helpers.js";
 import { findLatestSubstantiveHumanMessageText } from "./reply-helpers.js";
+import type { ContextCacheKit } from "../llm/context-cache-types.js";
+import { buildCachedRuntimePromptMessages } from "../../framework/system-agent/cache-prompt.js";
 
 export type CronTriggerResolver = {
   resolveCronTriggerRoute: (message: BaseMessage | undefined) => string | undefined;
@@ -31,11 +34,31 @@ export type CronTriggerResolver = {
 export type SupervisorNodeOptions = {
   runtimeAgentRepository?: RuntimeAgentRepository;
   wiredAgentIds: ReadonlySet<string>;
+  /** Static supervisor instructions (no datetime / replan hints). */
   loadSupervisorPrompt: () => string;
+  /** Per-turn metadata such as CURRENT DATETIME. */
+  buildSupervisorDynamicContext?: () => string;
+  contextCache?: ContextCacheKit;
   promptLogging?: PromptLoggingHook;
   cronTriggerResolver?: CronTriggerResolver;
   maxErrorRetries?: number;
 };
+
+const composeSupervisorDynamicContext = (
+  dynamicContext: string,
+  replanHint: string | undefined,
+): string =>
+  [dynamicContext.trim(), replanHint?.trim()]
+    .filter((section): section is string => Boolean(section && section.length > 0))
+    .join("\n");
+
+const buildUncachedSupervisorSystemMessage = (
+  staticPrompt: string,
+  dynamicBlock: string,
+): SystemMessage =>
+  new SystemMessage(
+    dynamicBlock.length > 0 ? `${staticPrompt}\n\n${dynamicBlock}` : staticPrompt,
+  );
 
 export const createSupervisorNode = (
   llmConnector: ILLMConnector,
@@ -44,7 +67,8 @@ export const createSupervisorNode = (
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
     const promptLogging = options.promptLogging ?? noopPromptLogging;
     const maxErrorRetries = options.maxErrorRetries ?? DEFAULT_MAX_ERROR_RETRIES;
-    const supervisorPromptText = options.loadSupervisorPrompt();
+    const staticSupervisorPrompt = options.loadSupervisorPrompt().trim();
+    const dynamicContext = options.buildSupervisorDynamicContext?.() ?? "";
     const latestUserText = findLatestSubstantiveHumanMessageText(state.messages);
     const lastMessage = state.messages[state.messages.length - 1];
     const cronRoute = options.cronTriggerResolver?.resolveCronTriggerRoute(lastMessage);
@@ -71,16 +95,49 @@ export const createSupervisorNode = (
     }
 
     const replanHint = buildPostHandoffReplanHint(state, latestUserText, maxErrorRetries);
-    const supervisorPrompt = new SystemMessage(
-      replanHint ? `${supervisorPromptText}\n${replanHint}` : supervisorPromptText,
-    );
-    const rawPromptMessages = [
-      supervisorPrompt,
-      ...state.messages,
-    ];
-    const promptMessages = stripToolsForSupervisor(rawPromptMessages);
+    const dynamicBlock = composeSupervisorDynamicContext(dynamicContext, replanHint ?? undefined);
 
-    await promptLogging("supervisor-system-prompt", rawPromptMessages);
+    let routingModel: BaseChatModel | undefined;
+    let promptMessages: BaseMessage[];
+    let loggedPromptMessages: BaseMessage[];
+
+    if (options.contextCache) {
+      const handle = await options.contextCache.cacheManager.getOrCreate({
+        modelName: options.contextCache.supervisorModelName,
+        staticSystemInstruction: staticSupervisorPrompt,
+        tools: [],
+        displayName: "supervisor",
+      });
+
+      if (handle) {
+        routingModel = options.contextCache.createCachedModel(
+          options.contextCache.apiKey,
+          options.contextCache.supervisorModelName,
+          handle,
+        );
+        const rawPromptMessages = buildCachedRuntimePromptMessages(dynamicBlock, state.messages);
+        promptMessages = stripToolsForSupervisor(rawPromptMessages);
+        loggedPromptMessages = rawPromptMessages;
+      } else {
+        const supervisorPrompt = buildUncachedSupervisorSystemMessage(
+          staticSupervisorPrompt,
+          dynamicBlock,
+        );
+        const rawPromptMessages = [supervisorPrompt, ...state.messages];
+        promptMessages = stripToolsForSupervisor(rawPromptMessages);
+        loggedPromptMessages = rawPromptMessages;
+      }
+    } else {
+      const supervisorPrompt = buildUncachedSupervisorSystemMessage(
+        staticSupervisorPrompt,
+        dynamicBlock,
+      );
+      const rawPromptMessages = [supervisorPrompt, ...state.messages];
+      promptMessages = stripToolsForSupervisor(rawPromptMessages);
+      loggedPromptMessages = rawPromptMessages;
+    }
+
+    await promptLogging("supervisor-system-prompt", loggedPromptMessages);
 
     const runtimeAgents = options.runtimeAgentRepository
       ? await options.runtimeAgentRepository.loadAgents()
@@ -88,7 +145,10 @@ export const createSupervisorNode = (
     const routableAgents = filterRoutableRuntimeAgents(runtimeAgents, options.wiredAgentIds);
     const enabledAgentIds = new Set(routableAgents.map((agent) => agent.id));
     const routingSchema = buildSupervisorRoutingSchema(runtimeAgents, options.wiredAgentIds);
-    const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(routingSchema);
+    const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(
+      routingSchema,
+      routingModel ? { model: routingModel } : undefined,
+    );
 
     const buildFailureUpdate = async (failureContext: string): Promise<AgentStateUpdate> => ({
       next: FAILURE_REPLY_ROUTE,

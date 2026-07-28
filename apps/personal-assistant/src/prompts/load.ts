@@ -90,10 +90,15 @@ export const loadPrompt = (key: string, fileType: "md" | "xml" = "md"): string =
 
 export const SUPERVISOR_PROMPT_KEY = "supervisor" as const;
 
-export const loadSystemPromptByKey = (key: string): string => loadPrompt(key, "xml");
-
+/** Static supervisor instructions only (safe to put in a Gemini context cache). */
 export const loadSupervisorSystemPrompt = (): string =>
-  appendSystemMetadata(loadPrompt(SUPERVISOR_PROMPT_KEY, "xml"));
+  loadPrompt(SUPERVISOR_PROMPT_KEY, "xml");
+
+/** Per-turn datetime ranges for the supervisor (must stay outside the cache). */
+export const loadSupervisorDynamicContext = (): string =>
+  formatSystemMetadata(new Date());
+
+export const loadSystemPromptByKey = (key: string): string => loadPrompt(key, "xml");
 
 export const createPromptLoader = (
   key: string,

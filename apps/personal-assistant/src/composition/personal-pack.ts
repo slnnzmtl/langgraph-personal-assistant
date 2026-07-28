@@ -13,6 +13,7 @@ import {
   deriveModelKeys,
   deriveSkillModules,
   DEFAULT_MODEL_KEY,
+  resolveAgentModelKey,
   SYSTEM_AGENT_ID,
   SUPERVISE_CRON_ROUTE,
   type CapabilityCatalog,
@@ -39,6 +40,11 @@ import {
 import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
+import { resolveBuiltinModelName } from "./runtime-agent-defaults.js";
+import {
+  createGeminiContextCacheManager,
+  isGeminiContextCacheEnabled,
+} from "../models/gemini-context-cache.js";
 import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
 
 const personalDefaultContentSeeder = createDefaultContentSeeder({
@@ -176,8 +182,24 @@ export const buildPersonalSupervisorPack = ({
         adapters.supabaseWriteSession !== undefined || adapters.supabaseReadSession !== undefined,
     }),
   buildSkillCatalog: buildPersonalSkillCatalog,
-  buildRuntimeExecution: (_agents, skillCatalog, ctx) =>
-    buildAppRuntimeExecution({ skillCatalog, capabilityCatalog: ctx.capabilityCatalog }),
+  buildRuntimeExecution: (_agents, skillCatalog, ctx) => {
+    const cacheManager = createGeminiContextCacheManager(
+      ctx.config.googleApiKey,
+      isGeminiContextCacheEnabled(),
+    );
+
+    return buildAppRuntimeExecution({
+      skillCatalog,
+      capabilityCatalog: ctx.capabilityCatalog,
+      contextCache: {
+        cacheManager,
+        apiKey: ctx.config.googleApiKey,
+        resolveRuntimeModelName: (definition) =>
+          resolveBuiltinModelName(ctx.config, resolveAgentModelKey(definition)),
+        supervisorModelName: ctx.config.supervisorModel,
+      },
+    });
+  },
   buildModels: (appConfig, agents) =>
     buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_MODEL_KEY)),
   buildCapabilityDeps: (context) =>

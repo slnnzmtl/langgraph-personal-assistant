@@ -20,6 +20,9 @@ importers:
 
   apps/personal-assistant:
     dependencies:
+      '@google/generative-ai':
+        specifier: ^0.24.1
+        version: 0.24.1
       '@langchain/core':
         specifier: 1.2.1
         version: 1.2.1(ws@8.21.0)

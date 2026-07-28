@@ -16,6 +16,7 @@ import { createRuntimeAgentExecutionContext } from "./execution/context.js";
 import type { RuntimeAgentPolicy } from "./types/policy.js";
 import type { RuntimeAgentDefinition } from "./types/agent.js";
 import { createSupervisorNode } from "./supervisor/supervisor-node.js";
+import type { ContextCacheKit } from "./llm/context-cache-types.js";
 import {
   createEmptyReplyNode,
   createFailureReplyNode,
@@ -41,6 +42,8 @@ export type AssistantConfig<TCapabilityDeps extends Record<string, unknown> = Re
   capabilityDeps: TCapabilityDeps;
   loadPromptByKey: LoadPromptByKey;
   loadSupervisorPrompt: () => string;
+  buildSupervisorDynamicContext?: () => string;
+  contextCache?: ContextCacheKit;
   runtimeAgentPolicy: RuntimeAgentPolicy;
   replyUx?: ReplyUxConfig;
   promptLogging?: PromptLoggingHook;
@@ -77,13 +80,21 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     runtimeAgentRepository: config.runtimeAgentRepository,
     wiredAgentIds,
     loadSupervisorPrompt: config.loadSupervisorPrompt,
+    ...(config.buildSupervisorDynamicContext
+      ? { buildSupervisorDynamicContext: config.buildSupervisorDynamicContext }
+      : {}),
+    ...(config.contextCache ? { contextCache: config.contextCache } : {}),
     ...(config.promptLogging ? { promptLogging: config.promptLogging } : {}),
     ...(config.cronTriggerResolver ? { cronTriggerResolver: config.cronTriggerResolver } : {}),
     ...(config.maxErrorRetries !== undefined ? { maxErrorRetries: config.maxErrorRetries } : {}),
   });
 
   const failureReplyNode = createFailureReplyNode(config.supervisorLlm, {
-    loadSupervisorPrompt: config.loadSupervisorPrompt,
+    loadSupervisorPrompt: () => {
+      const base = config.loadSupervisorPrompt().trim();
+      const dynamic = config.buildSupervisorDynamicContext?.().trim() ?? "";
+      return dynamic.length > 0 ? `${base}\n\n${dynamic}` : base;
+    },
     replyUx,
   });
 

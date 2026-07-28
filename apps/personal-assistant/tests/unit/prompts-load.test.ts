@@ -12,6 +12,7 @@ import {
   createPromptLoader, 
   formatSystemMetadata,
   loadPrompt,
+  loadSupervisorDynamicContext,
   loadSupervisorSystemPrompt,
   loadSystemPromptByKey,
   SUPERVISOR_PROMPT_KEY,
@@ -27,14 +28,15 @@ describe("prompt loaders", () => {
 
   it("loads the supervisor prompt from data/prompts/supervisor.xml", () => {
     const prompt = loadSupervisorSystemPrompt();
+    const dynamic = loadSupervisorDynamicContext();
 
     expect(prompt).toContain("You are the Root Supervisor");
     expect(prompt).toContain("post_handoff_replan_rules");
     expect(prompt).not.toContain("<runtime_execution>");
-    expect(prompt).toContain("CURRENT DATETIME:");
-    expect(prompt.indexOf("You are the Root Supervisor")).toBeLessThan(
-      prompt.indexOf("<system_metadata>"),
-    );
+    expect(prompt).not.toContain("CURRENT DATETIME:");
+    expect(prompt).not.toContain("<system_metadata>");
+    expect(dynamic).toContain("CURRENT DATETIME:");
+    expect(dynamic).toContain("<system_metadata>");
   });
 
   it("loads runtime agent prompts by promptSourceKey without shell enrichment", () => {

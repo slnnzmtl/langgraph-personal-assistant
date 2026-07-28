@@ -36,6 +36,12 @@ describe("framework default content", () => {
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`runtime-agents` skill");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-management` exactly");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-bootstrap` exactly");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("restore");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("<output_templates>");
+  });
+
+  it("documents restore-as-create in skill-management write safety", () => {
+    expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("Deleted skills cannot be recovered");
   });
 
   it("provides a cron skill that resolves targets via list_runtime_agents", () => {

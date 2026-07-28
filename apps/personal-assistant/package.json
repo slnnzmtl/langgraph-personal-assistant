@@ -19,6 +19,7 @@
     "test:e2e:ui": "ENABLE_PROMPT_LOGS=false playwright test --ui"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@langchain/core": "1.2.1",
     "@langchain/google-genai": "^2.2.0",
     "@langchain/langgraph": "^1.4.8",

@@ -46,7 +46,9 @@ export const buildNodeConfigForTest = (
   definition: RuntimeAgentDefinition,
   options: { vaultRoot?: string } = {},
 ): RuntimeAgentNodeConfig => {
-  const behavior = resolveCapabilityBehavior(definition, testShellHooks, testShellFormatters);
+  const behavior = resolveCapabilityBehavior(definition, testShellHooks, {
+    shellFormatters: testShellFormatters,
+  });
   const hooks = behavior.createHooks({
     definition,
     capabilityDeps: {

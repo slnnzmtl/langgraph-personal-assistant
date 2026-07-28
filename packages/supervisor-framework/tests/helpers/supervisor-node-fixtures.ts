@@ -189,6 +189,8 @@ export const createTestSupervisorNode = (
   options?: {
     runtimeAgentRepository?: RuntimeAgentRepository;
     loadSupervisorPrompt?: () => string;
+    buildSupervisorDynamicContext?: () => string;
+    contextCache?: Parameters<typeof createSupervisorNode>[1]["contextCache"];
     wiredAgentIds?: ReadonlySet<string>;
     maxErrorRetries?: number;
   },
@@ -208,6 +210,10 @@ export const createTestSupervisorNode = (
     ...(options?.runtimeAgentRepository
       ? { runtimeAgentRepository: options.runtimeAgentRepository }
       : {}),
+    ...(options?.buildSupervisorDynamicContext
+      ? { buildSupervisorDynamicContext: options.buildSupervisorDynamicContext }
+      : {}),
+    ...(options?.contextCache ? { contextCache: options.contextCache } : {}),
     ...(options?.maxErrorRetries !== undefined ? { maxErrorRetries: options.maxErrorRetries } : {}),
   });
 };

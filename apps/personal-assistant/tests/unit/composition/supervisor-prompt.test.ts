@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { loadSupervisorSystemPrompt } from "../../../src/prompts/load.js";
+import {
+  loadSupervisorDynamicContext,
+  loadSupervisorSystemPrompt,
+} from "../../../src/prompts/load.js";
 
 describe("supervisor prompt", () => {
   afterEach(() => {
@@ -28,17 +31,18 @@ describe("supervisor prompt", () => {
     expect(prompt).toContain("list, show, create, edit, enable, disable, or delete runtime sub-agents");
   });
 
-  it("includes the current datetime in the shared system prompt", () => {
+  it("keeps datetime metadata in the dynamic context outside the static cacheable prompt", () => {
     const currentInstant = new Date("2026-07-05T12:34:56.000Z");
     vi.useFakeTimers();
     vi.setSystemTime(currentInstant);
 
     const prompt = loadSupervisorSystemPrompt();
+    const dynamic = loadSupervisorDynamicContext();
 
     expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
-    expect(prompt).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
-    expect(prompt.indexOf("You are the Root Supervisor")).toBeLessThan(
-      prompt.indexOf("<system_metadata>"),
-    );
+    expect(prompt).not.toContain("<system_metadata>");
+    expect(prompt).not.toContain("CURRENT DATETIME:");
+    expect(dynamic).toContain("<system_metadata>");
+    expect(dynamic).toContain("CURRENT DATETIME: 2026-07-05T12:34:56 UTC");
   });
 });

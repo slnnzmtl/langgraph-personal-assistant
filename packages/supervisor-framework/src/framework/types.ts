@@ -11,6 +11,7 @@ import type { RuntimeAgentPolicy } from "../core/types/policy.js";
 import type { ReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import type { SkillCatalog } from "../core/skills/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
+import type { ContextCacheKit } from "../core/llm/context-cache-types.js";
 import type { RuntimeShellFormatters } from "../core/system-context.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
 import type { CronJobRepository } from "./cron/types.js";
@@ -71,6 +72,8 @@ export type RuntimeExecutionKit = {
   loadPromptByKey: LoadPromptByKey;
   runtimeAgentPolicy: RuntimeAgentPolicy;
   shellFormatters?: RuntimeShellFormatters;
+  buildSupervisorDynamicContext?: () => string;
+  contextCache?: ContextCacheKit;
 };
 
 export type InitializeDefaultsContext<TConfig extends SupervisorPaths> = {

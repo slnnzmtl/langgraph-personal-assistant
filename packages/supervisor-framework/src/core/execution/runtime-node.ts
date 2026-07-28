@@ -1,4 +1,4 @@
-import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
@@ -60,12 +60,36 @@ export type RuntimeAgentTurnContext = {
   isLoopContinuation: boolean;
   basePrompt: string;
   allowedToolNames: Set<string>;
+  /** Set when dynamic prompt content should use the cached Gemini turn layout. */
+  useCachedPromptLayout?: boolean;
+  /** Memoized static/dynamic prompt parts for cache-aware turns. */
+  resolvedPromptParts?: {
+    staticPrompt: string;
+    dynamicPrompt: string;
+  };
 };
 
 export type RuntimeAgentNodeHooks = {
   beforeTurn?: (ctx: RuntimeAgentTurnContext) => Promise<SubAgentStateUpdate | null | undefined>;
   buildSystemPrompt?: (ctx: RuntimeAgentTurnContext) => Promise<string> | string;
   processResponse?: (ctx: RuntimeAgentTurnContext, response: AIMessage) => AIMessage;
+  resolveModelForTurn?: (
+    ctx: RuntimeAgentTurnContext,
+    baseModel: BaseChatModel,
+    toolsForTurn: StructuredToolInterface[],
+  ) => ModelForTurn | Promise<ModelForTurn>;
+  buildPromptMessages?: (
+    ctx: RuntimeAgentTurnContext,
+    systemPromptText: string,
+    stateMessages: BaseMessage[],
+  ) => BaseMessage[];
+};
+
+export type ModelForTurn = {
+  model: BaseChatModel;
+  bindTools: boolean;
+  /** When true, dynamic prompt goes in `<turn_context>` instead of a SystemMessage. */
+  useCachedPromptLayout?: boolean;
 };
 
 export type RuntimeAgentNodeConfig = RuntimeAgentNodeHooks & {
@@ -184,18 +208,30 @@ export const createRuntimeAgentNode = (
 
       ctx.allowedToolNames = new Set(toolsForTurn.map((tool) => tool.name));
 
+      let modelForTurnConfig: ModelForTurn = {
+        model,
+        bindTools: toolsForTurn.length > 0,
+      };
+
+      if (config.resolveModelForTurn) {
+        modelForTurnConfig = await config.resolveModelForTurn(ctx, model, toolsForTurn);
+        ctx.useCachedPromptLayout =
+          modelForTurnConfig.useCachedPromptLayout ?? !modelForTurnConfig.bindTools;
+      }
+
       const systemPromptText = config.buildSystemPrompt
         ? await config.buildSystemPrompt(ctx)
         : defaultBuildSystemPrompt(definition, basePrompt);
 
-      const systemInstructions = new SystemMessage(systemPromptText);
-      const promptMessages = buildRuntimeAgentPromptMessages(systemInstructions, state.agentMessages);
+      const promptMessages = config.buildPromptMessages
+        ? config.buildPromptMessages(ctx, systemPromptText, state.agentMessages)
+        : buildRuntimeAgentPromptMessages(new SystemMessage(systemPromptText), state.agentMessages);
 
       await promptLogging(logLabel, promptMessages);
 
-      const modelForTurn = toolsForTurn.length > 0
+      const modelForTurn = modelForTurnConfig.bindTools && toolsForTurn.length > 0
         ? bindTools(toolsForTurn)
-        : model;
+        : modelForTurnConfig.model;
 
       let response: AIMessage = await modelForTurn.invoke(promptMessages, runnableConfig);
 
