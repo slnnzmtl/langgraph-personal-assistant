@@ -27,6 +27,31 @@ const createTestCatalog = () =>
   ]);
 
 describe("capability catalog", () => {
+  it("always includes the framework none capability", () => {
+    const catalog = createCapabilityCatalog([]);
+
+    expect(catalog.listDescriptors().map((entry) => entry.id)).toEqual(["none"]);
+    expect(catalog.listGrantable({}).map((entry) => entry.id)).toEqual(["none"]);
+  });
+
+  it("does not duplicate none when the caller already registers it", () => {
+    const catalog = createCapabilityCatalog([
+      {
+        descriptor: { id: "none", description: "Caller-supplied none.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+      {
+        descriptor: { id: "vault", description: "Vault tools.", grantable: true },
+        isAvailable: () => true,
+        resolveTools: () => [],
+      },
+    ]);
+
+    expect(catalog.listDescriptors().map((entry) => entry.id)).toEqual(["none", "vault"]);
+    expect(catalog.listDescriptors()[0]?.description).toBe("Caller-supplied none.");
+  });
+
   it("lists, validates, and schemas grantable capabilities from the same deps", () => {
     const catalog = createTestCatalog();
     const deps = { vaultPath: "/tmp/vault", integrationReady: true };

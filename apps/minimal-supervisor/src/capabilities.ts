@@ -1,6 +1,5 @@
 import {
   createCapabilityCatalog,
-  NONE_CAPABILITY_PROVIDER,
   type CapabilityCatalog,
   type CapabilityProvider,
 } from "@personal-assistant/supervisor-framework";
@@ -20,6 +19,5 @@ const webSearchProvider: CapabilityProvider<Record<string, unknown>> = {
 };
 
 export const capabilityCatalog: CapabilityCatalog = createCapabilityCatalog([
-  NONE_CAPABILITY_PROVIDER,
   webSearchProvider,
 ]);

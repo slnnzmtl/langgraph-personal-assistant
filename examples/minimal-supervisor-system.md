@@ -59,7 +59,7 @@ const researcherInput: CreateRuntimeAgentInput = {
 ### 2. Register capabilities (your tools)
 
 ```typescript
-import { createCapabilityCatalog, NONE_CAPABILITY_PROVIDER } from "@personal-assistant/supervisor-framework";
+import { createCapabilityCatalog } from "@personal-assistant/supervisor-framework";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 
@@ -75,8 +75,8 @@ const webSearch = tool(
   },
 );
 
+// `none` is included automatically by createCapabilityCatalog.
 const catalog = createCapabilityCatalog([
-  NONE_CAPABILITY_PROVIDER,
   {
     descriptor: {
       id: "web-search",

@@ -17,17 +17,11 @@ import type { IFileSender } from "../ports/file-sender.js";
 import { createFinanceDomainToolsFromSession } from "./finance/tools.js";
 import { createObsidianVaultTools } from "./obsidian/tools.js";
 
-export const NONE_CAPABILITY_ID = "none" as const;
 export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;
 export const FINANCE_DOMAIN_CAPABILITY_ID = "finance-domain" as const;
 export const FINANCE_DOMAIN_READ_CAPABILITY_ID = "finance-domain-read" as const;
 
 export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
-  {
-    id: NONE_CAPABILITY_ID,
-    description: "Prompt-only agent with no tools.",
-    grantable: true,
-  },
   {
     id: OBSIDIAN_VAULT_CAPABILITY_ID,
     description: "Read, write, search, and send files from the Obsidian vault.",
@@ -118,11 +112,6 @@ export const createCapabilityDeps = (
 });
 
 export const createPersonalCapabilityProviders = (): CapabilityProvider<PersonalCapabilityDeps>[] => [
-  {
-    descriptor: getDescriptor("none"),
-    isAvailable: () => true,
-    resolveTools: () => [],
-  },
   {
     descriptor: getDescriptor("obsidian-vault"),
     isAvailable: (deps) => Boolean(deps.obsidianVaultPath),
