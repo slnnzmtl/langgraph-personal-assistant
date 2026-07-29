@@ -5,7 +5,7 @@ import {
   type CapabilityProvider,
 } from "@personal-assistant/supervisor-framework";
 
-import { webSearchTool } from "./tools/web-search.js";
+import { webSearchTool } from "./tools.js";
 
 export const WEB_SEARCH_CAPABILITY_ID = "web-search" as const;
 

@@ -5,7 +5,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { HumanMessage } from "@langchain/core/messages";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 
-import type { MinimalSupervisorSystem } from "../supervisor.js";
+import type { MinimalSupervisorSystem } from "./supervisor.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", "q"]);
 

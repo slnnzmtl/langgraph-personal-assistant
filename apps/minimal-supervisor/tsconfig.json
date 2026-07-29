@@ -6,7 +6,8 @@
     "rootDir": "src"
   },
   "references": [
-    { "path": "../../packages/supervisor-framework" }
+    { "path": "../../packages/supervisor-framework" },
+    { "path": "../../packages/llm-gemini" }
   ],
   "include": ["src/**/*.ts"]
 }

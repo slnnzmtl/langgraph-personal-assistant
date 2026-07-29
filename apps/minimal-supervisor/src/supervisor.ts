@@ -7,7 +7,7 @@ import {
 import { researcherInput } from "./agents.js";
 import { capabilityCatalog } from "./capabilities.js";
 import type { AppConfig } from "./config.js";
-import { GeminiConnector } from "./models/gemini-connector.js";
+import { GeminiConnector } from "@personal-assistant/llm-gemini";
 
 export const createMinimalSupervisorSystem = async (config: AppConfig) =>
   bootstrapSupervisorSystem({
