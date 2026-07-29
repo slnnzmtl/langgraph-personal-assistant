@@ -4,6 +4,10 @@ import { createCapabilityCatalog } from "../capabilities/index.js";
 import { validatePersistedAgentCapabilities } from "../capabilities/validate-persisted-agents.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
+import {
+  createReadOnlyCronJobRepository,
+  createReadOnlyRuntimeAgentRepository,
+} from "../core/persistence/read-only-repositories.js";
 import { DEFAULT_MODEL_KEY } from "../core/types/agent.js";
 import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
 import { createEmptySkillCatalog } from "./defaults/empty-skill-catalog.js";
@@ -53,7 +57,7 @@ export const bootstrapSupervisorSystem = async <
       path.relative(process.cwd(), pack.config.runtimeAgentsFilePath),
     );
 
-  const runtimeAgentRepository = systemAgentEnabled
+  let runtimeAgentRepository = systemAgentEnabled
     ? wrapRepositoryWithSystemAgent(baseRuntimeAgentRepository, pack.systemAgent as SystemAgentOptions)
     : baseRuntimeAgentRepository;
 
@@ -61,14 +65,21 @@ export const bootstrapSupervisorSystem = async <
     await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
   }
 
+  if (!allowDataWrites) {
+    runtimeAgentRepository = createReadOnlyRuntimeAgentRepository(runtimeAgentRepository);
+  }
+
   const runtimeAgents =
     options.preparedRuntimeAgents
     ?? await pack.seedAgents(runtimeAgentRepository, { adapters });
 
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
-  const cronJobRepository =
+  const baseCronJobRepository =
     pack.createCronJobRepository?.(pack.config.cronJobsFilePath, cronTargetAgentIds) ??
     createNoopCronJobRepository();
+  const cronJobRepository = !allowDataWrites
+    ? createReadOnlyCronJobRepository(baseCronJobRepository)
+    : baseCronJobRepository;
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
   const capabilityCatalog = pack.capabilityProviders

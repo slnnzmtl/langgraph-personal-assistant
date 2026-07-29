@@ -5,8 +5,6 @@ import {
   createCronTriggerResolver,
   createDefaultContentSeeder,
   createFilePromptLogger,
-  createReadOnlyCronJobRepository,
-  createReadOnlyRuntimeAgentRepository,
   createSkillCatalog,
   createRuntimeAgentRepository,
   getLogger,
@@ -19,6 +17,7 @@ import {
   type CapabilityCatalog,
   type CapabilityProvider,
   type CronJobRepository,
+  type CronTargetAgentIdsSource,
   type ILLMConnector,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
@@ -26,6 +25,7 @@ import {
   type SkillCatalog,
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
+  type SupervisorSystemContext,
 } from "@personal-assistant/supervisor-framework";
 import { MemorySaver } from "@langchain/langgraph";
 import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
@@ -42,12 +42,14 @@ import {
 import type { IFileSender } from "../ports/file-sender.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
-import { resolveBuiltinModelName } from "./runtime-agent-defaults.js";
+import {
+  prepareRuntimeAgents,
+  resolveBuiltinModelName,
+} from "./runtime-agent-defaults.js";
 import {
   createGeminiContextCacheManager,
   isGeminiContextCacheEnabled,
 } from "@personal-assistant/llm-gemini";
-import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
 
 const personalDefaultContentSeeder = createDefaultContentSeeder({
   promptsDir: path.resolve(process.cwd(), "data/prompts"),
@@ -82,6 +84,12 @@ type PersonalCapabilityDepsOptions = {
   runtimeCron?: RuntimeCronService | undefined;
   loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
 };
+
+type PersonalBootstrapContext = SupervisorSystemContext<
+  AppConfig,
+  PersonalCapabilityDeps,
+  PersonalAdapters
+>;
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
   createSkillCatalog({
@@ -124,6 +132,68 @@ export const buildPersonalCapabilityDeps = (
     ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
   });
 
+const createPersonalRuntimeAgentRepository = (appConfig: AppConfig): RuntimeAgentRepository =>
+  createRuntimeAgentRepository(
+    process.cwd(),
+    path.relative(process.cwd(), appConfig.runtimeAgentsFilePath),
+    createDataAgentPromptStore(),
+  );
+
+const createPersonalCronJobRepository = (
+  cronJobsFilePath: string,
+  cronTargetAgentIds: CronTargetAgentIdsSource,
+): CronJobRepository =>
+  createCronJobRepositoryForConfig(cronJobsFilePath, cronTargetAgentIds);
+
+const setupPersonalAdapters = async (appConfig: AppConfig): Promise<PersonalAdapters> => {
+  const sessions = await setupSupabaseSessions(appConfig);
+  return {
+    ...(sessions.supabaseReadSession ? { supabaseReadSession: sessions.supabaseReadSession } : {}),
+    ...(sessions.supabaseWriteSession
+      ? { supabaseWriteSession: sessions.supabaseWriteSession }
+      : {}),
+    ...(appConfig.persistenceEnabled ? { durabilityStore: openDurabilityStore(appConfig) } : {}),
+  };
+};
+
+const createPersonalCheckpointer = async (
+  context: Pick<PersonalBootstrapContext, "config" | "adapters">,
+) => {
+  if (!context.config.persistenceEnabled) {
+    return new MemorySaver();
+  }
+
+  const store = context.adapters.durabilityStore;
+  if (!store) {
+    throw new Error("Persistence is enabled but durabilityStore adapter is missing.");
+  }
+
+  return store.getCheckpointer();
+};
+
+const buildPersonalRuntimeExecution = (
+  config: AppConfig,
+  skillCatalog: SkillCatalog,
+  capabilityCatalog: CapabilityCatalog,
+) => {
+  const cacheManager = createGeminiContextCacheManager(
+    config.googleApiKey,
+    isGeminiContextCacheEnabled(),
+  );
+
+  return buildAppRuntimeExecution({
+    skillCatalog,
+    capabilityCatalog,
+    contextCache: {
+      cacheManager,
+      apiKey: config.googleApiKey,
+      resolveRuntimeModelName: (definition) =>
+        resolveBuiltinModelName(config, resolveAgentModelKey(definition)),
+      supervisorModelName: config.supervisorModel,
+    },
+  });
+};
+
 export type BuildPersonalSupervisorPackInput = {
   config: AppConfig;
   options?: SupervisorSystemOptions;
@@ -145,79 +215,25 @@ export const buildPersonalSupervisorPack = ({
   >[],
   supervisorLlm,
   loadSupervisorPrompt: loadSupervisorSystemPrompt,
-  initializeDefaults: () => {
-    personalDefaultContentSeeder.seedAll();
-  },
   systemAgent: {
     modelKey: "configuration",
   },
   reservedCapabilitiesByAgentId: PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
-  createRuntimeAgentRepository: (appConfig) => {
-    const repository = createRuntimeAgentRepository(
-      process.cwd(),
-      path.relative(process.cwd(), appConfig.runtimeAgentsFilePath),
-      createDataAgentPromptStore(),
-    );
-
-    return appConfig.allowDataWrites === false
-      ? createReadOnlyRuntimeAgentRepository(repository)
-      : repository;
+  initializeDefaults: () => {
+    personalDefaultContentSeeder.seedAll();
   },
-  createCronJobRepository: (cronJobsFilePath, cronTargetAgentIds) => {
-    const repository = createCronJobRepositoryForConfig(cronJobsFilePath, cronTargetAgentIds);
-
-    return config.allowDataWrites === false
-      ? createReadOnlyCronJobRepository(repository)
-      : repository;
-  },
-  setupAdapters: async (appConfig) => {
-    const sessions = await setupSupabaseSessions(appConfig);
-    return {
-      ...(sessions.supabaseReadSession ? { supabaseReadSession: sessions.supabaseReadSession } : {}),
-      ...(sessions.supabaseWriteSession
-        ? { supabaseWriteSession: sessions.supabaseWriteSession }
-        : {}),
-      ...(appConfig.persistenceEnabled
-        ? { durabilityStore: openDurabilityStore(appConfig) }
-        : {}),
-    };
-  },
-  createCheckpointer: async (context) => {
-    if (!context.config.persistenceEnabled) {
-      return new MemorySaver();
-    }
-
-    const store = context.adapters.durabilityStore;
-    if (!store) {
-      throw new Error("Persistence is enabled but durabilityStore adapter is missing.");
-    }
-
-    return store.getCheckpointer();
-  },
+  createRuntimeAgentRepository: createPersonalRuntimeAgentRepository,
+  createCronJobRepository: createPersonalCronJobRepository,
+  setupAdapters: setupPersonalAdapters,
+  createCheckpointer: createPersonalCheckpointer,
   seedAgents: async (repository, { adapters }) =>
     prepareRuntimeAgents(await repository.loadAgents(), {
       supabaseAvailable:
         adapters.supabaseWriteSession !== undefined || adapters.supabaseReadSession !== undefined,
     }),
   buildSkillCatalog: buildPersonalSkillCatalog,
-  buildRuntimeExecution: (_agents, skillCatalog, ctx) => {
-    const cacheManager = createGeminiContextCacheManager(
-      ctx.config.googleApiKey,
-      isGeminiContextCacheEnabled(),
-    );
-
-    return buildAppRuntimeExecution({
-      skillCatalog,
-      capabilityCatalog: ctx.capabilityCatalog,
-      contextCache: {
-        cacheManager,
-        apiKey: ctx.config.googleApiKey,
-        resolveRuntimeModelName: (definition) =>
-          resolveBuiltinModelName(ctx.config, resolveAgentModelKey(definition)),
-        supervisorModelName: ctx.config.supervisorModel,
-      },
-    });
-  },
+  buildRuntimeExecution: (_agents, skillCatalog, ctx) =>
+    buildPersonalRuntimeExecution(ctx.config, skillCatalog, ctx.capabilityCatalog),
   buildModels: (appConfig, agents) =>
     buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_MODEL_KEY)),
   buildCapabilityDeps: (context) =>

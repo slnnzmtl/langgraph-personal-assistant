@@ -8,11 +8,14 @@ import {
   createAgentPolicy,
   createAssistant,
   createCapabilityCatalog,
+  createCronJobRepositoryForConfig,
   createEmptySkillCatalog,
   createRuntimeAgentRepository,
   createSystemConfigCapabilityProviders,
+  DATA_WRITES_DISABLED_MESSAGE,
   NONE_CAPABILITY_PROVIDER,
   resolveAgentTools,
+  SYSTEM_AGENT_ID,
   SYSTEM_CONFIG_CAPABILITY_ID,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
@@ -245,6 +248,102 @@ describe("framework bootstrap", () => {
     });
 
     expect(saveAgents).not.toHaveBeenCalled();
+  });
+
+  it("wraps runtime-agent repository in read-only mode when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([NONE_CAPABILITY_PROVIDER]);
+    const runtimeAgentsFilePath = path.join(
+      process.cwd(),
+      ".tmp",
+      `framework-readonly-agents-${process.pid}.json`,
+    );
+    const cronJobsFilePath = path.join(
+      process.cwd(),
+      ".tmp",
+      `framework-readonly-agents-cron-${process.pid}.json`,
+    );
+
+    const result = await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      systemAgent: { modelKey: "configuration" },
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+        buildDefaultRuntimeExecution(ctx.capabilityCatalog, {
+          loadPromptByKey: () => "prompt",
+        }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    const agents = await result.runtimeAgentRepository.loadAgents();
+    expect(agents.some((agent) => agent.id === SYSTEM_AGENT_ID)).toBe(true);
+
+    await expect(result.runtimeAgentRepository.saveAgents([])).rejects.toThrow(
+      DATA_WRITES_DISABLED_MESSAGE,
+    );
+    await expect(
+      result.runtimeAgentRepository.createAgent({
+        name: "Blocked",
+        description: "Should fail",
+        systemPrompt: "Prompt",
+        capabilityIds: ["none"],
+      }),
+    ).rejects.toThrow(DATA_WRITES_DISABLED_MESSAGE);
+  });
+
+  it("wraps cron repository in read-only mode when allowDataWrites is false", async () => {
+    const catalog = createCapabilityCatalog([NONE_CAPABILITY_PROVIDER]);
+    const runtimeAgentsFilePath = path.join(
+      process.cwd(),
+      ".tmp",
+      `framework-readonly-cron-${process.pid}.json`,
+    );
+    const cronJobsFilePath = path.join(
+      process.cwd(),
+      ".tmp",
+      `framework-readonly-cron-jobs-${process.pid}.json`,
+    );
+
+    const result = await bootstrapSupervisorSystem({
+      config: {
+        runtimeAgentsFilePath,
+        cronJobsFilePath,
+        allowDataWrites: false,
+      },
+      capabilityCatalog: catalog,
+      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
+      loadSupervisorPrompt: () => "Supervise requests.",
+      createCronJobRepository: (filePath, cronTargetAgentIds) =>
+        createCronJobRepositoryForConfig(filePath, cronTargetAgentIds),
+      seedAgents: async () => [researcher],
+      buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+        buildDefaultRuntimeExecution(ctx.capabilityCatalog, {
+          loadPromptByKey: () => "prompt",
+        }),
+      buildModels: () => ({
+        generic: new FakeLLMConnector(() => "ok").getModel(),
+      }),
+      buildCapabilityDeps: () => ({}),
+    });
+
+    await expect(result.cronJobRepository.loadJobs()).resolves.toEqual([]);
+
+    await expect(
+      result.cronJobRepository.createJob({
+        jobName: "blocked-job",
+        schedule: "0 9 * * *",
+        targetRoute: "researcher",
+      }),
+    ).rejects.toThrow(DATA_WRITES_DISABLED_MESSAGE);
   });
 
   it("rejects non-grantable capabilities on persisted agents at bootstrap", async () => {

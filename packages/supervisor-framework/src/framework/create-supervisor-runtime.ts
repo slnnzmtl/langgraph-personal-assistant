@@ -137,7 +137,7 @@ export const createSupervisorRuntime = async <
     getBootstrap: () => bootstrap,
     getCheckpointer: () => resolveCheckpointer(),
     recompile,
-    getCronJobRepository: () => stableCronJobRepository ?? bootstrap.cronJobRepository,
+    getCronJobRepository: () => bootstrap.cronJobRepository,
     getCronTargetAgentIds: () => bootstrap.cronTargetAgentIds,
     shutdownAdapters: async () => {
       await options.onShutdownAdapters?.(bootstrap.adapters);
