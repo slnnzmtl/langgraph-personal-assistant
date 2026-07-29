@@ -15,7 +15,7 @@ import {
 } from "../prompts/load.js";
 import { createPersonalResolveTools } from "../runtime-agents/resolve-tools.js";
 import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
-import { createCachedGeminiModel } from "../models/gemini-context-cache.js";
+import { createCachedGeminiModel } from "@personal-assistant/llm-gemini";
 
 export const createDefaultRuntimeShellFormatters = (
   skillCatalog?: SkillCatalog,

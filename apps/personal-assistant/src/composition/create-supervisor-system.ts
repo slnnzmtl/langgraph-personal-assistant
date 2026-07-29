@@ -1,5 +1,5 @@
 import type { AppConfig } from "../config.js";
-import { GeminiConnector } from "../models/gemini-connector.js";
+import { GeminiConnector } from "@personal-assistant/llm-gemini";
 import {
   createSupervisorRuntime,
   type CompiledSupervisorGraph,

@@ -16,7 +16,7 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
-import type { ILLMConnector } from "../../src/models/gemini-connector.js";
+import type { ILLMConnector } from "@personal-assistant/llm-gemini";
 import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../../src/integrations/mcp/supabase.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";

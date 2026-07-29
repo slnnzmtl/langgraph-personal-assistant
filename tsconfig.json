@@ -3,6 +3,7 @@
   "files": [],
   "references": [
     { "path": "packages/supervisor-framework" },
+    { "path": "packages/llm-gemini" },
     { "path": "apps/personal-assistant" },
     { "path": "apps/minimal-supervisor" }
   ]

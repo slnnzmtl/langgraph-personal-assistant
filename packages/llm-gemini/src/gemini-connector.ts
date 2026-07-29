@@ -7,14 +7,14 @@ import type {
   RoutingChain,
 } from "@personal-assistant/supervisor-framework";
 
-export type { ILLMConnector, RoutingChain } from "@personal-assistant/supervisor-framework";
+export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
 export class GeminiConnector implements ILLMConnector {
   private readonly model: ChatGoogleGenerativeAI;
   private readonly apiKey: string;
   private readonly modelName: string;
 
-  constructor(apiKey: string, modelName = "gemini-1.5-flash") {
+  constructor(apiKey: string, modelName = DEFAULT_GEMINI_MODEL) {
     this.apiKey = apiKey;
     this.modelName = modelName;
     this.model = new ChatGoogleGenerativeAI({

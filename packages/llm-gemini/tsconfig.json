@@ -2,12 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "declaration": true,
     "outDir": "dist",
     "rootDir": "src"
   },
   "references": [
-    { "path": "../../packages/supervisor-framework" },
-    { "path": "../../packages/llm-gemini" }
+    { "path": "../supervisor-framework" }
   ],
   "include": ["src/**/*.ts"]
 }

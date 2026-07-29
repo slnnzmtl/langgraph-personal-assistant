@@ -3,8 +3,7 @@ import { z } from "zod";
 
 import { truncateToolOutput } from "@personal-assistant/supervisor-framework";
 import type { SupabaseMcpSession } from "../../integrations/mcp/supabase.js";
-import { normalizeToolOutput } from "../../utils/exec-sql.js";
-import { serializeToolResult } from "../shared/output.js";
+import { normalizeToolOutput, serializeToolResult } from "../../utils/exec-sql.js";
 import { fetchWiseTransactions } from "../../integrations/wise.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";

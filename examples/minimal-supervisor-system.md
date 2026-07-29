@@ -24,8 +24,8 @@ Architecture note: the framework is a **workspace package** in this monorepo (no
 
 1. Agent definitions (JSON and/or seed)
 2. Capability catalog + tool factories
-3. LLM connector and chat models
-4. Default runtime policy via `buildRuntimeExecution` (`createAgentPolicy` + capability catalog)
+3. LLM connector via `@personal-assistant/llm-gemini` (`GeminiConnector`) and chat models
+4. Default runtime policy via `buildDefaultRuntimeExecution` (or custom `buildRuntimeExecution`)
 5. Cron repository factory (or a stub)
 6. Skill catalog (or an empty stub)
 7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
@@ -99,6 +99,7 @@ import {
   buildDefaultRuntimeExecution,
   seedAgentsIfMissing,
 } from "@personal-assistant/supervisor-framework";
+import { GeminiConnector } from "@personal-assistant/llm-gemini";
 
 const context = await bootstrapSupervisorSystem({
   config: {
@@ -107,13 +108,15 @@ const context = await bootstrapSupervisorSystem({
     messageHistoryMaxTokens: 6000,
   },
   capabilityCatalog: catalog,
-  supervisorLlm: myLlmConnector,
+  supervisorLlm: new GeminiConnector(process.env.GOOGLE_API_KEY!, process.env.SUPERVISOR_MODEL),
   loadSupervisorPrompt: () =>
     "Route factual questions to researcher. Reply directly for greetings.",
   seedAgents: seedAgentsIfMissing([researcherInput]),
   buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
     buildDefaultRuntimeExecution(ctx.capabilityCatalog),
-  buildModels: () => ({ generic: myChatModel }),
+  buildModels: () => ({
+    generic: new GeminiConnector(process.env.GOOGLE_API_KEY!, process.env.RESEARCHER_MODEL).getModel(),
+  }),
   buildCapabilityDeps: () => ({}),
 });
 

@@ -11,7 +11,7 @@ import {
   type RuntimeAgentRepository,
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
-import type { ILLMConnector, RoutingChain } from "../../src/models/gemini-connector.js";
+import type { ILLMConnector, RoutingChain } from "@personal-assistant/llm-gemini";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE, type CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
 import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";

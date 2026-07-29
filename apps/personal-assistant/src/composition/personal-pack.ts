@@ -46,7 +46,7 @@ import { resolveBuiltinModelName } from "./runtime-agent-defaults.js";
 import {
   createGeminiContextCacheManager,
   isGeminiContextCacheEnabled,
-} from "../models/gemini-context-cache.js";
+} from "@personal-assistant/llm-gemini";
 import { prepareRuntimeAgents } from "./runtime-agent-defaults.js";
 
 const personalDefaultContentSeeder = createDefaultContentSeeder({
