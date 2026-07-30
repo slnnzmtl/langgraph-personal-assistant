@@ -24,7 +24,7 @@ import {
 } from "./helpers.js";
 import { findLatestSubstantiveHumanMessageText } from "./reply-helpers.js";
 import type { ContextCacheKit } from "../llm/context-cache-types.js";
-import { buildCachedRuntimePromptMessages } from "../../framework/system-agent/cache-prompt.js";
+import { buildCachedRuntimePromptMessages } from "./cache-prompt-messages.js";
 
 export type CronTriggerResolver = {
   resolveCronTriggerRoute: (message: BaseMessage | undefined) => string | undefined;

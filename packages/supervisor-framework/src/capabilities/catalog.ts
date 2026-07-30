@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   NONE_CAPABILITY_ID,
   NONE_CAPABILITY_PROVIDER,
-} from "../framework/defaults/none-capability.js";
+} from "../framework/defaults/utilities/none-capability.js";
 import {
   isCapabilityGrantable,
   type CapabilityDescriptor,

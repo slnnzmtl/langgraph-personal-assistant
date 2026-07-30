@@ -3,7 +3,7 @@ module.exports = {
   forbidden: [
     {
       name: 'no-circular',
-      severity: 'warn',
+      severity: 'error',
       comment:
         "This dependency is part of a circular relationship. You might want to revise " +
         "your solution (i.e. use dependency inversion, make sure the modules have a single responsibility) ",
@@ -153,6 +153,42 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/minimal-supervisor/' },
       to: { path: '^apps/personal-assistant/' },
+    },
+    {
+      name: 'core-not-to-framework',
+      comment:
+        'Core kernel must not import framework adapters (bootstrap, cron impl, system-agent).',
+      severity: 'error',
+      from: { path: '^packages/supervisor-framework/src/core/' },
+      to: { path: '^packages/supervisor-framework/src/framework/' },
+    },
+    {
+      name: 'capabilities-not-to-system-agent',
+      comment: 'Capabilities contract must not depend on system-agent implementation.',
+      severity: 'error',
+      from: { path: '^packages/supervisor-framework/src/capabilities/' },
+      to: { path: '^packages/supervisor-framework/src/framework/system-agent/' },
+    },
+    {
+      name: 'runtime-agents-not-to-upper-layers',
+      comment: 'Runtime agents must not import from composition, policies, telegram, or scheduler.',
+      severity: 'error',
+      from: { path: '^apps/personal-assistant/src/runtime-agents/' },
+      to: { path: '^apps/personal-assistant/src/(composition|policies|telegram|scheduler)/' },
+    },
+    {
+      name: 'policies-not-to-composition',
+      comment: 'Policies must not import from composition.',
+      severity: 'error',
+      from: { path: '^apps/personal-assistant/src/policies/' },
+      to: { path: '^apps/personal-assistant/src/composition/' },
+    },
+    {
+      name: 'prompts-not-to-runtime-agents',
+      comment: 'Prompts must not import from runtime-agents.',
+      severity: 'error',
+      from: { path: '^apps/personal-assistant/src/prompts/' },
+      to: { path: '^apps/personal-assistant/src/runtime-agents/' },
     },
 
     // rules you might want to tweak for your specific situation:

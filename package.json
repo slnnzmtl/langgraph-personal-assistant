@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "check": "pnpm -r check",
+    "check": "pnpm depcruise && pnpm -r check",
     "dev": "pnpm --filter personal-assistant dev",
     "dev:scheduler": "pnpm --filter personal-assistant dev:scheduler",
     "start": "pnpm --filter personal-assistant start",
@@ -21,7 +21,9 @@
     "depcruise:archi": "depcruise apps/*/src packages/*/src --output-type archi --output-to dependency-archi.dot",
     "depcruise:archi:svg": "pnpm depcruise:archi && dot -T svg dependency-archi.dot -o dependency-archi.svg",
     "depcruise:graph": "depcruise apps/*/src packages/*/src --output-type dot --output-to dependency-graph.dot",
-    "depcruise:graph:svg": "pnpm depcruise:graph && dot -T svg dependency-graph.dot -o dependency-graph.svg"
+    "depcruise:graph:svg": "pnpm depcruise:graph && dot -T svg dependency-graph.dot -o dependency-graph.svg",
+    "depcruise:graph:personal-assistant": "depcruise apps/personal-assistant/src packages/*/src --output-type dot --output-to dependency-graph-personal-assistant.dot",
+    "depcruise:graph:personal-assistant:svg": "pnpm depcruise:graph:personal-assistant && dot -T svg dependency-graph-personal-assistant.dot -o dependency-graph-personal-assistant.svg"
   },
   "devDependencies": {
     "@types/node": "^24.0.13",

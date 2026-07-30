@@ -1,4 +1,4 @@
-import type { CapabilityProvider } from "../../capabilities/types.js";
+import type { CapabilityProvider } from "../../../capabilities/types.js";
 
 export const NONE_CAPABILITY_ID = "none" as const;
 

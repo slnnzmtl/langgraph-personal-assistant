@@ -1,4 +1,4 @@
-import type { SkillCatalog, SkillDisplayStatus, SkillFull, SkillMeta, ListSkillsOptions } from "../../core/skills/catalog.js";
+import type { SkillCatalog, SkillDisplayStatus, SkillFull, SkillMeta, ListSkillsOptions } from "../../../core/skills/catalog.js";
 
 export const createEmptySkillCatalog = (): SkillCatalog => ({
   listSkills: (_options?: ListSkillsOptions): SkillMeta[] => [],

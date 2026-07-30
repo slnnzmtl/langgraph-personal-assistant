@@ -4,15 +4,14 @@ import type { LoadPromptByKey } from "../agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../agents/repository.js";
 import type { PromptLoggingHook } from "../ports/prompt-logging.js";
 import type { PolicyContext } from "../types/policy-context.js";
+import type { GraphBundleContext } from "../types/graph-bundle-context.js";
 import type { RuntimeAgentPolicy } from "../types/policy.js";
 import { DEFAULT_MODEL_KEY } from "../types/agent.js";
 
 export type RuntimeAgentExecutionContext<
   TCapabilityDeps extends Record<string, unknown> = Record<string, unknown>,
-> = PolicyContext<TCapabilityDeps> & {
-  loadPromptByKey: LoadPromptByKey;
+> = GraphBundleContext<TCapabilityDeps> & {
   runtimeAgentPolicy: RuntimeAgentPolicy;
-  promptLogging?: PromptLoggingHook;
 };
 
 export type CreateRuntimeAgentExecutionContextInput<

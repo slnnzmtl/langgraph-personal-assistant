@@ -1,7 +1,5 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import type { CronJobRepository } from "../framework/cron/types.js";
-
 export type CapabilityDescriptor = {
   id: string;
   description: string;
@@ -10,7 +8,7 @@ export type CapabilityDescriptor = {
 };
 
 export const configurationReposAvailable = (deps: {
-  cronJobRepository?: CronJobRepository;
+  cronJobRepository?: unknown;
   runtimeAgentRepository?: unknown;
 }): boolean =>
   deps.cronJobRepository !== undefined && deps.runtimeAgentRepository !== undefined;

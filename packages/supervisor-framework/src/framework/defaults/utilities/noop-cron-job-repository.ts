@@ -1,4 +1,4 @@
-import type { CronJobDefinition, CronJobRepository } from "../cron/types.js";
+import type { CronJobDefinition, CronJobRepository } from "../../cron/types.js";
 
 export const createNoopCronJobRepository = (): CronJobRepository => ({
   loadJobs: async () => [],
