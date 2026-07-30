@@ -84,7 +84,7 @@ Minimum for tools-only:
 2. One `CapabilityProvider` entry in `buildPersonalCapabilityProviders` (`personal-pack.ts`).
 3. Grant via chat (or `reservedForAgentIds` on the descriptor).
 
-For LLM-turn hooks, add `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`). Do not add a binder, ports folder, or behavior registry.
+For LLM-turn hooks, add `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`, injected by the pack over default/system policy). Do not add a binder, ports folder, or behavior registry.
 
 ## Graph composition walkthrough
 

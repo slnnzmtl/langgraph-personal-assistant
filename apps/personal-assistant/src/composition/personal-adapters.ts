@@ -6,7 +6,7 @@ import { openDurabilityStore, type DurabilityStore } from "../persistence/durabi
 
 /**
  * Process-lifecycle resources opened once at bootstrap and closed on shutdown/recompile.
- * Domain clients (Obsidian vault, Wise fetch) are closed over in personal-pack
+ * Product clients (Obsidian vault, Wise fetch) are closed over in personal-pack
  * buildCapabilityProviders after setupAdapters — they have no close/reconnect lifecycle here.
  */
 export type PersonalAdapters = {

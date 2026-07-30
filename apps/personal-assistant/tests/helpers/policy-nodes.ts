@@ -11,12 +11,8 @@ import {
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
-import {
-  buildPersonalRuntimeAgentNodeConfigForDefinition,
-  resolvePersonalCapabilityBehavior,
-} from "../../src/composition/personal-runtime-policy.js";
+import { buildPersonalRuntimeAgentNodeConfig } from "../../src/composition/personal-runtime-policy.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 
 const testSkillCatalog = createTestSkillCatalog();
@@ -45,36 +41,12 @@ const resolveModel = (source: ModelSource): BaseChatModel => {
 export const buildNodeConfigForTest = (
   definition: RuntimeAgentDefinition,
   options: { vaultRoot?: string } = {},
-): RuntimeAgentNodeConfig => {
-  const vaultRoot = options.vaultRoot ?? "/tmp/vault";
-  const behaviorOptions = {
+): RuntimeAgentNodeConfig =>
+  buildPersonalRuntimeAgentNodeConfig(definition, testShellHooks, {
     shellFormatters: testShellFormatters,
     skillCatalog: testSkillCatalog,
-  };
-  const behavior = resolvePersonalCapabilityBehavior(
-    definition,
-    testShellHooks,
-    behaviorOptions,
-    vaultRoot,
-  );
-  const hooks = behavior.createHooks({
-    definition,
-    capabilityDeps: {} as PersonalCapabilityDeps,
-    shellHooks: testShellHooks,
-    shellFormatters: testShellFormatters,
+    vaultRoot: options.vaultRoot ?? "/tmp/vault",
   });
-
-  return {
-    ...hooks,
-    ...buildPersonalRuntimeAgentNodeConfigForDefinition(
-      definition,
-      testShellHooks,
-      testShellFormatters,
-      behaviorOptions,
-      vaultRoot,
-    ),
-  };
-};
 
 export const createTestRuntimeAgentNode = (
   model: ModelSource,

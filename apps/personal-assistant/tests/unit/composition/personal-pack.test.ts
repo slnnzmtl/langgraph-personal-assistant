@@ -5,7 +5,7 @@ import {
   deriveCronTargetAgentIds,
   type ILLMConnector,
 } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityCatalog, createDomainCapabilityCatalog } from "../../helpers/capability-catalog.js";
+import { createPersonalCapabilityCatalog, createProductCapabilityCatalog } from "../../helpers/capability-catalog.js";
 import { buildPersonalSupervisorPack } from "../../../src/composition/personal-pack.js";
 import type { AppConfig } from "../../../src/config.js";
 import type { PersonalCapabilityDeps } from "../../../src/runtime-agents/system-capability-deps.js";
@@ -85,8 +85,8 @@ describe("buildPersonalSupervisorPack", () => {
       supervisorLlm: {} as ILLMConnector,
     });
     const skillCatalog = createSkillCatalog({ approvedModules: ["configuration"] });
-    const domainOnlyCatalog = createDomainCapabilityCatalog();
-    const bootstrapContext = buildBootstrapContext(runtimeAgents, skillCatalog, domainOnlyCatalog);
+    const productOnlyCatalog = createProductCapabilityCatalog();
+    const bootstrapContext = buildBootstrapContext(runtimeAgents, skillCatalog, productOnlyCatalog);
     const { runtimeAgentPolicy } = pack.buildRuntimeExecution!(
       runtimeAgents,
       skillCatalog,
@@ -100,7 +100,7 @@ describe("buildPersonalSupervisorPack", () => {
         cronJobRepository: createCronRepositoryFake(),
         runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
         cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
-        capabilityCatalog: domainOnlyCatalog,
+        capabilityCatalog: productOnlyCatalog,
         skillCatalog,
       } satisfies PersonalCapabilityDeps,
     });

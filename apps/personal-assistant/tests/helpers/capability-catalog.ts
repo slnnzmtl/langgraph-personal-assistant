@@ -10,7 +10,7 @@ import {
 } from "../../src/composition/personal-pack.js";
 import type { PersonalAdapters } from "../../src/composition/personal-adapters.js";
 
-export type BindTestDomainCatalogOptions = {
+export type CreateTestCapabilityCatalogOptions = {
   config?: Partial<AppConfig>;
   adapters?: PersonalAdapters;
   includeSystemConfig?: boolean;
@@ -18,7 +18,7 @@ export type BindTestDomainCatalogOptions = {
 
 /** Build personal capability providers (and optional system-config) for unit tests. */
 export const createPersonalCapabilityCatalog = (
-  options: BindTestDomainCatalogOptions | boolean = true,
+  options: CreateTestCapabilityCatalogOptions | boolean = true,
 ): CapabilityCatalog => {
   const normalized =
     typeof options === "boolean" ? { includeSystemConfig: options } : options;
@@ -29,13 +29,13 @@ export const createPersonalCapabilityCatalog = (
   } as AppConfig;
   const adapters = normalized.adapters ?? {};
 
-  const domainProviders = buildPersonalCapabilityProviders({
+  const productProviders = buildPersonalCapabilityProviders({
     config,
     adapters,
   });
 
   return createCapabilityCatalog([
-    ...domainProviders,
+    ...productProviders,
     ...(includeSystemConfig
       ? (createSystemConfigCapabilityProviders() as CapabilityProvider<Record<string, unknown>>[])
       : []),
@@ -43,7 +43,7 @@ export const createPersonalCapabilityCatalog = (
 };
 
 /** Product providers only (excludes framework system-config providers). */
-export const createDomainCapabilityCatalog = (
-  options: Omit<BindTestDomainCatalogOptions, "includeSystemConfig"> = {},
+export const createProductCapabilityCatalog = (
+  options: Omit<CreateTestCapabilityCatalogOptions, "includeSystemConfig"> = {},
 ): CapabilityCatalog =>
   createPersonalCapabilityCatalog({ ...options, includeSystemConfig: false });

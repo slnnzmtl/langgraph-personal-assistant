@@ -9,7 +9,7 @@ import {
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
 import {
-  createDomainCapabilityCatalog,
+  createProductCapabilityCatalog,
   createPersonalCapabilityCatalog,
 } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
@@ -104,7 +104,7 @@ describe("app boundaries", () => {
   });
 
   it("rejects unavailable capability grants", () => {
-    const catalog = createDomainCapabilityCatalog({
+    const catalog = createProductCapabilityCatalog({
       adapters: {},
       config: { obsidianVaultPath: "" } as never,
     });
@@ -113,7 +113,7 @@ describe("app boundaries", () => {
   });
 
   it("resolves finance tools for agents with finance-domain capability", () => {
-    const catalog = createDomainCapabilityCatalog({
+    const catalog = createProductCapabilityCatalog({
       adapters: { supabaseWriteSession: mockSqlSession },
       config: {
         obsidianVaultPath: "/tmp/vault",
@@ -196,14 +196,14 @@ describe("app boundaries", () => {
   });
 
   it("marks grantable capabilities in the catalog", () => {
-    const withFinance = createDomainCapabilityCatalog({
+    const withFinance = createProductCapabilityCatalog({
       adapters: {
         supabaseReadSession: mockSqlSession,
         supabaseWriteSession: mockSqlSession,
       },
       config: { obsidianVaultPath: "/tmp/vault" } as never,
     });
-    const withoutVault = createDomainCapabilityCatalog({
+    const withoutVault = createProductCapabilityCatalog({
       adapters: {
         supabaseReadSession: mockSqlSession,
         supabaseWriteSession: mockSqlSession,

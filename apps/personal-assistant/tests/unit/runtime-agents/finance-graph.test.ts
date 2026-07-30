@@ -1,12 +1,12 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SqlSession } from "../../../../src/integrations/mcp/sql-session.js";
-import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import type { SqlSession } from "../../../src/integrations/mcp/sql-session.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
-import { createFinanceTestTools } from "../../../helpers/finance-tools.js";
-import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+import { createFinanceTestTools } from "../../helpers/finance-tools.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const financeDefinition = getRuntimeAgentFixture("finance");
 const financeSkillModule = resolveAgentSkillModule(financeDefinition);

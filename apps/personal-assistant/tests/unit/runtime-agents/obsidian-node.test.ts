@@ -6,15 +6,15 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createObsidianVault } from "../../../../src/integrations/obsidian.js";
-import { createObsidianVaultTools } from "../../../../src/runtime-agents/obsidian/tools.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../../src/runtime-agents/obsidian/hooks.js";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import { createObsidianVault } from "../../../src/integrations/obsidian.js";
+import { createObsidianVaultTools } from "../../../src/runtime-agents/obsidian/tools.js";
+import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/runtime-agents/obsidian/hooks.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
-} from "../../../../src/prompts/load.js";
-import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+} from "../../../src/prompts/load.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");
 

@@ -23,7 +23,7 @@ export type FinanceToolsOptions = {
   fetchWise?: FetchWiseTransactions;
 };
 
-export const createFinanceDomainTools = (
+export const createFinanceTools = (
   executeSql: ExecuteSql,
   options: FinanceToolsOptions = {},
 ): StructuredToolInterface[] => {

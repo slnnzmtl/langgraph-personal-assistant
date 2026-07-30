@@ -17,7 +17,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import type { CapabilityCatalog } from "@personal-assistant/supervisor-framework";
 import type { ContextCacheKit } from "@personal-assistant/supervisor-framework";
-import type { PersonalCapabilityDeps } from "../runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../runtime-agents/personal-capability-deps.js";
 import type { PersonalResolveTools } from "../runtime-agents/resolve-tools.js";
 import { mergeRuntimeCacheHooks } from "./context-cache-runtime.js";
 
@@ -128,6 +128,14 @@ export const resolveCapabilityBehavior = (
   return defaultBehavior(shellHooks, shellFormatters, contextCache, skillCatalog);
 };
 
+export const nodeConfigFromBehavior = (
+  behavior: RuntimeCapabilityBehavior,
+): Pick<RuntimeAgentNodeConfig, "logLabel" | "buildErrorMessage" | "selectToolsForTurn"> => ({
+  logLabel: behavior.logLabel,
+  buildErrorMessage: behavior.buildErrorMessage,
+  ...(behavior.selectToolsForTurn ? { selectToolsForTurn: behavior.selectToolsForTurn } : {}),
+});
+
 export const buildRuntimeAgentNodeConfigForDefinition = (
   definition: RuntimeAgentDefinition,
   shellHooks: RuntimeAgentNodeHooks,
@@ -144,32 +152,24 @@ export const buildRuntimeAgentNodeConfigForDefinition = (
       : {}),
   });
 
-  return {
-    logLabel: behavior.logLabel,
-    buildErrorMessage: behavior.buildErrorMessage,
-    ...(behavior.selectToolsForTurn ? { selectToolsForTurn: behavior.selectToolsForTurn } : {}),
-  };
+  return nodeConfigFromBehavior(behavior);
 };
 
+export type ResolveRuntimeCapabilityBehavior = (
+  definition: RuntimeAgentDefinition,
+  shellFormatters?: AgentPolicyToolkitOptions["shellFormatters"],
+) => RuntimeCapabilityBehavior;
+
 /**
- * Default runtime policy: shared shell hooks + system-configuration LLM hooks.
- * Product-domain hooks (e.g. Obsidian) are composed in personal-pack / personal-runtime-policy.
+ * Shared createAgentPolicy wiring. Composition supplies a behavior resolver when
+ * product hooks (e.g. Obsidian) are closed over; default policy uses system/default only.
  */
-export const createDefaultRuntimeAgentPolicy = (
+export const createRuntimeAgentPolicyFromBehavior = (
   shellHooks: RuntimeAgentNodeHooks,
   options: DefaultRuntimePolicyOptions,
-): RuntimeAgentPolicy => {
-  const behaviorFor = (
-    definition: RuntimeAgentDefinition,
-    shellFormatters?: AgentPolicyToolkitOptions["shellFormatters"],
-  ): RuntimeCapabilityBehavior =>
-    resolveCapabilityBehavior(definition, shellHooks, {
-      shellFormatters: shellFormatters ?? options.shellFormatters,
-      contextCache: options.contextCache,
-      skillCatalog: options.skillCatalog,
-    });
-
-  return createAgentPolicy<PersonalCapabilityDeps>({
+  behaviorFor: ResolveRuntimeCapabilityBehavior,
+): RuntimeAgentPolicy =>
+  createAgentPolicy<PersonalCapabilityDeps>({
     resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
     unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
     resolveTools: (definition, capabilityDeps, resolveOptions) =>
@@ -189,4 +189,19 @@ export const createDefaultRuntimeAgentPolicy = (
     logLabel: "runtime-agent",
     buildErrorMessage: (error, definition) => behaviorFor(definition).buildErrorMessage(error, definition),
   }, options);
-};
+
+/**
+ * Default runtime policy: shared shell hooks + system-configuration LLM hooks.
+ * Product-domain hooks (e.g. Obsidian) are composed in personal-pack / personal-runtime-policy.
+ */
+export const createDefaultRuntimeAgentPolicy = (
+  shellHooks: RuntimeAgentNodeHooks,
+  options: DefaultRuntimePolicyOptions,
+): RuntimeAgentPolicy =>
+  createRuntimeAgentPolicyFromBehavior(shellHooks, options, (definition, shellFormatters) =>
+    resolveCapabilityBehavior(definition, shellHooks, {
+      shellFormatters: shellFormatters ?? options.shellFormatters,
+      contextCache: options.contextCache,
+      skillCatalog: options.skillCatalog,
+    }),
+  );

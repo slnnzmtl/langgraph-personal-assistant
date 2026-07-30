@@ -130,7 +130,7 @@ index.ts
             │    └─ bootstrapSupervisorSystem()
             │         ├─ initializeDefaults() — seed missing supervisor/configuration prompts + configuration skills (atomic wx, opt-in)
             │         ├─ setupAdapters() — process lifecycle (Supabase sessions, durability store)
-            │         ├─ buildCapabilityDeps() — domain ports (Obsidian, Wise) + adapter projection
+            │         ├─ buildCapabilityDeps() — system-only deps; product clients close over in pack providers
             │         ├─ runtime agent repository + virtual configuration agent
             │         ├─ seedAgents() — load persisted specialists from data/runtime-agents.json
             │         ├─ buildSkillCatalog() — read data/skills/
@@ -395,7 +395,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes hooks from a **capability-keyed map** in `runtime-agent-policy.ts` (absent entry ⇒ default / tools-only). Domain tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`. Capability ids grant tool bundles; LLM-turn hooks are an optional overlay, not required for every capability.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The pack injects `createPersonalRuntimeAgentPolicy`, which uses `policies/runtime-agent-policy.ts` for system-configuration and default/tools-only behavior and adds the Obsidian capability branch in `composition/personal-runtime-policy.ts` (not a second parallel policy API). Feature tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`. Capability ids grant tool bundles; LLM-turn hooks are an optional overlay, not required for every capability.
 
 ---
 
@@ -531,7 +531,7 @@ personal-assistant/                 # pnpm workspace root
 │       │   ├── runtime-agents/     # Feature folders (finance/, obsidian/), resolve-tools
 │       │   ├── integrations/ scheduler/ telegram/ models/ prompts/ ...
 │       ├── data/prompts/ data/skills/ data/ sql/
-│       ├── tests/unit/{composition,policies,domains,integrations,processes}/
+│       ├── tests/unit/{composition,policies,runtime-agents,integrations,processes}/
 │       └── Dockerfile docker-compose.yml
 ├── docs/ examples/
 └── pnpm-workspace.yaml
@@ -543,7 +543,7 @@ personal-assistant/                 # pnpm workspace root
 
 - Unit tests cover graph topology, state reducers, compaction, supervisor routing, runtime agent loops, cron, skills, MCP self-healing, and domain tools
 - **Framework** supervisor/routing/callback tests live in `packages/supervisor-framework/tests/unit/`
-- **App** tests mirror layers under `tests/unit/{composition,policies,domains,integrations,processes}/`
+- **App** tests mirror layers under `tests/unit/{composition,policies,runtime-agents,integrations,processes}/`
 - **E2E** via Playwright (`tests/e2e/workflow.spec.ts`)
 - Test helpers mirror production wiring (`tests/helpers/workflow-graph.ts`, `runtime-execution-context.ts`)
 - `pnpm check` for TypeScript; `pnpm test:unit` / `pnpm test:e2e`
@@ -590,7 +590,10 @@ Non-grantable write bundles stay reserved: `finance-domain` only on the seeded `
 
 ### Simplification opportunities
 
----
+The binder / domains / ports / dual-policy stack described historically in
+[SIMPLIFICATION_PLAN.md](./SIMPLIFICATION_PLAN.md) is removed (Phases A–E3 done).
+Further cuts should be opportunistic naming or docs hygiene only — do not
+reintroduce registries or parallel policy APIs.
 
 ## Extension Guide (Quick Reference)
 
@@ -599,7 +602,7 @@ Non-grantable write bundles stay reserved: `finance-domain` only on the seeded `
 Follow the canonical checklist in [RUNTIME_AGENT_SETUP.md — Beyond chat](./RUNTIME_AGENT_SETUP.md#beyond-chat-new-tool-domains-rare).
 
 - **Tools-only** (finance pattern): `tools.ts` (+ optional `types.ts` / integration) → one provider entry in `personal-pack.ts` → grant/seed. Do **not** edit `policies/runtime-agent-policy.ts`.
-- **Tools + hooks** (Obsidian pattern): same, plus `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`).
+- **Tools + hooks** (Obsidian pattern): same, plus `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`, injected by the pack — not a second parallel policy API).
 
 **Add a custom runtime agent at runtime (default):**
 

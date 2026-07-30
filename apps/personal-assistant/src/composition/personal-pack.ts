@@ -28,13 +28,13 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
-import type { PersonalCapabilityDeps } from "../runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../runtime-agents/personal-capability-deps.js";
 import { createObsidianVault } from "../integrations/obsidian.js";
 import { createFetchWiseTransactions } from "../integrations/wise.js";
 import {
   FINANCE_DOMAIN_CAPABILITY_ID,
   FINANCE_DOMAIN_READ_CAPABILITY_ID,
-  createFinanceDomainTools,
+  createFinanceTools,
 } from "../runtime-agents/finance/tools.js";
 import {
   OBSIDIAN_VAULT_CAPABILITY_ID,
@@ -72,7 +72,7 @@ export type SupervisorSystemOptions = {
   dataWriteRole?: "writer" | "reader";
 };
 
-/** System-only capability deps (domain clients are closed over in buildCapabilityProviders). */
+/** System-only capability deps (product clients are closed over in buildCapabilityProviders). */
 export type BuildPersonalCapabilityDepsInput = {
   cronTargetAgentIds: readonly string[];
   capabilityCatalog: CapabilityCatalog;
@@ -131,7 +131,7 @@ export const buildPersonalCapabilityProviders = ({
           throw new Error("finance-domain capability requires a configured Supabase write session.");
         }
 
-        return createFinanceDomainTools(
+        return createFinanceTools(
           (sql) => writeSession.executeSql(sql),
           {
             writeAccess: true,
@@ -154,7 +154,7 @@ export const buildPersonalCapabilityProviders = ({
           );
         }
 
-        return createFinanceDomainTools(
+        return createFinanceTools(
           (sql) => readSession.executeSql(sql),
           { writeAccess: false },
         );

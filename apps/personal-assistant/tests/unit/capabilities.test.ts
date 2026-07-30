@@ -5,14 +5,14 @@ import {
   deriveCronTargetAgentIds,
 } from "@personal-assistant/supervisor-framework";
 import {
-  createDomainCapabilityCatalog,
+  createProductCapabilityCatalog,
   createPersonalCapabilityCatalog,
-} from "../../helpers/capability-catalog.js";
+} from "../helpers/capability-catalog.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
-import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
-import type { PersonalCapabilityDeps } from "../../../src/runtime-agents/system-capability-deps.js";
-import { createCronRepositoryFake } from "../../helpers/configuration-tools.js";
-import { createRuntimeAgentRepositoryFake } from "../../helpers/fakes.js";
+import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
+import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
+import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 describe("builtin capabilities", () => {
   it("seeds the configuration agent with the system-config capability", () => {
@@ -79,13 +79,13 @@ describe("builtin capabilities", () => {
   });
 
   it("allows grantable capabilities", () => {
-    const catalog = createDomainCapabilityCatalog();
+    const catalog = createProductCapabilityCatalog();
 
     catalog.validateGrantableIds(["none"], {});
   });
 
   it("reserves finance-domain for the finance agent via descriptor reservedForAgentIds", () => {
-    const catalog = createDomainCapabilityCatalog({
+    const catalog = createProductCapabilityCatalog({
       adapters: {
         supabaseWriteSession: {
           executeSql: async <T>() => [] as T,

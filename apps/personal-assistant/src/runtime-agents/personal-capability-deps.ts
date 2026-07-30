@@ -7,7 +7,6 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 
-/** System services for configuration tools / policy — domain clients are closed over in domain binders. */
 export type PersonalCapabilityDeps = {
   cronTargetAgentIds?: readonly string[];
   cronJobRepository?: CronJobRepository;

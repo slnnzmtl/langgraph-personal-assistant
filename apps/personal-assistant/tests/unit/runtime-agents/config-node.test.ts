@@ -6,12 +6,12 @@ import {
   CONFIGURATION_COMPLETION_FALLBACK,
   mapConfigurationSubAgentResult,
 } from "@personal-assistant/supervisor-framework";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
   createCronRepositoryFake,
-} from "../../../helpers/configuration-tools.js";
-import { getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+} from "../../helpers/configuration-tools.js";
+import { getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");
 

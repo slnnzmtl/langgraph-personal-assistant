@@ -2,10 +2,8 @@ import { AIMessage } from "@langchain/core/messages";
 
 import {
   buildDirectoryTree,
-  createAgentPolicy,
+  hasSystemConfigWriteCapability,
   resolveAgentCapabilityIds,
-  resolveSystemConfigDeps,
-  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
   type AgentPolicyToolkitOptions,
   type RuntimeAgentDefinition,
   type RuntimeAgentNodeConfig,
@@ -21,13 +19,14 @@ import {
 import { mergeRuntimeCacheHooks } from "../policies/context-cache-runtime.js";
 import {
   createDefaultRuntimeAgentPolicy,
+  createRuntimeAgentPolicyFromBehavior,
+  nodeConfigFromBehavior,
   resolveCapabilityBehavior,
-  resolveCapabilityHookId,
   type DefaultRuntimePolicyOptions,
   type ResolveCapabilityBehaviorOptions,
   type RuntimeCapabilityBehavior,
 } from "../policies/runtime-agent-policy.js";
-import type { PersonalCapabilityDeps } from "../runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../runtime-agents/personal-capability-deps.js";
 import { OBSIDIAN_VAULT_CAPABILITY_ID } from "../runtime-agents/obsidian/tools.js";
 
 const createObsidianCapabilityBehavior = (
@@ -94,32 +93,18 @@ const createObsidianCapabilityBehavior = (
 const hasObsidianVaultCapability = (definition: RuntimeAgentDefinition): boolean =>
   resolveAgentCapabilityIds(definition).includes(OBSIDIAN_VAULT_CAPABILITY_ID);
 
-/** System-config first; then Obsidian when vault is closed over; else default. */
-export const resolvePersonalCapabilityHookId = (
-  definition: RuntimeAgentDefinition,
-  vaultRoot: string | undefined,
-): string | undefined => {
-  const systemOrUndefined = resolveCapabilityHookId(definition);
-  if (systemOrUndefined) {
-    return systemOrUndefined;
-  }
-
-  if (vaultRoot && hasObsidianVaultCapability(definition)) {
-    return OBSIDIAN_VAULT_CAPABILITY_ID;
-  }
-
-  return undefined;
-};
-
-export const resolvePersonalCapabilityBehavior = (
+/** System-config wins; then Obsidian when vault is closed over; else default. */
+const resolveBehavior = (
   definition: RuntimeAgentDefinition,
   shellHooks: RuntimeAgentNodeHooks,
-  options: ResolveCapabilityBehaviorOptions = {},
-  vaultRoot?: string,
+  options: ResolveCapabilityBehaviorOptions,
+  vaultRoot: string | undefined,
 ): RuntimeCapabilityBehavior => {
-  const hookId = resolvePersonalCapabilityHookId(definition, vaultRoot);
-
-  if (hookId === OBSIDIAN_VAULT_CAPABILITY_ID && vaultRoot) {
+  if (
+    vaultRoot
+    && !hasSystemConfigWriteCapability(definition)
+    && hasObsidianVaultCapability(definition)
+  ) {
     const shellFormatters = options.shellFormatters;
     if (!shellFormatters) {
       throw new Error(`${OBSIDIAN_VAULT_CAPABILITY_ID} hooks require runtime shell formatters.`);
@@ -135,32 +120,44 @@ export const resolvePersonalCapabilityBehavior = (
   return resolveCapabilityBehavior(definition, shellHooks, options);
 };
 
-export const buildPersonalRuntimeAgentNodeConfigForDefinition = (
+export type PersonalRuntimeNodeConfigOptions = {
+  shellFormatters: NonNullable<AgentPolicyToolkitOptions["shellFormatters"]>;
+  contextCache?: ResolveCapabilityBehaviorOptions["contextCache"];
+  skillCatalog?: ResolveCapabilityBehaviorOptions["skillCatalog"];
+  vaultRoot?: string;
+  capabilityDeps?: PersonalCapabilityDeps;
+};
+
+/**
+ * Full node config (hooks + labels) for a definition.
+ * Test/helper surface — not a parallel resolver triad.
+ */
+export const buildPersonalRuntimeAgentNodeConfig = (
   definition: RuntimeAgentDefinition,
   shellHooks: RuntimeAgentNodeHooks,
-  shellFormatters?: AgentPolicyToolkitOptions["shellFormatters"],
-  policyOptions?: Pick<DefaultRuntimePolicyOptions, "contextCache" | "skillCatalog">,
-  vaultRoot?: string,
+  options: PersonalRuntimeNodeConfigOptions,
 ): RuntimeAgentNodeConfig => {
-  const behavior = resolvePersonalCapabilityBehavior(
+  const behaviorOptions: ResolveCapabilityBehaviorOptions = {
+    shellFormatters: options.shellFormatters,
+    ...(options.contextCache !== undefined ? { contextCache: options.contextCache } : {}),
+    ...(options.skillCatalog !== undefined ? { skillCatalog: options.skillCatalog } : {}),
+  };
+  const behavior = resolveBehavior(
     definition,
     shellHooks,
-    {
-      ...(shellFormatters !== undefined ? { shellFormatters } : {}),
-      ...(policyOptions?.contextCache !== undefined
-        ? { contextCache: policyOptions.contextCache }
-        : {}),
-      ...(policyOptions?.skillCatalog !== undefined
-        ? { skillCatalog: policyOptions.skillCatalog }
-        : {}),
-    },
-    vaultRoot,
+    behaviorOptions,
+    options.vaultRoot,
   );
+  const hooks = behavior.createHooks({
+    definition,
+    capabilityDeps: options.capabilityDeps ?? ({} as PersonalCapabilityDeps),
+    shellHooks,
+    shellFormatters: options.shellFormatters,
+  });
 
   return {
-    logLabel: behavior.logLabel,
-    buildErrorMessage: behavior.buildErrorMessage,
-    ...(behavior.selectToolsForTurn ? { selectToolsForTurn: behavior.selectToolsForTurn } : {}),
+    ...hooks,
+    ...nodeConfigFromBehavior(behavior),
   };
 };
 
@@ -176,39 +173,19 @@ export const createPersonalRuntimeAgentPolicy = (
     return createDefaultRuntimeAgentPolicy(shellHooks, options);
   }
 
-  const behaviorFor = (
-    definition: RuntimeAgentDefinition,
-    shellFormatters?: AgentPolicyToolkitOptions["shellFormatters"],
-  ): RuntimeCapabilityBehavior =>
-    resolvePersonalCapabilityBehavior(
-      definition,
-      shellHooks,
-      {
-        shellFormatters: shellFormatters ?? options.shellFormatters,
-        contextCache: options.contextCache,
-        skillCatalog: options.skillCatalog,
-      },
-      vaultRoot,
-    );
-
-  return createAgentPolicy<PersonalCapabilityDeps>({
-    resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
-    unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
-    resolveTools: (definition, capabilityDeps, resolveOptions) =>
-      options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
-    createHooks: (deps, policyOptions) =>
-      behaviorFor(deps.definition, policyOptions.shellFormatters).createHooks({
-        definition: deps.definition,
-        capabilityDeps: deps.capabilityDeps,
+  return createRuntimeAgentPolicyFromBehavior(
+    shellHooks,
+    options,
+    (definition, shellFormatters) =>
+      resolveBehavior(
+        definition,
         shellHooks,
-        shellFormatters: policyOptions.shellFormatters!,
-      }),
-    selectToolsForTurn: (ctx, tools) => {
-      const behavior = behaviorFor(ctx.definition);
-      return behavior.selectToolsForTurn ? behavior.selectToolsForTurn(ctx, tools) : tools;
-    },
-    resolveMapResult: (definition) => behaviorFor(definition).mapResult,
-    logLabel: "runtime-agent",
-    buildErrorMessage: (error, definition) => behaviorFor(definition).buildErrorMessage(error, definition),
-  }, options);
+        {
+          shellFormatters: shellFormatters ?? options.shellFormatters,
+          contextCache: options.contextCache,
+          skillCatalog: options.skillCatalog,
+        },
+        vaultRoot,
+      ),
+  );
 };
