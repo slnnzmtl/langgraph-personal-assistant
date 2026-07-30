@@ -16,10 +16,16 @@
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
     "test:e2e": "pnpm --filter personal-assistant test:e2e",
-    "test:e2e:ui": "pnpm --filter personal-assistant test:e2e:ui"
+    "test:e2e:ui": "pnpm --filter personal-assistant test:e2e:ui",
+    "depcruise": "depcruise apps/*/src packages/*/src",
+    "depcruise:archi": "depcruise apps/*/src packages/*/src --output-type archi --output-to dependency-archi.dot",
+    "depcruise:archi:svg": "pnpm depcruise:archi && dot -T svg dependency-archi.dot -o dependency-archi.svg",
+    "depcruise:graph": "depcruise apps/*/src packages/*/src --output-type dot --output-to dependency-graph.dot",
+    "depcruise:graph:svg": "pnpm depcruise:graph && dot -T svg dependency-graph.dot -o dependency-graph.svg"
   },
   "devDependencies": {
     "@types/node": "^24.0.13",
+    "dependency-cruiser": "^18.1.0",
     "typescript": "^5.8.3"
   },
   "pnpm": {
