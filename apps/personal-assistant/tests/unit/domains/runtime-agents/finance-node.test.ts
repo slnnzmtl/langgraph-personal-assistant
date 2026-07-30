@@ -38,8 +38,6 @@ describe("finance tools", () => {
   });
 
   it("returns Wise transactions as a single JSON array string", async () => {
-    vi.stubEnv("WISE_API_TOKEN", "token");
-    vi.stubEnv("WISE_PROFILE_ID", "profile");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({

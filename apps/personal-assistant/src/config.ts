@@ -46,6 +46,9 @@ export interface AppConfig {
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
   supabaseAccessToken?: string | undefined;
+  // Optional: Wise activity fetch
+  wiseApiToken?: string | undefined;
+  wiseProfileId?: string | undefined;
 }
 
 export const getDefaultVaultPath = (cwd = process.cwd()): string =>
@@ -172,5 +175,7 @@ export const loadConfig = (): AppConfig => {
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,
+    wiseApiToken: process.env.WISE_API_TOKEN,
+    wiseProfileId: process.env.WISE_PROFILE_ID,
   };
 };

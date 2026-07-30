@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   computeReconnectDelayMs,
-  createSelfHealingMcpSession,
+  createSelfHealingSqlSession,
 } from "../../../src/integrations/mcp/self-healing-session.js";
 import type { SqlSession } from "../../../src/ports/sql-session.js";
 
@@ -16,11 +16,11 @@ const createSessionStub = (
   close: vi.fn().mockResolvedValue(undefined),
 });
 
-describe("createSelfHealingMcpSession", () => {
+describe("createSelfHealingSqlSession", () => {
   it("connects eagerly at startup", async () => {
     const connect = vi.fn().mockResolvedValue(createSessionStub(vi.fn()));
 
-    await createSelfHealingMcpSession({ connect });
+    await createSelfHealingSqlSession({ connect });
 
     expect(connect).toHaveBeenCalledTimes(1);
   });
@@ -37,7 +37,7 @@ describe("createSelfHealingMcpSession", () => {
       .mockResolvedValueOnce(secondSession);
     const onReconnect = vi.fn();
 
-    const session = await createSelfHealingMcpSession({ connect, onReconnect });
+    const session = await createSelfHealingSqlSession({ connect, onReconnect });
     const result = await session.executeSql("SELECT 1");
 
     expect(result).toEqual([{ id: 1 }]);
@@ -56,7 +56,7 @@ describe("createSelfHealingMcpSession", () => {
     );
     const connect = vi.fn().mockResolvedValue(underlyingSession);
 
-    const session = await createSelfHealingMcpSession({ connect });
+    const session = await createSelfHealingSqlSession({ connect });
 
     await expect(session.executeSql("SELECT FROM")).rejects.toThrow(/syntax error/i);
     expect(connect).toHaveBeenCalledTimes(1);
@@ -74,7 +74,7 @@ describe("createSelfHealingMcpSession", () => {
       .mockResolvedValueOnce(firstSession)
       .mockResolvedValueOnce(secondSession);
 
-    const session = await createSelfHealingMcpSession({ connect });
+    const session = await createSelfHealingSqlSession({ connect });
 
     const [firstResult, secondResult] = await Promise.all([
       session.executeSql("SELECT 1"),
@@ -94,7 +94,7 @@ describe("createSelfHealingMcpSession", () => {
     );
     const connect = vi.fn().mockResolvedValue(failingSession);
 
-    const session = await createSelfHealingMcpSession({
+    const session = await createSelfHealingSqlSession({
       connect,
       maxReconnectAttempts: 1,
     });
@@ -119,7 +119,7 @@ describe("computeReconnectDelayMs", () => {
   });
 });
 
-describe("createSelfHealingMcpSession backoff", () => {
+describe("createSelfHealingSqlSession backoff", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -140,7 +140,7 @@ describe("createSelfHealingMcpSession backoff", () => {
       .mockResolvedValueOnce(secondSession);
     const onReconnect = vi.fn();
 
-    const sessionPromise = createSelfHealingMcpSession({
+    const sessionPromise = createSelfHealingSqlSession({
       connect,
       reconnectBackoff: { baseDelayMs: 250, maxDelayMs: 5000 },
       onReconnect,
@@ -176,7 +176,7 @@ describe("createSelfHealingMcpSession backoff", () => {
       .mockResolvedValueOnce(firstSession)
       .mockResolvedValueOnce(secondSession);
 
-    const session = await createSelfHealingMcpSession({
+    const session = await createSelfHealingSqlSession({
       connect,
       reconnectBackoff: { baseDelayMs: 0, maxDelayMs: 5000 },
     });
@@ -194,7 +194,7 @@ describe("createSelfHealingMcpSession backoff", () => {
     const connect = vi.fn().mockResolvedValue(failingSession);
     const onReconnect = vi.fn();
 
-    const session = await createSelfHealingMcpSession({
+    const session = await createSelfHealingSqlSession({
       connect,
       maxReconnectAttempts: 2,
       reconnectBackoff: { baseDelayMs: 250, maxDelayMs: 300 },

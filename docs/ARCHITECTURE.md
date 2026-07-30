@@ -476,7 +476,7 @@ Finance gracefully degrades: if Supabase is unconfigured, the finance agent is d
 
 ### Supabase MCP self-healing
 
-When credentials are present, `setupSupabaseSessions()` wraps each raw MCP client (read and write) in `createSelfHealingMcpSession()`. Transport failures classified by `isMcpTransportError()` (connection resets, socket hang-ups, etc.) trigger reconnect attempts with optional exponential backoff before surfacing the error to finance tools.
+When credentials are present, `setupSupabaseSessions()` wraps each raw MCP client (read and write) in `createSelfHealingSqlSession()`. Transport failures classified by `isTransportError()` (connection resets, socket hang-ups, etc.) trigger reconnect attempts with optional exponential backoff before surfacing the error to finance tools.
 
 Configurable via `MCP_MAX_RECONNECT_ATTEMPTS` (default `1`), `MCP_RECONNECT_BASE_DELAY_MS` (default `0` — immediate first reconnect), and `MCP_RECONNECT_MAX_DELAY_MS` (default `5000`). When `baseDelayMs` is `0`, behavior matches the original single immediate retry. Operators can increase attempts and delay when Supabase MCP outages are observed (e.g. `MCP_RECONNECT_BASE_DELAY_MS=500`, `MCP_MAX_RECONNECT_ATTEMPTS=3`).
 

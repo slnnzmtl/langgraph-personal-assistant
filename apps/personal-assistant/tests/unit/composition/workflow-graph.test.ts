@@ -53,7 +53,7 @@ const makeGraph = (
   supervisorHandler: (input: unknown) => unknown,
   obsidianHandler?: (input: unknown) => unknown,
   financeHandler?: (input: unknown) => unknown,
-  supabaseMcpSession?: SqlSession,
+  sqlSession?: SqlSession,
   configHandler?: (input: unknown) => unknown,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
   runtimeAgents?: ReturnType<typeof buildTestRuntimeAgents>,
@@ -75,10 +75,10 @@ const makeGraph = (
       defaultTestCronTargetAgentIds(),
     ),
     runtimeAgentRepository,
-    ...(supabaseMcpSession
+    ...(sqlSession
       ? {
-          supabaseReadSession: supabaseMcpSession,
-          supabaseWriteSession: supabaseMcpSession,
+          supabaseReadSession: sqlSession,
+          supabaseWriteSession: sqlSession,
         }
       : {}),
   });

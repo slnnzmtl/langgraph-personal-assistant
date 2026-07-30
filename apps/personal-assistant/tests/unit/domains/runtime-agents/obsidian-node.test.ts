@@ -8,13 +8,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createObsidianVault } from "../../../../src/integrations/obsidian.js";
 import { createObsidianVaultTools } from "../../../../src/runtime-agents/obsidian/tools.js";
-import {
-  applyFileWrite,
-  listDirContents,
-  listFiles,
-  resolveVaultPath,
-  searchFiles,
-} from "../../../../src/integrations/obsidian.js";
 import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../../src/runtime-agents/obsidian/hooks.js";
 import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
@@ -213,13 +206,13 @@ describe("buildObsidianCompletionSummary", () => {
 
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
-    expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
-      "Path traversal is forbidden.",
-    );
+    const vault = createObsidianVault("/tmp/vault");
+    expect(() => vault.resolvePath("../escape.md")).toThrow();
   });
 
   it("lists and searches all file types", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
     const { mkdir, writeFile } = await import("node:fs/promises");
 
     await mkdir(path.join(vaultRoot, "daily"), { recursive: true });
@@ -228,17 +221,12 @@ describe("obsidian node helpers", () => {
     await mkdir(path.join(vaultRoot, "daily", "nested"), { recursive: true });
     await writeFile(path.join(vaultRoot, "daily", "nested", "deep.md"), "gamma", "utf8");
 
-    await expect(listFiles(vaultRoot, "daily")).resolves.toEqual([
-      "daily/note.md",
-      "daily/note.txt",
-    ]);
-
-    await expect(listDirContents(vaultRoot, "daily")).resolves.toEqual({
+    await expect(vault.listDirContents("daily")).resolves.toEqual({
       files: ["daily/note.md", "daily/note.txt"],
       dirs: ["nested"],
     });
 
-    await expect(searchFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
+    await expect(vault.searchFiles(["alpha", "gamma"], ".")).resolves.toEqual([
       "daily/nested/deep.md",
       "daily/note.md",
       "daily/note.txt",
@@ -247,15 +235,16 @@ describe("obsidian node helpers", () => {
 
   it("creates and appends markdown content safely", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "daily/2024-05-15.md",
       operation: "create_new",
       content: "First entry",
       summary: "Created note",
     });
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "daily/2024-05-15.md",
       operation: "append",
       content: "Second entry",
@@ -292,9 +281,10 @@ describe("obsidian node helpers", () => {
 
   it("rejects append operations on missing files", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
     await expect(
-      applyFileWrite(vaultRoot, {
+      vault.writeFile({
         relativePath: "missing/note.md",
         operation: "append",
         content: "More content",
@@ -305,8 +295,9 @@ describe("obsidian node helpers", () => {
 
   it("reads markdown with plain contents for the model", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "notes/read.md",
       operation: "create_new",
       content: "Alpha\nBeta\n",

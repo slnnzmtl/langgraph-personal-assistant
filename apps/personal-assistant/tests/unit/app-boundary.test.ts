@@ -11,7 +11,7 @@ import {
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
 import { createObsidianVault } from "../../src/integrations/obsidian.js";
-import { fetchWiseTransactions } from "../../src/integrations/wise.js";
+import { createFetchWiseTransactions } from "../../src/integrations/wise.js";
 import type { SqlSession } from "../../src/ports/sql-session.js";
 import {
   createCapabilityDeps,
@@ -124,7 +124,7 @@ describe("app boundaries", () => {
     const deps = createCapabilityDeps({
       obsidianVault: createObsidianVault("/tmp/vault"),
       supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: fetchWiseTransactions,
+      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
       capabilityCatalog: catalog,
     });
 
@@ -156,7 +156,7 @@ describe("app boundaries", () => {
       obsidianVault: createObsidianVault("/tmp/vault"),
       supabaseReadSession: mockSqlSession,
       supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: fetchWiseTransactions,
+      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
       capabilityCatalog: catalog,
     });
 
@@ -202,7 +202,7 @@ describe("app boundaries", () => {
       obsidianVault: createObsidianVault("/tmp/vault"),
       supabaseReadSession: mockSqlSession,
       supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: fetchWiseTransactions,
+      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
     });
 
     const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);

@@ -1,10 +1,21 @@
-export interface WiseClient {
-  fetchActivities(since: string, until: string): Promise<Response>;
-}
+import type { AppConfig } from "../config.js";
+import type {
+  FetchWiseTransactions,
+  WiseTransaction,
+  WiseTransactionParams,
+} from "../ports/wise-transactions.js";
 
-export function createWiseClient(): WiseClient | undefined {
-  const token = process.env["WISE_API_TOKEN"];
-  const profileId = process.env["WISE_PROFILE_ID"];
+export type { WiseTransaction, WiseTransactionParams } from "../ports/wise-transactions.js";
+
+type WiseClient = {
+  fetchActivities(since: string, until: string): Promise<Response>;
+};
+
+const createWiseClient = (
+  config: Pick<AppConfig, "wiseApiToken" | "wiseProfileId">,
+): WiseClient | undefined => {
+  const token = config.wiseApiToken;
+  const profileId = config.wiseProfileId;
 
   if (!token || !profileId) {
     return undefined;
@@ -16,19 +27,7 @@ export function createWiseClient(): WiseClient | undefined {
         headers: { Authorization: `Bearer ${token}` },
       }),
   };
-}
-
-export interface WiseTransaction {
-  name: string;
-  amount: string;
-  status: string;
-  createdOn: string;
-}
-
-export interface WiseTransactionParams {
-  since: string;
-  until: string;
-}
+};
 
 function formatUtcIsoWithoutMilliseconds(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -93,13 +92,13 @@ async function fetchWiseTransactionsInternal(
   return normalized;
 }
 
-export async function fetchWiseTransactions(params: WiseTransactionParams): Promise<WiseTransaction[]> {
-  const client = createWiseClient();
-
+export const createFetchWiseTransactions = (
+  config: Pick<AppConfig, "wiseApiToken" | "wiseProfileId">,
+): FetchWiseTransactions | undefined => {
+  const client = createWiseClient(config);
   if (!client) {
-    console.warn("Wise API credentials missing; returning empty transaction list");
-    return [];
+    return undefined;
   }
 
-  return fetchWiseTransactionsInternal(params, client);
-}
+  return (params) => fetchWiseTransactionsInternal(params, client);
+};

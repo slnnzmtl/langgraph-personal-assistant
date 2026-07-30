@@ -4,7 +4,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { SqlSession } from "../../ports/sql-session.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
 
-export interface SupabaseMcpConfig {
+interface SupabaseMcpConfig {
   url: string;
   projectRef: string;
   accessToken: string;
@@ -16,17 +16,7 @@ type TextContent = {
   text?: string;
 };
 
-export function formatRecord(record: Record<string, unknown>): string {
-  return Object.entries(record)
-    .map(([key, value]) => {
-      if (value === null || value === undefined) return `${key}: null`;
-      if (typeof value === "string") return `${key}: '${value}'`;
-      return `${key}: ${value}`;
-    })
-    .join(", ");
-}
-
-export function parseExecuteSqlResponse(response: unknown): unknown {
+function parseExecuteSqlResponse(response: unknown): unknown {
   const content = (response as { content?: TextContent[] }).content;
   const text = content?.find((item) => item.type === "text")?.text;
 

@@ -27,7 +27,8 @@ import {
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
 import { createObsidianVault } from "../integrations/obsidian.js";
-import { fetchWiseTransactions } from "../integrations/wise.js";
+import { createFetchWiseTransactions } from "../integrations/wise.js";
+import type { FetchWiseTransactions } from "../ports/wise-transactions.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
 import {
@@ -76,6 +77,7 @@ type PersonalCapabilityDepsOptions = {
   supabaseReadSession?: SqlSession | undefined;
   supabaseWriteSession?: SqlSession | undefined;
   fileSender?: IFileSender | undefined;
+  fetchWiseTransactions?: FetchWiseTransactions | undefined;
   runtimeCron?: RuntimeCronService | undefined;
   loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
 };
@@ -109,7 +111,9 @@ export const buildPersonalCapabilityDeps = (
     ...(obsidianVaultPath
       ? { obsidianVault: createObsidianVault(obsidianVaultPath) }
       : {}),
-    fetchWiseTransactions: fetchWiseTransactions,
+    ...(options.fetchWiseTransactions
+      ? { fetchWiseTransactions: options.fetchWiseTransactions }
+      : {}),
     cronTargetAgentIds: options.cronTargetAgentIds,
     capabilityCatalog: options.capabilityCatalog,
     skillCatalog: options.skillCatalog,
@@ -204,8 +208,9 @@ export const buildPersonalSupervisorPack = ({
     buildPersonalRuntimeExecution(ctx.config, skillCatalog, ctx.capabilityCatalog),
   buildModels: (appConfig, agents) =>
     buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_MODEL_KEY)),
-  buildCapabilityDeps: (context) =>
-    buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
+  buildCapabilityDeps: (context) => {
+    const fetchWiseTransactions = createFetchWiseTransactions(context.config);
+    return buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
       cronTargetAgentIds: context.cronTargetAgentIds,
       cronJobRepository: context.cronJobRepository as CronJobRepository,
       runtimeAgentRepository: context.runtimeAgentRepository,
@@ -214,9 +219,11 @@ export const buildPersonalSupervisorPack = ({
       fileSender: options.fileSender,
       supabaseReadSession: context.adapters.supabaseReadSession,
       supabaseWriteSession: context.adapters.supabaseWriteSession,
+      ...(fetchWiseTransactions ? { fetchWiseTransactions } : {}),
       runtimeCron: options.runtimeCron,
       loadPromptByKey: loadSystemPromptByKey,
-    }),
+    });
+  },
   buildGraphHooks: (context) => ({
     promptLogging: createFilePromptLogger({
       enabled: () => process.env.ENABLE_PROMPT_LOGS !== "false",

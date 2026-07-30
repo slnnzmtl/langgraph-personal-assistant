@@ -1,5 +1,5 @@
 import type { SqlSession } from "../../ports/sql-session.js";
-import { isMcpTransportError } from "./transport-errors.js";
+import { isTransportError } from "./transport-errors.js";
 
 export type ReconnectBackoffOptions = {
   baseDelayMs: number;
@@ -7,7 +7,7 @@ export type ReconnectBackoffOptions = {
   multiplier?: number;
 };
 
-export type SelfHealingMcpSessionOptions = {
+export type SelfHealingSqlSessionOptions = {
   connect: () => Promise<SqlSession>;
   maxReconnectAttempts?: number;
   reconnectBackoff?: ReconnectBackoffOptions;
@@ -33,8 +33,8 @@ const sleep = (delayMs: number): Promise<void> =>
     setTimeout(resolve, delayMs);
   });
 
-export const createSelfHealingMcpSession = async (
-  options: SelfHealingMcpSessionOptions,
+export const createSelfHealingSqlSession = async (
+  options: SelfHealingSqlSessionOptions,
 ): Promise<SqlSession> => {
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 1;
   const reconnectBackoff = options.reconnectBackoff ?? { baseDelayMs: 0, maxDelayMs: 0 };
@@ -98,7 +98,7 @@ export const createSelfHealingMcpSession = async (
       } catch (error) {
         lastError = error;
 
-        if (!isMcpTransportError(error) || attempt >= maxReconnectAttempts) {
+        if (!isTransportError(error) || attempt >= maxReconnectAttempts) {
           throw error;
         }
 

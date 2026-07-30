@@ -1,5 +1,5 @@
-import { connectSupabaseMcp, type SupabaseMcpConfig } from "./mcp/supabase.js";
-import { createSelfHealingMcpSession } from "./mcp/self-healing-session.js";
+import { connectSupabaseMcp } from "./mcp/supabase.js";
+import { createSelfHealingSqlSession } from "./mcp/self-healing-session.js";
 import type { AppConfig } from "../config.js";
 import type { SqlSession } from "../ports/sql-session.js";
 
@@ -9,21 +9,21 @@ export type SupabaseSessions = {
 };
 
 const connectSupabaseSession = async (
-  config: AppConfig,
+  config: AppConfig & {
+    supabaseProjectRef: string;
+    supabaseAccessToken: string;
+    supabaseMcpUrl: string;
+  },
   readOnly: boolean,
-): Promise<SqlSession | undefined> => {
-  if (!config.supabaseProjectRef || !config.supabaseAccessToken) {
-    return undefined;
-  }
-
-  const mcpConfig: SupabaseMcpConfig = {
-    url: config.supabaseMcpUrl ?? "https://mcp.supabase.com/mcp",
+): Promise<SqlSession> => {
+  const mcpConfig = {
+    url: config.supabaseMcpUrl,
     projectRef: config.supabaseProjectRef,
     accessToken: config.supabaseAccessToken,
     readOnly,
   };
 
-  return createSelfHealingMcpSession({
+  return createSelfHealingSqlSession({
     connect: () => connectSupabaseMcp(mcpConfig),
     maxReconnectAttempts: config.mcpMaxReconnectAttempts,
     reconnectBackoff: {
@@ -40,16 +40,22 @@ const connectSupabaseSession = async (
 };
 
 export const setupSupabaseSessions = async (config: AppConfig): Promise<SupabaseSessions> => {
-  if (!config.supabaseProjectRef || !config.supabaseAccessToken) {
+  if (!config.supabaseProjectRef || !config.supabaseAccessToken || !config.supabaseMcpUrl) {
     console.log("[Finance Setup] ✗ Skipping finance sync setup - missing required configuration.");
     return {};
   }
 
+  const credentialedConfig = config as AppConfig & {
+    supabaseProjectRef: string;
+    supabaseAccessToken: string;
+    supabaseMcpUrl: string;
+  };
+
   try {
     console.log("[Finance Setup] All credentials present, creating Supabase MCP sessions...");
     const [supabaseReadSession, supabaseWriteSession] = await Promise.all([
-      connectSupabaseSession(config, true),
-      connectSupabaseSession(config, false),
+      connectSupabaseSession(credentialedConfig, true),
+      connectSupabaseSession(credentialedConfig, false),
     ]);
 
     if (supabaseReadSession && supabaseWriteSession) {
