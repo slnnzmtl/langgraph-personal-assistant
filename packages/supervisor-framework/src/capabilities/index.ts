@@ -3,6 +3,10 @@ export {
   type CapabilityCatalog,
 } from "./catalog.js";
 export {
+  NONE_CAPABILITY_ID,
+  NONE_CAPABILITY_PROVIDER,
+} from "./none-capability.js";
+export {
   validatePersistedAgentCapabilities,
   type ValidatePersistedAgentCapabilitiesOptions,
 } from "./validate-persisted-agents.js";

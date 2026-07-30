@@ -7,7 +7,7 @@ import {
   DEFAULT_SKILL_BOOTSTRAP_SKILL_XML,
   DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
   DEFAULT_SUPERVISOR_PROMPT,
-} from "../../../src/framework/defaults/content.js";
+} from "../../../src/framework/defaults/content/index.js";
 
 const ALL_DEFAULTS = [
   DEFAULT_SUPERVISOR_PROMPT,

@@ -16,9 +16,9 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
-import type { ILLMConnector } from "@personal-assistant/llm-gemini";
+import type { ILLMConnector } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../../src/integrations/mcp/supabase.js";
+import type { SqlSession } from "../../src/ports/sql-session.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createRuntimeAgentRepositoryFake, FakeLLMConnector } from "./fakes.js";
@@ -32,7 +32,7 @@ export type TestWorkflowGraphOptions = {
   obsidianVaultPath?: string;
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
-  supabaseSession?: SupabaseMcpSession;
+  supabaseSession?: SqlSession;
   fileSender?: IFileSender;
 };
 

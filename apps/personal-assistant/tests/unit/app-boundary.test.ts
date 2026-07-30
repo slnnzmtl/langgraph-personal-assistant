@@ -10,6 +10,9 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
+import { createObsidianVault } from "../../src/integrations/obsidian.js";
+import { fetchWiseTransactions } from "../../src/integrations/wise.js";
+import type { SqlSession } from "../../src/ports/sql-session.js";
 import {
   createCapabilityDeps,
   createDomainCapabilityCatalog,
@@ -17,6 +20,11 @@ import {
 } from "../../src/runtime-agents/capabilities.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
+
+const mockSqlSession: SqlSession = {
+  executeSql: async <T>() => [] as T,
+  close: async () => {},
+};
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNTIME_AGENTS_ROOT = path.join(appRoot, "src/runtime-agents");
@@ -90,6 +98,12 @@ describe("app boundaries", () => {
     ]);
   });
 
+  it("keeps runtime-agents free of integration imports", () => {
+    assertNoForbiddenImports(RUNTIME_AGENTS_ROOT, [
+      "integrations/",
+    ]);
+  });
+
   it("keeps prompt loading free of runtime-agents imports", () => {
     assertFilesAvoidImports(PROMPT_LAYER_FILES, ["runtime-agents/"]);
   });
@@ -99,7 +113,7 @@ describe("app boundaries", () => {
 
     expect(() =>
       catalog.validateIds(["finance-domain"], {
-        obsidianVaultPath: "/tmp/vault",
+        obsidianVault: createObsidianVault("/tmp/vault"),
       }),
     ).toThrow(/unavailable/i);
   });
@@ -107,8 +121,10 @@ describe("app boundaries", () => {
   it("resolves finance tools for agents with finance-domain capability", () => {
     const catalog = createDomainCapabilityCatalog();
     const resolveTools = createPersonalResolveTools(catalog);
-    const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseWriteSession: { executeSql: async () => [] } as never,
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
+      supabaseWriteSession: mockSqlSession,
+      fetchWiseTransactions: fetchWiseTransactions,
       capabilityCatalog: catalog,
     });
 
@@ -136,9 +152,11 @@ describe("app boundaries", () => {
 
   it("exposes read-only finance capabilities separately from write", () => {
     const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseReadSession: { executeSql: async () => [] } as never,
-      supabaseWriteSession: { executeSql: async () => [] } as never,
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
+      supabaseReadSession: mockSqlSession,
+      supabaseWriteSession: mockSqlSession,
+      fetchWiseTransactions: fetchWiseTransactions,
       capabilityCatalog: catalog,
     });
 
@@ -160,7 +178,8 @@ describe("app boundaries", () => {
 
   it("exposes read-only system configuration separately from write", () => {
     const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps("/tmp/vault", {
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       capabilityCatalog: catalog,
@@ -179,9 +198,11 @@ describe("app boundaries", () => {
 
   it("marks grantable capabilities in the catalog", () => {
     const catalog = createDomainCapabilityCatalog();
-    const deps = createCapabilityDeps("/tmp/vault", {
-      supabaseReadSession: { executeSql: async () => [] } as never,
-      supabaseWriteSession: { executeSql: async () => [] } as never,
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
+      supabaseReadSession: mockSqlSession,
+      supabaseWriteSession: mockSqlSession,
+      fetchWiseTransactions: fetchWiseTransactions,
     });
 
     const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);
@@ -192,7 +213,7 @@ describe("app boundaries", () => {
     expect(grantableIds).not.toContain("finance-domain");
     expect(grantableIds).not.toContain(SYSTEM_CONFIG_READ_CAPABILITY_ID);
 
-    const withoutVault = createCapabilityDeps("");
+    const withoutVault = createCapabilityDeps({});
     expect(catalog.listAvailable(withoutVault).map((entry) => entry.id)).not.toContain("obsidian-vault");
     expect(catalog.listAvailable(deps).map((entry) => entry.id)).toContain("obsidian-vault");
   });

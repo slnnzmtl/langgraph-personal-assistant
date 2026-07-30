@@ -18,12 +18,10 @@
     "test:e2e": "pnpm --filter personal-assistant test:e2e",
     "test:e2e:ui": "pnpm --filter personal-assistant test:e2e:ui",
     "depcruise": "depcruise apps/*/src packages/*/src",
-    "depcruise:archi": "depcruise apps/*/src packages/*/src --output-type archi --output-to dependency-archi.dot",
-    "depcruise:archi:svg": "pnpm depcruise:archi && dot -T svg dependency-archi.dot -o dependency-archi.svg",
-    "depcruise:graph": "depcruise apps/*/src packages/*/src --output-type dot --output-to dependency-graph.dot",
-    "depcruise:graph:svg": "pnpm depcruise:graph && dot -T svg dependency-graph.dot -o dependency-graph.svg",
-    "depcruise:graph:personal-assistant": "depcruise apps/personal-assistant/src packages/*/src --output-type dot --output-to dependency-graph-personal-assistant.dot",
-    "depcruise:graph:personal-assistant:svg": "pnpm depcruise:graph:personal-assistant && dot -T svg dependency-graph-personal-assistant.dot -o dependency-graph-personal-assistant.svg"
+    "depcruise:archi": "depcruise apps/*/src packages/*/src --output-type archi --output-to dependency-archi.dot && dot -T svg dependency-archi.dot -o dependency-archi.svg",
+    "depcruise:graph": "depcruise apps/*/src packages/*/src --output-type dot --output-to dependency-graph.dot && dot -T svg dependency-graph.dot -o dependency-graph.svg",
+    "depcruise:graph:personal-assistant": "depcruise apps/personal-assistant/src packages/*/src --output-type dot --output-to dependency-graph-personal-assistant.dot && dot -T svg dependency-graph-personal-assistant.dot -o dependency-graph-personal-assistant.svg",
+    "depcruise:graph:core": "depcruise packages/supervisor-framework/src --output-type dot --output-to dependency-graph-core.dot && dot -T svg dependency-graph-core.dot -o dependency-graph-core.svg"
   },
   "devDependencies": {
     "@types/node": "^24.0.13",

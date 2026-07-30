@@ -1,10 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
-import {
-  NONE_CAPABILITY_ID,
-  NONE_CAPABILITY_PROVIDER,
-} from "../framework/defaults/utilities/none-capability.js";
+import { NONE_CAPABILITY_ID, NONE_CAPABILITY_PROVIDER } from "./none-capability.js";
 import {
   isCapabilityGrantable,
   type CapabilityDescriptor,

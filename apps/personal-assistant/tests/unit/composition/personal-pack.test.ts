@@ -8,6 +8,7 @@ import {
 import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
 import { buildPersonalSupervisorPack } from "../../../src/composition/personal-pack.js";
 import type { AppConfig } from "../../../src/config.js";
+import { createObsidianVault } from "../../../src/integrations/obsidian.js";
 import {
   createCapabilityDeps,
   createDomainCapabilityCatalog,
@@ -68,7 +69,8 @@ describe("buildPersonalSupervisorPack", () => {
     const context = createRuntimeExecutionContextFake({
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityDeps: createCapabilityDeps("/tmp/vault", {
+      capabilityDeps: createCapabilityDeps({
+        obsidianVault: createObsidianVault("/tmp/vault"),
         cronJobRepository: createCronRepositoryFake(),
         runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
         cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),
@@ -98,7 +100,8 @@ describe("buildPersonalSupervisorPack", () => {
     const context = createRuntimeExecutionContextFake({
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityDeps: createCapabilityDeps("/tmp/vault", {
+      capabilityDeps: createCapabilityDeps({
+        obsidianVault: createObsidianVault("/tmp/vault"),
         cronJobRepository: createCronRepositoryFake(),
         runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
         cronTargetAgentIds: deriveCronTargetAgentIds(runtimeAgents),

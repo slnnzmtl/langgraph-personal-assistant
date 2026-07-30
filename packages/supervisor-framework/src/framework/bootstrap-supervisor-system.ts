@@ -10,7 +10,7 @@ import {
 import { createReadOnlyCronJobRepository } from "./cron/read-only-cron-job-repository.js";
 import { DEFAULT_MODEL_KEY } from "../core/types/agent.js";
 import { defaultReplyUxConfig } from "../core/supervisor/reply-ux.js";
-import { createEmptySkillCatalog, createNoopCronJobRepository } from "./defaults/utilities.js";
+import { createEmptySkillCatalog, createNoopCronJobRepository } from "./defaults/utilities/index.js";
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
 import {
   createSystemConfigCapabilityProviders,

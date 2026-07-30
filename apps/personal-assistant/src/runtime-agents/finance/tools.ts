@@ -2,9 +2,9 @@ import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { truncateToolOutput } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../../integrations/mcp/supabase.js";
+import type { SqlSession } from "../../ports/sql-session.js";
+import type { FetchWiseTransactions } from "../../ports/wise-transactions.js";
 import { normalizeToolOutput, serializeToolResult } from "../../utils/exec-sql.js";
-import { fetchWiseTransactions } from "../../integrations/wise.js";
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
@@ -12,16 +12,17 @@ const GetCategoriesSchema = z.object({});
 
 export type FinanceToolsOptions = {
   writeAccess?: boolean;
+  fetchWise?: FetchWiseTransactions;
 };
 
 export const createFinanceDomainToolsFromSession = (
-  mcpSession: SupabaseMcpSession,
+  sqlSession: SqlSession,
   options: FinanceToolsOptions = {},
 ): StructuredToolInterface[] => {
   const execSql = tool(
     async (input: { sql: string }) => {
       try {
-        const result = await mcpSession.executeSql(input.sql);
+        const result = await sqlSession.executeSql(input.sql);
         const normalizedResult = normalizeToolOutput(result);
         return truncateToolOutput(serializeToolResult(normalizedResult));
       } catch (error) {
@@ -41,7 +42,7 @@ export const createFinanceDomainToolsFromSession = (
   const getCategories = tool(
     async (_input: z.infer<typeof GetCategoriesSchema>) => {
       try {
-        const result = await mcpSession.executeSql(CATEGORY_QUERY);
+        const result = await sqlSession.executeSql(CATEGORY_QUERY);
         const normalizedResult = normalizeToolOutput(result);
         return truncateToolOutput(serializeToolResult(normalizedResult));
       } catch (error) {
@@ -62,10 +63,15 @@ export const createFinanceDomainToolsFromSession = (
     return readTools;
   }
 
-  const fetchWise = tool(
+  const fetchWise = options.fetchWise;
+  if (!fetchWise) {
+    return readTools;
+  }
+
+  const fetchWiseTool = tool(
     async (input: { since: string; until: string }) => {
       try {
-        const transactions = await fetchWiseTransactions(input);
+        const transactions = await fetchWise(input);
         const normalizedTransactions = normalizeToolOutput(transactions);
         return truncateToolOutput(serializeToolResult(normalizedTransactions));
       } catch (error) {
@@ -83,5 +89,5 @@ export const createFinanceDomainToolsFromSession = (
     },
   );
 
-  return [...readTools, fetchWise];
+  return [...readTools, fetchWiseTool];
 };

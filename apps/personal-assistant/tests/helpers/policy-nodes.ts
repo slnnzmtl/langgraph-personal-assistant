@@ -12,6 +12,7 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load.js";
+import { createObsidianVault } from "../../src/integrations/obsidian.js";
 import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import {
   buildRuntimeAgentNodeConfigForDefinition,
@@ -52,7 +53,7 @@ export const buildNodeConfigForTest = (
   const hooks = behavior.createHooks({
     definition,
     capabilityDeps: {
-      obsidianVaultPath: options.vaultRoot ?? "/tmp/vault",
+      obsidianVault: createObsidianVault(options.vaultRoot ?? "/tmp/vault"),
     } as PersonalCapabilityDeps,
     shellHooks: testShellHooks,
     shellFormatters: testShellFormatters,

@@ -11,9 +11,10 @@ import {
   type RuntimeAgentRepository,
   type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
-import type { ILLMConnector, RoutingChain } from "@personal-assistant/llm-gemini";
+import type { ILLMConnector, RoutingChain } from "@personal-assistant/supervisor-framework";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE, type CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
+import { createObsidianVault } from "../../src/integrations/obsidian.js";
 import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import {
   buildTestRuntimeAgents,
@@ -211,7 +212,7 @@ export const createRuntimeAgentRepositoryFake = (
 };
 
 export const defaultConfigurationCapabilityDeps: PersonalCapabilityDeps = {
-  obsidianVaultPath: "/tmp/pa-unit-vault",
+  obsidianVault: createObsidianVault("/tmp/pa-unit-vault"),
   cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
 
@@ -268,7 +269,9 @@ export const createRuntimeExecutionContextFake = (options?: {
     defaultModel: model,
     repository,
     capabilityDeps: {
-      obsidianVaultPath: options?.obsidianVaultPath ?? defaultConfigurationCapabilityDeps.obsidianVaultPath,
+      obsidianVault: createObsidianVault(
+        options?.obsidianVaultPath ?? defaultConfigurationCapabilityDeps.obsidianVault!.rootPath,
+      ),
       cronTargetAgentIds: defaultConfigurationCapabilityDeps.cronTargetAgentIds,
       cronJobRepository,
       runtimeAgentRepository: repository,

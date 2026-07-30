@@ -163,11 +163,12 @@ module.exports = {
       to: { path: '^packages/supervisor-framework/src/framework/' },
     },
     {
-      name: 'capabilities-not-to-system-agent',
-      comment: 'Capabilities contract must not depend on system-agent implementation.',
+      name: 'capabilities-not-to-framework',
+      comment:
+        'Capabilities contract must not depend on framework adapters (defaults, cron, system-agent).',
       severity: 'error',
       from: { path: '^packages/supervisor-framework/src/capabilities/' },
-      to: { path: '^packages/supervisor-framework/src/framework/system-agent/' },
+      to: { path: '^packages/supervisor-framework/src/framework/' },
     },
     {
       name: 'runtime-agents-not-to-upper-layers',
@@ -175,6 +176,13 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/personal-assistant/src/runtime-agents/' },
       to: { path: '^apps/personal-assistant/src/(composition|policies|telegram|scheduler)/' },
+    },
+    {
+      name: 'runtime-agents-not-to-integrations',
+      comment: 'Runtime agents must not import from integrations; use ports/ instead.',
+      severity: 'error',
+      from: { path: '^apps/personal-assistant/src/runtime-agents/' },
+      to: { path: '^apps/personal-assistant/src/integrations/' },
     },
     {
       name: 'policies-not-to-composition',
@@ -228,7 +236,8 @@ module.exports = {
           'type-only'
         ],
         pathNot: [
-          'node_modules/@types/'
+          'node_modules/@types/',
+          'dist/'
         ]
       }
     },
@@ -256,10 +265,10 @@ module.exports = {
     },
 
     // Which modules to exclude
-    // exclude : {
-    //   // path: an array of regular expressions in strings to match against
-    //   path: '',
-    // },
+    exclude : {
+      // path: an array of regular expressions in strings to match against
+      path: ['(?:^|/)dist(?:/|$)', '(?:^|/)node_modules(?:/|$)', './src/index.ts'],
+    },
 
     // Which modules to exclusively include (array of regular expressions in strings)
     // dependency-cruiser will skip everything that doesn't match this pattern

@@ -6,6 +6,7 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { createObsidianVault } from "../../../../src/integrations/obsidian.js";
 import { createObsidianVaultTools } from "../../../../src/runtime-agents/obsidian/tools.js";
 import {
   applyFileWrite,
@@ -268,7 +269,7 @@ describe("obsidian node helpers", () => {
 
   it("validates Obsidian tool inputs with Zod schemas", async () => {
     const vaultRoot = await createTempVault();
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -312,7 +313,7 @@ describe("obsidian node helpers", () => {
       summary: "Created read note",
     });
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -610,7 +611,7 @@ describe("obsidian runtime node hooks", () => {
     await mkdir(path.join(vaultRoot, "events", "potuzhno", "techno-yoga"), { recursive: true });
     await writeFile(path.join(vaultRoot, "events", "potuzhno", "techno-yoga", "Places.md"), "No matching keywords here", "utf8");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["techno yoga"] }) as string;
 
@@ -748,7 +749,7 @@ describe("obsidian tool: list_files", () => {
     await wf(path.join(vaultRoot, "notes", "b.md"), "# B");
     await wf(path.join(vaultRoot, "notes", "sub", "c.md"), "# C");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const listTool = tools.find((tool) => tool.name === "list_files");
     const result = await listTool!.invoke({ relativeDir: "notes" }) as string;
 
@@ -764,7 +765,7 @@ describe("obsidian tool: list_files", () => {
     await mkdir(path.join(vaultRoot, "notes"), { recursive: true });
     await wf(path.join(vaultRoot, "readme.md"), "# Readme");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const listTool = tools.find((tool) => tool.name === "list_files");
     const result = await listTool!.invoke({}) as string;
 
@@ -775,7 +776,7 @@ describe("obsidian tool: list_files", () => {
   it("returns an error string for a non-existent directory", async () => {
     const vaultRoot = await createTempVault();
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const listTool = tools.find((tool) => tool.name === "list_files");
     const result = await listTool!.invoke({ relativeDir: "no-such-dir" }) as string;
 
@@ -795,7 +796,7 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
     await wf(path.join(vaultRoot, "c.md"), "hello typescript");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["HELLO", "goodbye"] }) as string;
 
@@ -810,7 +811,7 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "a.md"), "Hello World");
     await wf(path.join(vaultRoot, "b.md"), "goodbye");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["HELLO"] }) as string;
 
@@ -826,7 +827,7 @@ describe("obsidian tool: search_files", () => {
     await wf(path.join(vaultRoot, "notes", "match.md"), "alpha");
     await wf(path.join(vaultRoot, "other", "nomatch.md"), "alpha");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["alpha"], relativeDir: "notes" }) as string;
 
@@ -839,7 +840,7 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "x.md"), "TypeScript");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["TYPESCRIPT"] }) as string;
 
@@ -851,7 +852,7 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "both.md"), "hello world");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["hello", "world"] }) as string;
 
@@ -864,7 +865,7 @@ describe("obsidian tool: search_files", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "empty.md"), "nothing here");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files");
     const result = await searchTool!.invoke({ queries: ["zzznomatch"] }) as string;
 
@@ -887,7 +888,7 @@ describe("obsidian tool: search_files_by_name", () => {
     await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
     await wf(path.join(vaultRoot, "August 1 - Fri.md"), "# Wrong month");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
     const result = await searchTool!.invoke({ queries: ["July", "1"] }) as string;
 
@@ -902,7 +903,7 @@ describe("obsidian tool: search_files_by_name", () => {
     await wf(path.join(vaultRoot, "July 1 - Tue.md"), "# Day 1");
     await wf(path.join(vaultRoot, "July 2 - Wed.md"), "# Day 2");
 
-    const tools = createObsidianVaultTools(vaultRoot) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string; invoke(input: unknown): Promise<unknown> }>;
     const searchTool = tools.find((tool) => tool.name === "search_files_by_name");
     const result = await searchTool!.invoke({ queries: ["July 1"] }) as string;
 
@@ -926,7 +927,7 @@ describe("obsidian tool: send_file", () => {
       setCurrentChatId: vi.fn(),
     };
 
-    const tools = createObsidianVaultTools(vaultRoot, mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -948,7 +949,7 @@ describe("obsidian tool: send_file", () => {
       setCurrentChatId: vi.fn(),
     };
 
-    const tools = createObsidianVaultTools(vaultRoot, mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -966,8 +967,8 @@ describe("obsidian tool: send_file", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "file.md"), "content");
 
-    const toolsWithout = createObsidianVaultTools(vaultRoot) as Array<{ name?: string }>;
-    const toolsWith = createObsidianVaultTools(vaultRoot, {
+    const toolsWithout = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string }>;
+    const toolsWith = createObsidianVaultTools(createObsidianVault(vaultRoot), {
       sendFile: vi.fn(async () => undefined),
       setCurrentChatId: vi.fn(),
     }) as Array<{ name?: string }>;
@@ -995,7 +996,7 @@ describe("obsidian tool: send_file", () => {
       setCurrentChatId: vi.fn(),
     };
 
-    const tools = createObsidianVaultTools(vaultRoot, mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;

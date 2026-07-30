@@ -25,12 +25,9 @@ import {
   type SkillCatalog,
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
-  type SupervisorSystemContext,
 } from "@personal-assistant/supervisor-framework";
-import { MemorySaver } from "@langchain/langgraph";
-import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
-import { setupSupabaseSessions } from "../integrations/supabase.js";
-import { openDurabilityStore, type DurabilityStore } from "../persistence/durability-store.js";
+import { createObsidianVault } from "../integrations/obsidian.js";
+import { fetchWiseTransactions } from "../integrations/wise.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
 import {
@@ -40,6 +37,7 @@ import {
   type PersonalCapabilityDeps,
 } from "../runtime-agents/capabilities.js";
 import type { IFileSender } from "../ports/file-sender.js";
+import type { SqlSession } from "../ports/sql-session.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
 import {
@@ -50,6 +48,11 @@ import {
   createGeminiContextCacheManager,
   isGeminiContextCacheEnabled,
 } from "@personal-assistant/llm-gemini";
+import {
+  createPersonalCheckpointer,
+  setupPersonalAdapters,
+  type PersonalAdapters,
+} from "./personal-adapters.js";
 
 const personalDefaultContentSeeder = createDefaultContentSeeder({
   promptsDir: path.resolve(process.cwd(), "data/prompts"),
@@ -64,32 +67,20 @@ export type SupervisorSystemOptions = {
   dataWriteRole?: "writer" | "reader";
 };
 
-type PersonalAdapters = {
-  supabaseReadSession?: SupabaseMcpSession;
-  supabaseWriteSession?: SupabaseMcpSession;
-  durabilityStore?: DurabilityStore;
-};
-
 type PersonalCapabilityDepsOptions = {
   cronTargetAgentIds: readonly string[];
   capabilityCatalog: CapabilityCatalog;
   skillCatalog: SkillCatalog;
   cronJobRepository?: CronJobRepository | undefined;
   runtimeAgentRepository?: RuntimeAgentRepository | undefined;
-  supabaseReadSession?: SupabaseMcpSession | undefined;
-  supabaseWriteSession?: SupabaseMcpSession | undefined;
+  supabaseReadSession?: SqlSession | undefined;
+  supabaseWriteSession?: SqlSession | undefined;
   /** @deprecated Test/back-compat alias; maps to write session when write session is unset. */
-  supabaseSession?: SupabaseMcpSession | undefined;
+  supabaseSession?: SqlSession | undefined;
   fileSender?: IFileSender | undefined;
   runtimeCron?: RuntimeCronService | undefined;
   loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
 };
-
-type PersonalBootstrapContext = SupervisorSystemContext<
-  AppConfig,
-  PersonalCapabilityDeps,
-  PersonalAdapters
->;
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
   createSkillCatalog({
@@ -116,7 +107,11 @@ export const buildPersonalCapabilityDeps = (
   obsidianVaultPath: string,
   options: PersonalCapabilityDepsOptions,
 ): PersonalCapabilityDeps =>
-  createCapabilityDeps(obsidianVaultPath, {
+  createCapabilityDeps({
+    ...(obsidianVaultPath
+      ? { obsidianVault: createObsidianVault(obsidianVaultPath) }
+      : {}),
+    fetchWiseTransactions: fetchWiseTransactions,
     cronTargetAgentIds: options.cronTargetAgentIds,
     capabilityCatalog: options.capabilityCatalog,
     skillCatalog: options.skillCatalog,
@@ -144,32 +139,6 @@ const createPersonalCronJobRepository = (
   cronTargetAgentIds: CronTargetAgentIdsSource,
 ): CronJobRepository =>
   createCronJobRepositoryForConfig(cronJobsFilePath, cronTargetAgentIds);
-
-const setupPersonalAdapters = async (appConfig: AppConfig): Promise<PersonalAdapters> => {
-  const sessions = await setupSupabaseSessions(appConfig);
-  return {
-    ...(sessions.supabaseReadSession ? { supabaseReadSession: sessions.supabaseReadSession } : {}),
-    ...(sessions.supabaseWriteSession
-      ? { supabaseWriteSession: sessions.supabaseWriteSession }
-      : {}),
-    ...(appConfig.persistenceEnabled ? { durabilityStore: openDurabilityStore(appConfig) } : {}),
-  };
-};
-
-const createPersonalCheckpointer = async (
-  context: Pick<PersonalBootstrapContext, "config" | "adapters">,
-) => {
-  if (!context.config.persistenceEnabled) {
-    return new MemorySaver();
-  }
-
-  const store = context.adapters.durabilityStore;
-  if (!store) {
-    throw new Error("Persistence is enabled but durabilityStore adapter is missing.");
-  }
-
-  return store.getCheckpointer();
-};
 
 const buildPersonalRuntimeExecution = (
   config: AppConfig,
@@ -199,6 +168,8 @@ export type BuildPersonalSupervisorPackInput = {
   options?: SupervisorSystemOptions;
   supervisorLlm: ILLMConnector;
 };
+
+export { closePersonalAdapters } from "./personal-adapters.js";
 
 export const buildPersonalSupervisorPack = ({
   config,

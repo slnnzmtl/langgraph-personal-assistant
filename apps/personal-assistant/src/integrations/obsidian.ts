@@ -1,4 +1,3 @@
-import { z } from "zod";
 import {
   fileExists,
   listDirectoryContents,
@@ -7,14 +6,13 @@ import {
   searchFilesByContent,
   writeTextFile,
 } from "@personal-assistant/supervisor-framework";
+import {
+  RelativePathSchema,
+  type ObsidianFileWriteRequest,
+  type ObsidianVault,
+} from "../ports/obsidian-vault.js";
 
-export const RelativePathSchema = z
-  .string()
-  .min(1)
-  .describe("The destination path relative to the vault root.")
-  .refine((value) => !value.includes(".."), {
-    message: "Path traversal is forbidden.",
-  });
+export { RelativePathSchema } from "../ports/obsidian-vault.js";
 
 /**
  * Validates the relative path schema and resolves it to a safe physical absolute path.
@@ -40,13 +38,8 @@ const normalizeRelativeDir = (relativeDir: string): string => {
 };
 
 export const applyFileWrite = async (
-  vaultRoot: string, 
-  operationRequest: { 
-    relativePath: string; 
-    operation: "create_new" | "append" | "overwrite"; 
-    content: string; 
-    summary: string 
-  }
+  vaultRoot: string,
+  operationRequest: ObsidianFileWriteRequest,
 ): Promise<string> => {
   const { relativePath, operation, content } = operationRequest;
   resolveVaultPath(vaultRoot, relativePath);
@@ -205,3 +198,14 @@ export const searchFilesByName = async (
     return regexes.every((rx) => rx.test(fileName));
   });
 };
+
+export const createObsidianVault = (vaultRoot: string): ObsidianVault => ({
+  rootPath: vaultRoot,
+  resolvePath: (relativePath) => resolveVaultPath(vaultRoot, relativePath),
+  readFile: (relativePath) => readVaultFile(vaultRoot, relativePath),
+  writeFile: (request) => applyFileWrite(vaultRoot, request),
+  checkExists: (relativePath) => checkFileExists(vaultRoot, relativePath),
+  listDirContents: (relativeDir) => listDirContents(vaultRoot, relativeDir),
+  searchFiles: (queries, relativeDir) => searchFiles(vaultRoot, queries, relativeDir),
+  searchFilesByName: (queries, relativeDir) => searchFilesByName(vaultRoot, queries, relativeDir),
+});

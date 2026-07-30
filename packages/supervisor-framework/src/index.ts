@@ -17,7 +17,13 @@ export {
   type BuildDefaultRuntimeExecutionOptions,
 } from "./framework/build-default-runtime-execution.js";
 export { seedAgentsIfMissing } from "./framework/seed-agents-if-missing.js";
-export { createEmptySkillCatalog, createNoopCronJobRepository } from "./framework/defaults/utilities.js";
+export {
+  createEmptySkillCatalog,
+  createNoopCronJobRepository,
+  createDefaultContentSeeder,
+  type DefaultContentSeeder,
+  type DefaultContentSeederOptions
+} from "./framework/defaults/utilities/index.js";
 export {
   DEFAULT_SUPERVISOR_PROMPT,
   DEFAULT_CONFIGURATION_PROMPT,
@@ -26,11 +32,6 @@ export {
   DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
   DEFAULT_SKILL_BOOTSTRAP_SKILL_XML,
 } from "./framework/defaults/content/index.js";
-export {
-  createDefaultContentSeeder,
-  type DefaultContentSeeder,
-  type DefaultContentSeederOptions,
-} from "./framework/defaults/utilities.js";
 export type {
   SupervisorPaths,
   SupervisorGraphHooks,
@@ -180,6 +181,8 @@ export {
   configurationReposAvailable,
   isCapabilityGrantable,
   validatePersistedAgentCapabilities,
+  NONE_CAPABILITY_ID,
+  NONE_CAPABILITY_PROVIDER,
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
