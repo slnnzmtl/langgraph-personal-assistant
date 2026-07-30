@@ -32,7 +32,8 @@ export {
 
 export {
   CONFIGURATION_COMPLETION_FALLBACK,
+  CONFIGURATION_RESULT_MAPPING,
   buildConfigurationCompletionSummary,
-  mapConfigurationSubAgentResult,
+  buildConfigurationSalvageSummary,
   createSystemAgentNodeHooks,
 } from "./policy.js";

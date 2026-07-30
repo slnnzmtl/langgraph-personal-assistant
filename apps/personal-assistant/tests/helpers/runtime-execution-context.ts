@@ -13,7 +13,7 @@ import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   type PersonalCapabilityDeps,
-} from "../../src/runtime-agents/system-capability-deps.js";
+} from "../../src/runtime-agents/personal-capability-deps.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 

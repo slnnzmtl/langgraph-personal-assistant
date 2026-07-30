@@ -1,19 +1,14 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import { mkdir } from "node:fs/promises";
 
-import type { StructuredToolInterface } from "@langchain/core/tools";
-
 import {
   buildDirectoryTree,
   extractMessageTextContent,
-  hasCompletedAgentReply,
   processBlankToolLoopResponse,
+  type MapSubAgentResultOptions,
   type RuntimeAgentNodeHooks,
-  type RuntimeAgentTurnContext,
   type RuntimeShellFormatters,
-  type SubAgentState,
 } from "@personal-assistant/supervisor-framework";
-import { getAttachedSkillNames } from "@personal-assistant/supervisor-framework";
 import { getZonedDateDetails } from "../../utils/datetime.js";
 
 const formatRoutineFilePath = (date: Date): string => {
@@ -128,50 +123,14 @@ const hasSuccessfulObsidianWrite = (messages: BaseMessage[]): boolean =>
     return extractMessageTextContent(message.content).trim().startsWith("Success:");
   });
 
-const hasCompletedObsidianReply = (message: BaseMessage | undefined): message is AIMessage =>
-  hasCompletedAgentReply(message, OBSIDIAN_COMPLETION_FALLBACK);
-
-export const mapObsidianSubAgentResult = (
-  result: SubAgentState,
-  maxSteps: number,
-  onMaxStepsExceeded: () => { messages: AIMessage[] },
-): { messages: AIMessage[] } => {
-  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
-
-  if (hasCompletedObsidianReply(lastMessage)) {
-    return { messages: [lastMessage] };
-  }
-
-  const summary = buildObsidianCompletionSummary(result.agentMessages);
-
-  if (hasSuccessfulObsidianWrite(result.agentMessages)) {
-    return { messages: [new AIMessage(summary ?? OBSIDIAN_COMPLETION_FALLBACK)] };
-  }
-
-  if (summary) {
-    return { messages: [new AIMessage(summary)] };
-  }
-
-  if (result.stepCount >= maxSteps) {
-    return onMaxStepsExceeded();
-  }
-
-  // Empty handoff — empty_reply / post-handoff can use toolContext when available.
-  return { messages: [new AIMessage({ content: "" })] };
+export const OBSIDIAN_RESULT_MAPPING: MapSubAgentResultOptions = {
+  completionFallback: OBSIDIAN_COMPLETION_FALLBACK,
+  buildSummary: buildObsidianCompletionSummary,
+  isSuccessfulSideEffect: hasSuccessfulObsidianWrite,
+  maxStepsMessage: ({ maxSteps }) =>
+    `Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`,
+  emptyHandoffWhenNoSalvage: true,
 };
-
-export const selectObsidianToolsForTurn = (
-  ctx: RuntimeAgentTurnContext,
-  toolsForTurn: StructuredToolInterface[],
-): StructuredToolInterface[] => {
-  const attachedSkillNames = getAttachedSkillNames(ctx.definition, ctx.state.agentMessages);
-  if (attachedSkillNames.size === 0) {
-    return toolsForTurn;
-  }
-
-  return toolsForTurn.filter((tool) => tool.name !== "read_skill");
-};
-
 
 export const composeObsidianCapabilityHooks = (
   vaultRoot: string,
@@ -204,5 +163,6 @@ export const composeObsidianCapabilityHooks = (
         completionFallback: OBSIDIAN_COMPLETION_FALLBACK,
         buildSummary: buildObsidianCompletionSummary,
       }),
+    resultMapping: OBSIDIAN_RESULT_MAPPING,
   };
 };

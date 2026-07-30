@@ -14,7 +14,7 @@ import {
 import type { ILLMConnector, RoutingChain } from "@personal-assistant/supervisor-framework";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE, type CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/personal-capability-deps.js";
 import {
   buildTestRuntimeAgents,
   defaultTestCronTargetAgentIds,

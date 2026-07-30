@@ -14,7 +14,7 @@ import {
 } from "../helpers/capability-catalog.js";
 import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
 import type { SqlSession } from "../../src/integrations/mcp/sql-session.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/personal-capability-deps.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 

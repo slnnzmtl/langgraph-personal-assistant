@@ -1,168 +1,168 @@
-import { AIMessage } from "@langchain/core/messages";
-
 import {
   buildDirectoryTree,
+  createAgentPolicy,
+  createSystemAgentNodeHooks,
   hasSystemConfigWriteCapability,
   resolveAgentCapabilityIds,
+  resolveSystemConfigDeps,
+  SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
   type AgentPolicyToolkitOptions,
+  type ContextCacheKit,
   type RuntimeAgentDefinition,
   type RuntimeAgentNodeConfig,
   type RuntimeAgentNodeHooks,
   type RuntimeAgentPolicy,
+  type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import {
   composeObsidianCapabilityHooks,
   formatObsidianRoutineHint,
-  mapObsidianSubAgentResult,
-  selectObsidianToolsForTurn,
 } from "../runtime-agents/obsidian/hooks.js";
 import { mergeRuntimeCacheHooks } from "../policies/context-cache-runtime.js";
 import {
   createDefaultRuntimeAgentPolicy,
-  createRuntimeAgentPolicyFromBehavior,
-  nodeConfigFromBehavior,
-  resolveCapabilityBehavior,
   type DefaultRuntimePolicyOptions,
-  type ResolveCapabilityBehaviorOptions,
-  type RuntimeCapabilityBehavior,
 } from "../policies/runtime-agent-policy.js";
 import type { PersonalCapabilityDeps } from "../runtime-agents/personal-capability-deps.js";
 import { OBSIDIAN_VAULT_CAPABILITY_ID } from "../runtime-agents/obsidian/tools.js";
 
-const createObsidianCapabilityBehavior = (
-  vaultRoot: string,
-  shellHooks: RuntimeAgentNodeHooks,
-  options: {
-    shellFormatters: NonNullable<AgentPolicyToolkitOptions["shellFormatters"]>;
-    contextCache: ResolveCapabilityBehaviorOptions["contextCache"];
-    skillCatalog: ResolveCapabilityBehaviorOptions["skillCatalog"];
-  },
-): RuntimeCapabilityBehavior => {
-  const { shellFormatters, contextCache, skillCatalog } = options;
-
-  return {
-    logLabel: "runtime-agent",
-    buildErrorMessage: (error) =>
-      `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
-    createHooks: ({ definition }) => {
-      const cacheHooks = mergeRuntimeCacheHooks(
-        shellHooks,
-        definition,
-        shellFormatters,
-        skillCatalog,
-        contextCache,
-        async () => [
-          `Vault directory tree (folders only):\n${await buildDirectoryTree(vaultRoot)}`,
-          formatObsidianRoutineHint(),
-        ],
-      );
-
-      const obsidianHooks = composeObsidianCapabilityHooks(vaultRoot, shellFormatters, cacheHooks);
-
-      // Prefer cache prompt/model hooks when active so vault context stays in <turn_context>.
-      if (contextCache && skillCatalog) {
-        return {
-          ...obsidianHooks,
-          ...(cacheHooks.buildSystemPrompt
-            ? { buildSystemPrompt: cacheHooks.buildSystemPrompt }
-            : {}),
-          ...(cacheHooks.buildPromptMessages
-            ? { buildPromptMessages: cacheHooks.buildPromptMessages }
-            : {}),
-          ...(cacheHooks.resolveModelForTurn
-            ? { resolveModelForTurn: cacheHooks.resolveModelForTurn }
-            : {}),
-        };
-      }
-
-      return obsidianHooks;
-    },
-    // Tool filtering changes the cache fingerprint mid-session; keep the full set when caching.
-    ...(contextCache ? {} : { selectToolsForTurn: selectObsidianToolsForTurn }),
-    mapResult: (result, { maxSteps }) =>
-      mapObsidianSubAgentResult(result, maxSteps, () => ({
-        messages: [
-          new AIMessage(
-            `Unable to edit the local markdown vault: exceeded the maximum of ${maxSteps} Obsidian tool steps.`,
-          ),
-        ],
-      })),
-  };
+type RuntimeHookToolkit = {
+  shellFormatters: NonNullable<AgentPolicyToolkitOptions["shellFormatters"]>;
+  contextCache?: ContextCacheKit | undefined;
+  skillCatalog?: SkillCatalog | undefined;
 };
 
 const hasObsidianVaultCapability = (definition: RuntimeAgentDefinition): boolean =>
   resolveAgentCapabilityIds(definition).includes(OBSIDIAN_VAULT_CAPABILITY_ID);
 
-/** System-config wins; then Obsidian when vault is closed over; else default. */
-const resolveBehavior = (
+const defaultErrorMessage = (error: unknown, definition: RuntimeAgentDefinition): string =>
+  `Unable to run runtime agent ${definition.name}: ${error instanceof Error ? error.message : "Unknown error"}`;
+
+const systemConfigErrorMessage = (error: unknown): string =>
+  `Unable to update configuration: ${error instanceof Error ? error.message : "Unknown error during configuration"}`;
+
+const obsidianErrorMessage = (error: unknown): string =>
+  `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`;
+
+const createSystemConfigHooks = (
+  definition: RuntimeAgentDefinition,
+  toolkit: RuntimeHookToolkit,
+): RuntimeAgentNodeHooks =>
+  mergeRuntimeCacheHooks(
+    createSystemAgentNodeHooks(toolkit.shellFormatters),
+    definition,
+    toolkit.shellFormatters,
+    toolkit.skillCatalog,
+    toolkit.contextCache,
+  );
+
+const createDefaultHooks = (
   definition: RuntimeAgentDefinition,
   shellHooks: RuntimeAgentNodeHooks,
-  options: ResolveCapabilityBehaviorOptions,
-  vaultRoot: string | undefined,
-): RuntimeCapabilityBehavior => {
-  if (
-    vaultRoot
-    && !hasSystemConfigWriteCapability(definition)
-    && hasObsidianVaultCapability(definition)
-  ) {
-    const shellFormatters = options.shellFormatters;
-    if (!shellFormatters) {
-      throw new Error(`${OBSIDIAN_VAULT_CAPABILITY_ID} hooks require runtime shell formatters.`);
-    }
+  toolkit: RuntimeHookToolkit,
+): RuntimeAgentNodeHooks =>
+  mergeRuntimeCacheHooks(
+    shellHooks,
+    definition,
+    toolkit.shellFormatters,
+    toolkit.skillCatalog,
+    toolkit.contextCache,
+  );
 
-    return createObsidianCapabilityBehavior(vaultRoot, shellHooks, {
-      shellFormatters,
-      contextCache: options.contextCache,
-      skillCatalog: options.skillCatalog,
-    });
+/** Obsidian hooks: vault extras in cache; prefer cache prompt/model hooks when caching. */
+const createObsidianHooks = (
+  vaultRoot: string,
+  definition: RuntimeAgentDefinition,
+  shellHooks: RuntimeAgentNodeHooks,
+  toolkit: RuntimeHookToolkit,
+): RuntimeAgentNodeHooks => {
+  const { shellFormatters, contextCache, skillCatalog } = toolkit;
+
+  const cacheHooks = mergeRuntimeCacheHooks(
+    shellHooks,
+    definition,
+    shellFormatters,
+    skillCatalog,
+    contextCache,
+    async () => [
+      `Vault directory tree (folders only):\n${await buildDirectoryTree(vaultRoot)}`,
+      formatObsidianRoutineHint(),
+    ],
+  );
+
+  const obsidianHooks = composeObsidianCapabilityHooks(vaultRoot, shellFormatters, cacheHooks);
+
+  // Prefer cache prompt/model hooks when active so vault context stays in <turn_context>.
+  // resultMapping stays on obsidianHooks (spread first).
+  if (contextCache && skillCatalog) {
+    return {
+      ...obsidianHooks,
+      ...(cacheHooks.buildSystemPrompt
+        ? { buildSystemPrompt: cacheHooks.buildSystemPrompt }
+        : {}),
+      ...(cacheHooks.buildPromptMessages
+        ? { buildPromptMessages: cacheHooks.buildPromptMessages }
+        : {}),
+      ...(cacheHooks.resolveModelForTurn
+        ? { resolveModelForTurn: cacheHooks.resolveModelForTurn }
+        : {}),
+    };
   }
 
-  return resolveCapabilityBehavior(definition, shellHooks, options);
+  return obsidianHooks;
 };
 
 export type PersonalRuntimeNodeConfigOptions = {
   shellFormatters: NonNullable<AgentPolicyToolkitOptions["shellFormatters"]>;
-  contextCache?: ResolveCapabilityBehaviorOptions["contextCache"];
-  skillCatalog?: ResolveCapabilityBehaviorOptions["skillCatalog"];
+  contextCache?: ContextCacheKit | undefined;
+  skillCatalog?: SkillCatalog | undefined;
   vaultRoot?: string;
-  capabilityDeps?: PersonalCapabilityDeps;
 };
 
 /**
  * Full node config (hooks + labels) for a definition.
- * Test/helper surface — not a parallel resolver triad.
+ * Test/helper surface — mirrors the three-way case split in createPersonalRuntimeAgentPolicy.
  */
 export const buildPersonalRuntimeAgentNodeConfig = (
   definition: RuntimeAgentDefinition,
   shellHooks: RuntimeAgentNodeHooks,
   options: PersonalRuntimeNodeConfigOptions,
 ): RuntimeAgentNodeConfig => {
-  const behaviorOptions: ResolveCapabilityBehaviorOptions = {
+  const toolkit: RuntimeHookToolkit = {
     shellFormatters: options.shellFormatters,
     ...(options.contextCache !== undefined ? { contextCache: options.contextCache } : {}),
     ...(options.skillCatalog !== undefined ? { skillCatalog: options.skillCatalog } : {}),
   };
-  const behavior = resolveBehavior(
-    definition,
-    shellHooks,
-    behaviorOptions,
-    options.vaultRoot,
-  );
-  const hooks = behavior.createHooks({
-    definition,
-    capabilityDeps: options.capabilityDeps ?? ({} as PersonalCapabilityDeps),
-    shellHooks,
-    shellFormatters: options.shellFormatters,
-  });
+
+  if (hasSystemConfigWriteCapability(definition)) {
+    return {
+      ...createSystemConfigHooks(definition, toolkit),
+      logLabel: "runtime-agent",
+      buildErrorMessage: (error) => systemConfigErrorMessage(error),
+    };
+  }
+
+  if (
+    options.vaultRoot
+    && hasObsidianVaultCapability(definition)
+  ) {
+    return {
+      ...createObsidianHooks(options.vaultRoot, definition, shellHooks, toolkit),
+      logLabel: "runtime-agent",
+      buildErrorMessage: (error) => obsidianErrorMessage(error),
+    };
+  }
 
   return {
-    ...hooks,
-    ...nodeConfigFromBehavior(behavior),
+    ...createDefaultHooks(definition, shellHooks, toolkit),
+    logLabel: "runtime-agent",
+    buildErrorMessage: (error, agentDefinition) => defaultErrorMessage(error, agentDefinition),
   };
 };
 
 /**
  * Personal runtime policy: system-config + Obsidian (when vault root is closed over) + default.
+ * Finalize salvage comes from hooks.resultMapping (system-config / Obsidian composers).
  */
 export const createPersonalRuntimeAgentPolicy = (
   shellHooks: RuntimeAgentNodeHooks,
@@ -173,19 +173,40 @@ export const createPersonalRuntimeAgentPolicy = (
     return createDefaultRuntimeAgentPolicy(shellHooks, options);
   }
 
-  return createRuntimeAgentPolicyFromBehavior(
-    shellHooks,
-    options,
-    (definition, shellFormatters) =>
-      resolveBehavior(
-        definition,
-        shellHooks,
-        {
-          shellFormatters: shellFormatters ?? options.shellFormatters,
-          contextCache: options.contextCache,
-          skillCatalog: options.skillCatalog,
-        },
-        vaultRoot,
-      ),
-  );
+  return createAgentPolicy<PersonalCapabilityDeps>({
+    resolveDeps: (context, definition) => resolveSystemConfigDeps(context, definition),
+    unavailableMessage: () => SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
+    resolveTools: (definition, capabilityDeps, resolveOptions) =>
+      options.resolveTools(definition, capabilityDeps, resolveOptions ?? {}),
+    createHooks: (deps, policyOptions) => {
+      const { definition } = deps;
+      const toolkit: RuntimeHookToolkit = {
+        shellFormatters: policyOptions.shellFormatters!,
+        contextCache: options.contextCache,
+        skillCatalog: options.skillCatalog,
+      };
+
+      if (hasSystemConfigWriteCapability(definition)) {
+        return createSystemConfigHooks(definition, toolkit);
+      }
+
+      if (hasObsidianVaultCapability(definition)) {
+        return createObsidianHooks(vaultRoot, definition, shellHooks, toolkit);
+      }
+
+      return createDefaultHooks(definition, shellHooks, toolkit);
+    },
+    logLabel: "runtime-agent",
+    buildErrorMessage: (error, definition) => {
+      if (hasSystemConfigWriteCapability(definition)) {
+        return systemConfigErrorMessage(error);
+      }
+
+      if (hasObsidianVaultCapability(definition)) {
+        return obsidianErrorMessage(error);
+      }
+
+      return defaultErrorMessage(error, definition);
+    },
+  }, options);
 };

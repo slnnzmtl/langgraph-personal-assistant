@@ -134,7 +134,7 @@ Do **not** edit `buildPersonalCapabilityDeps` for product clients — those clos
 
 Same as tools-only, plus:
 
-1. Add `src/runtime-agents/<feature>/hooks.ts` for LLM turn behavior (prompt enrichment, tool filtering, result mapping).
+1. Add `src/runtime-agents/<feature>/hooks.ts` for LLM turn behavior (prompt enrichment, `processResponse`, and optional `resultMapping` for finalize salvage).
 2. Wire one adjacent, capability-specific hook branch in composition ([`personal-runtime-policy.ts`](../apps/personal-assistant/src/composition/personal-runtime-policy.ts), injected by `personal-pack.ts` over default/system policy — not a second parallel policy API). Do not introduce a generic product-hooks registry until there are multiple independent cases.
 
 Do **not** put vault/client paths on `PersonalCapabilityDeps` or `AppRuntimeExecutionOptions` — close over them in composition. Leave `policies/runtime-agent-policy.ts` for system-configuration and default policy only.

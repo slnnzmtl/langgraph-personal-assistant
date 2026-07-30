@@ -10,7 +10,7 @@ import {
 } from "../helpers/capability-catalog.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildTestRuntimeAgents } from "../helpers/runtime-agent-fixtures.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/personal-capability-deps.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 

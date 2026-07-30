@@ -8,7 +8,7 @@ import {
 import { createPersonalCapabilityCatalog, createProductCapabilityCatalog } from "../../helpers/capability-catalog.js";
 import { buildPersonalSupervisorPack } from "../../../src/composition/personal-pack.js";
 import type { AppConfig } from "../../../src/config.js";
-import type { PersonalCapabilityDeps } from "../../../src/runtime-agents/system-capability-deps.js";
+import type { PersonalCapabilityDeps } from "../../../src/runtime-agents/personal-capability-deps.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createRuntimeExecutionContextFake, createRuntimeAgentRepositoryFake } from "../../helpers/fakes.js";

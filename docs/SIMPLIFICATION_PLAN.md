@@ -14,6 +14,13 @@
 | E2 | Naming hygiene (helpers, comments, test paths) | Done |
 | E3 | Close this plan loop; align active docs | Done |
 
+## Follow-up
+
+| Item | Why | Status |
+|---|---|---|
+| `selectObsidianToolsForTurn` (and its wiring in `personal-runtime-policy.ts`) | Hides `read_skill` once a skill is attached. Prompt attachment guidance already covers this; with context cache the filter was skipped anyway. | **Removed** |
+| Unified `mapSubAgentResult` (framework finalize) | One finalize path; product salvage on `hooks.resultMapping`; no `resolveMapResult` / per-agent mapper aliases. | **Phase A–C done** |
+
 What was removed (no longer in tree):
 
 - `apps/personal-assistant/src/composition/domains/`
@@ -44,8 +51,8 @@ policies/                     system configuration and default runtime policy
 `personal-pack.ts` is the single composition root. It injects
 `createPersonalRuntimeAgentPolicy` into runtime execution. That factory is a
 **thin product seat** for the Obsidian capability branch on top of
-`policies/runtime-agent-policy.ts` (system-configuration + default behavior) —
-not a second parallel policy API.
+`policies/runtime-agent-policy.ts` (system-configuration + default cases) —
+not a second parallel policy API, and not a Behavior adapter bag.
 
 ## Historical problem (Phases A–C solved)
 

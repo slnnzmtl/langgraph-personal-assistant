@@ -12,6 +12,7 @@ import { hasPendingToolCalls } from "./tool-routing.js";
 import { extractMessageTextContent } from "../message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
+import type { MapSubAgentResultOptions } from "./map-sub-agent-result.js";
 import {
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
@@ -83,6 +84,8 @@ export type RuntimeAgentNodeHooks = {
     systemPromptText: string,
     stateMessages: BaseMessage[],
   ) => BaseMessage[];
+  /** Finalize options for mapSubAgentResult — product salvage lives next to processResponse. */
+  resultMapping?: MapSubAgentResultOptions;
 };
 
 export type ModelForTurn = {

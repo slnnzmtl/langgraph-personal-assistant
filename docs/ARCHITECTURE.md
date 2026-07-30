@@ -240,9 +240,9 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **prepare** | `{id}__prepare` | Scope recent parent `messages` into `agentMessages` via `scopeSubAgentMessages`; reset `stepCount` |
 | **llm** | `{id}__llm` | `createRuntimeAgentNode` — prompt assembly, tool binding, sanitization, recovery retry |
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
-| **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
+| **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` via unified `mapSubAgentResult` (options from `hooks.resultMapping` when set); clear `agentMessages` |
 
-Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. Default/system policy lives in `src/policies/`; product hooks (e.g. Obsidian) are composed in `src/composition/personal-runtime-policy.ts`; feature tools live in `src/runtime-agents/{finance,obsidian}/`.
+Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. Finalize is one path (`mapSubAgentResult`); product salvage (config / Obsidian) is hook-local via `resultMapping`, not per-agent mapper arms. Default/system policy lives in `src/policies/`; product hooks (e.g. Obsidian) are composed in `src/composition/personal-runtime-policy.ts`; feature tools live in `src/runtime-agents/{finance,obsidian}/`.
 
 **Runtime agents** register through `buildAppRuntimeExecution()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
@@ -395,7 +395,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The pack injects `createPersonalRuntimeAgentPolicy`, which uses `policies/runtime-agent-policy.ts` for system-configuration and default/tools-only behavior and adds the Obsidian capability branch in `composition/personal-runtime-policy.ts` (not a second parallel policy API). Feature tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`. Capability ids grant tool bundles; LLM-turn hooks are an optional overlay, not required for every capability.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The pack injects `createPersonalRuntimeAgentPolicy`, which calls `createAgentPolicy` with a three-way case split (system-configuration → Obsidian when vault is closed over → default/tools-only). System/default live in `policies/runtime-agent-policy.ts`; Obsidian attaches in `composition/personal-runtime-policy.ts` (not a second parallel policy API). Feature tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`. Capability ids grant tool bundles; LLM-turn hooks are an optional overlay, not required for every capability.
 
 ---
 
@@ -494,7 +494,7 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/scheduler/index.ts` |
 | `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs feature tools | Composition imports runtime-agents; policies must not import composition; runtime-agents must not import composition/policies/integrations (enforced in tests) |
 | `src/composition/personal-pack.ts` | Sole product provider registration | `buildPersonalCapabilityProviders` closes over adapters/config after setup |
-| `src/runtime-agents/system-capability-deps.ts` | System-only `PersonalCapabilityDeps` bag | Repos/catalogs/cron for configuration tools — not product clients |
+| `src/runtime-agents/personal-capability-deps.ts` | Personal `PersonalCapabilityDeps` bag | Repos/catalogs/cron for configuration tools — not product clients |
 | `src/composition/personal-adapters.ts` | Process-lifecycle adapters | Supabase sessions + durability store — closable; not Obsidian/Wise |
 | `src/scheduler/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
 | `src/integrations/supabase.ts` | Supabase MCP setup | Self-healing session + config guards; owns `{ executeSql, close }` |

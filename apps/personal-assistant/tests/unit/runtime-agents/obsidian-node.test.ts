@@ -8,9 +8,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createObsidianVault } from "../../../src/integrations/obsidian.js";
 import { createObsidianVaultTools } from "../../../src/runtime-agents/obsidian/tools.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../src/runtime-agents/obsidian/hooks.js";
+import {
+  buildObsidianCompletionSummary,
+  formatObsidianRoutineHint,
+  OBSIDIAN_RESULT_MAPPING,
+} from "../../../src/runtime-agents/obsidian/hooks.js";
 import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
-import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
+import { extractMessageTextContent, mapSubAgentResult } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
 } from "../../../src/prompts/load.js";
@@ -38,10 +42,10 @@ const createTempVault = async (): Promise<string> => {
   return tempVault;
 };
 
-describe("mapObsidianSubAgentResult", () => {
+describe("OBSIDIAN_RESULT_MAPPING", () => {
   it("returns the final reply even when stepCount equals maxSteps", () => {
     const finalReply = new AIMessage("OK. I've created English learning.md.");
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("Save to note English learning"),
@@ -62,15 +66,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 8,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toBe("OK. I've created English learning.md.");
   });
 
   it("summarizes a successful write when maxSteps is hit without a final reply", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("Save to note English learning"),
@@ -99,15 +106,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 8,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toContain("Create English learning note and add link");
   });
 
   it("reports max steps only when the edit did not complete", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("keep searching forever"),
@@ -127,15 +137,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 3,
       },
-      3,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 3, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toBe("exceeded max steps");
   });
 
   it("surfaces read_file content when the model returns a blank final reply", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("show me routine"),
@@ -156,8 +169,11 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 2,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toContain("## Summary");

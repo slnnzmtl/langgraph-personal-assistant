@@ -3,9 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createRuntimeShellHooks,
   createSystemAgentDefinition,
-  SYSTEM_CONFIG_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { resolveCapabilityHookId } from "../../../src/policies/runtime-agent-policy.js";
 import {
   buildPersonalRuntimeAgentNodeConfig,
 } from "../../../src/composition/personal-runtime-policy.js";
@@ -17,25 +15,8 @@ const skillCatalog = createTestSkillCatalog();
 const shellFormatters = createDefaultRuntimeShellFormatters(skillCatalog);
 const shellHooks = createRuntimeShellHooks(shellFormatters);
 
-describe("resolveCapabilityHookId", () => {
-  it("selects system-config for the configuration agent", () => {
-    expect(
-      resolveCapabilityHookId(createSystemAgentDefinition({ modelKey: "configuration" })),
-    ).toBe(SYSTEM_CONFIG_CAPABILITY_ID);
-  });
-
-  it("returns undefined for product agents (no policy-owned product hooks)", () => {
-    const obsidian = buildLocalModuleAgents().find((agent) => agent.id === "obsidian");
-    const finance = buildLocalModuleAgents().find((agent) => agent.id === "finance");
-    expect(obsidian).toBeDefined();
-    expect(finance).toBeDefined();
-    expect(resolveCapabilityHookId(obsidian!)).toBeUndefined();
-    expect(resolveCapabilityHookId(finance!)).toBeUndefined();
-  });
-});
-
 describe("personal runtime policy Obsidian attachment", () => {
-  it("keeps system-config behavior over Obsidian for the configuration agent", () => {
+  it("keeps system-config over Obsidian for the configuration agent", () => {
     const configuration = createSystemAgentDefinition({ modelKey: "configuration" });
     const config = buildPersonalRuntimeAgentNodeConfig(configuration, shellHooks, {
       shellFormatters,
@@ -70,7 +51,7 @@ describe("personal runtime policy Obsidian attachment", () => {
     );
   });
 
-  it("leaves tools-only finance agents on default behavior", () => {
+  it("leaves tools-only finance agents on the default case", () => {
     const finance = buildLocalModuleAgents().find((agent) => agent.id === "finance");
     expect(finance).toBeDefined();
 

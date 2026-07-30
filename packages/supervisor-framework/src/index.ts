@@ -60,8 +60,9 @@ export {
   SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
   createSystemAgentNodeHooks,
   CONFIGURATION_COMPLETION_FALLBACK,
+  CONFIGURATION_RESULT_MAPPING,
   buildConfigurationCompletionSummary,
-  mapConfigurationSubAgentResult,
+  buildConfigurationSalvageSummary,
   buildDeleteSkillConfirmToken,
   buildDeleteRuntimeAgentConfirmToken,
   buildDeleteCronJobConfirmToken,
@@ -285,6 +286,9 @@ export {
 export {
   createSubAgentGraphBundle,
   createSubAgentToolsNode,
+  createMaxStepsExceededUpdate,
+  mapSubAgentResult,
+  type MapSubAgentResultOptions,
   type SubAgentLlmNode,
 } from "./core/execution/create-sub-agent.js";
 export {
