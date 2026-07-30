@@ -75,8 +75,6 @@ type PersonalCapabilityDepsOptions = {
   runtimeAgentRepository?: RuntimeAgentRepository | undefined;
   supabaseReadSession?: SqlSession | undefined;
   supabaseWriteSession?: SqlSession | undefined;
-  /** @deprecated Test/back-compat alias; maps to write session when write session is unset. */
-  supabaseSession?: SqlSession | undefined;
   fileSender?: IFileSender | undefined;
   runtimeCron?: RuntimeCronService | undefined;
   loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
@@ -121,7 +119,6 @@ export const buildPersonalCapabilityDeps = (
       : {}),
     ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
     ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
-    ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
     ...(options.fileSender ? { fileSender: options.fileSender } : {}),
     ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
     ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),

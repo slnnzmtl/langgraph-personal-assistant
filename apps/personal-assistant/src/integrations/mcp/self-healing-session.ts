@@ -1,9 +1,6 @@
 import type { SqlSession } from "../../ports/sql-session.js";
 import { isMcpTransportError } from "./transport-errors.js";
 
-/** @deprecated Use SqlSession from ports/sql-session.js */
-export type McpSessionLike = SqlSession;
-
 export type ReconnectBackoffOptions = {
   baseDelayMs: number;
   maxDelayMs: number;

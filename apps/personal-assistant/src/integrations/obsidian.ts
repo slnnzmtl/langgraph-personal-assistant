@@ -12,8 +12,6 @@ import {
   type ObsidianVault,
 } from "../ports/obsidian-vault.js";
 
-export { RelativePathSchema } from "../ports/obsidian-vault.js";
-
 /**
  * Validates the relative path schema and resolves it to a safe physical absolute path.
  */

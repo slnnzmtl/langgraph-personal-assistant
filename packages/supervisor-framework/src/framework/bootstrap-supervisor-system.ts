@@ -127,7 +127,7 @@ export const bootstrapSupervisorSystem = async <
     contextCache,
   } = pack.buildRuntimeExecution(runtimeAgents, skillCatalog, bootstrapContext);
 
-  const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
+  const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? {};
   const messageHistoryMaxTokens =
     graphHooks.messageHistoryMaxTokens ?? pack.config.messageHistoryMaxTokens;
 

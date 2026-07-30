@@ -32,7 +32,8 @@ export type TestWorkflowGraphOptions = {
   obsidianVaultPath?: string;
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
-  supabaseSession?: SqlSession;
+  supabaseReadSession?: SqlSession;
+  supabaseWriteSession?: SqlSession;
   fileSender?: IFileSender;
 };
 
@@ -45,11 +46,12 @@ export const createTestWorkflowGraph = ({
   obsidianVaultPath = "/tmp/vault",
   cronJobRepository,
   runtimeAgentRepository,
-  supabaseSession,
+  supabaseReadSession,
+  supabaseWriteSession,
   fileSender,
 }: TestWorkflowGraphOptions): CompiledSupervisorGraph => {
   runtimeAgents = prepareRuntimeAgents(runtimeAgents, {
-    supabaseAvailable: supabaseSession !== undefined,
+    supabaseAvailable: supabaseReadSession !== undefined || supabaseWriteSession !== undefined,
   });
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey as "generic");
   const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
@@ -80,12 +82,8 @@ export const createTestWorkflowGraph = ({
     cronTargetAgentIds,
     runtimeAgentRepository: resolvedRuntimeAgentRepository,
     ...(cronJobRepository ? { cronJobRepository } : {}),
-    ...(supabaseSession
-      ? {
-          supabaseReadSession: supabaseSession,
-          supabaseWriteSession: supabaseSession,
-        }
-      : {}),
+    ...(supabaseReadSession ? { supabaseReadSession } : {}),
+    ...(supabaseWriteSession ? { supabaseWriteSession } : {}),
     ...(fileSender ? { fileSender } : {}),
   });
 

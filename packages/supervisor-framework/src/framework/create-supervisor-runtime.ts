@@ -81,7 +81,7 @@ export const createSupervisorRuntime = async <
         }
       : {}),
     buildGraphHooks: (context) => {
-      const hooks = pack.buildGraphHooks?.(context) ?? pack.graphHooks ?? {};
+      const hooks = pack.buildGraphHooks?.(context) ?? {};
 
       if (pack.createCheckpointer) {
         return stableCheckpointer

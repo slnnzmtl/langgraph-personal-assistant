@@ -118,8 +118,6 @@ export type SupervisorPackBootstrap<
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => TDeps;
-  /** Prefer `buildGraphHooks` for context-aware hooks. Static hooks remain for legacy packs. */
-  graphHooks?: SupervisorGraphHooks;
   buildGraphHooks?: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => SupervisorGraphHooks;

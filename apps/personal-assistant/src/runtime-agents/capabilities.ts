@@ -66,8 +66,6 @@ export type PersonalDomainDeps = {
   fetchWiseTransactions?: FetchWiseTransactions;
   supabaseReadSession?: SqlSession;
   supabaseWriteSession?: SqlSession;
-  /** @deprecated Use supabaseWriteSession. */
-  supabaseSession?: SqlSession;
 };
 
 export type PersonalSystemDeps = {
@@ -88,7 +86,6 @@ export type CreateCapabilityDepsOptions = {
   fetchWiseTransactions?: FetchWiseTransactions;
   supabaseReadSession?: PersonalDomainDeps["supabaseReadSession"];
   supabaseWriteSession?: PersonalDomainDeps["supabaseWriteSession"];
-  supabaseSession?: PersonalDomainDeps["supabaseSession"];
   cronTargetAgentIds?: PersonalSystemDeps["cronTargetAgentIds"];
   cronJobRepository?: PersonalSystemDeps["cronJobRepository"];
   runtimeAgentRepository?: PersonalSystemDeps["runtimeAgentRepository"];
@@ -108,7 +105,6 @@ export const createCapabilityDeps = (
     : {}),
   ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
   ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
-  ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
   ...(options.cronTargetAgentIds ? { cronTargetAgentIds: options.cronTargetAgentIds } : {}),
   ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
   ...(options.runtimeAgentRepository
@@ -134,10 +130,9 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Personal
   },
   {
     descriptor: getDescriptor("finance-domain"),
-    isAvailable: (deps) =>
-      deps.supabaseWriteSession !== undefined || deps.supabaseSession !== undefined,
+    isAvailable: (deps) => deps.supabaseWriteSession !== undefined,
     resolveTools: (deps) => {
-      const session = deps.supabaseWriteSession ?? deps.supabaseSession;
+      const session = deps.supabaseWriteSession;
       if (!session) {
         throw new Error("finance-domain capability requires a configured Supabase write session.");
       }
@@ -150,10 +145,9 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Personal
   },
   {
     descriptor: getDescriptor("finance-domain-read"),
-    isAvailable: (deps) =>
-      deps.supabaseReadSession !== undefined || deps.supabaseSession !== undefined,
+    isAvailable: (deps) => deps.supabaseReadSession !== undefined,
     resolveTools: (deps) => {
-      const session = deps.supabaseReadSession ?? deps.supabaseSession;
+      const session = deps.supabaseReadSession;
       if (!session) {
         throw new Error("finance-domain-read capability requires a configured Supabase read session.");
       }

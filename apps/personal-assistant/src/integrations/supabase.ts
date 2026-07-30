@@ -64,11 +64,3 @@ export const setupSupabaseSessions = async (config: AppConfig): Promise<Supabase
     return {};
   }
 };
-
-/** @deprecated Prefer setupSupabaseSessions. Returns the write session. */
-export const setupSupabaseSession = async (
-  config: AppConfig,
-): Promise<SupabaseMcpSession | undefined> => {
-  const sessions = await setupSupabaseSessions(config);
-  return sessions.supabaseWriteSession;
-};

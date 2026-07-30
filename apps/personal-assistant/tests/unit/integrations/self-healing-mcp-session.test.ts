@@ -3,15 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   computeReconnectDelayMs,
   createSelfHealingMcpSession,
-  type McpSessionLike,
 } from "../../../src/integrations/mcp/self-healing-session.js";
+import type { SqlSession } from "../../../src/ports/sql-session.js";
 
 const transportError = (code: string): Error =>
   Object.assign(new Error(`transport failure: ${code}`), { code });
 
 const createSessionStub = (
-  executeSql: McpSessionLike["executeSql"],
-): McpSessionLike => ({
+  executeSql: SqlSession["executeSql"],
+): SqlSession => ({
   executeSql,
   close: vi.fn().mockResolvedValue(undefined),
 });
