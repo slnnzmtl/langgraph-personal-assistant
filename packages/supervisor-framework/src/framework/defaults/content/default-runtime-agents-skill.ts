@@ -22,8 +22,7 @@ export const DEFAULT_RUNTIME_AGENTS_SKILL_XML = `<skill name="runtime-agents" mo
 4. UPDATE (edit, update, change, rewrite, enable, disable):
    - Call \`preview_runtime_agent(id)\` first when the current definition is unknown.
    - Then call \`update_runtime_agent(id, ...)\` with the replacement fields.
-   - When \`systemPrompt\` is updated, the configured prompt store persists the replacement prompt.
-   - Legacy agents with inline-only prompts migrate to the configured prompt store on the first \`systemPrompt\` update when supported.
+   - When \`systemPrompt\` is updated, the configured prompt store persists the replacement prompt for data-managed agents (\`promptSourceKey\` set).
 
 5. DELETE (remove, delete):
    - Require explicit user confirmation before deleting.

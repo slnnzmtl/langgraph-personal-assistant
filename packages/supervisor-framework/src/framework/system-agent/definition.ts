@@ -5,15 +5,14 @@ import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { LoadPromptByKey } from "../../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentExecutionContext } from "../../core/execution/context.js";
 import {
-  CONFIGURATION_AGENT_ID,
   resolveAgentCapabilityIds,
+  SYSTEM_AGENT_ID,
   type RuntimeAgentDefinition,
 } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 import type { CronJobRepository } from "../cron/types.js";
 
-/** Virtual system admin agent id (skill module + executor name). */
-export const SYSTEM_AGENT_ID = CONFIGURATION_AGENT_ID;
+export { SYSTEM_AGENT_ID } from "../../core/types/agent.js";
 
 export const SYSTEM_AGENT_DISPLAY_NAME = "Configuration";
 

@@ -1,5 +1,4 @@
 import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -190,64 +189,6 @@ describe("framework bootstrap", () => {
     });
 
     expect(initializeDefaults).not.toHaveBeenCalled();
-  });
-
-  it("skips purgeLegacySystemAgent when allowDataWrites is false", async () => {
-    const catalog = createCapabilityCatalog([NONE_CAPABILITY_PROVIDER]);
-    const rootDir = path.join(process.cwd(), ".tmp", `framework-readonly-purge-${process.pid}`);
-    const relativePath = "data/runtime-agents.json";
-    const runtimeAgentsFilePath = path.join(rootDir, relativePath);
-    const repository = createRuntimeAgentRepository(rootDir, relativePath);
-    const saveAgents = vi.spyOn(repository, "saveAgents");
-
-    await mkdir(path.dirname(runtimeAgentsFilePath), { recursive: true });
-    await writeFile(
-      runtimeAgentsFilePath,
-      `${JSON.stringify({
-        version: 1,
-        agents: [
-          {
-            id: "configuration",
-            name: "Configuration",
-            description: "legacy",
-            systemPrompt: "legacy",
-            capabilityIds: ["system-config"],
-            executor: "configuration",
-            modelKey: "configuration",
-            builtin: true,
-            maxSteps: 10,
-            enabled: true,
-            createdAt: "1970-01-01T00:00:00.000Z",
-            updatedAt: "1970-01-01T00:00:00.000Z",
-          },
-        ],
-      }, null, 2)}\n`,
-      { flag: "w" },
-    );
-
-    await bootstrapSupervisorSystem({
-      config: {
-        runtimeAgentsFilePath,
-        cronJobsFilePath: path.join(rootDir, "data/cron-jobs.json"),
-        allowDataWrites: false,
-      },
-      capabilityCatalog: catalog,
-      supervisorLlm: new FakeLLMConnector(() => ({ next: "FINISH", reply: "ok" })),
-      loadSupervisorPrompt: () => "Supervise requests.",
-      systemAgent: { modelKey: "configuration" },
-      createRuntimeAgentRepository: () => repository,
-      seedAgents: async () => [researcher],
-      buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
-        buildDefaultRuntimeExecution(ctx.capabilityCatalog, {
-          loadPromptByKey: () => "prompt",
-        }),
-      buildModels: () => ({
-        generic: new FakeLLMConnector(() => "ok").getModel(),
-      }),
-      buildCapabilityDeps: () => ({}),
-    });
-
-    expect(saveAgents).not.toHaveBeenCalled();
   });
 
   it("wraps runtime-agent repository in read-only mode when allowDataWrites is false", async () => {

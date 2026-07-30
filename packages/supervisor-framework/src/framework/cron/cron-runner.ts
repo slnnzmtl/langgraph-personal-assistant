@@ -95,7 +95,7 @@ const summarizeJobResult = async (
 export const MAX_GRAPH_CONTINUATIONS = 3;
 
 const hasPendingToolCall = (message: BaseMessage | undefined): boolean =>
-  message instanceof AIMessage && Boolean(message.tool_calls?.length || (message.additional_kwargs as { functionCall?: unknown } | undefined)?.functionCall);
+  message instanceof AIMessage && Boolean(message.tool_calls?.length);
 
 const isTerminalGraphResult = (messages: BaseMessage[]): boolean => {
   const lastMessage = messages.at(-1);

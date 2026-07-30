@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob, createCronJobRepository } from "@personal-assistant/supervisor-framework";
 import { defaultTestCronTargetAgentIds } from "../../helpers/runtime-agent-fixtures.js";
-import type { SupabaseMcpSession } from "../../../src/integrations/mcp/supabase.js";
+import type { SqlSession } from "../../../src/ports/sql-session.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeTestRuntimeAgent } from "../../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../../helpers/workflow-graph.js";
@@ -53,7 +53,7 @@ const makeGraph = (
   supervisorHandler: (input: unknown) => unknown,
   obsidianHandler?: (input: unknown) => unknown,
   financeHandler?: (input: unknown) => unknown,
-  supabaseMcpSession?: SupabaseMcpSession,
+  supabaseMcpSession?: SqlSession,
   configHandler?: (input: unknown) => unknown,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
   runtimeAgents?: ReturnType<typeof buildTestRuntimeAgents>,
@@ -150,7 +150,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("visits the finance node on finance route (real integration with mock session)", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -177,7 +177,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("preserves every finance tool result when the model emits parallel tool calls", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -327,7 +327,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("executes a multi-agent queue sequentially before re-planning", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -383,7 +383,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("routes scheduled finance triggers to the finance node without supervisor LLM routing", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };

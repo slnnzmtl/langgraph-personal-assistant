@@ -125,16 +125,6 @@ Most specialists are created via chat (`generic` + grantable capabilities). Use 
 
 See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
 
-### Migrating legacy inline prompts
-
-Agents created before prompt files (inline `systemPrompt` only, no `promptSourceKey`) migrate on the next `update_runtime_agent` call that includes `systemPrompt`. Example for an existing trainer row:
-
-```
-update_runtime_agent(id: "trainer", systemPrompt: "<full prompt text>")
-```
-
-That writes `data/prompts/trainer.xml`, sets `promptSourceKey: "trainer"`, and replaces the JSON prompt with the bootstrap snapshot.
-
 ---
 
 ## Quick checklist

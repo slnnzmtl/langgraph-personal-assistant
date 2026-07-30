@@ -77,7 +77,7 @@ const canPersistPromptToStore = (
   agent: RuntimeAgentDefinition,
   promptStore: RuntimeAgentPromptStore | undefined,
 ): boolean =>
-  promptStore !== undefined && (!agent.promptSourceKey || isDataManagedAgent(agent));
+  promptStore !== undefined && isDataManagedAgent(agent);
 
 export const createRuntimeAgentRepository = (
   rootDir: string,

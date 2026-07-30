@@ -23,8 +23,7 @@
 4. UPDATE (edit, update, change, rewrite, enable, disable):
    - Call `preview_runtime_agent(id)` first when the current definition is unknown.
    - Then call `update_runtime_agent(id, ...)` with the replacement fields.
-   - When `systemPrompt` is updated, the tool rewrites `data/prompts/{id}.xml`; JSON keeps the bootstrap snapshot.
-   - Legacy chat-created agents with inline-only prompts migrate to a prompt file on the first `systemPrompt` update.
+   - When `systemPrompt` is updated, the tool rewrites `data/prompts/{id}.xml` for data-managed agents; JSON keeps the bootstrap snapshot.
 
 5. DELETE (remove, delete):
    - Require explicit user confirmation before deleting.

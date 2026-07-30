@@ -68,7 +68,6 @@ export {
 } from "./framework/system-agent/index.js";
 export type {
   SystemAgentOptions,
-  SystemAgentRepository,
   SystemConfigDeps,
   SystemConfigToolsOptions,
 } from "./framework/system-agent/index.js";

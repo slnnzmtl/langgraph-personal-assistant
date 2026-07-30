@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SupabaseMcpSession } from "../../../../src/integrations/mcp/supabase.js";
+import type { SqlSession } from "../../../../src/ports/sql-session.js";
 import { createTestRuntimeAgentNode, buildNodeConfigForTest } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools, getFinanceDomainTool } from "../../../helpers/finance-tools.js";
@@ -52,7 +52,7 @@ describe("finance tools", () => {
       }),
     }));
 
-    const session: SupabaseMcpSession = {
+    const session: SqlSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
@@ -67,7 +67,7 @@ describe("finance tools", () => {
   });
 
   it("returns SQL result wrappers as a single JSON array string", async () => {
-    const session: SupabaseMcpSession = {
+    const session: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
@@ -79,7 +79,7 @@ describe("finance tools", () => {
   });
 
   it("serializes tool failures as structured error text", async () => {
-    const session: SupabaseMcpSession = {
+    const session: SqlSession = {
       executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
       close: vi.fn(),
     };
@@ -91,7 +91,7 @@ describe("finance tools", () => {
   });
 
   it("returns all expense categories with a zero-argument tool", async () => {
-    const session: SupabaseMcpSession = {
+    const session: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
@@ -103,7 +103,7 @@ describe("finance tools", () => {
   });
 
   it("attaches all finance tools to the agent", () => {
-    const session: SupabaseMcpSession = {
+    const session: SqlSession = {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
@@ -171,7 +171,7 @@ describe("finance tools", () => {
       }));
       const largeJson = JSON.stringify(largeRows);
 
-      const session: SupabaseMcpSession = {
+      const session: SqlSession = {
         executeSql: vi.fn().mockResolvedValue(largeRows),
         close: vi.fn(),
       };
@@ -184,7 +184,7 @@ describe("finance tools", () => {
     });
 
     it("does not truncate exec_sql output within 8000 chars", async () => {
-      const session: SupabaseMcpSession = {
+      const session: SqlSession = {
         executeSql: vi.fn().mockResolvedValue(categories),
         close: vi.fn(),
       };

@@ -11,8 +11,6 @@ export interface SupabaseMcpConfig {
   readOnly?: boolean;
 }
 
-export type SupabaseMcpSession = SqlSession;
-
 type TextContent = {
   type: string;
   text?: string;
@@ -49,7 +47,7 @@ function buildSupabaseMcpUrl(config: SupabaseMcpConfig): URL {
   return url;
 }
 
-export async function connectSupabaseMcp(config: SupabaseMcpConfig): Promise<SupabaseMcpSession> {
+export async function connectSupabaseMcp(config: SupabaseMcpConfig): Promise<SqlSession> {
   const url = buildSupabaseMcpUrl(config);
 
   const transport = new StreamableHTTPClientTransport(url, {

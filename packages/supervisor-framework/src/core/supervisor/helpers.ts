@@ -6,7 +6,7 @@ import {
 } from "../execution/runtime-agent-handoff.js";
 import type { AgentState, AgentStateUpdate, ExecutionQueue } from "../state.js";
 import { POST_HANDOFF_FINISH_ROUTE } from "../state.js";
-import { CONFIGURATION_AGENT_ID, RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
+import { RUNTIME_AGENT_CONTEXT_KEY, SYSTEM_AGENT_ID } from "../types/agent.js";
 import {
   normalizeDelegationPrompt,
   normalizeSupervisorReply,
@@ -226,7 +226,7 @@ export const detectCompletionState = (
 
   const lastMessage = state.messages[state.messages.length - 1];
   const specialistJustFinished = lastMessage instanceof AIMessage;
-  const configurationHandoff = state.lastHandoff?.agentId === CONFIGURATION_AGENT_ID;
+  const configurationHandoff = state.lastHandoff?.agentId === SYSTEM_AGENT_ID;
 
   if (!specialistJustFinished || !configurationHandoff) {
     return null;

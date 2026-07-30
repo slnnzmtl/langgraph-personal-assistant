@@ -42,8 +42,8 @@ describe("framework default content", () => {
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("<output_templates>");
   });
 
-  it("documents restore-as-create in skill-management write safety", () => {
-    expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("Deleted skills cannot be recovered");
+  it("documents restore-as-create in the configuration prompt", () => {
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("Deleted skills cannot be recovered");
   });
 
   it("provides a cron skill that resolves targets via list_runtime_agents", () => {

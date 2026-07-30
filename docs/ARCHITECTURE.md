@@ -116,7 +116,7 @@ flowchart TB
 
 ## Boot Sequence
 
-The assistant runs as **two processes** that share the same workflow graph wiring via `createSupervisorSystem()`. **Single-writer discipline:** the Telegram bot is the sole writer to `./data`; the scheduler process is read-only for runtime-agent and cron JSON (mutating repository methods throw; bootstrap skips `initializeDefaults` and `purgeLegacySystemAgent`).
+The assistant runs as **two processes** that share the same workflow graph wiring via `createSupervisorSystem()`. **Single-writer discipline:** the Telegram bot is the sole writer to `./data`; the scheduler process is read-only for runtime-agent and cron JSON (mutating repository methods throw; bootstrap skips `initializeDefaults`).
 
 ### Telegram bot (`src/index.ts`) — data **writer**
 
@@ -130,7 +130,7 @@ index.ts
             │    └─ bootstrapSupervisorSystem()
             │         ├─ initializeDefaults() — seed missing supervisor/configuration prompts + configuration skills (atomic wx, opt-in)
             │         ├─ setupAdapters() — optional Supabase MCP (when configured)
-            │         ├─ runtime agent repository + purgeLegacySystemAgent() + virtual configuration agent
+            │         ├─ runtime agent repository + virtual configuration agent
             │         ├─ seedAgents() — load persisted specialists from data/runtime-agents.json
             │         ├─ buildSkillCatalog() — read data/skills/
             │         └─ createAssistant() — compile root graph from enabled agents
@@ -370,7 +370,7 @@ RuntimeAgentDefinitionSchema = z.object({
 
 ### Code-seeded and persisted agents
 
-The **configuration** system admin agent is virtual: defined via the framework `systemAgent` pack option, injected at bootstrap, and never written to `data/runtime-agents.json`. Legacy `configuration` rows are purged once at seed time. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
+The **configuration** system admin agent is virtual: defined via the framework `systemAgent` pack option, injected at bootstrap, and never written to `data/runtime-agents.json`. Finance, Obsidian, and other specialists are persisted in `data/runtime-agents.json` and are wired into the graph at compile time when enabled.
 
 | ID | Model key | Typical max steps | Capability | Requires |
 |---|---|---|---|---|
@@ -378,7 +378,7 @@ The **configuration** system admin agent is virtual: defined via the framework `
 | `finance` | `finance` | 10 | `finance-domain` | Supabase MCP |
 | `obsidian` | `obsidian` | 12 | `obsidian-vault` | Vault path |
 
-Persisted specialists optionally set `modelKey` for dedicated chat models. Legacy `executor` values in JSON are migrated on load (inferring `modelKey` when absent). Tools and optional LLM hooks come from grantable **capabilities**.
+Persisted specialists optionally set `modelKey` for dedicated chat models. Tools and optional LLM hooks come from grantable **capabilities**.
 
 ---
 
@@ -420,7 +420,7 @@ initializeDefaults: () => {
 
 **Not auto-seeded:** domain prompts (`finance.xml`, `obsidian.xml`) and domain skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`). Those remain git-tracked app content.
 
-Only the **bot** (writer role) runs `initializeDefaults` and `purgeLegacySystemAgent` on bootstrap; the scheduler (reader role) skips those writes and uses read-only repository wrappers. On first deploy, start the bot once (or ensure the writer process boots first) so framework defaults seed into `./data` before the scheduler reads them.
+Only the **bot** (writer role) runs `initializeDefaults` on bootstrap; the scheduler (reader role) skips those writes and uses read-only repository wrappers. On first deploy, start the bot once (or ensure the writer process boots first) so framework defaults seed into `./data` before the scheduler reads them.
 
 ---
 

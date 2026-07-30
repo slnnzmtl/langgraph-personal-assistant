@@ -51,12 +51,12 @@ Import from `@personal-assistant/supervisor-framework`:
 
 Optional bootstrap hooks (omit for minimal packs):
 
-- `config.allowDataWrites?: boolean` on `SupervisorPaths` — when `false`, bootstrap skips `initializeDefaults` and `purgeLegacySystemAgent` (default `true`). Personal app sets this from `dataWriteRole: "writer" | "reader"` at the entrypoint.
+- `config.allowDataWrites?: boolean` on `SupervisorPaths` — when `false`, bootstrap skips `initializeDefaults` (default `true`). Personal app sets this from `dataWriteRole: "writer" | "reader"` at the entrypoint.
 
 - `createRuntimeAgentRepository(config)` — defaults to file-backed JSON repo
 - `createCronJobRepository(...)` — defaults to in-memory no-op
 - `buildSkillCatalog(agents)` — defaults to empty catalog
-- `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap, legacy purge, and merged `system-config` capabilities
+- `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap and merged `system-config` capabilities
 - `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
 - `buildRuntimeExecution(agents, skillCatalog, ctx)` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters; use `ctx.capabilityCatalog` (personal pack uses `buildAppRuntimeExecution()`)
 

@@ -14,7 +14,6 @@ import { createEmptySkillCatalog, createNoopCronJobRepository } from "./defaults
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
 import {
   createSystemConfigCapabilityProviders,
-  type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
@@ -59,10 +58,6 @@ export const bootstrapSupervisorSystem = async <
   let runtimeAgentRepository = systemAgentEnabled
     ? wrapRepositoryWithSystemAgent(baseRuntimeAgentRepository, pack.systemAgent as SystemAgentOptions)
     : baseRuntimeAgentRepository;
-
-  if (systemAgentEnabled && allowDataWrites) {
-    await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
-  }
 
   if (!allowDataWrites) {
     runtimeAgentRepository = createReadOnlyRuntimeAgentRepository(runtimeAgentRepository);

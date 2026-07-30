@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupabaseMcpSession } from "../../../../src/integrations/mcp/supabase.js";
+import type { SqlSession } from "../../../../src/ports/sql-session.js";
 import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
 import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
@@ -51,7 +51,7 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("prompts the model once after all parallel tool calls finish", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
@@ -95,7 +95,7 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("hands empty replies to the supervisor with last tool context", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
@@ -127,7 +127,7 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("retries the model when it returns empty after exec_sql so the agent answers", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([{ max: "2026-07-16" }]),
       close: vi.fn(),
     };
@@ -173,7 +173,7 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("recovers from ambiguous verification SQL after an empty candidate", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
@@ -248,7 +248,7 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("completes the remaining tool call before prompting the model", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };

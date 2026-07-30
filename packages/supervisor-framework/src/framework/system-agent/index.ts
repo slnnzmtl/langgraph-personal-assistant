@@ -14,7 +14,6 @@ export {
 
 export {
   wrapRepositoryWithSystemAgent,
-  type SystemAgentRepository,
 } from "./repository.js";
 
 export {

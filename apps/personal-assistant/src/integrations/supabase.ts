@@ -1,16 +1,17 @@
-import { connectSupabaseMcp, type SupabaseMcpConfig, type SupabaseMcpSession } from "./mcp/supabase.js";
+import { connectSupabaseMcp, type SupabaseMcpConfig } from "./mcp/supabase.js";
 import { createSelfHealingMcpSession } from "./mcp/self-healing-session.js";
 import type { AppConfig } from "../config.js";
+import type { SqlSession } from "../ports/sql-session.js";
 
 export type SupabaseSessions = {
-  supabaseReadSession?: SupabaseMcpSession;
-  supabaseWriteSession?: SupabaseMcpSession;
+  supabaseReadSession?: SqlSession;
+  supabaseWriteSession?: SqlSession;
 };
 
 const connectSupabaseSession = async (
   config: AppConfig,
   readOnly: boolean,
-): Promise<SupabaseMcpSession | undefined> => {
+): Promise<SqlSession | undefined> => {
   if (!config.supabaseProjectRef || !config.supabaseAccessToken) {
     return undefined;
   }
