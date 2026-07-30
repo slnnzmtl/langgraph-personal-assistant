@@ -12,8 +12,8 @@ This is a single-user, Telegram-hosted personal assistant built on **LangGraph**
 |---|---|
 | **`packages/supervisor-framework/`** | Execution kernel (graph, state, policies API, pack bootstrap) |
 | **`apps/personal-assistant/src/composition/`** | Pack bootstrap, runtime execution wiring, model registry |
-| **`apps/personal-assistant/src/policies/`** | Default runtime policy hooks and capability behaviors |
-| **`apps/personal-assistant/src/runtime-agents/`** | Domain tools, capability providers, skill attachments |
+| **`apps/personal-assistant/src/policies/`** | System-configuration and default runtime policy |
+| **`apps/personal-assistant/src/runtime-agents/`** | Feature tools, capability IDs, optional hooks/types |
 
 The split makes domain behavior composable, but it has a real indirection cost for a single deployment. Treat `packages/supervisor-framework/` as an internal framework package, not a separately published product, until a second deployment outside this monorepo justifies npm release.
 
@@ -42,7 +42,7 @@ flowchart TB
     subgraph AppLayer["App layer (src/composition/ + src/policies/)"]
         WFC[createSupervisorSystem]
         KIT[buildAppRuntimeExecution]
-        POL[Domain Policies + Hooks]
+        POL[Product runtime policy + hooks]
         MR[Model Registry]
     end
 
@@ -129,7 +129,8 @@ index.ts
             ├─ createSupervisorRuntime() — shared checkpointer, stable cron repo, serialized soft recompile
             │    └─ bootstrapSupervisorSystem()
             │         ├─ initializeDefaults() — seed missing supervisor/configuration prompts + configuration skills (atomic wx, opt-in)
-            │         ├─ setupAdapters() — optional Supabase MCP (when configured)
+            │         ├─ setupAdapters() — process lifecycle (Supabase sessions, durability store)
+            │         ├─ buildCapabilityDeps() — domain ports (Obsidian, Wise) + adapter projection
             │         ├─ runtime agent repository + virtual configuration agent
             │         ├─ seedAgents() — load persisted specialists from data/runtime-agents.json
             │         ├─ buildSkillCatalog() — read data/skills/
@@ -241,7 +242,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` (typically last AI reply); clear `agentMessages` |
 
-Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. App-local capability behaviors live in `src/policies/`; domain tools live in `src/runtime-agents/{finance,obsidian}/`.
+Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. Default/system policy lives in `src/policies/`; product hooks (e.g. Obsidian) are composed in `src/composition/personal-runtime-policy.ts`; feature tools live in `src/runtime-agents/{finance,obsidian}/`.
 
 **Runtime agents** register through `buildAppRuntimeExecution()` with the generic policy and compose tools from grantable **capabilities** rather than hard-coded domain tool lists.
 
@@ -265,7 +266,7 @@ Key abstractions:
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
 | `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
 | `createCompiledSubAgentGraph` | `tests/helpers/compiled-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
-| Domain hooks | `policies/` | App-local capability behaviors (prompt enrichment, tool restrictions, result mapping) |
+| Feature hooks | `runtime-agents/<feature>/hooks.ts` + composition | Optional LLM-turn hooks; Obsidian wiring lives in `personal-runtime-policy.ts` |
 
 Tool execution uses `ToolNode.run()` (not `invoke()`) to avoid an extra Runnable boundary inside the parent graph node.
 
@@ -394,7 +395,7 @@ type RuntimeAgentPolicy = {
 };
 ```
 
-`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes capability-specific hooks — the loop topology is shared. Domain tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`; the policy registry in `runtime-agent-policy.ts` selects behaviors by capability id.
+`createAssistant()` calls `createGraphBundle()` for each enabled agent at compile time and registers the returned node functions on the root graph. The generic policy resolves tools from `capabilityIds` and optionally composes hooks from a **capability-keyed map** in `runtime-agent-policy.ts` (absent entry ⇒ default / tools-only). Domain tools live in `src/runtime-agents/{finance,obsidian}/`; Obsidian hooks live alongside tools in `runtime-agents/obsidian/hooks.ts`. Capability ids grant tool bundles; LLM-turn hooks are an optional overlay, not required for every capability.
 
 ---
 
@@ -491,10 +492,23 @@ These paths look thin or product-specific but should **stay separate**. Do not m
 | `packages/supervisor-framework/` | Pack bootstrap (`bootstrapSupervisorSystem`), default content (`createDefaultContentSeeder`, `DEFAULT_*`) | Generic orchestration; workspace package for reuse |
 | `apps/personal-assistant/src/runtime-agents/resolve-tools.ts` | Personal `read_skill` + catalog resolution | Wraps framework `resolveAgentTools()` for personal policies |
 | `src/app.ts` | Telegram process bootstrap | Entry module only — not a source folder; sibling to `src/scheduler/index.ts` |
-| `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs domain tools | Composition/policies import runtime-agents only; runtime-agents must not import them (enforced in tests) |
+| `src/composition/` + `src/policies/` vs `src/runtime-agents/` | Wiring vs feature tools | Composition imports runtime-agents; policies must not import composition; runtime-agents must not import composition/policies/integrations (enforced in tests) |
+| `src/composition/personal-pack.ts` | Sole product provider registration | `buildPersonalCapabilityProviders` closes over adapters/config after setup |
+| `src/runtime-agents/system-capability-deps.ts` | System-only `PersonalCapabilityDeps` bag | Repos/catalogs/cron for configuration tools — not product clients |
+| `src/composition/personal-adapters.ts` | Process-lifecycle adapters | Supabase sessions + durability store — closable; not Obsidian/Wise |
 | `src/scheduler/` | Scheduler process entry + Telegram wiring | Separate Docker service; generic cron in framework |
-| `src/integrations/supabase.ts` | Supabase MCP setup | Self-healing session + config guards, not a one-liner |
-| `src/ports/file-sender.ts` | File delivery port | Domain tools depend on the port; Telegraf impl in `telegram/` |
+| `src/integrations/supabase.ts` | Supabase MCP setup | Self-healing session + config guards; owns `{ executeSql, close }` |
+| `src/telegram/file-sender.ts` | Concrete Telegram file delivery | Chat-ID state on the sender; composition/tools receive bound `sendFile` only |
+
+### Adapters vs capability deps
+
+| Bag | Owns | Examples |
+|---|---|---|
+| **`PersonalAdapters`** | Process-lifecycle resources opened in `setupAdapters` and closed on shutdown/recompile | Supabase `SqlSession`s (`executeSql` + `close`), durability store / checkpointer |
+| **`buildPersonalCapabilityProviders`** | Product tools closed over adapters/config every bootstrap | Obsidian vault tools (+ optional `sendFile`), finance SQL/`executeSql`, Wise fetch |
+| **`PersonalCapabilityDeps`** | System-only injectable deps for configuration tools and policies | Repos, catalogs, cron |
+
+Do not fold Obsidian/Wise into `PersonalAdapters` — they have no close/reconnect lifecycle here. Do not put product clients in `PersonalCapabilityDeps` — close over them in `buildPersonalCapabilityProviders`. Finance tools receive `executeSql` only; adapters retain `close()`.
 
 ---
 
@@ -512,10 +526,10 @@ personal-assistant/                 # pnpm workspace root
 │   └── personal-assistant/
 │       ├── src/
 │       │   ├── index.ts, app.ts, config.ts
-│       │   ├── composition/        # Pack bootstrap & runtime execution wiring
-│       │   ├── policies/           # Capability behavior registry
-│       │   ├── runtime-agents/     # Domain folders (finance/, obsidian/), capabilities, resolve-tools
-│       │   ├── ports/ integrations/ scheduler/ telegram/ models/ prompts/ ...
+│       │   ├── composition/        # Pack bootstrap, personal-pack providers, runtime policy wiring
+│       │   ├── policies/           # Default / system-configuration runtime policy
+│       │   ├── runtime-agents/     # Feature folders (finance/, obsidian/), resolve-tools
+│       │   ├── integrations/ scheduler/ telegram/ models/ prompts/ ...
 │       ├── data/prompts/ data/skills/ data/ sql/
 │       ├── tests/unit/{composition,policies,domains,integrations,processes}/
 │       └── Dockerfile docker-compose.yml
@@ -570,7 +584,9 @@ The core framework (`state`, `message-trimming`, `supervisor`, `build-runtime-ag
 
 ### Capability boundary for custom agents
 
-Custom agents are restricted to allowlisted bundles, which is a good starting point. However, the available bundles include `system-config` and `finance-domain`; a custom agent with either bundle is intentionally powerful. This is acceptable for the one trusted Telegram user, but it is not a safe multi-user authorization model. Before any user expansion, separate read-only and mutating bundles, attach a capability policy to each agent, and require confirmation for externally visible or destructive actions.
+Custom agents may only receive **grantable** capability bundles from the catalog (`list_capabilities` / `createGrantableIdSchema`). On this deployment that is typically `none`, `obsidian-vault`, `finance-domain-read`, and `system-config-read` when those deps are available.
+
+Non-grantable write bundles stay reserved: `finance-domain` only on the seeded `finance` agent, and `system-config` only on the virtual configuration agent. This is a good starting point for one trusted Telegram user, but it is not a safe multi-user authorization model. Before any user expansion, attach a capability policy to each agent and require confirmation for externally visible or destructive actions.
 
 ### Simplification opportunities
 
@@ -580,11 +596,10 @@ Custom agents are restricted to allowlisted bundles, which is a good starting po
 
 **Add a new tool domain (rare — most agents use chat create):**
 
-1. Implement tools under `runtime-agents/<domain>/tools.ts` (and optional `hooks.ts`)
-2. Add capability descriptor + provider in `runtime-agents/capabilities.ts`
-3. Compose capability behavior in `policies/runtime-agent-policy.ts` when that capability is granted
-4. Seed a persisted agent row with matching `capabilityIds` and add a prompt under `data/prompts/` (optional `promptSourceKey`)
-5. Restart scheduler once if cron jobs will target the new agent id
+Follow the canonical checklist in [RUNTIME_AGENT_SETUP.md — Beyond chat](./RUNTIME_AGENT_SETUP.md#beyond-chat-new-tool-domains-rare).
+
+- **Tools-only** (finance pattern): `tools.ts` (+ optional `types.ts` / integration) → one provider entry in `personal-pack.ts` → grant/seed. Do **not** edit `policies/runtime-agent-policy.ts`.
+- **Tools + hooks** (Obsidian pattern): same, plus `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`).
 
 **Add a custom runtime agent at runtime (default):**
 

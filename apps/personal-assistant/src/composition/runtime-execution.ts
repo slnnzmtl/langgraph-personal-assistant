@@ -3,6 +3,8 @@ import {
   enrichRuntimeAgentPrompt,
   type CapabilityCatalog,
   type ContextCacheKit,
+  type RuntimeAgentNodeHooks,
+  type RuntimeAgentPolicy,
   type RuntimeExecutionKit,
   type RuntimeShellFormatters,
   type SkillCatalog,
@@ -14,7 +16,10 @@ import {
   loadSystemPromptByKey,
 } from "../prompts/load.js";
 import { createPersonalResolveTools } from "../runtime-agents/resolve-tools.js";
-import { createDefaultRuntimeAgentPolicy } from "../policies/runtime-agent-policy.js";
+import {
+  createDefaultRuntimeAgentPolicy,
+  type DefaultRuntimePolicyOptions,
+} from "../policies/runtime-agent-policy.js";
 import { createCachedGeminiModel } from "@personal-assistant/llm-gemini";
 
 export const createDefaultRuntimeShellFormatters = (
@@ -33,6 +38,10 @@ export type AppRuntimeExecutionOptions = {
   contextCache?: Omit<ContextCacheKit, "createCachedModel"> & {
     createCachedModel?: ContextCacheKit["createCachedModel"];
   };
+  createRuntimeAgentPolicy?: (
+    shellHooks: RuntimeAgentNodeHooks,
+    options: DefaultRuntimePolicyOptions,
+  ) => RuntimeAgentPolicy;
 };
 
 /** Builds the personal pack default runtime execution kit (one generic policy + shell formatters). */
@@ -48,7 +57,7 @@ export const buildAppRuntimeExecution = (options: AppRuntimeExecutionOptions): R
       }
     : undefined;
 
-  const policyOptions = {
+  const policyOptions: DefaultRuntimePolicyOptions = {
     capabilityCatalog: options.capabilityCatalog,
     resolveTools,
     ...(options.skillCatalog ? { skillCatalog: options.skillCatalog } : {}),
@@ -56,9 +65,11 @@ export const buildAppRuntimeExecution = (options: AppRuntimeExecutionOptions): R
     ...(contextCache ? { contextCache } : {}),
   };
 
+  const createPolicy = options.createRuntimeAgentPolicy ?? createDefaultRuntimeAgentPolicy;
+
   return {
     loadPromptByKey: loadSystemPromptByKey,
-    runtimeAgentPolicy: createDefaultRuntimeAgentPolicy(genericShellHooks, policyOptions),
+    runtimeAgentPolicy: createPolicy(genericShellHooks, policyOptions),
     shellFormatters,
     buildSupervisorDynamicContext: loadSupervisorDynamicContext,
     ...(contextCache ? { contextCache } : {}),

@@ -8,16 +8,13 @@ import {
   createSystemAgentDefinition,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,
 } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
-import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
-import { createObsidianVault } from "../../src/integrations/obsidian.js";
-import { createFetchWiseTransactions } from "../../src/integrations/wise.js";
-import type { SqlSession } from "../../src/ports/sql-session.js";
 import {
-  createCapabilityDeps,
   createDomainCapabilityCatalog,
-  resolveCapabilities,
-} from "../../src/runtime-agents/capabilities.js";
+  createPersonalCapabilityCatalog,
+} from "../helpers/capability-catalog.js";
+import { createPersonalResolveTools } from "../../src/runtime-agents/resolve-tools.js";
+import type { SqlSession } from "../../src/integrations/mcp/sql-session.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
 import { createCronRepositoryFake } from "../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
@@ -87,9 +84,7 @@ describe("app boundaries", () => {
   });
 
   it("keeps policies free of composition imports", () => {
-    assertNoForbiddenImports(POLICIES_ROOT, [
-      "composition/",
-    ]);
+    assertNoForbiddenImports(POLICIES_ROOT, ["composition/"]);
   });
 
   it("keeps runtime-agents free of telegram process imports", () => {
@@ -109,24 +104,25 @@ describe("app boundaries", () => {
   });
 
   it("rejects unavailable capability grants", () => {
-    const catalog = createDomainCapabilityCatalog();
+    const catalog = createDomainCapabilityCatalog({
+      adapters: {},
+      config: { obsidianVaultPath: "" } as never,
+    });
 
-    expect(() =>
-      catalog.validateIds(["finance-domain"], {
-        obsidianVault: createObsidianVault("/tmp/vault"),
-      }),
-    ).toThrow(/unavailable/i);
+    expect(() => catalog.validateIds(["finance-domain"], {})).toThrow(/unavailable/i);
   });
 
   it("resolves finance tools for agents with finance-domain capability", () => {
-    const catalog = createDomainCapabilityCatalog();
-    const resolveTools = createPersonalResolveTools(catalog);
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
-      supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
-      capabilityCatalog: catalog,
+    const catalog = createDomainCapabilityCatalog({
+      adapters: { supabaseWriteSession: mockSqlSession },
+      config: {
+        obsidianVaultPath: "/tmp/vault",
+        wiseApiToken: "token",
+        wiseProfileId: "profile",
+      } as never,
     });
+    const resolveTools = createPersonalResolveTools(catalog);
+    const deps: PersonalCapabilityDeps = { capabilityCatalog: catalog };
 
     const definition = {
       id: "finance",
@@ -143,7 +139,7 @@ describe("app boundaries", () => {
     };
 
     const unified = resolveTools(definition, deps).map((tool) => tool.name);
-    const capabilityOnly = resolveCapabilities(["finance-domain"], deps).map((tool) => tool.name);
+    const capabilityOnly = catalog.resolveTools(["finance-domain"], deps).map((tool) => tool.name);
 
     expect(unified).toEqual(expect.arrayContaining(capabilityOnly));
     expect(unified).toContain("read_skill");
@@ -151,17 +147,21 @@ describe("app boundaries", () => {
   });
 
   it("exposes read-only finance capabilities separately from write", () => {
-    const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
-      supabaseReadSession: mockSqlSession,
-      supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
-      capabilityCatalog: catalog,
+    const catalog = createPersonalCapabilityCatalog({
+      adapters: {
+        supabaseReadSession: mockSqlSession,
+        supabaseWriteSession: mockSqlSession,
+      },
+      config: {
+        obsidianVaultPath: "/tmp/vault",
+        wiseApiToken: "token",
+        wiseProfileId: "profile",
+      } as never,
     });
+    const deps: PersonalCapabilityDeps = { capabilityCatalog: catalog };
 
-    const readTools = resolveCapabilities(["finance-domain-read"], deps).map((tool) => tool.name);
-    const writeTools = resolveCapabilities(["finance-domain"], deps).map((tool) => tool.name);
+    const readTools = catalog.resolveTools(["finance-domain-read"], deps).map((tool) => tool.name);
+    const writeTools = catalog.resolveTools(["finance-domain"], deps).map((tool) => tool.name);
 
     expect(readTools).toEqual(expect.arrayContaining(["exec_sql", "get_categories"]));
     expect(readTools).not.toContain("fetch_wise_transactions");
@@ -178,15 +178,14 @@ describe("app boundaries", () => {
 
   it("exposes read-only system configuration separately from write", () => {
     const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
+    const deps: PersonalCapabilityDeps = {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       capabilityCatalog: catalog,
-    });
+    };
 
-    const readTools = resolveCapabilities(["system-config-read"], deps).map((tool) => tool.name);
-    const writeTools = resolveCapabilities(["system-config"], deps).map((tool) => tool.name);
+    const readTools = catalog.resolveTools(["system-config-read"], deps).map((tool) => tool.name);
+    const writeTools = catalog.resolveTools(["system-config"], deps).map((tool) => tool.name);
 
     expect(readTools).toContain("list_cron_jobs");
     expect(readTools).toContain("list_runtime_agents");
@@ -197,15 +196,22 @@ describe("app boundaries", () => {
   });
 
   it("marks grantable capabilities in the catalog", () => {
-    const catalog = createDomainCapabilityCatalog();
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
-      supabaseReadSession: mockSqlSession,
-      supabaseWriteSession: mockSqlSession,
-      fetchWiseTransactions: createFetchWiseTransactions({ wiseApiToken: "token", wiseProfileId: "profile" })!,
+    const withFinance = createDomainCapabilityCatalog({
+      adapters: {
+        supabaseReadSession: mockSqlSession,
+        supabaseWriteSession: mockSqlSession,
+      },
+      config: { obsidianVaultPath: "/tmp/vault" } as never,
+    });
+    const withoutVault = createDomainCapabilityCatalog({
+      adapters: {
+        supabaseReadSession: mockSqlSession,
+        supabaseWriteSession: mockSqlSession,
+      },
+      config: { obsidianVaultPath: "" } as never,
     });
 
-    const grantableIds = catalog.listGrantable(deps).map((entry) => entry.id);
+    const grantableIds = withFinance.listGrantable({}).map((entry) => entry.id);
 
     expect(grantableIds).toEqual(
       expect.arrayContaining(["none", "obsidian-vault", "finance-domain-read"]),
@@ -213,9 +219,8 @@ describe("app boundaries", () => {
     expect(grantableIds).not.toContain("finance-domain");
     expect(grantableIds).not.toContain(SYSTEM_CONFIG_READ_CAPABILITY_ID);
 
-    const withoutVault = createCapabilityDeps({});
-    expect(catalog.listAvailable(withoutVault).map((entry) => entry.id)).not.toContain("obsidian-vault");
-    expect(catalog.listAvailable(deps).map((entry) => entry.id)).toContain("obsidian-vault");
+    expect(withoutVault.listAvailable({}).map((entry) => entry.id)).not.toContain("obsidian-vault");
+    expect(withFinance.listAvailable({}).map((entry) => entry.id)).toContain("obsidian-vault");
   });
 });
 

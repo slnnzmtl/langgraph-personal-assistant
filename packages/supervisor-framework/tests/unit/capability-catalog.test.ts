@@ -24,6 +24,16 @@ const createTestCatalog = () =>
       isAvailable: () => true,
       resolveTools: () => [{ name: "builtin_tool" }] as never,
     },
+    {
+      descriptor: {
+        id: "write-ledger",
+        description: "Reserved write tools.",
+        grantable: false,
+        reservedForAgentIds: ["ledger"],
+      },
+      isAvailable: () => true,
+      resolveTools: () => [{ name: "write_ledger" }] as never,
+    },
   ]);
 
 describe("capability catalog", () => {
@@ -88,5 +98,13 @@ describe("capability catalog", () => {
     expect(tools).toEqual(["vault_tool", "integration_tool"]);
 
     expect(() => catalog.resolveTools(["vault"], { vaultPath: "" })).toThrow(/unavailable/i);
+  });
+
+  it("exposes reserved capability ids per agent from descriptor metadata", () => {
+    const catalog = createTestCatalog();
+
+    expect(catalog.reservedCapabilityIdsForAgent("ledger")).toEqual(["write-ledger"]);
+    expect(catalog.reservedCapabilityIdsForAgent("other")).toEqual([]);
+    expect(() => catalog.validateGrantableIds(["write-ledger"], {})).toThrow(/cannot be granted/i);
   });
 });

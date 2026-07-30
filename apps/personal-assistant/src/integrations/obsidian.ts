@@ -10,7 +10,7 @@ import {
   RelativePathSchema,
   type ObsidianFileWriteRequest,
   type ObsidianVault,
-} from "../ports/obsidian-vault.js";
+} from "../runtime-agents/obsidian/types.js";
 
 /**
  * Validates the relative path schema and resolves it to a safe physical absolute path.

@@ -3,9 +3,9 @@ import type {
   FetchWiseTransactions,
   WiseTransaction,
   WiseTransactionParams,
-} from "../ports/wise-transactions.js";
+} from "../runtime-agents/finance/types.js";
 
-export type { WiseTransaction, WiseTransactionParams } from "../ports/wise-transactions.js";
+export type { WiseTransaction, WiseTransactionParams } from "../runtime-agents/finance/types.js";
 
 type WiseClient = {
   fetchActivities(since: string, until: string): Promise<Response>;

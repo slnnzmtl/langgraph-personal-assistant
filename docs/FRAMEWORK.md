@@ -9,8 +9,8 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 | Layer | Path | Responsibility |
 |---|---|---|
 | Framework package | `packages/supervisor-framework/` | Agent definitions, graph execution, policies API, `bootstrapSupervisorSystem`, `resolveAgentTools` |
-| Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | Composition, `createSupervisorSystem`, domain hooks |
-| Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Capability providers and domain tool factories |
+| Personal app | `apps/personal-assistant/src/composition/` + `src/policies/` | Composition, `createSupervisorSystem`, product runtime policy |
+| Domain runtime | `apps/personal-assistant/src/runtime-agents/` | Tool factories, capability IDs, optional feature hooks/types |
 | Agent prompts | `apps/personal-assistant/src/prompts/load.ts` + `data/prompts/` | System prompt loading and metadata helpers |
 | Skills runtime | `packages/supervisor-framework/src/core/skills/` | Skill filesystem I/O, `SkillCatalog`, prompt enrichment, attachments |
 | Cron runtime | `packages/supervisor-framework/src/framework/cron/` | Job definitions, JSON persistence, trigger protocol, scheduler service, graph runner |
@@ -22,8 +22,9 @@ Product-specific domains (Obsidian, finance) live in `apps/personal-assistant/`.
 - `packages/supervisor-framework/src/core/` — execution kernel only. Must not import app or product integrations.
 - `packages/supervisor-framework/src/framework/` — orchestration only. May import `core` and `capabilities`.
 - `apps/personal-assistant/src/composition/` — pack bootstrap and runtime execution wiring. Imports `@personal-assistant/supervisor-framework` and `runtime-agents/`.
-- `apps/personal-assistant/src/policies/` — app-local capability behaviors (prompt enrichment, tool restrictions, result mapping).
-- `apps/personal-assistant/src/runtime-agents/` — domain tools. Must **not** import `src/composition/` or `src/policies/`.
+- `apps/personal-assistant/src/policies/` — system-configuration and default runtime policy (no product registries).
+- `apps/personal-assistant/src/runtime-agents/` — feature tools and contracts. Must **not** import `src/composition/`, `src/policies/`, or `src/integrations/`.
+- `apps/personal-assistant/src/composition/` must not be imported by `src/policies/` (hard rule).
 
 Boundary tests:
 
@@ -57,7 +58,8 @@ Optional bootstrap hooks (omit for minimal packs):
 - `createCronJobRepository(...)` — defaults to in-memory no-op
 - `buildSkillCatalog(agents)` — defaults to empty catalog
 - `systemAgent?: SystemAgentOptions | false` — when set, bootstrap wires virtual admin agent repo wrap and merged `system-config` capabilities
-- `capabilityProviders` — domain capability providers; merged with system-config when `systemAgent` is enabled
+- `buildCapabilityProviders(ctx)` — preferred catalog source; invoked after `setupAdapters` on **every** bootstrap so providers can close over fresh adapter clients (soft-recompile safe). Merged with system-config when `systemAgent` is enabled.
+- `capabilityCatalog` — escape hatch for minimal packs/tests that supply a pre-built catalog. Exactly one of `buildCapabilityProviders` or `capabilityCatalog` is required.
 - `buildRuntimeExecution(agents, skillCatalog, ctx)` — pack hook that returns `loadPromptByKey`, `runtimeAgentPolicy`, and optional shell formatters; use `ctx.capabilityCatalog` (personal pack uses `buildAppRuntimeExecution()`)
 
 Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps/personal-assistant/src/composition/create-supervisor-system.ts`](../apps/personal-assistant/src/composition/create-supervisor-system.ts), which delegates lifecycle concerns to `createSupervisorRuntime()`.
@@ -74,10 +76,15 @@ Personal deployment adds product wiring via `createSupervisorSystem()` in [`apps
 
 ## Adding a capability (personal app)
 
-1. Add a descriptor to `PERSONAL_CAPABILITY_DESCRIPTORS` in `apps/personal-assistant/src/runtime-agents/capabilities.ts`.
-2. Implement `CapabilityProvider.resolveTools`.
-3. Grant the capability ID on agent definitions (`capabilityIds`).
-4. Resolve tools through `resolveAgentTools()` (framework) or `createPersonalResolveTools()` (personal pack with `read_skill`).
+Canonical checklist (tools-only vs tools+hooks): [RUNTIME_AGENT_SETUP.md — Beyond chat](./RUNTIME_AGENT_SETUP.md#beyond-chat-new-tool-domains-rare).
+
+Minimum for tools-only:
+
+1. `runtime-agents/<feature>/tools.ts` (capability ID + tool factory); optional adjacent `types.ts` and `integrations/` client.
+2. One `CapabilityProvider` entry in `buildPersonalCapabilityProviders` (`personal-pack.ts`).
+3. Grant via chat (or `reservedForAgentIds` on the descriptor).
+
+For LLM-turn hooks, add `hooks.ts` and one adjacent hook branch in composition (`personal-runtime-policy.ts`). Do not add a binder, ports folder, or behavior registry.
 
 ## Graph composition walkthrough
 

@@ -1,4 +1,4 @@
-import type { SqlSession } from "../../ports/sql-session.js";
+import type { SqlSession } from "./sql-session.js";
 import { isTransportError } from "./transport-errors.js";
 
 export type ReconnectBackoffOptions = {

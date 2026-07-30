@@ -11,13 +11,12 @@ import {
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
-import { loadSystemPromptByKey } from "../../src/prompts/load.js";
-import { createObsidianVault } from "../../src/integrations/obsidian.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
 import {
-  buildRuntimeAgentNodeConfigForDefinition,
-  resolveCapabilityBehavior,
-} from "../../src/policies/runtime-agent-policy.js";
+  buildPersonalRuntimeAgentNodeConfigForDefinition,
+  resolvePersonalCapabilityBehavior,
+} from "../../src/composition/personal-runtime-policy.js";
+import { loadSystemPromptByKey } from "../../src/prompts/load.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/system-capability-deps.js";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 
 const testSkillCatalog = createTestSkillCatalog();
@@ -47,21 +46,33 @@ export const buildNodeConfigForTest = (
   definition: RuntimeAgentDefinition,
   options: { vaultRoot?: string } = {},
 ): RuntimeAgentNodeConfig => {
-  const behavior = resolveCapabilityBehavior(definition, testShellHooks, {
+  const vaultRoot = options.vaultRoot ?? "/tmp/vault";
+  const behaviorOptions = {
     shellFormatters: testShellFormatters,
-  });
+    skillCatalog: testSkillCatalog,
+  };
+  const behavior = resolvePersonalCapabilityBehavior(
+    definition,
+    testShellHooks,
+    behaviorOptions,
+    vaultRoot,
+  );
   const hooks = behavior.createHooks({
     definition,
-    capabilityDeps: {
-      obsidianVault: createObsidianVault(options.vaultRoot ?? "/tmp/vault"),
-    } as PersonalCapabilityDeps,
+    capabilityDeps: {} as PersonalCapabilityDeps,
     shellHooks: testShellHooks,
     shellFormatters: testShellFormatters,
   });
 
   return {
     ...hooks,
-    ...buildRuntimeAgentNodeConfigForDefinition(definition, testShellHooks, testShellFormatters),
+    ...buildPersonalRuntimeAgentNodeConfigForDefinition(
+      definition,
+      testShellHooks,
+      testShellFormatters,
+      behaviorOptions,
+      vaultRoot,
+    ),
   };
 };
 

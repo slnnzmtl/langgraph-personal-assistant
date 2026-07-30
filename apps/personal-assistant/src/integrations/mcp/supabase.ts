@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { SqlSession } from "../../ports/sql-session.js";
+import type { SqlSession } from "./sql-session.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
 
 interface SupabaseMcpConfig {

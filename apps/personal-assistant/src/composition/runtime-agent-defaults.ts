@@ -3,7 +3,7 @@ import {
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
 } from "@personal-assistant/supervisor-framework";
-import { hasFinanceCapability } from "../runtime-agents/capabilities.js";
+import { hasFinanceCapability } from "../runtime-agents/finance/tools.js";
 import { promptFileExists } from "../prompts/prompt-store.js";
 
 const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {

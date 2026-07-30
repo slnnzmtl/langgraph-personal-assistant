@@ -2,9 +2,17 @@ import { tool, type StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
 import { truncateToolOutput } from "@personal-assistant/supervisor-framework";
-import type { SqlSession } from "../../ports/sql-session.js";
-import type { FetchWiseTransactions } from "../../ports/wise-transactions.js";
+import type { FetchWiseTransactions } from "./types.js";
 import { normalizeToolOutput, serializeToolResult } from "../../utils/exec-sql.js";
+
+export const FINANCE_DOMAIN_CAPABILITY_ID = "finance-domain" as const;
+export const FINANCE_DOMAIN_READ_CAPABILITY_ID = "finance-domain-read" as const;
+
+export const hasFinanceCapability = (capabilityIds: readonly string[]): boolean =>
+  capabilityIds.includes(FINANCE_DOMAIN_CAPABILITY_ID)
+  || capabilityIds.includes(FINANCE_DOMAIN_READ_CAPABILITY_ID);
+
+export type ExecuteSql = <T = unknown>(sql: string) => Promise<T>;
 
 const CATEGORY_QUERY = "SELECT id, name, note FROM public.category;";
 
@@ -15,14 +23,14 @@ export type FinanceToolsOptions = {
   fetchWise?: FetchWiseTransactions;
 };
 
-export const createFinanceDomainToolsFromSession = (
-  sqlSession: SqlSession,
+export const createFinanceDomainTools = (
+  executeSql: ExecuteSql,
   options: FinanceToolsOptions = {},
 ): StructuredToolInterface[] => {
   const execSql = tool(
     async (input: { sql: string }) => {
       try {
-        const result = await sqlSession.executeSql(input.sql);
+        const result = await executeSql(input.sql);
         const normalizedResult = normalizeToolOutput(result);
         return truncateToolOutput(serializeToolResult(normalizedResult));
       } catch (error) {
@@ -42,7 +50,7 @@ export const createFinanceDomainToolsFromSession = (
   const getCategories = tool(
     async (_input: z.infer<typeof GetCategoriesSchema>) => {
       try {
-        const result = await sqlSession.executeSql(CATEGORY_QUERY);
+        const result = await executeSql(CATEGORY_QUERY);
         const normalizedResult = normalizeToolOutput(result);
         return truncateToolOutput(serializeToolResult(normalizedResult));
       } catch (error) {

@@ -6,7 +6,9 @@ import {
   buildRuntimeAgentPromptMessages,
   buildRuntimePromptParts,
   type ContextCacheKit,
+  type RuntimeAgentDefinition,
   type RuntimeAgentNodeConfig,
+  type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
   type RuntimeShellFormatters,
   type SkillCatalog,
@@ -101,3 +103,28 @@ export const createContextCacheRuntimeConfig = (
     };
   },
 });
+
+/** Overlay Gemini context-cache prompt/model hooks onto base runtime shell hooks. */
+export const mergeRuntimeCacheHooks = (
+  baseHooks: RuntimeAgentNodeHooks,
+  definition: RuntimeAgentDefinition,
+  shellFormatters: RuntimeShellFormatters,
+  skillCatalog: SkillCatalog | undefined,
+  contextCache: ContextCacheKit | undefined,
+  resolveExtraDynamicSections?: ContextCacheRuntimeAgentOptions["resolveExtraDynamicSections"],
+): RuntimeAgentNodeHooks => {
+  if (!contextCache || !skillCatalog) {
+    return baseHooks;
+  }
+
+  return {
+    ...baseHooks,
+    ...createContextCacheRuntimeConfig(contextCache, {
+      modelName: contextCache.resolveRuntimeModelName(definition),
+      skillCatalog,
+      shellFormatters,
+      displayName: `runtime-agent-${definition.id}`,
+      ...(resolveExtraDynamicSections ? { resolveExtraDynamicSections } : {}),
+    }),
+  };
+};

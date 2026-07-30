@@ -114,16 +114,32 @@ Definitions are hot on disk; **execution topology recompiles when the graph fing
 
 ## Beyond chat: new tool domains (rare)
 
-Most specialists are created via chat (`generic` + grantable capabilities). Use this path only when you need **new tools** or capability-specific LLM hooks that are not already in the catalog.
+Most specialists are created via chat (`generic` + grantable capabilities). Use this path only when you need **new tools** (or optional LLM-turn hooks) that are not already in the catalog.
 
-1. Implement tools under `src/runtime-agents/<domain>/tools.ts` (and optional `hooks.ts` for LLM turn behavior).
-2. Add a capability descriptor + provider in `src/runtime-agents/capabilities.ts`.
-3. If the domain needs LLM hooks, wire capability behavior in `src/policies/runtime-agent-policy.ts`.
-4. Seed or persist a `RuntimeAgentDefinition` with the new `capabilityIds`.
-5. Add a prompt under `data/prompts/` (optional `promptSourceKey`).
-6. Restart once so the scheduler cron allowlist includes the new agent id (routing itself soft-recompiles via the file watcher).
+This is the **canonical** add-tool-domain checklist. Other docs point here.
 
-See also [ARCHITECTURE.md](./ARCHITECTURE.md) and the README “Extending the assistant” section.
+### Tools-only (~3 steps)
+
+1. **Tools factory** — Implement tools under `src/runtime-agents/<feature>/tools.ts` (export the capability ID beside the factory). Put feature contracts in an adjacent `types.ts` only when needed; integrations import those types (runtime-agents must not import integrations).
+2. **Integration (optional)** — Add `src/integrations/` clients only when an external service is required. Connection/`close` lifecycle stays in adapters/integrations; tools receive only the operations they need (e.g. `executeSql`, bound `sendFile`).
+3. **One provider entry** — Register a `CapabilityProvider` in [`buildPersonalCapabilityProviders`](../apps/personal-assistant/src/composition/personal-pack.ts) inside `personal-pack.ts`, closing over adapters/config.
+
+Then grant via Configuration chat, **or** set `reservedForAgentIds` on the descriptor for built-in agents (e.g. write finance).
+
+Optional: seed/persist a `RuntimeAgentDefinition` + prompt under `data/prompts/`. Restart the scheduler once if cron will target a brand-new agent id.
+
+Do **not** edit `buildPersonalCapabilityDeps` for product clients — those close over in the provider. System-only deps (repos, catalogs) stay in the pack. Do **not** add a domain binder, ports folder, or behavior registry.
+
+### Tools + hooks (Obsidian pattern)
+
+Same as tools-only, plus:
+
+1. Add `src/runtime-agents/<feature>/hooks.ts` for LLM turn behavior (prompt enrichment, tool filtering, result mapping).
+2. Wire one adjacent, capability-specific hook branch in composition ([`personal-runtime-policy.ts`](../apps/personal-assistant/src/composition/personal-runtime-policy.ts) / `personal-pack.ts`). Do not introduce a generic product-hooks registry until there are multiple independent cases.
+
+Do **not** put vault/client paths on `PersonalCapabilityDeps` or `AppRuntimeExecutionOptions` — close over them in composition. Leave `policies/runtime-agent-policy.ts` for system-configuration and default policy only.
+
+See also [ARCHITECTURE.md](./ARCHITECTURE.md) (adapters vs capability deps) and the README “Extending the assistant” section.
 
 ---
 

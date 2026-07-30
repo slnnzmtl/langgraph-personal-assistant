@@ -76,16 +76,30 @@ export const bootstrapSupervisorSystem = async <
     : baseCronJobRepository;
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
-  const capabilityCatalog = pack.capabilityProviders
+  const providersContext = {
+    config: pack.config,
+    adapters,
+    runtimeAgentRepository,
+    runtimeAgents,
+    cronTargetAgentIds,
+    cronJobRepository,
+    skillCatalog,
+  };
+
+  const hasBuildProviders = pack.buildCapabilityProviders !== undefined;
+  const hasCatalog = pack.capabilityCatalog !== undefined;
+  if (hasBuildProviders === hasCatalog) {
+    throw new Error(
+      "SupervisorPackBootstrap requires exactly one of buildCapabilityProviders or capabilityCatalog.",
+    );
+  }
+
+  const capabilityCatalog = hasBuildProviders
     ? createCapabilityCatalog([
-        ...pack.capabilityProviders,
+        ...pack.buildCapabilityProviders!(providersContext),
         ...(systemAgentEnabled ? createSystemConfigCapabilityProviders() : []),
       ])
-    : pack.capabilityCatalog;
-
-  if (!capabilityCatalog) {
-    throw new Error("SupervisorPackBootstrap requires capabilityProviders or capabilityCatalog.");
-  }
+    : pack.capabilityCatalog!;
 
   const bootstrapContext = {
     config: pack.config,
@@ -107,9 +121,6 @@ export const bootstrapSupervisorSystem = async <
       runtimeAgents,
       capabilityCatalog,
       capabilityDeps,
-      pack.reservedCapabilitiesByAgentId
-        ? { reservedCapabilitiesByAgentId: pack.reservedCapabilitiesByAgentId }
-        : {},
     );
   }
 

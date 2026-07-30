@@ -36,6 +36,7 @@ export type {
   SupervisorPaths,
   SupervisorGraphHooks,
   SupervisorBootstrapContext,
+  CapabilityProvidersBootstrapContext,
   InitializeDefaultsContext,
   SupervisorPackBootstrap,
   SupervisorSystemContext,
@@ -185,7 +186,6 @@ export {
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
-  type ValidatePersistedAgentCapabilitiesOptions,
 } from "./capabilities/index.js";
 
 // --- Kernel: skills ---

@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { SqlSession } from "../../../../src/ports/sql-session.js";
+import type { SqlSession } from "../../../../src/integrations/mcp/sql-session.js";
 import { createTestRuntimeAgentNode, buildNodeConfigForTest } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
 import { createFinanceTestTools, getFinanceDomainTool } from "../../../helpers/finance-tools.js";
@@ -54,7 +54,7 @@ describe("finance tools", () => {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const fetchWiseTool = getFinanceDomainTool(session, "fetch_wise_transactions");
+    const fetchWiseTool = getFinanceDomainTool(session.executeSql, "fetch_wise_transactions");
 
     const result = await fetchWiseTool?.invoke({
       since: "2026-07-12T00:00:00Z",
@@ -69,7 +69,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const execSqlTool = getFinanceDomainTool(session, "exec_sql");
+    const execSqlTool = getFinanceDomainTool(session.executeSql, "exec_sql");
 
     const result = await execSqlTool?.invoke({ sql: "SELECT id, name, note FROM public.category;" });
 
@@ -81,7 +81,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockRejectedValue(new Error("database unavailable")),
       close: vi.fn(),
     };
-    const execSqlTool = getFinanceDomainTool(session, "exec_sql");
+    const execSqlTool = getFinanceDomainTool(session.executeSql, "exec_sql");
 
     const result = await execSqlTool?.invoke({ sql: "SELECT 1;" });
 
@@ -93,7 +93,7 @@ describe("finance tools", () => {
       executeSql: vi.fn().mockResolvedValue({ result: JSON.stringify(categories) }),
       close: vi.fn(),
     };
-    const getCategoriesTool = getFinanceDomainTool(session, "get_categories");
+    const getCategoriesTool = getFinanceDomainTool(session.executeSql, "get_categories");
 
     const result = await getCategoriesTool?.invoke({});
 
@@ -105,7 +105,7 @@ describe("finance tools", () => {
       executeSql: vi.fn(),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(session, financeSkillModule);
+    const tools = createFinanceTestTools(session.executeSql, financeSkillModule);
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "exec_sql",
@@ -173,7 +173,7 @@ describe("finance tools", () => {
         executeSql: vi.fn().mockResolvedValue(largeRows),
         close: vi.fn(),
       };
-      const execSqlTool = getFinanceDomainTool(session, "exec_sql");
+      const execSqlTool = getFinanceDomainTool(session.executeSql, "exec_sql");
       const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM expenses;" }));
 
       expect(result.length).toBeLessThanOrEqual(8_000 + 60); // truncated + notice overhead
@@ -186,7 +186,7 @@ describe("finance tools", () => {
         executeSql: vi.fn().mockResolvedValue(categories),
         close: vi.fn(),
       };
-      const execSqlTool = getFinanceDomainTool(session, "exec_sql");
+      const execSqlTool = getFinanceDomainTool(session.executeSql, "exec_sql");
       const result = String(await execSqlTool?.invoke({ sql: "SELECT * FROM category;" }));
 
       expect(result).not.toContain("[truncated,");

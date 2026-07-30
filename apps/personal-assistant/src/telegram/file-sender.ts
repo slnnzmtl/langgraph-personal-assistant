@@ -1,8 +1,6 @@
 import type { Telegram } from "telegraf";
 
-import type { IFileSender } from "../ports/file-sender.js";
-
-export class TelegramFileSender implements IFileSender {
+export class TelegramFileSender {
   private currentChatId: number | null = null;
 
   constructor(private readonly telegram: Telegram) {}

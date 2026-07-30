@@ -4,17 +4,13 @@ import {
   createSystemAgentDefinition,
   deriveCronTargetAgentIds,
 } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
+import {
+  createDomainCapabilityCatalog,
+  createPersonalCapabilityCatalog,
+} from "../../helpers/capability-catalog.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
-import { createObsidianVault } from "../../../src/integrations/obsidian.js";
-import {
-  createCapabilityDeps,
-  createDomainCapabilityCatalog,
-  listAvailableCapabilities,
-  resolveCapabilities,
-  validateGrantableCapabilityIds,
-} from "../../../src/runtime-agents/capabilities.js";
+import type { PersonalCapabilityDeps } from "../../../src/runtime-agents/system-capability-deps.js";
 import { createCronRepositoryFake } from "../../helpers/configuration-tools.js";
 import { createRuntimeAgentRepositoryFake } from "../../helpers/fakes.js";
 
@@ -29,16 +25,15 @@ describe("builtin capabilities", () => {
 
   it("resolves system-config tools when repositories are available", () => {
     const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
+    const deps: PersonalCapabilityDeps = {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       cronTargetAgentIds: deriveCronTargetAgentIds(buildTestRuntimeAgents()),
       capabilityCatalog: catalog,
       skillCatalog: createSkillCatalog({ approvedModules: ["configuration", "finance", "obsidian"] }),
-    });
+    };
 
-    const tools = resolveCapabilities(["system-config"], deps);
+    const tools = catalog.resolveTools(["system-config"], deps);
     const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toEqual(
@@ -56,29 +51,29 @@ describe("builtin capabilities", () => {
   });
 
   it("omits system-config from the domain catalog when repositories are unavailable", () => {
-    const withoutRepos = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
-    });
-    const withRepos = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
+    const catalog = createPersonalCapabilityCatalog();
+    const withoutRepos: PersonalCapabilityDeps = {
+      capabilityCatalog: catalog,
+    };
+    const withRepos: PersonalCapabilityDeps = {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityCatalog: createPersonalCapabilityCatalog(),
-    });
+      capabilityCatalog: catalog,
+    };
 
-    expect(listAvailableCapabilities(withoutRepos).map((entry) => entry.id)).not.toContain("system-config");
-    expect(listAvailableCapabilities(withRepos).map((entry) => entry.id)).toContain("system-config");
+    expect(catalog.listAvailable(withoutRepos).map((entry) => entry.id)).not.toContain("system-config");
+    expect(catalog.listAvailable(withRepos).map((entry) => entry.id)).toContain("system-config");
   });
 
   it("rejects non-grantable capabilities when creating runtime agents", () => {
-    const deps = createCapabilityDeps({
-      obsidianVault: createObsidianVault("/tmp/vault"),
+    const catalog = createPersonalCapabilityCatalog();
+    const deps: PersonalCapabilityDeps = {
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
-      capabilityCatalog: createPersonalCapabilityCatalog(),
-    });
+      capabilityCatalog: catalog,
+    };
 
-    expect(() => validateGrantableCapabilityIds(["system-config"], deps)).toThrow(
+    expect(() => catalog.validateGrantableIds(["system-config"], deps)).toThrow(
       /cannot be granted/i,
     );
   });
@@ -86,8 +81,20 @@ describe("builtin capabilities", () => {
   it("allows grantable capabilities", () => {
     const catalog = createDomainCapabilityCatalog();
 
-    catalog.validateGrantableIds(["none"], {
-      obsidianVault: createObsidianVault("/tmp/vault"),
+    catalog.validateGrantableIds(["none"], {});
+  });
+
+  it("reserves finance-domain for the finance agent via descriptor reservedForAgentIds", () => {
+    const catalog = createDomainCapabilityCatalog({
+      adapters: {
+        supabaseWriteSession: {
+          executeSql: async <T>() => [] as T,
+          close: async () => {},
+        },
+      },
     });
+
+    expect(catalog.reservedCapabilityIdsForAgent("finance")).toEqual(["finance-domain"]);
+    expect(() => catalog.validateGrantableIds(["finance-domain"], {})).toThrow(/cannot be granted/i);
   });
 });

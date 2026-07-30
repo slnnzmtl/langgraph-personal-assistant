@@ -26,21 +26,24 @@ import {
   type SupervisorGraphHooks,
   type SupervisorPackBootstrap,
 } from "@personal-assistant/supervisor-framework";
-import { createObsidianVault } from "../integrations/obsidian.js";
-import { createFetchWiseTransactions } from "../integrations/wise.js";
-import type { FetchWiseTransactions } from "../ports/wise-transactions.js";
 import { loadSupervisorSystemPrompt, loadSystemPromptByKey } from "../prompts/load.js";
 import { createDataAgentPromptStore } from "../prompts/prompt-store.js";
+import type { PersonalCapabilityDeps } from "../runtime-agents/system-capability-deps.js";
+import { createObsidianVault } from "../integrations/obsidian.js";
+import { createFetchWiseTransactions } from "../integrations/wise.js";
 import {
-  createCapabilityDeps,
-  createPersonalCapabilityProviders,
-  PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
-  type PersonalCapabilityDeps,
-} from "../runtime-agents/capabilities.js";
-import type { IFileSender } from "../ports/file-sender.js";
-import type { SqlSession } from "../ports/sql-session.js";
+  FINANCE_DOMAIN_CAPABILITY_ID,
+  FINANCE_DOMAIN_READ_CAPABILITY_ID,
+  createFinanceDomainTools,
+} from "../runtime-agents/finance/tools.js";
+import {
+  OBSIDIAN_VAULT_CAPABILITY_ID,
+  createObsidianVaultTools,
+  type SendFile,
+} from "../runtime-agents/obsidian/tools.js";
 import { buildModelRegistry } from "./model-registry.js";
 import { buildAppRuntimeExecution } from "./runtime-execution.js";
+import { createPersonalRuntimeAgentPolicy } from "./personal-runtime-policy.js";
 import {
   prepareRuntimeAgents,
   resolveBuiltinModelName,
@@ -63,23 +66,101 @@ const personalDefaultContentSeeder = createDefaultContentSeeder({
 
 export type SupervisorSystemOptions = {
   runtimeCron?: RuntimeCronService;
-  fileSender?: IFileSender;
+  /** Bound send operation from the concrete Telegram sender (chat ID stays on that instance). */
+  sendFile?: SendFile;
   /** Bot entrypoints use writer; scheduler uses reader. Default writer. */
   dataWriteRole?: "writer" | "reader";
 };
 
-type PersonalCapabilityDepsOptions = {
+/** System-only capability deps (domain clients are closed over in buildCapabilityProviders). */
+export type BuildPersonalCapabilityDepsInput = {
   cronTargetAgentIds: readonly string[];
   capabilityCatalog: CapabilityCatalog;
   skillCatalog: SkillCatalog;
-  cronJobRepository?: CronJobRepository | undefined;
-  runtimeAgentRepository?: RuntimeAgentRepository | undefined;
-  supabaseReadSession?: SqlSession | undefined;
-  supabaseWriteSession?: SqlSession | undefined;
-  fileSender?: IFileSender | undefined;
-  fetchWiseTransactions?: FetchWiseTransactions | undefined;
-  runtimeCron?: RuntimeCronService | undefined;
+  cronJobRepository?: CronJobRepository;
+  runtimeAgentRepository?: RuntimeAgentRepository;
+  runtimeCron?: RuntimeCronService;
   loadPromptByKey?: PersonalCapabilityDeps["loadPromptByKey"];
+};
+
+export type BuildPersonalCapabilityProvidersInput = {
+  config: AppConfig;
+  adapters: PersonalAdapters;
+  sendFile?: SendFile;
+};
+
+/** Product capability providers closed over fresh adapters/config (soft-recompile safe). */
+export const buildPersonalCapabilityProviders = ({
+  config,
+  adapters,
+  sendFile,
+}: BuildPersonalCapabilityProvidersInput): CapabilityProvider<Record<string, unknown>>[] => {
+  const vault = config.obsidianVaultPath
+    ? createObsidianVault(config.obsidianVaultPath)
+    : undefined;
+  const writeSession = adapters.supabaseWriteSession;
+  const readSession = adapters.supabaseReadSession;
+  const fetchWise = createFetchWiseTransactions(config);
+
+  return [
+    {
+      descriptor: {
+        id: OBSIDIAN_VAULT_CAPABILITY_ID,
+        description: "Read, write, search, and send files from the Obsidian vault.",
+        grantable: true,
+      },
+      isAvailable: () => vault !== undefined,
+      resolveTools: () => {
+        if (!vault) {
+          throw new Error("obsidian-vault capability requires a configured Obsidian vault.");
+        }
+
+        return createObsidianVaultTools(vault, sendFile);
+      },
+    },
+    {
+      descriptor: {
+        id: FINANCE_DOMAIN_CAPABILITY_ID,
+        description: "Execute SQL, fetch Wise transactions, and load expense categories.",
+        grantable: false,
+        reservedForAgentIds: ["finance"],
+      },
+      isAvailable: () => writeSession !== undefined,
+      resolveTools: () => {
+        if (!writeSession) {
+          throw new Error("finance-domain capability requires a configured Supabase write session.");
+        }
+
+        return createFinanceDomainTools(
+          (sql) => writeSession.executeSql(sql),
+          {
+            writeAccess: true,
+            ...(fetchWise ? { fetchWise } : {}),
+          },
+        );
+      },
+    },
+    {
+      descriptor: {
+        id: FINANCE_DOMAIN_READ_CAPABILITY_ID,
+        description: "Query the expense ledger with read-only SQL and category lookup.",
+        grantable: true,
+      },
+      isAvailable: () => readSession !== undefined,
+      resolveTools: () => {
+        if (!readSession) {
+          throw new Error(
+            "finance-domain-read capability requires a configured Supabase read session.",
+          );
+        }
+
+        return createFinanceDomainTools(
+          (sql) => readSession.executeSql(sql),
+          { writeAccess: false },
+        );
+      },
+    },
+  ];
 };
 
 export const buildPersonalSkillCatalog = (agents: RuntimeAgentDefinition[]): SkillCatalog =>
@@ -102,31 +183,19 @@ export const buildPersonalCronGraphHooks = (
   };
 };
 
-/** Stricter personal entry over `createCapabilityDeps`; strips undefined optionals for EOPT. */
 export const buildPersonalCapabilityDeps = (
-  obsidianVaultPath: string,
-  options: PersonalCapabilityDepsOptions,
-): PersonalCapabilityDeps =>
-  createCapabilityDeps({
-    ...(obsidianVaultPath
-      ? { obsidianVault: createObsidianVault(obsidianVaultPath) }
-      : {}),
-    ...(options.fetchWiseTransactions
-      ? { fetchWiseTransactions: options.fetchWiseTransactions }
-      : {}),
-    cronTargetAgentIds: options.cronTargetAgentIds,
-    capabilityCatalog: options.capabilityCatalog,
-    skillCatalog: options.skillCatalog,
-    ...(options.cronJobRepository ? { cronJobRepository: options.cronJobRepository } : {}),
-    ...(options.runtimeAgentRepository
-      ? { runtimeAgentRepository: options.runtimeAgentRepository }
-      : {}),
-    ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
-    ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
-    ...(options.fileSender ? { fileSender: options.fileSender } : {}),
-    ...(options.runtimeCron ? { runtimeCron: options.runtimeCron } : {}),
-    ...(options.loadPromptByKey ? { loadPromptByKey: options.loadPromptByKey } : {}),
-  });
+  input: BuildPersonalCapabilityDepsInput,
+): PersonalCapabilityDeps => ({
+  cronTargetAgentIds: input.cronTargetAgentIds,
+  capabilityCatalog: input.capabilityCatalog,
+  skillCatalog: input.skillCatalog,
+  ...(input.cronJobRepository ? { cronJobRepository: input.cronJobRepository } : {}),
+  ...(input.runtimeAgentRepository
+    ? { runtimeAgentRepository: input.runtimeAgentRepository }
+    : {}),
+  ...(input.runtimeCron ? { runtimeCron: input.runtimeCron } : {}),
+  ...(input.loadPromptByKey ? { loadPromptByKey: input.loadPromptByKey } : {}),
+});
 
 const createPersonalRuntimeAgentRepository = (appConfig: AppConfig): RuntimeAgentRepository =>
   createRuntimeAgentRepository(
@@ -150,6 +219,7 @@ const buildPersonalRuntimeExecution = (
     config.googleApiKey,
     isGeminiContextCacheEnabled(),
   );
+  const vaultRoot = config.obsidianVaultPath || undefined;
 
   return buildAppRuntimeExecution({
     skillCatalog,
@@ -161,6 +231,8 @@ const buildPersonalRuntimeExecution = (
         resolveBuiltinModelName(config, resolveAgentModelKey(definition)),
       supervisorModelName: config.supervisorModel,
     },
+    createRuntimeAgentPolicy: (shellHooks, policyOptions) =>
+      createPersonalRuntimeAgentPolicy(shellHooks, policyOptions, vaultRoot),
   });
 };
 
@@ -182,15 +254,17 @@ export const buildPersonalSupervisorPack = ({
   PersonalAdapters
 > => ({
   config,
-  capabilityProviders: createPersonalCapabilityProviders() as CapabilityProvider<
-    Record<string, unknown>
-  >[],
+  buildCapabilityProviders: (ctx) =>
+    buildPersonalCapabilityProviders({
+      config: ctx.config,
+      adapters: ctx.adapters,
+      ...(options.sendFile !== undefined ? { sendFile: options.sendFile } : {}),
+    }),
   supervisorLlm,
   loadSupervisorPrompt: loadSupervisorSystemPrompt,
   systemAgent: {
     modelKey: "configuration",
   },
-  reservedCapabilitiesByAgentId: PERSONAL_RESERVED_CAPABILITIES_BY_AGENT_ID,
   initializeDefaults: () => {
     personalDefaultContentSeeder.seedAll();
   },
@@ -208,22 +282,16 @@ export const buildPersonalSupervisorPack = ({
     buildPersonalRuntimeExecution(ctx.config, skillCatalog, ctx.capabilityCatalog),
   buildModels: (appConfig, agents) =>
     buildModelRegistry(appConfig, deriveModelKeys(agents, DEFAULT_MODEL_KEY)),
-  buildCapabilityDeps: (context) => {
-    const fetchWiseTransactions = createFetchWiseTransactions(context.config);
-    return buildPersonalCapabilityDeps(context.config.obsidianVaultPath, {
+  buildCapabilityDeps: (context) =>
+    buildPersonalCapabilityDeps({
       cronTargetAgentIds: context.cronTargetAgentIds,
       cronJobRepository: context.cronJobRepository as CronJobRepository,
       runtimeAgentRepository: context.runtimeAgentRepository,
       capabilityCatalog: context.capabilityCatalog,
       skillCatalog: context.skillCatalog,
-      fileSender: options.fileSender,
-      supabaseReadSession: context.adapters.supabaseReadSession,
-      supabaseWriteSession: context.adapters.supabaseWriteSession,
-      ...(fetchWiseTransactions ? { fetchWiseTransactions } : {}),
-      runtimeCron: options.runtimeCron,
+      ...(options.runtimeCron !== undefined ? { runtimeCron: options.runtimeCron } : {}),
       loadPromptByKey: loadSystemPromptByKey,
-    });
-  },
+    }),
   buildGraphHooks: (context) => ({
     promptLogging: createFilePromptLogger({
       enabled: () => process.env.ENABLE_PROMPT_LOGS !== "false",

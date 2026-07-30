@@ -179,7 +179,7 @@ module.exports = {
     },
     {
       name: 'runtime-agents-not-to-integrations',
-      comment: 'Runtime agents must not import from integrations; use ports/ instead.',
+      comment: 'Runtime agents must not import from integrations; define contracts beside runtime-agents and let integrations import them.',
       severity: 'error',
       from: { path: '^apps/personal-assistant/src/runtime-agents/' },
       to: { path: '^apps/personal-assistant/src/integrations/' },

@@ -153,12 +153,14 @@ This assistant wraps framework bootstrap with product wiring. **Do not copy this
 ```typescript
 import { createSupervisorSystem } from "../apps/personal-assistant/src/composition/create-supervisor-system.js";
 
-const system = await createSupervisorSystem(config, { fileSender });
+const system = await createSupervisorSystem(config, {
+  sendFile: (path) => fileSender.sendFile(path),
+});
 const graph = system.getGraph();
 const cronJobRepository = system.getCronJobRepository();
 ```
 
-The pack wires capabilities and optional app-local behaviors via `buildAppRuntimeExecution()` and `createPersonalResolveTools(catalog)` for catalog + `read_skill`.
+The pack wires capabilities via `buildPersonalCapabilityProviders()` and optional product hooks in composition; `createPersonalResolveTools(catalog)` handles catalog + `read_skill`.
 
 ---
 

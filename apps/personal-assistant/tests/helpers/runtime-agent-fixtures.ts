@@ -10,8 +10,10 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import {
   FINANCE_DOMAIN_CAPABILITY_ID,
+} from "../../src/runtime-agents/finance/tools.js";
+import {
   OBSIDIAN_VAULT_CAPABILITY_ID,
-} from "../../src/runtime-agents/capabilities.js";
+} from "../../src/runtime-agents/obsidian/tools.js";
 
 const RUNTIME_AGENTS_FIXTURE_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

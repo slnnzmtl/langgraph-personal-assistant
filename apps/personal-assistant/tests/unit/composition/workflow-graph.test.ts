@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob, createCronJobRepository } from "@personal-assistant/supervisor-framework";
 import { defaultTestCronTargetAgentIds } from "../../helpers/runtime-agent-fixtures.js";
-import type { SqlSession } from "../../../src/ports/sql-session.js";
+import type { SqlSession } from "../../../src/integrations/mcp/sql-session.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeTestRuntimeAgent } from "../../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../../helpers/workflow-graph.js";

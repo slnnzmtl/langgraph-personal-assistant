@@ -25,7 +25,6 @@ const filterGrantableCapabilityIds = (
   definition: RuntimeAgentDefinition,
   catalog: CapabilityCatalog,
   deps: Record<string, unknown>,
-  reservedCapabilitiesByAgentId?: Record<string, readonly string[]>,
 ): readonly string[] => {
   const capabilityIds = resolveAgentCapabilityIds(definition);
 
@@ -33,7 +32,7 @@ const filterGrantableCapabilityIds = (
     return capabilityIds;
   }
 
-  const reserved = new Set(reservedCapabilitiesByAgentId?.[definition.id] ?? []);
+  const reserved = new Set(catalog.reservedCapabilityIdsForAgent(definition.id));
   const toValidate = capabilityIds.filter((id) => !reserved.has(id));
 
   if (toValidate.length > 0) {
@@ -50,15 +49,9 @@ export const resolveAgentTools = <TDeps extends Record<string, unknown>>(
   options: {
     includeReadSkill?: boolean;
     readSkillTool?: StructuredToolInterface;
-    reservedCapabilitiesByAgentId?: Record<string, readonly string[]>;
   } = {},
 ): StructuredToolInterface[] => {
-  const capabilityIds = filterGrantableCapabilityIds(
-    definition,
-    catalog,
-    deps,
-    options.reservedCapabilitiesByAgentId,
-  );
+  const capabilityIds = filterGrantableCapabilityIds(definition, catalog, deps);
 
   if (capabilityIds.includes("none")) {
     return [];

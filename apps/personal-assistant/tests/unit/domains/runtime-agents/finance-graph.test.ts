@@ -1,7 +1,7 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SqlSession } from "../../../../src/ports/sql-session.js";
+import type { SqlSession } from "../../../../src/integrations/mcp/sql-session.js";
 import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
 import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
@@ -55,7 +55,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {
@@ -99,7 +99,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector(() => {
@@ -131,7 +131,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([{ max: "2026-07-16" }]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
     const invokeInputs: unknown[] = [];
 
@@ -177,7 +177,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
     const ambiguousError = JSON.stringify({
       error: {
@@ -252,7 +252,7 @@ describe("finance subgraph tool batching", () => {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {

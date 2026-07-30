@@ -1,7 +1,7 @@
 import { connectSupabaseMcp } from "./mcp/supabase.js";
 import { createSelfHealingSqlSession } from "./mcp/self-healing-session.js";
 import type { AppConfig } from "../config.js";
-import type { SqlSession } from "../ports/sql-session.js";
+import type { SqlSession } from "./mcp/sql-session.js";
 
 export type SupabaseSessions = {
   supabaseReadSession?: SqlSession;

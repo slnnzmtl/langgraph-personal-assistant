@@ -52,6 +52,23 @@ export type SupervisorBootstrapContext<
   adapters: TAdapters;
 };
 
+/**
+ * Context available when building capability providers on each bootstrap.
+ * Invoked after setupAdapters (and repos/skills), before the catalog exists.
+ */
+export type CapabilityProvidersBootstrapContext<
+  TConfig extends SupervisorPaths,
+  TAdapters extends Record<string, unknown> = Record<string, never>,
+> = {
+  config: TConfig;
+  adapters: TAdapters;
+  runtimeAgentRepository: RuntimeAgentRepository;
+  runtimeAgents: RuntimeAgentDefinition[];
+  cronTargetAgentIds: readonly string[];
+  cronJobRepository: CronJobRepository;
+  skillCatalog: SkillCatalog;
+};
+
 export type SupervisorSystemContext<
   TConfig extends SupervisorPaths = SupervisorPaths,
   TDeps extends Record<string, unknown> = Record<string, unknown>,
@@ -87,7 +104,7 @@ export type SupervisorPackBootstrap<
   TAdapters extends Record<string, unknown> = Record<string, never>,
 > = {
   config: TConfig;
-  /** Pre-built catalog when capabilityProviders is not supplied (e.g. minimal test packs). */
+  /** Escape hatch for minimal packs/tests that supply a pre-built catalog. Exactly one of `buildCapabilityProviders` or `capabilityCatalog` is required. */
   capabilityCatalog?: CapabilityCatalog;
   supervisorLlm: ILLMConnector;
   loadSupervisorPrompt: () => string;
@@ -112,8 +129,14 @@ export type SupervisorPackBootstrap<
   ) => RuntimeExecutionKit;
   /** When set, bootstrap wires virtual system agent repo wrap, capability merge, and policy. */
   systemAgent?: SystemAgentOptions | false;
-  /** Primary catalog source; merged with system-config capabilities when systemAgent is enabled. */
-  capabilityProviders?: CapabilityProvider<Record<string, unknown>>[];
+  /**
+   * Preferred catalog source: invoked after setupAdapters on every bootstrap so providers
+   * can close over fresh adapter clients (safe for soft recompile).
+   * Exactly one of `buildCapabilityProviders` or `capabilityCatalog` is required.
+   */
+  buildCapabilityProviders?: (
+    ctx: CapabilityProvidersBootstrapContext<TConfig, TAdapters>,
+  ) => CapabilityProvider<Record<string, unknown>>[];
   buildModels: (config: TConfig, agents: RuntimeAgentDefinition[]) => Record<string, BaseChatModel>;
   buildCapabilityDeps: (
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
@@ -122,8 +145,6 @@ export type SupervisorPackBootstrap<
     ctx: SupervisorBootstrapContext<TConfig, TDeps, TAdapters>,
   ) => SupervisorGraphHooks;
   setupAdapters?: (config: TConfig) => Promise<TAdapters>;
-  /** Non-grantable capabilities allowed only on specific persisted agent ids (e.g. finance → finance-domain). */
-  reservedCapabilitiesByAgentId?: Record<string, readonly string[]>;
   validatePersistedAgents?: (
     agents: RuntimeAgentDefinition[],
     catalog: CapabilityCatalog,
