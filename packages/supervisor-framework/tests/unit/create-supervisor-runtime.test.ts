@@ -2,17 +2,16 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  createAgentPolicy,
+  buildDefaultRuntimeExecution,
   createCapabilityCatalog,
   createCronJobRepositoryForConfig,
   createRuntimeAgentRepository,
   createSupervisorRuntime,
+  DATA_WRITES_DISABLED_MESSAGE,
   isCronTargetRoute,
-  resolveAgentTools,
-  type CapabilityCatalog,
+  NONE_CAPABILITY_PROVIDER,
   type RuntimeAgentDefinition,
   type RuntimeAgentRepository,
-  type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import { FakeLLMConnector } from "../helpers/fakes.js";
 
@@ -34,13 +33,7 @@ const buildPack = (options: {
     Parameters<typeof createSupervisorRuntime>[0]["createCronJobRepository"]
   >;
 }) => {
-  const catalog = createCapabilityCatalog([
-    {
-      descriptor: { id: "none", description: "Prompt-only agent.", grantable: true },
-      isAvailable: () => true,
-      resolveTools: () => [],
-    },
-  ]);
+  const catalog = createCapabilityCatalog([NONE_CAPABILITY_PROVIDER]);
 
   const runtimeAgentsFilePath = path.join(
     process.cwd(),
@@ -71,17 +64,10 @@ const buildPack = (options: {
       ...(options.createCronJobRepository
         ? { createCronJobRepository: options.createCronJobRepository }
         : {}),
-      buildRuntimeExecution: (
-        _agents: RuntimeAgentDefinition[],
-        _skillCatalog: SkillCatalog,
-        ctx: { capabilityCatalog: CapabilityCatalog },
-      ) => ({
-        loadPromptByKey: () => "prompt",
-        runtimeAgentPolicy: createAgentPolicy({
-          resolveTools: (definition: RuntimeAgentDefinition, deps: Record<string, unknown>) =>
-            resolveAgentTools(definition, ctx.capabilityCatalog, deps),
+      buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+        buildDefaultRuntimeExecution(ctx.capabilityCatalog, {
+          loadPromptByKey: () => "prompt",
         }),
-      }),
       buildModels: () => ({
         generic: new FakeLLMConnector(() => "ok").getModel(),
       }),
@@ -247,6 +233,35 @@ describe("createSupervisorRuntime", () => {
 
     expect(changed).toBe(false);
     expect(onRecompiled).not.toHaveBeenCalled();
+  });
+
+  it("returns read-only cron repository from getCronJobRepository when allowDataWrites is false", async () => {
+    let seedCalls = 0;
+    const { pack } = buildPack({
+      seedAgents: async () => {
+        seedCalls += 1;
+        return [baseResearcher];
+      },
+      createCronJobRepository: (filePath, cronTargetAgentIds) =>
+        createCronJobRepositoryForConfig(filePath, cronTargetAgentIds),
+    });
+
+    const runtime = await createSupervisorRuntime({
+      ...pack,
+      config: {
+        ...pack.config,
+        allowDataWrites: false,
+      },
+    });
+
+    await expect(
+      runtime.getCronJobRepository().createJob({
+        jobName: "blocked-job",
+        schedule: "0 9 * * *",
+        targetRoute: "researcher",
+      }),
+    ).rejects.toThrow(DATA_WRITES_DISABLED_MESSAGE);
+    expect(seedCalls).toBe(1);
   });
 
   it("replaces the compiled graph and calls seedAgents once per successful recompile", async () => {

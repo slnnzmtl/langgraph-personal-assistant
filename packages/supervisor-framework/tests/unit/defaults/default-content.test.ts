@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIGURATION_PROMPT } from "../../../src/framework/defaults/default-configuration-prompt.js";
-import { DEFAULT_CRON_SKILL_XML } from "../../../src/framework/defaults/default-cron-skill.js";
-import { DEFAULT_RUNTIME_AGENTS_SKILL_XML } from "../../../src/framework/defaults/default-runtime-agents-skill.js";
-import { DEFAULT_SKILL_BOOTSTRAP_SKILL_XML } from "../../../src/framework/defaults/default-skill-bootstrap-skill.js";
-import { DEFAULT_SKILL_MANAGEMENT_SKILL_XML } from "../../../src/framework/defaults/default-skill-management-skill.js";
-import { DEFAULT_SUPERVISOR_PROMPT } from "../../../src/framework/defaults/default-supervisor-prompt.js";
+import {
+  DEFAULT_CONFIGURATION_PROMPT,
+  DEFAULT_CRON_SKILL_XML,
+  DEFAULT_RUNTIME_AGENTS_SKILL_XML,
+  DEFAULT_SKILL_BOOTSTRAP_SKILL_XML,
+  DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
+  DEFAULT_SUPERVISOR_PROMPT,
+} from "../../../src/framework/defaults/content/index.js";
 
 const ALL_DEFAULTS = [
   DEFAULT_SUPERVISOR_PROMPT,

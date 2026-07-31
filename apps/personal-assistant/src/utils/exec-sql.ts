@@ -67,4 +67,13 @@ export const normalizeToolOutput = (value: unknown, depth = 0): unknown => {
   return value;
 };
 
+
+export const serializeToolResult = (value: unknown): string => {
+  if (Array.isArray(value)) {
+    return JSON.stringify(value);
+  }
+
+  return typeof value === "string" ? value : JSON.stringify(value);
+};
+
 export const normalizeExecSqlOutput = normalizeToolOutput;

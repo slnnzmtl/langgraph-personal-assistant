@@ -133,7 +133,7 @@ const obsidianBehavior = (
   buildErrorMessage: (error) =>
     `Unable to edit the local markdown vault: ${error instanceof Error ? error.message : "Unknown error during Obsidian request"}`,
   createHooks: ({ capabilityDeps, definition }) => {
-    const vaultRoot = capabilityDeps.obsidianVaultPath;
+    const vaultRoot = capabilityDeps.obsidianVault?.rootPath;
     if (!vaultRoot) {
       return mergeCacheHooks(shellHooks, definition, shellFormatters, skillCatalog, contextCache);
     }

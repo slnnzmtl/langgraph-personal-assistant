@@ -55,7 +55,7 @@ The personal-assistant pack registers this hook in `buildPersonalSupervisorPack(
 
 1. Add a workspace dependency on `@personal-assistant/supervisor-framework` (or a path/git ref pre-publish).
 2. Define one or more `RuntimeAgentDefinition` records (JSON and/or seed function).
-3. Register a `createCapabilityCatalog([...])` with at least a `none` provider.
+3. Register a `createCapabilityCatalog([...])` with your product providers (`none` is included automatically).
 4. Implement `buildRuntimeExecution(agents, skillCatalog, ctx)` — return one `runtimeAgentPolicy` via `createAgentPolicy` + `resolveAgentTools`. Use `ctx.capabilityCatalog` from bootstrap (already merged when `systemAgent` is enabled).
 5. Provide `supervisorLlm`, `loadSupervisorPrompt`, `buildModels`, `buildCapabilityDeps`, and `seedAgents`.
 6. Optionally override `createRuntimeAgentRepository`, `createCronJobRepository`, and `buildSkillCatalog` (defaults exist).

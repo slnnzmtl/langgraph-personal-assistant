@@ -11,23 +11,19 @@ import {
   type SkillCatalog,
 } from "@personal-assistant/supervisor-framework";
 import type { LoadPromptByKey } from "@personal-assistant/supervisor-framework";
-import type { SupabaseMcpSession } from "../integrations/mcp/supabase.js";
+import type { ObsidianVault } from "../ports/obsidian-vault.js";
+import type { SqlSession } from "../ports/sql-session.js";
+import type { FetchWiseTransactions } from "../ports/wise-transactions.js";
 import type { IFileSender } from "../ports/file-sender.js";
 
 import { createFinanceDomainToolsFromSession } from "./finance/tools.js";
 import { createObsidianVaultTools } from "./obsidian/tools.js";
 
-export const NONE_CAPABILITY_ID = "none" as const;
 export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;
 export const FINANCE_DOMAIN_CAPABILITY_ID = "finance-domain" as const;
 export const FINANCE_DOMAIN_READ_CAPABILITY_ID = "finance-domain-read" as const;
 
 export const PERSONAL_CAPABILITY_DESCRIPTORS: CapabilityDescriptor[] = [
-  {
-    id: NONE_CAPABILITY_ID,
-    description: "Prompt-only agent with no tools.",
-    grantable: true,
-  },
   {
     id: OBSIDIAN_VAULT_CAPABILITY_ID,
     description: "Read, write, search, and send files from the Obsidian vault.",
@@ -65,12 +61,13 @@ const getDescriptor = (id: BuiltinCapabilityId): CapabilityDescriptor => {
 };
 
 export type PersonalDomainDeps = {
-  obsidianVaultPath: string;
+  obsidianVault?: ObsidianVault;
   fileSender?: IFileSender;
-  supabaseReadSession?: SupabaseMcpSession;
-  supabaseWriteSession?: SupabaseMcpSession;
+  fetchWiseTransactions?: FetchWiseTransactions;
+  supabaseReadSession?: SqlSession;
+  supabaseWriteSession?: SqlSession;
   /** @deprecated Use supabaseWriteSession. */
-  supabaseSession?: SupabaseMcpSession;
+  supabaseSession?: SqlSession;
 };
 
 export type PersonalSystemDeps = {
@@ -85,24 +82,30 @@ export type PersonalSystemDeps = {
 
 export type PersonalCapabilityDeps = PersonalDomainDeps & PersonalSystemDeps;
 
+export type CreateCapabilityDepsOptions = {
+  obsidianVault?: ObsidianVault;
+  fileSender?: PersonalDomainDeps["fileSender"];
+  fetchWiseTransactions?: FetchWiseTransactions;
+  supabaseReadSession?: PersonalDomainDeps["supabaseReadSession"];
+  supabaseWriteSession?: PersonalDomainDeps["supabaseWriteSession"];
+  supabaseSession?: PersonalDomainDeps["supabaseSession"];
+  cronTargetAgentIds?: PersonalSystemDeps["cronTargetAgentIds"];
+  cronJobRepository?: PersonalSystemDeps["cronJobRepository"];
+  runtimeAgentRepository?: PersonalSystemDeps["runtimeAgentRepository"];
+  runtimeCron?: PersonalSystemDeps["runtimeCron"];
+  capabilityCatalog?: PersonalSystemDeps["capabilityCatalog"];
+  skillCatalog?: PersonalSystemDeps["skillCatalog"];
+  loadPromptByKey?: PersonalSystemDeps["loadPromptByKey"];
+};
+
 export const createCapabilityDeps = (
-  obsidianVaultPath: string,
-  options: {
-    fileSender?: PersonalDomainDeps["fileSender"];
-    supabaseReadSession?: PersonalDomainDeps["supabaseReadSession"];
-    supabaseWriteSession?: PersonalDomainDeps["supabaseWriteSession"];
-    supabaseSession?: PersonalDomainDeps["supabaseSession"];
-    cronTargetAgentIds?: PersonalSystemDeps["cronTargetAgentIds"];
-    cronJobRepository?: PersonalSystemDeps["cronJobRepository"];
-    runtimeAgentRepository?: PersonalSystemDeps["runtimeAgentRepository"];
-    runtimeCron?: PersonalSystemDeps["runtimeCron"];
-    capabilityCatalog?: PersonalSystemDeps["capabilityCatalog"];
-    skillCatalog?: PersonalSystemDeps["skillCatalog"];
-    loadPromptByKey?: PersonalSystemDeps["loadPromptByKey"];
-  } = {},
+  options: CreateCapabilityDepsOptions = {},
 ): PersonalCapabilityDeps => ({
-  obsidianVaultPath,
+  ...(options.obsidianVault ? { obsidianVault: options.obsidianVault } : {}),
   ...(options.fileSender ? { fileSender: options.fileSender } : {}),
+  ...(options.fetchWiseTransactions
+    ? { fetchWiseTransactions: options.fetchWiseTransactions }
+    : {}),
   ...(options.supabaseReadSession ? { supabaseReadSession: options.supabaseReadSession } : {}),
   ...(options.supabaseWriteSession ? { supabaseWriteSession: options.supabaseWriteSession } : {}),
   ...(options.supabaseSession ? { supabaseSession: options.supabaseSession } : {}),
@@ -119,14 +122,15 @@ export const createCapabilityDeps = (
 
 export const createPersonalCapabilityProviders = (): CapabilityProvider<PersonalCapabilityDeps>[] => [
   {
-    descriptor: getDescriptor("none"),
-    isAvailable: () => true,
-    resolveTools: () => [],
-  },
-  {
     descriptor: getDescriptor("obsidian-vault"),
-    isAvailable: (deps) => Boolean(deps.obsidianVaultPath),
-    resolveTools: (deps) => createObsidianVaultTools(deps.obsidianVaultPath, deps.fileSender),
+    isAvailable: (deps) => deps.obsidianVault !== undefined,
+    resolveTools: (deps) => {
+      if (!deps.obsidianVault) {
+        throw new Error("obsidian-vault capability requires a configured Obsidian vault.");
+      }
+
+      return createObsidianVaultTools(deps.obsidianVault, deps.fileSender);
+    },
   },
   {
     descriptor: getDescriptor("finance-domain"),
@@ -138,7 +142,10 @@ export const createPersonalCapabilityProviders = (): CapabilityProvider<Personal
         throw new Error("finance-domain capability requires a configured Supabase write session.");
       }
 
-      return createFinanceDomainToolsFromSession(session, { writeAccess: true });
+      return createFinanceDomainToolsFromSession(session, {
+        writeAccess: true,
+        ...(deps.fetchWiseTransactions ? { fetchWise: deps.fetchWiseTransactions } : {}),
+      });
     },
   },
   {

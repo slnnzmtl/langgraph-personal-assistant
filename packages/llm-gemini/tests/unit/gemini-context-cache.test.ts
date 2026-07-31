@@ -12,7 +12,7 @@ import {
   isGeminiContextCacheEnabled,
   parseCacheTooSmallShortfall,
   resolveCacheMinTokens,
-} from "../../../src/models/gemini-context-cache.js";
+} from "../../src/gemini-context-cache.js";
 
 const sampleTool = tool(async () => "ok", {
   name: "list_skills",
@@ -251,10 +251,6 @@ describe("gemini context cache helpers", () => {
   });
 
   it("createGeminiContextCacheManager retries with real padding even when the initial estimate overshoots the model minimum", async () => {
-    // Reproduces production: a large/dense prompt whose chars/4 estimate makes buildCacheSeedContents
-    // believe no padding is needed (deficit clamped to 0 on the first attempt), yet Gemini's real
-    // tokenizer counts far fewer tokens and rejects the first attempt as too small. The retry must
-    // add real padding on top, not get swallowed by the (still deeply negative) original estimate gap.
     const oversizedStaticInstruction = "static prompt ".repeat(3000);
     const createRequests: Array<{ contents?: unknown }> = [];
     let callCount = 0;
@@ -285,7 +281,6 @@ describe("gemini context cache helpers", () => {
       });
 
       expect(callCount).toBe(2);
-      // The retry must add real padding on top of the (possibly zero) estimate-based deficit.
       expect(seedTextLength(createRequests[1]?.contents as ReturnType<typeof buildCacheSeedContents>))
         .toBeGreaterThan(
           seedTextLength(createRequests[0]?.contents as ReturnType<typeof buildCacheSeedContents>),

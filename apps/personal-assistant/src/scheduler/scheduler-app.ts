@@ -15,7 +15,7 @@ import {
 } from "../composition/create-supervisor-system.js";
 import type { AppConfig } from "../config.js";
 import { createLazyCron, startSchedulerRuntime, type LazyCronService } from "./scheduler-runtime.js";
-import type { GeminiConnector } from "../models/gemini-connector.js";
+import type { GeminiConnector } from "@personal-assistant/llm-gemini";
 
 export type CreateSchedulerAppOptions = {
   processLock?: ProcessLock;

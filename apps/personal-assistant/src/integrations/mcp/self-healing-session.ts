@@ -1,9 +1,8 @@
+import type { SqlSession } from "../../ports/sql-session.js";
 import { isMcpTransportError } from "./transport-errors.js";
 
-export type McpSessionLike = {
-  executeSql<T = unknown>(sql: string): Promise<T>;
-  close(): Promise<void>;
-};
+/** @deprecated Use SqlSession from ports/sql-session.js */
+export type McpSessionLike = SqlSession;
 
 export type ReconnectBackoffOptions = {
   baseDelayMs: number;
@@ -12,7 +11,7 @@ export type ReconnectBackoffOptions = {
 };
 
 export type SelfHealingMcpSessionOptions = {
-  connect: () => Promise<McpSessionLike>;
+  connect: () => Promise<SqlSession>;
   maxReconnectAttempts?: number;
   reconnectBackoff?: ReconnectBackoffOptions;
   onReconnect?: (info: { attempt: number; delayMs: number; error: unknown }) => void;
@@ -39,13 +38,13 @@ const sleep = (delayMs: number): Promise<void> =>
 
 export const createSelfHealingMcpSession = async (
   options: SelfHealingMcpSessionOptions,
-): Promise<McpSessionLike> => {
+): Promise<SqlSession> => {
   const maxReconnectAttempts = options.maxReconnectAttempts ?? 1;
   const reconnectBackoff = options.reconnectBackoff ?? { baseDelayMs: 0, maxDelayMs: 0 };
-  let session: McpSessionLike | undefined;
-  let reconnecting: Promise<McpSessionLike> | undefined;
+  let session: SqlSession | undefined;
+  let reconnecting: Promise<SqlSession> | undefined;
 
-  const establishSession = async (): Promise<McpSessionLike> => {
+  const establishSession = async (): Promise<SqlSession> => {
     if (reconnecting) {
       return reconnecting;
     }
@@ -60,7 +59,7 @@ export const createSelfHealingMcpSession = async (
   const resetAndConnect = async (
     reconnectAttempt: number,
     error: unknown,
-  ): Promise<McpSessionLike> => {
+  ): Promise<SqlSession> => {
     if (reconnecting) {
       return reconnecting;
     }

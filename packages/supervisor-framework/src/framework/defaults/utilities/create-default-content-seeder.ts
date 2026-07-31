@@ -7,8 +7,8 @@ import {
   DEFAULT_RUNTIME_AGENTS_SKILL_XML,
   DEFAULT_SKILL_BOOTSTRAP_SKILL_XML,
   DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
-  DEFAULT_SUPERVISOR_PROMPT
-} from "./index.js";
+  DEFAULT_SUPERVISOR_PROMPT,
+} from "../content/index.js";
 
 export type DefaultContentSeederOptions = {
   promptsDir: string;

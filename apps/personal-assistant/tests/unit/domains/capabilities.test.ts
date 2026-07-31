@@ -7,6 +7,7 @@ import {
 import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
 import { createSkillCatalog } from "@personal-assistant/supervisor-framework";
 import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
+import { createObsidianVault } from "../../../src/integrations/obsidian.js";
 import {
   createCapabilityDeps,
   createDomainCapabilityCatalog,
@@ -28,7 +29,8 @@ describe("builtin capabilities", () => {
 
   it("resolves system-config tools when repositories are available", () => {
     const catalog = createPersonalCapabilityCatalog();
-    const deps = createCapabilityDeps("/tmp/vault", {
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       cronTargetAgentIds: deriveCronTargetAgentIds(buildTestRuntimeAgents()),
@@ -54,8 +56,11 @@ describe("builtin capabilities", () => {
   });
 
   it("omits system-config from the domain catalog when repositories are unavailable", () => {
-    const withoutRepos = createCapabilityDeps("/tmp/vault");
-    const withRepos = createCapabilityDeps("/tmp/vault", {
+    const withoutRepos = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
+    });
+    const withRepos = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       capabilityCatalog: createPersonalCapabilityCatalog(),
@@ -66,7 +71,8 @@ describe("builtin capabilities", () => {
   });
 
   it("rejects non-grantable capabilities when creating runtime agents", () => {
-    const deps = createCapabilityDeps("/tmp/vault", {
+    const deps = createCapabilityDeps({
+      obsidianVault: createObsidianVault("/tmp/vault"),
       cronJobRepository: createCronRepositoryFake(),
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
       capabilityCatalog: createPersonalCapabilityCatalog(),
@@ -81,7 +87,7 @@ describe("builtin capabilities", () => {
     const catalog = createDomainCapabilityCatalog();
 
     catalog.validateGrantableIds(["none"], {
-      obsidianVaultPath: "/tmp/vault",
+      obsidianVault: createObsidianVault("/tmp/vault"),
     });
   });
 });

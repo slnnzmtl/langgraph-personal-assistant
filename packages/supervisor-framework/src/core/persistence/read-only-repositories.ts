@@ -3,7 +3,6 @@ import type {
   CreateRuntimeAgentInput,
   UpdateRuntimeAgentInput,
 } from "../types/agent.js";
-import type { CronJobDefinition, CronJobRepository } from "../../framework/cron/types.js";
 
 export const DATA_WRITES_DISABLED_MESSAGE = "Data writes are disabled in this process";
 
@@ -23,13 +22,4 @@ export const createReadOnlyRuntimeAgentRepository = (
   ...(repository.describePromptLocation
     ? { describePromptLocation: (id: string) => repository.describePromptLocation!(id) }
     : {}),
-});
-
-export const createReadOnlyCronJobRepository = (
-  repository: CronJobRepository,
-): CronJobRepository => ({
-  loadJobs: () => repository.loadJobs(),
-  saveJobs: async () => rejectWrite(),
-  createJob: async (_job: CronJobDefinition) => rejectWrite(),
-  deleteJob: async (_jobName: string) => rejectWrite(),
 });

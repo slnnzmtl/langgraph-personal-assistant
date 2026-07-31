@@ -1,6 +1,7 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { z } from "zod";
 
+import { NONE_CAPABILITY_ID, NONE_CAPABILITY_PROVIDER } from "./none-capability.js";
 import {
   isCapabilityGrantable,
   type CapabilityDescriptor,
@@ -19,19 +20,32 @@ export type CapabilityCatalog = {
   createGrantableIdSchema(deps: Record<string, unknown>): z.ZodEnum<Record<string, string>>;
 };
 
+const withNoneCapability = (
+  providers: CapabilityProvider<Record<string, unknown>>[],
+): CapabilityProvider<Record<string, unknown>>[] => {
+  if (providers.some((provider) => provider.descriptor.id === NONE_CAPABILITY_ID)) {
+    return providers;
+  }
+
+  return [NONE_CAPABILITY_PROVIDER, ...providers];
+};
+
 export const createCapabilityCatalog = (
   providers: CapabilityProvider<Record<string, unknown>>[],
 ): CapabilityCatalog => {
-  const providerById = new Map(providers.map((provider) => [provider.descriptor.id, provider]));
-  const descriptors = providers.map((provider) => provider.descriptor);
+  const resolvedProviders = withNoneCapability(providers);
+  const providerById = new Map(
+    resolvedProviders.map((provider) => [provider.descriptor.id, provider]),
+  );
+  const descriptors = resolvedProviders.map((provider) => provider.descriptor);
 
   const listAvailable = (deps: Record<string, unknown>): CapabilityDescriptor[] =>
-    providers
+    resolvedProviders
       .filter((provider) => provider.isAvailable(deps))
       .map((provider) => provider.descriptor);
 
   const listGrantable = (deps: Record<string, unknown>): CapabilityDescriptor[] =>
-    providers
+    resolvedProviders
       .filter((provider) => isCapabilityGrantable(provider, deps))
       .map((provider) => provider.descriptor);
 

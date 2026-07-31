@@ -7,11 +7,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "pnpm --filter @personal-assistant/supervisor-framework build && tsc -p tsconfig.json",
+    "build": "pnpm --filter @personal-assistant/llm-gemini build && tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "pnpm test:unit && pnpm test:e2e",
-    "dev": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/index.ts",
-    "dev:scheduler": "pnpm --filter @personal-assistant/supervisor-framework build && tsx src/scheduler/index.ts",
+    "dev": "pnpm --filter @personal-assistant/llm-gemini build && tsx src/index.ts",
+    "dev:scheduler": "pnpm --filter @personal-assistant/llm-gemini build && tsx src/scheduler/index.ts",
     "start": "node dist/index.js",
     "start:scheduler": "node dist/scheduler/index.js",
     "test:unit": "ENABLE_PROMPT_LOGS=false vitest run",
@@ -19,13 +19,13 @@
     "test:e2e:ui": "ENABLE_PROMPT_LOGS=false playwright test --ui"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
     "@langchain/core": "1.2.1",
     "@langchain/google-genai": "^2.2.0",
     "@langchain/langgraph": "^1.4.8",
     "@langchain/langgraph-checkpoint": "^1.0.0",
     "@langchain/langgraph-checkpoint-sqlite": "^1.0.3",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@personal-assistant/llm-gemini": "workspace:*",
     "@personal-assistant/supervisor-framework": "workspace:*",
     "better-sqlite3": "^12.10.0",
     "dotenv": "^16.6.1",

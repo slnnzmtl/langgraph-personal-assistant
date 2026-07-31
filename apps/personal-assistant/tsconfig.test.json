@@ -8,7 +8,8 @@
     "rootDir": "."
   },
   "references": [
-    { "path": "../../packages/supervisor-framework" }
+    { "path": "../../packages/supervisor-framework" },
+    { "path": "../../packages/llm-gemini" }
   ],
   "include": ["tests/**/*.ts"]
 }

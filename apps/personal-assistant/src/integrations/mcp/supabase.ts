@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import type { SqlSession } from "../../ports/sql-session.js";
 import { normalizeToolOutput } from "../../utils/exec-sql.js";
 
 export interface SupabaseMcpConfig {
@@ -10,11 +11,7 @@ export interface SupabaseMcpConfig {
   readOnly?: boolean;
 }
 
-export interface SupabaseMcpSession {
-
-  executeSql<T = unknown>(sql: string): Promise<T>;
-  close(): Promise<void>;
-}
+export type SupabaseMcpSession = SqlSession;
 
 type TextContent = {
   type: string;

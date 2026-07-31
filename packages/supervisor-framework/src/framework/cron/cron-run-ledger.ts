@@ -1,4 +1,4 @@
-import type { CronJobRun } from "./cron-runner.js";
+import type { CronJobRun } from "./types.js";
 
 export type CronRunStatus = "running" | "succeeded" | "failed";
 

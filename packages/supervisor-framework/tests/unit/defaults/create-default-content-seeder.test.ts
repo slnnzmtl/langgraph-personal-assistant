@@ -6,11 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_CONFIGURATION_PROMPT,
-} from "../../../src/framework/defaults/default-configuration-prompt.js";
-import { DEFAULT_CRON_SKILL_XML } from "../../../src/framework/defaults/default-cron-skill.js";
-import { DEFAULT_SKILL_MANAGEMENT_SKILL_XML } from "../../../src/framework/defaults/default-skill-management-skill.js";
-import { DEFAULT_SUPERVISOR_PROMPT } from "../../../src/framework/defaults/default-supervisor-prompt.js";
-import { createDefaultContentSeeder } from "../../../src/framework/defaults/create-default-content-seeder.js";
+  DEFAULT_CRON_SKILL_XML,
+  DEFAULT_SKILL_MANAGEMENT_SKILL_XML,
+  DEFAULT_SUPERVISOR_PROMPT,
+} from "../../../src/framework/defaults/content/index.js";
+import { createDefaultContentSeeder } from "../../../src/framework/defaults/utilities/create-default-content-seeder.js";
 
 describe("createDefaultContentSeeder", () => {
   let tempRoot: string;

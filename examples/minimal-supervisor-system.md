@@ -24,8 +24,8 @@ Architecture note: the framework is a **workspace package** in this monorepo (no
 
 1. Agent definitions (JSON and/or seed)
 2. Capability catalog + tool factories
-3. LLM connector and chat models
-4. Default runtime policy via `buildRuntimeExecution` (`createAgentPolicy` + capability catalog)
+3. LLM connector via `@personal-assistant/llm-gemini` (`GeminiConnector`) and chat models
+4. Default runtime policy via `buildDefaultRuntimeExecution` (or custom `buildRuntimeExecution`)
 5. Cron repository factory (or a stub)
 6. Skill catalog (or an empty stub)
 7. Entrypoint that invokes `graph` (CLI, HTTP, Slack, …)
@@ -41,10 +41,9 @@ Imagine a sibling repo (or package) that only needs a supervisor + one researche
 ### 1. Define agents
 
 ```typescript
-import type { RuntimeAgentDefinition } from "@personal-assistant/supervisor-framework";
+import type { CreateRuntimeAgentInput } from "@personal-assistant/supervisor-framework";
 
-const researcher: RuntimeAgentDefinition = {
-  id: "researcher",
+const researcherInput: CreateRuntimeAgentInput = {
   name: "Researcher",
   description: "Answer factual questions with web search.",
   systemPrompt: "You are a concise research assistant. Prefer short answers.",
@@ -52,8 +51,6 @@ const researcher: RuntimeAgentDefinition = {
   modelKey: "generic",
   maxSteps: 6,
   enabled: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
 };
 ```
 
@@ -78,21 +75,15 @@ const webSearch = tool(
   },
 );
 
+// `none` is included automatically by createCapabilityCatalog.
 const catalog = createCapabilityCatalog([
-  {
-    descriptor: {
-      id: "none",
-      description: "Prompt-only agent.",
-      configurable: true,
-    },
-    resolveTools: () => [],
-  },
   {
     descriptor: {
       id: "web-search",
       description: "Search the public web.",
-      configurable: true,
+      grantable: true,
     },
+    isAvailable: () => true,
     resolveTools: () => [webSearch],
   },
 ]);
@@ -105,9 +96,10 @@ const catalog = createCapabilityCatalog([
 ```typescript
 import {
   bootstrapSupervisorSystem,
-  createAgentPolicy,
-  resolveAgentTools,
+  buildDefaultRuntimeExecution,
+  seedAgentsIfMissing,
 } from "@personal-assistant/supervisor-framework";
+import { GeminiConnector } from "@personal-assistant/llm-gemini";
 
 const context = await bootstrapSupervisorSystem({
   config: {
@@ -116,25 +108,15 @@ const context = await bootstrapSupervisorSystem({
     messageHistoryMaxTokens: 6000,
   },
   capabilityCatalog: catalog,
-  supervisorLlm: myLlmConnector,
+  supervisorLlm: new GeminiConnector(process.env.GOOGLE_API_KEY!, process.env.SUPERVISOR_MODEL),
   loadSupervisorPrompt: () =>
     "Route factual questions to researcher. Reply directly for greetings.",
-  seedAgents: async (repo) => {
-    const existing = await repo.listAgents();
-    if (existing.some((a) => a.id === researcher.id)) {
-      return existing;
-    }
-    await repo.createAgent(researcher);
-    return repo.listAgents();
-  },
-  buildRuntimeExecution: (_agents, _skillCatalog, ctx) => ({
-    loadPromptByKey: async (key) => `Prompt for ${key}`,
-    runtimeAgentPolicy: createAgentPolicy({
-      resolveTools: (definition, deps) =>
-        resolveAgentTools(definition, ctx.capabilityCatalog, deps, {}),
-    }),
+  seedAgents: seedAgentsIfMissing([researcherInput]),
+  buildRuntimeExecution: (_agents, _skillCatalog, ctx) =>
+    buildDefaultRuntimeExecution(ctx.capabilityCatalog),
+  buildModels: () => ({
+    generic: new GeminiConnector(process.env.GOOGLE_API_KEY!, process.env.RESEARCHER_MODEL).getModel(),
   }),
-  buildModels: () => ({ generic: myChatModel }),
   buildCapabilityDeps: () => ({}),
 });
 

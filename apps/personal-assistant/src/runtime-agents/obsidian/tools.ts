@@ -1,16 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { IFileSender } from "../../ports/file-sender.js";
-import {
-  RelativePathSchema,
-  resolveVaultPath,
-  applyFileWrite,
-  readVaultFile,
-  checkFileExists,
-  listDirContents,
-  searchFiles,
-  searchFilesByName,
-} from "../../integrations/obsidian.js";
+import type { ObsidianVault } from "../../ports/obsidian-vault.js";
+import { RelativePathSchema } from "../../ports/obsidian-vault.js";
 
 const MarkdownContentSchema = z
   .string()
@@ -56,11 +48,11 @@ export const SendFileToolSchema = z.object({
   caption: z.string().optional().describe("Optional caption to attach to the file."),
 }).describe("Send a file from the vault as a Telegram document.");
 
-export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSender) => {
+export const createObsidianVaultTools = (vault: ObsidianVault, fileSender?: IFileSender) => {
   const baseTools = [
     tool(
       async ({ relativePath }) => {
-        try { return await readVaultFile(vaultRoot, relativePath); }
+        try { return await vault.readFile(relativePath); }
         catch (e: any) { return `Error: ${e.message}`; }
       },
       { name: "read_file", description: "Read the full contents of a file to view tasks or text structure.", schema: ReadFileToolSchema },
@@ -68,11 +60,11 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
     tool(
       async (args: z.infer<typeof WriteFileToolSchema>) => {
         try {
-          if (args.operation === "create_new" && await checkFileExists(vaultRoot, args.relativePath)) {
+          if (args.operation === "create_new" && await vault.checkExists(args.relativePath)) {
             return `Notice: File already exists at ${args.relativePath}. Use append or overwrite instead.`;
           }
 
-          await applyFileWrite(vaultRoot, args);
+          await vault.writeFile(args);
           return `Success: ${args.summary} saved to ${args.relativePath}.`;
         } catch (e: any) { return `Error: ${e.message}`; }
       },
@@ -85,7 +77,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
     tool(
       async ({ relativeDir }: z.infer<typeof ListFilesToolSchema>) => {
         try {
-          const { files, dirs } = await listDirContents(vaultRoot, relativeDir);
+          const { files, dirs } = await vault.listDirContents(relativeDir);
           const lines = [
             ...files.map((f) => `file: ${f}`),
             ...dirs.map((d) => `dir: ${d}`),
@@ -104,7 +96,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
     tool(
       async ({ queries, relativeDir }: z.infer<typeof SearchFilesToolSchema>) => {
         try {
-          const matches = await searchFiles(vaultRoot, queries, relativeDir);
+          const matches = await vault.searchFiles(queries, relativeDir);
           return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
         } catch (e: any) {
           return `Error: ${e.message}`;
@@ -119,7 +111,7 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
     tool(
       async ({ queries, relativeDir }: z.infer<typeof SearchFilesByNameToolSchema>) => {
         try {
-          const matches = await searchFilesByName(vaultRoot, queries, relativeDir);
+          const matches = await vault.searchFilesByName(queries, relativeDir);
           return matches.length > 0 ? matches.join("\n") : "No files matched your search.";
         } catch (e: any) {
           return `Error: ${e.message}`;
@@ -139,10 +131,10 @@ export const createObsidianVaultTools = (vaultRoot: string, fileSender?: IFileSe
       tool(
         async ({ relativePath }: z.infer<typeof SendFileToolSchema>) => {
           try {
-            if (!await checkFileExists(vaultRoot, relativePath)) {
+            if (!await vault.checkExists(relativePath)) {
               return `Error: File does not exist at ${relativePath}`;
             }
-            const absolutePath = resolveVaultPath(vaultRoot, relativePath);
+            const absolutePath = vault.resolvePath(relativePath);
             await fileSender.sendFile(absolutePath);
             return `File sent: ${relativePath}`;
           } catch (e: any) {

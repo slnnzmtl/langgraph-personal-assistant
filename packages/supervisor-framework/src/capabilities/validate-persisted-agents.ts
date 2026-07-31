@@ -1,7 +1,6 @@
 import type { CapabilityCatalog } from "./catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
-import { resolveAgentCapabilityIds } from "../core/types/agent.js";
-import { isSystemAgentId } from "../framework/system-agent/definition.js";
+import { isRuntimeAgentBuiltin, resolveAgentCapabilityIds } from "../core/types/agent.js";
 
 export type ValidatePersistedAgentCapabilitiesOptions = {
   reservedCapabilitiesByAgentId?: Record<string, readonly string[]>;
@@ -14,7 +13,7 @@ export const validatePersistedAgentCapabilities = (
   options: ValidatePersistedAgentCapabilitiesOptions = {},
 ): void => {
   for (const agent of agents) {
-    if (isSystemAgentId(agent.id)) {
+    if (isRuntimeAgentBuiltin(agent)) {
       continue;
     }
 

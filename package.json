@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "check": "pnpm -r check",
+    "check": "pnpm depcruise && pnpm -r check",
     "dev": "pnpm --filter personal-assistant dev",
     "dev:scheduler": "pnpm --filter personal-assistant dev:scheduler",
     "start": "pnpm --filter personal-assistant start",
@@ -16,10 +16,16 @@
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
     "test:e2e": "pnpm --filter personal-assistant test:e2e",
-    "test:e2e:ui": "pnpm --filter personal-assistant test:e2e:ui"
+    "test:e2e:ui": "pnpm --filter personal-assistant test:e2e:ui",
+    "depcruise": "depcruise apps/*/src packages/*/src",
+    "depcruise:archi": "depcruise apps/*/src packages/*/src --output-type archi --output-to dependency-archi.dot && dot -T svg dependency-archi.dot -o dependency-archi.svg",
+    "depcruise:graph": "depcruise apps/*/src packages/*/src --output-type dot --output-to dependency-graph.dot && dot -T svg dependency-graph.dot -o dependency-graph.svg",
+    "depcruise:graph:personal-assistant": "depcruise apps/personal-assistant/src packages/*/src --output-type dot --output-to dependency-graph-personal-assistant.dot && dot -T svg dependency-graph-personal-assistant.dot -o dependency-graph-personal-assistant.svg",
+    "depcruise:graph:core": "depcruise packages/supervisor-framework/src --output-type dot --output-to dependency-graph-core.dot && dot -T svg dependency-graph-core.dot -o dependency-graph-core.svg"
   },
   "devDependencies": {
     "@types/node": "^24.0.13",
+    "dependency-cruiser": "^18.1.0",
     "typescript": "^5.8.3"
   },
   "pnpm": {

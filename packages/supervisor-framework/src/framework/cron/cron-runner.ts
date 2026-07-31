@@ -4,17 +4,13 @@ import { randomUUID } from "node:crypto";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { extractMessageTextContent } from "../../core/message-content.js";
 import type { CronRunLedger } from "./cron-run-ledger.js";
+import type {
+  CronExecutionReporter,
+  CronJobResult,
+  CronJobRun,
+} from "./types.js";
 
-export type CronJobRun = {
-  jobName: string;
-  trigger: string;
-  payload?: unknown;
-};
-
-export type CronJobResult = CronJobRun & {
-  messages?: BaseMessage[];
-  summary?: string;
-};
+export type { CronExecutionReporter, CronJobResult, CronJobRun } from "./types.js";
 
 export type CronRunner = {
   run(job: CronJobRun): Promise<void>;
@@ -30,13 +26,6 @@ type CronRunnerOptions = {
   onError(error: unknown, context: CronJobRun): void;
   reporter?: CronExecutionReporter;
   ledger?: CronRunLedger;
-};
-
-export type CronExecutionReporter = {
-  onStart?(job: CronJobRun): Promise<void> | void;
-  onProgress?(job: CronJobRun, message: string): Promise<void> | void;
-  onSuccess?(job: CronJobResult): Promise<void> | void;
-  onError?(error: unknown, context: CronJobRun): Promise<void> | void;
 };
 
 const createThreadId = (jobName: string): string => `cron:${jobName}:${randomUUID()}`;

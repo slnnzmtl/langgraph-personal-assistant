@@ -7,11 +7,17 @@ logs/
 .pnpm-store/
 test-results/*
 *.tsbuildinfo
+.dependency-cruiser-known-violations.json
+dependency-graph.dot
+dependency-graph.svg
+dependency-archi.dot
+dependency-archi.svg
 .tmp
 data/*
 cron-jobs.json
 obsidian-vault/*
 apps/personal-assistant/data/*
+apps/minimal-supervisor/data/*
 !apps/personal-assistant/data/prompts/
 !apps/personal-assistant/data/prompts/**
 !apps/personal-assistant/data/skills/

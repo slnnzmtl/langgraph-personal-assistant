@@ -1,4 +1,10 @@
-export type { CronJobDefinition, CronJobRepository } from "./types.js";
+export type {
+  CronExecutionReporter,
+  CronJobDefinition,
+  CronJobRepository,
+  CronJobResult,
+  CronJobRun,
+} from "./types.js";
 export type { CronTargetRoute, CronTriggerResolver } from "./cron-triggers.js";
 export {
   SUPERVISE_CRON_ROUTE,
@@ -12,6 +18,7 @@ export {
   createCronJobRepositoryForConfig,
   type CronTargetAgentIdsSource,
 } from "./cron-job-repository.js";
+export { createReadOnlyCronJobRepository } from "./read-only-cron-job-repository.js";
 export {
   validateCronJobs,
   setupCron,
@@ -31,10 +38,7 @@ export { startCronBootstrap } from "./cron-bootstrap.js";
 export {
   createCronRunner,
   MAX_GRAPH_CONTINUATIONS,
-  type CronJobRun,
-  type CronJobResult,
   type CronRunner,
-  type CronExecutionReporter,
 } from "./cron-runner.js";
 export {
   type CronRunLedger,

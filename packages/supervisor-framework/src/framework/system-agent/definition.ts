@@ -1,5 +1,5 @@
-import type { CapabilityCatalog } from "../../capabilities/index.js";
-import { configurationReposAvailable } from "../../capabilities/index.js";
+import type { CapabilityCatalog } from "../../capabilities/catalog.js";
+import { configurationReposAvailable } from "../../capabilities/types.js";
 import { formatDataAgentPromptBootstrap } from "../../core/agents/agent-prompt-bootstrap.js";
 import type { RuntimeAgentRepository } from "../../core/agents/repository.js";
 import type { LoadPromptByKey } from "../../core/agents/resolve-system-prompt.js";

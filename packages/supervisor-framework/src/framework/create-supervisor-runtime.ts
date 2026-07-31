@@ -3,7 +3,7 @@ import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
 import { bootstrapSupervisorSystem } from "./bootstrap-supervisor-system.js";
 import type { CronTargetAgentIdsSource } from "./cron/cron-job-repository.js";
-import { createNoopCronJobRepository } from "./defaults/noop-cron-job-repository.js";
+import { createNoopCronJobRepository } from "./defaults/utilities/noop-cron-job-repository.js";
 import { deriveRuntimeAgentGraphFingerprint } from "./derive-agents.js";
 import type {
   CompiledSupervisorGraph,
@@ -137,7 +137,7 @@ export const createSupervisorRuntime = async <
     getBootstrap: () => bootstrap,
     getCheckpointer: () => resolveCheckpointer(),
     recompile,
-    getCronJobRepository: () => stableCronJobRepository ?? bootstrap.cronJobRepository,
+    getCronJobRepository: () => bootstrap.cronJobRepository,
     getCronTargetAgentIds: () => bootstrap.cronTargetAgentIds,
     shutdownAdapters: async () => {
       await options.onShutdownAdapters?.(bootstrap.adapters);

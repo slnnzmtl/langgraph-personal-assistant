@@ -232,7 +232,7 @@ describe("createConfigurationTools", () => {
     const repository = createCronRepositoryFake();
     const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
     const tools = createConfigurationTools(repository, runtimeAgentRepository, "configuration", {
-      obsidianVaultPath: "",
+      obsidianVault: undefined,
     });
     const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
     const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
