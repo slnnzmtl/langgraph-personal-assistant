@@ -59,15 +59,16 @@ describe("runtime cache prompt helpers", () => {
     expect(parts.staticPrompt).not.toContain("Vault directory tree");
   });
 
-  it("buildCachedRuntimePromptMessages injects turn_context before conversation", () => {
+  // Stitch behavior is covered in cache-prompt-messages.test.ts; smoke the re-export.
+  it("re-exports buildCachedRuntimePromptMessages", () => {
     const messages = buildCachedRuntimePromptMessages(
       "<system_metadata>test</system_metadata>",
       [new HumanMessage("restore the skill")],
     );
 
-    expect(messages[0]).toBeInstanceOf(HumanMessage);
+    expect(messages).toHaveLength(1);
     expect(String(messages[0]?.content)).toContain("<turn_context>");
-    expect(messages[1]).toBeInstanceOf(HumanMessage);
+    expect(String(messages[0]?.content)).toContain("restore the skill");
   });
 
   it("buildTurnContextMessage returns null for empty dynamic context", () => {

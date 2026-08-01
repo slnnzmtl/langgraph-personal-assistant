@@ -64,10 +64,78 @@ describe("createSupervisorNode context cache", () => {
     expect(bindOptions[0]).toEqual({ model: cachedModel });
 
     const messages = invokeInputs[0] as Array<{ content: unknown }>;
+    expect(messages).toHaveLength(1);
     expect(messages[0]).toBeInstanceOf(HumanMessage);
     expect(String(messages[0]?.content)).toContain("<turn_context>");
     expect(String(messages[0]?.content)).toContain("CURRENT DATETIME: now");
+    expect(String(messages[0]?.content)).toContain("hello");
     expect(messages.some((message) => message instanceof SystemMessage)).toBe(false);
+  });
+
+  it("keeps post-handoff turn_context off stale earlier user turns", async () => {
+    const invokeInputs: unknown[] = [];
+    const cachedModel = { id: "cached-supervisor-model" } as unknown as BaseChatModel;
+
+    const connector: ILLMConnector = {
+      getModel: () => ({ invoke: async () => new AIMessage("unused") }) as unknown as BaseChatModel,
+      bindRoutingTools: () => ({
+        invoke: async (input: unknown) => {
+          invokeInputs.push(input);
+          return {
+            next: "FINISH",
+            reply: "I've synced yesterday's transactions (2026-07-31).",
+          };
+        },
+      }),
+    };
+
+    const contextCache: ContextCacheKit = {
+      cacheManager: {
+        getOrCreate: async () => ({
+          cacheName: "cachedContents/supervisor-1",
+          model: "models/gemini-2.5-flash-lite",
+        }),
+        invalidate: () => undefined,
+      },
+      apiKey: "test-key",
+      supervisorModelName: "gemini-2.5-flash-lite",
+      resolveRuntimeModelName: () => "gemini-2.5-flash",
+      createCachedModel: () => cachedModel,
+    };
+
+    const supervisorNode = createTestSupervisorNode(connector, {
+      loadSupervisorPrompt: () => "STATIC SUPERVISOR PROMPT",
+      buildSupervisorDynamicContext: () => "<system_metadata>\nCURRENT DATETIME: now\n</system_metadata>",
+      contextCache,
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    await supervisorNode(makeHumanState("sync expenses", {
+      messages: [
+        new HumanMessage("list runtime agents"),
+        new AIMessage("Agent ID: configuration\nAgent ID: finance"),
+        new HumanMessage("sync expenses"),
+        new AIMessage("I've synced yesterday's transactions (2026-07-31)."),
+      ],
+      lastHandoff: {
+        kind: "runtime-agent-handoff",
+        agentId: "finance",
+        agentName: "Finance",
+        status: "ok",
+      },
+      executionQueue: [],
+    }));
+
+    const messages = invokeInputs[0] as Array<{ content: unknown }>;
+    expect(String(messages[0]?.content)).toBe("list runtime agents");
+    expect(String(messages[0]?.content)).not.toContain("<turn_context>");
+
+    const last = messages[messages.length - 1];
+    expect(last).toBeInstanceOf(HumanMessage);
+    expect(String(last?.content)).toContain("<turn_context>");
+    expect(String(last?.content)).toContain("Latest user message: sync expenses");
+    expect(String(last?.content)).toContain('runtime agent "finance" just completed');
+    expect(String(last?.content)).not.toContain("list runtime agents");
   });
 
   it("invalidates and recreates cache when CachedContent is missing", async () => {

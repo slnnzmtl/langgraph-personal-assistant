@@ -59,7 +59,9 @@ describe("supervisor replan helpers", () => {
     expect(hint).toContain('runtime agent "finance" just completed');
     expect(hint).toContain("Latest user message: yes");
     expect(hint).toContain("specialist's actual findings");
+    expect(hint).toContain("resolve short or ambiguous replies using the prior assistant turn");
     expect(hint).toContain("affirmative follow-up");
+    expect(hint).toContain("offered NEW work");
   });
 
   it("returns null when the execution queue still has steps", () => {
@@ -76,12 +78,20 @@ describe("supervisor replan helpers", () => {
     expect(hint).toBeNull();
   });
 
-  it("blocks an immediate repeat route to the same agent", () => {
+  it("blocks an immediate non-affirmative repeat route to the same agent", () => {
+    expect(isBlockedRepeatRoute(
+      completeHandoff("finance"),
+      { next: "finance", prompt: "Show yesterday's expenses.", reply: undefined },
+      "show yesterday's expenses",
+    )).toBe(true);
+  });
+
+  it("allows same-agent routing on affirmative follow-ups", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
       { next: "finance", prompt: "Sync expenses.", reply: undefined },
       "yes",
-    )).toBe(true);
+    )).toBe(false);
   });
 
   it("allows FINISH after a complete handoff", () => {

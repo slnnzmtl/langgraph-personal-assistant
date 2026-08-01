@@ -44,10 +44,11 @@ export const buildPostHandoffReplanHint = (
     "<post_handoff_replan_context>",
     `The runtime agent "${handoff.agentId}" just completed with status "${handoff.status}".`,
     `Latest user message: ${latestUserText || "(none)"}`,
+    "Treat Latest user message as the current intent signal; resolve short or ambiguous replies using the prior assistant turn. Do not resurrect unrelated earlier user requests.",
     "If the user's request covered multiple domains (e.g. plan AND expenses), route any remaining specialists before FINISH.",
-    "When FINISHing, synthesize a user-facing reply from the specialist's output in visible thread history.",
+    "When the original request is complete, FINISH and synthesize a user-facing reply from the specialist's output in visible thread history.",
     "Quote or summarize the specialist's actual findings—never reply with a generic greeting or filler.",
-    "Do not re-route to the same agent unless the user explicitly asks to retry.",
+    "Do not re-route the same completed work unless the user explicitly asks to retry or accepts an offer of new work.",
   ];
 
   if (handoff.status === "error") {
@@ -69,7 +70,8 @@ export const buildPostHandoffReplanHint = (
   if (isAffirmativeFollowUp(latestUserText)) {
     lines.push(
       "The latest user message looks like an affirmative follow-up to a prior assistant offer or question.",
-      "FINISH and summarize the outcome from visible history; do not enqueue the same work again.",
+      "If the prior assistant offered NEW work, route to that specialist with a self-contained prompt derived from the offer.",
+      "If the prior turn only reported completion or asked for a summary ack, FINISH and summarize; do not repeat the same completed task.",
     );
   }
 
@@ -95,6 +97,11 @@ export const isBlockedRepeatRoute = (
   }
 
   if (isExplicitRetryRequest(latestUserText)) {
+    return false;
+  }
+
+  // Allow offer acceptance / confirmation (e.g. "yes" after "Would you like to sync?").
+  if (isAffirmativeFollowUp(latestUserText)) {
     return false;
   }
 

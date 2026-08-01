@@ -134,9 +134,11 @@ export const createSupervisorNode = (
           options.contextCache.supervisorModelName,
           handle,
         );
-        const rawPromptMessages = buildCachedRuntimePromptMessages(dynamicBlock, state.messages);
-        promptMessages = stripToolsForSupervisor(rawPromptMessages);
-        loggedPromptMessages = rawPromptMessages;
+        // Strip/merge history first, then attach turn_context so it never fuses
+        // onto the oldest human turn (see buildCachedRuntimePromptMessages).
+        const history = stripToolsForSupervisor(state.messages);
+        promptMessages = buildCachedRuntimePromptMessages(dynamicBlock, history);
+        loggedPromptMessages = promptMessages;
       } else {
         const uncached = buildUncachedPromptBundle();
         promptMessages = uncached.promptMessages;
