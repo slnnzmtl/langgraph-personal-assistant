@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config.js";
+import type { WiseConfig } from "../config.js";
 import type {
   FetchWiseTransactions,
   WiseTransaction,
@@ -11,9 +11,7 @@ type WiseClient = {
   fetchActivities(since: string, until: string): Promise<Response>;
 };
 
-const createWiseClient = (
-  config: Pick<AppConfig, "wiseApiToken" | "wiseProfileId">,
-): WiseClient | undefined => {
+const createWiseClient = (config: WiseConfig): WiseClient | undefined => {
   const token = config.wiseApiToken;
   const profileId = config.wiseProfileId;
 
@@ -93,7 +91,7 @@ async function fetchWiseTransactionsInternal(
 }
 
 export const createFetchWiseTransactions = (
-  config: Pick<AppConfig, "wiseApiToken" | "wiseProfileId">,
+  config: WiseConfig,
 ): FetchWiseTransactions | undefined => {
   const client = createWiseClient(config);
   if (!client) {

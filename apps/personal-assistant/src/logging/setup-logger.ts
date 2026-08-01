@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { AppConfig } from "../config.js";
+import type { LoggingConfig, SchedulerPathsConfig } from "../config.js";
 import {
   createCompositeLogger,
   createConsoleLogger,
@@ -11,7 +11,7 @@ import {
 
 export type SetupAppLoggerOptions = {
   processName: string;
-  config: AppConfig;
+  config: LoggingConfig;
 };
 
 export const setupAppLogger = ({ processName, config }: SetupAppLoggerOptions): Logger => {
@@ -31,5 +31,5 @@ export const setupAppLogger = ({ processName, config }: SetupAppLoggerOptions): 
   return logger;
 };
 
-export const getSchedulerLockPath = (config: AppConfig): string =>
+export const getSchedulerLockPath = (config: Pick<SchedulerPathsConfig, "runtimeAgentsFilePath">): string =>
   path.join(path.dirname(config.runtimeAgentsFilePath), ".scheduler-lock");

@@ -1,6 +1,6 @@
 import type { StructuredToolInterface } from "@langchain/core/tools";
 
-import type { CapabilityCatalog } from "../capabilities/index.js";
+import type { CapabilityCatalog } from "../capabilities/catalog.js";
 import type { RuntimeAgentDefinition } from "../core/types/agent.js";
 import { resolveAgentCapabilityIds } from "../core/types/agent.js";
 import { isSystemAgentId } from "./system-agent/definition.js";

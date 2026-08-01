@@ -1,4 +1,4 @@
-import type { CapabilityCatalog } from "../capabilities/index.js";
+import type { CapabilityCatalog } from "../capabilities/catalog.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
 import { createAgentPolicy } from "../core/policies/create-agent-policy.js";
 

@@ -1,6 +1,6 @@
 import { connectSupabaseMcp } from "./mcp/supabase.js";
 import { createSelfHealingSqlSession } from "./mcp/self-healing-session.js";
-import type { AppConfig } from "../config.js";
+import type { McpReconnectConfig, SupabaseConfig } from "../config.js";
 import type { SqlSession } from "./mcp/sql-session.js";
 
 export type SupabaseSessions = {
@@ -8,12 +8,17 @@ export type SupabaseSessions = {
   supabaseWriteSession?: SqlSession;
 };
 
+export type SupabaseSessionConfig = SupabaseConfig & McpReconnectConfig;
+
+/** Present credentials after setupSupabaseSessions presence checks. */
+type CredentialedSupabaseSessionConfig = {
+  supabaseMcpUrl: string;
+  supabaseProjectRef: string;
+  supabaseAccessToken: string;
+} & McpReconnectConfig;
+
 const connectSupabaseSession = async (
-  config: AppConfig & {
-    supabaseProjectRef: string;
-    supabaseAccessToken: string;
-    supabaseMcpUrl: string;
-  },
+  config: CredentialedSupabaseSessionConfig,
   readOnly: boolean,
 ): Promise<SqlSession> => {
   const mcpConfig = {
@@ -39,16 +44,21 @@ const connectSupabaseSession = async (
   });
 };
 
-export const setupSupabaseSessions = async (config: AppConfig): Promise<SupabaseSessions> => {
+export const setupSupabaseSessions = async (
+  config: SupabaseSessionConfig,
+): Promise<SupabaseSessions> => {
   if (!config.supabaseProjectRef || !config.supabaseAccessToken || !config.supabaseMcpUrl) {
     console.log("[Finance Setup] ✗ Skipping finance sync setup - missing required configuration.");
     return {};
   }
 
-  const credentialedConfig = config as AppConfig & {
-    supabaseProjectRef: string;
-    supabaseAccessToken: string;
-    supabaseMcpUrl: string;
+  const credentialedConfig: CredentialedSupabaseSessionConfig = {
+    supabaseMcpUrl: config.supabaseMcpUrl,
+    supabaseProjectRef: config.supabaseProjectRef,
+    supabaseAccessToken: config.supabaseAccessToken,
+    mcpMaxReconnectAttempts: config.mcpMaxReconnectAttempts,
+    mcpReconnectBaseDelayMs: config.mcpReconnectBaseDelayMs,
+    mcpReconnectMaxDelayMs: config.mcpReconnectMaxDelayMs,
   };
 
   try {

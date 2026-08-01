@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { createCapabilityCatalog } from "../capabilities/index.js";
+import { createCapabilityCatalog } from "../capabilities/catalog.js";
 import { validatePersistedAgentCapabilities } from "../capabilities/validate-persisted-agents.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";

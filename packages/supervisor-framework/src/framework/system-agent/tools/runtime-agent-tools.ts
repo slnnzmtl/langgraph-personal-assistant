@@ -10,7 +10,7 @@ import {
   withResolvedAgentSystemPrompt,
   type LoadPromptByKey,
 } from "../../../core/agents/resolve-system-prompt.js";
-import type { CapabilityCatalog } from "../../../capabilities/index.js";
+import type { CapabilityCatalog } from "../../../capabilities/catalog.js";
 import type { SystemConfigDeps } from "../definition.js";
 import {
   buildDeleteRuntimeAgentConfirmToken,

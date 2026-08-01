@@ -4,7 +4,7 @@ import {
   configurationReposAvailable,
   type CapabilityDescriptor,
   type CapabilityProvider,
-} from "../../capabilities/index.js";
+} from "../../capabilities/types.js";
 import {
   SYSTEM_CONFIG_CAPABILITY_ID,
   SYSTEM_CONFIG_READ_CAPABILITY_ID,

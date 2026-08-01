@@ -1,7 +1,8 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { BaseCheckpointSaver } from "@langchain/langgraph-checkpoint";
 
-import type { CapabilityCatalog, CapabilityProvider } from "../capabilities/index.js";
+import type { CapabilityCatalog } from "../capabilities/catalog.js";
+import type { CapabilityProvider } from "../capabilities/types.js";
 import type { LoadPromptByKey } from "../core/agents/resolve-system-prompt.js";
 import type { RuntimeAgentRepository } from "../core/agents/repository.js";
 import type { createAssistant, AssistantConfig } from "../core/create-assistant.js";

@@ -136,7 +136,12 @@ describe("supervisor graph compilation", () => {
     const app = makeGraph((input) => {
       calls += 1;
 
-      if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
+      // failure_reply appends the UX instruction to the supervisor system prompt (internal
+      // route context stays out of the model-facing instruction on purpose).
+      if (
+        Array.isArray(input) &&
+        String(input[0]?.content).includes("The normal supervisor routing failed")
+      ) {
         return new AIMessage("Finance is unavailable in this deployment.");
       }
 

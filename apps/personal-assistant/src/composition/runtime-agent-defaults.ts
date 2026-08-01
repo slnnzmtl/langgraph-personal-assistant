@@ -1,4 +1,4 @@
-import type { AppConfig } from "../config.js";
+import type { ModelConfig } from "../config.js";
 import {
   resolveAgentCapabilityIds,
   type RuntimeAgentDefinition,
@@ -6,13 +6,13 @@ import {
 import { hasFinanceCapability } from "../runtime-agents/finance/tools.js";
 import { promptFileExists } from "../prompts/prompt-store.js";
 
-const MODEL_OVERRIDES: Record<string, (config: AppConfig) => string> = {
+const MODEL_OVERRIDES: Record<string, (config: ModelConfig) => string> = {
   finance: (config) => config.financeModel,
   obsidian: (config) => config.obsidianModel,
   configuration: (config) => config.configurationModel,
 };
 
-export const resolveBuiltinModelName = (config: AppConfig, modelKey: string): string =>
+export const resolveBuiltinModelName = (config: ModelConfig, modelKey: string): string =>
   MODEL_OVERRIDES[modelKey]?.(config) ?? config.geminiModel;
 
 export type IntegrationAvailabilityOptions = {

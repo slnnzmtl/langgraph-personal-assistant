@@ -190,7 +190,6 @@ export {
 } from "./capabilities/index.js";
 
 // --- Kernel: skills ---
-export { buildSkillModuleOwnerPattern } from "./core/skills/skill-patterns.js";
 export {
   createSkillCatalog,
   type SkillCatalogOptions,

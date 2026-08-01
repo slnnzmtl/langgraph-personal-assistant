@@ -1,4 +1,5 @@
-import type { AppConfig } from "../config.js";
+import type { PersistenceConfig } from "../config.js";
+import type { SupabaseSessionConfig } from "../integrations/supabase.js";
 import { MemorySaver } from "@langchain/langgraph";
 import type { SqlSession } from "../integrations/mcp/sql-session.js";
 import { setupSupabaseSessions } from "../integrations/supabase.js";
@@ -15,7 +16,11 @@ export type PersonalAdapters = {
   durabilityStore?: DurabilityStore;
 };
 
-export const setupPersonalAdapters = async (appConfig: AppConfig): Promise<PersonalAdapters> => {
+export type PersonalAdapterConfig = SupabaseSessionConfig & PersistenceConfig;
+
+export const setupPersonalAdapters = async (
+  appConfig: PersonalAdapterConfig,
+): Promise<PersonalAdapters> => {
   const sessions = await setupSupabaseSessions(appConfig);
   return {
     ...(sessions.supabaseReadSession ? { supabaseReadSession: sessions.supabaseReadSession } : {}),
@@ -27,7 +32,7 @@ export const setupPersonalAdapters = async (appConfig: AppConfig): Promise<Perso
 };
 
 export const createPersonalCheckpointer = async (context: {
-  config: AppConfig;
+  config: PersistenceConfig;
   adapters: PersonalAdapters;
 }) => {
   if (!context.config.persistenceEnabled) {
