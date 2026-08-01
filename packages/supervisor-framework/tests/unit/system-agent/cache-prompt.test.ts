@@ -1,4 +1,4 @@
-import { HumanMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -20,6 +20,20 @@ const configurationDefinition: RuntimeAgentDefinition = {
   promptSourceKey: "configuration",
   capabilityIds: ["system-config"],
   modelKey: "configuration",
+  maxSteps: 10,
+  enabled: true,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+};
+
+const financeDefinition: RuntimeAgentDefinition = {
+  id: "finance",
+  name: "Finance",
+  description: "Finance agent",
+  systemPrompt: "Base finance prompt",
+  promptSourceKey: "finance",
+  capabilityIds: ["finance-domain"],
+  modelKey: "finance",
   maxSteps: 10,
   enabled: true,
   createdAt: "2026-01-01T00:00:00.000Z",
@@ -57,6 +71,46 @@ describe("runtime cache prompt helpers", () => {
     expect(parts.dynamicPrompt).toContain("<system_metadata>");
     expect(parts.dynamicPrompt).toContain("Vault directory tree");
     expect(parts.staticPrompt).not.toContain("Vault directory tree");
+  });
+
+  it("buildRuntimePromptParts attaches matching skills into dynamic turn context", () => {
+    const parts = buildRuntimePromptParts(
+      "Base configuration prompt",
+      configurationDefinition,
+      [new HumanMessage("Create a new skill for the finance agent named finance-summary.")],
+      skillCatalog,
+      "<system_metadata>\nCURRENT DATETIME: test\n</system_metadata>",
+    );
+
+    expect(parts.dynamicPrompt).toContain("<attached_skills>");
+    expect(parts.dynamicPrompt).toContain('<attached_skill name="skill-bootstrap">');
+    expect(parts.staticPrompt).not.toContain("<attached_skills>");
+  });
+
+  it("buildRuntimePromptParts omits attachment bodies after a tool result", () => {
+    const parts = buildRuntimePromptParts(
+      "Base finance prompt",
+      financeDefinition,
+      [
+        new HumanMessage("Show last expenses"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{ id: "1", name: "exec_sql", args: { sql: "SELECT 1" } }],
+        }),
+        new ToolMessage({
+          tool_call_id: "1",
+          name: "exec_sql",
+          content: '[{"id":1}]',
+        }),
+      ],
+      skillCatalog,
+      "<system_metadata>\nCURRENT DATETIME: test\n</system_metadata>",
+    );
+
+    expect(parts.dynamicPrompt).toContain("<available_skills>");
+    expect(parts.dynamicPrompt).toContain("<system_metadata>");
+    expect(parts.dynamicPrompt).not.toContain("<attached_skills>");
+    expect(parts.dynamicPrompt).not.toContain("call `exec_sql` now");
   });
 
   // Stitch behavior is covered in cache-prompt-messages.test.ts; smoke the re-export.

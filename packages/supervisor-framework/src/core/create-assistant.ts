@@ -109,7 +109,7 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
     const { bundle } = nodeSet;
 
     graph
-      .addNode(nodeSet.prepareNodeName, createRuntimeAgentPrepareNode(bundle))
+      .addNode(nodeSet.prepareNodeName, createRuntimeAgentPrepareNode(bundle, nodeSet.agentId))
       .addNode(nodeSet.llmNodeName, bundle.llmNode)
       .addNode(nodeSet.toolsNodeName, bundle.toolsNode)
       .addNode(nodeSet.finalizeNodeName, createRuntimeAgentFinalizeNode(bundle, nodeSet.agentId))

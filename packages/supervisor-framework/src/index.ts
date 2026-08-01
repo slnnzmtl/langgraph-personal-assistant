@@ -313,7 +313,12 @@ export {
   processBlankToolLoopResponse,
   type ToolBodyPredicate,
 } from "./core/execution/tool-completion-summary.js";
-export { SUB_AGENT_CONTEXT_HUMAN_TURNS, buildRuntimeAgentPromptMessages } from "./core/execution/sub-agent-messages.js";
+export {
+  SUB_AGENT_CONTEXT_HUMAN_TURNS,
+  buildRuntimeAgentPromptMessages,
+  getRuntimeAgentIdFromMessage,
+  tagRuntimeAgentMessage,
+} from "./core/execution/sub-agent-messages.js";
 export type {
   ContextCacheHandle,
   ContextCacheKit,

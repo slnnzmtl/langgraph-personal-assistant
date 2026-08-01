@@ -3,6 +3,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { resolveAgentSkillModule } from "../types/agent.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SkillCatalog } from "./catalog.js";
+import { appendConfiguredSkillAttachments } from "./skill-attachments.js";
 
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
@@ -38,13 +39,11 @@ export const enrichRuntimeAgentPrompt = (
 ): string => {
   let prompt = basePrompt.trim();
 
-  // Skill auto-attachment disabled; agents use read_skill. Re-enable via appendConfiguredSkillAttachments.
-  void messages;
-
   if (skillCatalog) {
     const module = resolveAgentSkillModule(definition);
     const skillModules = new Set(skillCatalog.listModules());
     prompt = appendAvailableSkills(prompt, module, skillCatalog);
+    prompt = appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
 
     if (skillModules.has(module)) {
       prompt = appendRuntimeExecutionModel(prompt);
@@ -53,5 +52,5 @@ export const enrichRuntimeAgentPrompt = (
     return prompt;
   }
 
-  return prompt;
+  return appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
 };

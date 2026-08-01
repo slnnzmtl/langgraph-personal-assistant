@@ -1,4 +1,4 @@
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { extractMessageTextContent } from "../message-content.js";
 import { resolveAgentSkillModule } from "../types/agent.js";
@@ -217,16 +217,17 @@ export const resolveSkillAttachments = (
   return Array.from(resolved.values());
 };
 
-/**
- * Appends matching skill bodies from `<skill_attachments>` rules.
- * Callers currently omit this so agents load skills via `read_skill`; keep for re-enablement.
- */
 export const appendConfiguredSkillAttachments = (
   basePrompt: string,
   definition: RuntimeAgentDefinition,
   messages: BaseMessage[],
   skillCatalog?: SkillCatalog,
 ): string => {
+  const lastMessage = messages.at(-1);
+  if (lastMessage instanceof ToolMessage) {
+    return basePrompt;
+  }
+
   const module = resolveAgentSkillModule(definition);
   const rules = resolveSkillAttachmentRulesForModule(module, skillCatalog);
   if (rules.length === 0) {

@@ -3,6 +3,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { resolveAgentSkillModule } from "../../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
+import { appendConfiguredSkillAttachments } from "../../core/skills/skill-attachments.js";
 import { appendRuntimeExecutionModel } from "../../core/skills/prompt-enrichment.js";
 
 export type RuntimePromptParts = {
@@ -29,8 +30,17 @@ export const buildDynamicRuntimePrompt = (
     sections.push(skillsBlock);
   }
 
-  // Skill auto-attachment disabled; agents use read_skill. Re-enable via appendConfiguredSkillAttachments.
-  void messages;
+  const withAttachments = appendConfiguredSkillAttachments(
+    sections.join("\n\n"),
+    definition,
+    messages,
+    skillCatalog,
+  ).trim();
+
+  if (withAttachments.length > 0) {
+    sections.length = 0;
+    sections.push(withAttachments);
+  }
 
   for (const extra of extraDynamicSections) {
     const trimmed = extra.trim();

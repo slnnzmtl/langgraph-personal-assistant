@@ -6,7 +6,6 @@ import {
   type RuntimeAgentGraphBundle,
   type RuntimeAgentLoopNode,
 } from "../agents/runtime-agent-graph-bundle.js";
-import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import type { SubAgentToolSource } from "./runtime-node.js";
 import {
   type SubAgentState,
@@ -59,8 +58,9 @@ export const createSubAgentGraphBundle = <TDeps>(config: SubAgentConfig<TDeps>):
     maxSteps: config.maxSteps,
     prepare:
       config.buildInitialState
-      ?? ((parentState) => ({
-        agentMessages: scopeSubAgentMessages(parentState.messages),
+      ?? (() => ({
+        // Prepare-node owns agent-scoped history from parent messages.
+        agentMessages: [],
         stepCount: 0,
       })),
     llmNode,

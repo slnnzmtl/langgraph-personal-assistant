@@ -237,10 +237,10 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 
 | Phase | Node | Purpose |
 |---|---|---|
-| **prepare** | `{id}__prepare` | Scope recent parent `messages` into `agentMessages` via `scopeSubAgentMessages`; reset `stepCount` |
+| **prepare** | `{id}__prepare` | Scope last N **same-agent** human turns from parent `messages` into `agentMessages` via `scopeSubAgentMessages` (overrides any custom `bundle.prepare` message choice); reset `stepCount` |
 | **llm** | `{id}__llm` | `createRuntimeAgentNode` — prompt assembly, tool binding, sanitization, recovery retry |
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
-| **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` via unified `mapSubAgentResult` (options from `hooks.resultMapping` when set); clear `agentMessages` |
+| **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` via unified `mapSubAgentResult` (options from `hooks.resultMapping` when set); tag handoff AI with `runtimeAgentId`; clear `agentMessages` |
 
 Policies differ in **tool resolution** and **optional LLM hooks** — the loop topology is shared. Finalize is one path (`mapSubAgentResult`); product salvage (config / Obsidian) is hook-local via `resultMapping`, not per-agent mapper arms. Default/system policy lives in `src/policies/`; product hooks (e.g. Obsidian) are composed in `src/composition/personal-runtime-policy.ts`; feature tools live in `src/runtime-agents/{finance,obsidian}/`.
 
@@ -264,7 +264,7 @@ Key abstractions:
 | `RuntimeAgentGraphBundle` | `agents/runtime-agent-graph-bundle.ts` | Policy output: prepare, llmNode, toolsNode, finalize, maxSteps |
 | `createSubAgentGraphBundle` | `execution/create-sub-agent.ts` | Builds bundle from deps + hooks; shared tools node factory |
 | `createRuntimeAgentNode` | `execution/runtime-node.ts` | LLM turn with hooks (prompt assembly, tool binding, sanitization) |
-| `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history for sub-agent context |
+| `scopeSubAgentMessages` | `execution/sub-agent-messages.ts` | Scopes parent history to same-agent turns for sub-agent context |
 | `createCompiledSubAgentGraph` | `tests/helpers/compiled-sub-agent.ts` | **Unit tests only** — isolated compiled loop; do not mount under parent graph |
 | Feature hooks | `runtime-agents/<feature>/hooks.ts` + composition | Optional LLM-turn hooks; Obsidian wiring lives in `personal-runtime-policy.ts` |
 

@@ -1,3 +1,4 @@
+import { HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -60,5 +61,17 @@ describe("prompt enrichment", () => {
     expect(prompt).toContain("<runtime_execution>");
     expect(prompt).toContain("Never return an empty turn");
     expect(resolveAgentSkillModule(financeDefinition)).toBe("finance");
+  });
+
+  it("enrichRuntimeAgentPrompt attaches matching configured skills", () => {
+    const prompt = enrichRuntimeAgentPrompt(
+      "Financial Assistant base prompt",
+      financeDefinition,
+      [new HumanMessage("what the last expense date in db?")],
+      skillCatalog,
+    );
+
+    expect(prompt).toContain("<attached_skills>");
+    expect(prompt).toContain('<attached_skill name="expense-view">');
   });
 });
