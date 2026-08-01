@@ -321,6 +321,7 @@ export type {
   ContextCacheSpec,
   CreateCachedModel,
 } from "./core/llm/context-cache-types.js";
+export { isCachedContentNotFoundError } from "./core/llm/context-cache-types.js";
 export {
   buildCachedRuntimePromptMessages,
   buildRuntimePromptParts,

@@ -325,6 +325,7 @@ describe("gemini context cache helpers", () => {
         return {
           name: "cachedContents/reused",
           model: "models/gemini-2.5-flash-lite",
+          expireTime: new Date(Date.now() + 3_600_000).toISOString(),
         } as never;
       });
 
@@ -335,6 +336,107 @@ describe("gemini context cache helpers", () => {
 
       expect(callCount).toBe(1);
       expect(second).toEqual(first);
+    } finally {
+      createSpy.mockRestore();
+    }
+  });
+
+  it("createGeminiContextCacheManager recreates when expireTime is past skew", async () => {
+    let callCount = 0;
+    const createSpy = vi
+      .spyOn(GoogleAICacheManager.prototype, "create")
+      .mockImplementation(async () => {
+        callCount += 1;
+        return {
+          name: `cachedContents/expired-${callCount}`,
+          model: "models/gemini-2.5-flash-lite",
+          // Already inside the 60s refresh skew window.
+          expireTime: new Date(Date.now() + 30_000).toISOString(),
+        } as never;
+      });
+
+    try {
+      const manager = createGeminiContextCacheManager("test-key", true);
+      const first = await manager.getOrCreate(sampleSpec);
+      const second = await manager.getOrCreate(sampleSpec);
+
+      expect(callCount).toBe(2);
+      expect(second?.cacheName).toBe("cachedContents/expired-2");
+      expect(second?.cacheName).not.toBe(first?.cacheName);
+    } finally {
+      createSpy.mockRestore();
+    }
+  });
+
+  it("createGeminiContextCacheManager invalidate drops a handle for recreation", async () => {
+    let callCount = 0;
+    const createSpy = vi
+      .spyOn(GoogleAICacheManager.prototype, "create")
+      .mockImplementation(async () => {
+        callCount += 1;
+        return {
+          name: `cachedContents/inv-${callCount}`,
+          model: "models/gemini-2.5-flash-lite",
+          expireTime: new Date(Date.now() + 3_600_000).toISOString(),
+        } as never;
+      });
+
+    try {
+      const manager = createGeminiContextCacheManager("test-key", true);
+      const first = await manager.getOrCreate(sampleSpec);
+      expect(first?.cacheName).toBe("cachedContents/inv-1");
+
+      manager.invalidate("cachedContents/inv-1");
+      const second = await manager.getOrCreate(sampleSpec);
+
+      expect(callCount).toBe(2);
+      expect(second?.cacheName).toBe("cachedContents/inv-2");
+    } finally {
+      createSpy.mockRestore();
+    }
+  });
+
+  it("createGeminiContextCacheManager does not store a create that loses an invalidate race", async () => {
+    let callCount = 0;
+    let releaseCreate: (() => void) | undefined;
+    const createGate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    const createSpy = vi
+      .spyOn(GoogleAICacheManager.prototype, "create")
+      .mockImplementation(async () => {
+        callCount += 1;
+        if (callCount === 2) {
+          await createGate;
+        }
+        return {
+          name: `cachedContents/race-${callCount}`,
+          model: "models/gemini-2.5-flash-lite",
+          expireTime: new Date(Date.now() + 3_600_000).toISOString(),
+        } as never;
+      });
+
+    try {
+      const manager = createGeminiContextCacheManager("test-key", true);
+      const seed = await manager.getOrCreate(sampleSpec);
+      expect(seed?.cacheName).toBe("cachedContents/race-1");
+
+      manager.invalidate("cachedContents/race-1");
+      const inFlight = manager.getOrCreate(sampleSpec);
+      await Promise.resolve();
+      expect(callCount).toBe(2);
+
+      // Invalidate the old name while recreate is still in flight.
+      manager.invalidate("cachedContents/race-1");
+      releaseCreate?.();
+
+      const raced = await inFlight;
+      expect(raced?.cacheName).toBe("cachedContents/race-2");
+
+      // Because the in-flight create lost the generation race, it was not stored.
+      const after = await manager.getOrCreate(sampleSpec);
+      expect(callCount).toBe(3);
+      expect(after?.cacheName).toBe("cachedContents/race-3");
     } finally {
       createSpy.mockRestore();
     }
@@ -354,6 +456,7 @@ describe("gemini context cache helpers", () => {
         return {
           name: "cachedContents/concurrent",
           model: "models/gemini-2.5-flash-lite",
+          expireTime: new Date(Date.now() + 3_600_000).toISOString(),
         } as never;
       });
 

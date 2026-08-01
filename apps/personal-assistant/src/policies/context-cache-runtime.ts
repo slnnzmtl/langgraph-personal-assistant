@@ -81,25 +81,40 @@ export const createContextCacheRuntimeConfig = (
   },
   resolveModelForTurn: async (ctx, baseModel, toolsForTurn: StructuredToolInterface[]) => {
     const parts = await getPromptParts(ctx, kit, options);
-    const handle = await kit.cacheManager.getOrCreate({
+    const cacheSpec = {
       modelName: options.modelName,
       staticSystemInstruction: parts.staticPrompt,
       tools: toolsForTurn,
       displayName: options.displayName,
+    };
+    const uncachedTurn = () => ({
+      model: baseModel,
+      bindTools: toolsForTurn.length > 0,
+      useCachedPromptLayout: false,
     });
+    const handle = await kit.cacheManager.getOrCreate(cacheSpec);
 
     if (!handle) {
-      return {
-        model: baseModel,
-        bindTools: toolsForTurn.length > 0,
-        useCachedPromptLayout: false,
-      };
+      return uncachedTurn();
     }
 
     return {
       model: kit.createCachedModel(kit.apiKey, options.modelName, handle),
       bindTools: false,
       useCachedPromptLayout: true,
+      recoverFromCachedContentMiss: async () => {
+        kit.cacheManager.invalidate(handle.cacheName);
+        const recreated = await kit.cacheManager.getOrCreate(cacheSpec);
+        if (!recreated) {
+          return uncachedTurn();
+        }
+
+        return {
+          model: kit.createCachedModel(kit.apiKey, options.modelName, recreated),
+          bindTools: false,
+          useCachedPromptLayout: true,
+        };
+      },
     };
   },
 });

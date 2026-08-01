@@ -24,6 +24,7 @@ import {
 } from "./helpers.js";
 import { findLatestSubstantiveHumanMessageText } from "./reply-helpers.js";
 import type { ContextCacheKit } from "../llm/context-cache-types.js";
+import { isCachedContentNotFoundError } from "../llm/context-cache-types.js";
 import { buildCachedRuntimePromptMessages } from "./cache-prompt-messages.js";
 
 export type CronTriggerResolver = {
@@ -98,18 +99,36 @@ export const createSupervisorNode = (
     const dynamicBlock = composeSupervisorDynamicContext(dynamicContext, replanHint ?? undefined);
 
     let routingModel: BaseChatModel | undefined;
+    let cacheHandle: { cacheName: string } | undefined;
     let promptMessages: BaseMessage[];
     let loggedPromptMessages: BaseMessage[];
 
-    if (options.contextCache) {
-      const handle = await options.contextCache.cacheManager.getOrCreate({
+    const buildUncachedPromptBundle = () => {
+      const supervisorPrompt = buildUncachedSupervisorSystemMessage(
+        staticSupervisorPrompt,
+        dynamicBlock,
+      );
+      const rawPromptMessages = [supervisorPrompt, ...state.messages];
+      return {
+        promptMessages: stripToolsForSupervisor(rawPromptMessages),
+        loggedPromptMessages: rawPromptMessages,
+      };
+    };
+
+    const supervisorCacheSpec = options.contextCache
+      ? {
         modelName: options.contextCache.supervisorModelName,
         staticSystemInstruction: staticSupervisorPrompt,
         tools: [],
         displayName: "supervisor",
-      });
+      }
+      : undefined;
+
+    if (options.contextCache && supervisorCacheSpec) {
+      const handle = await options.contextCache.cacheManager.getOrCreate(supervisorCacheSpec);
 
       if (handle) {
+        cacheHandle = handle;
         routingModel = options.contextCache.createCachedModel(
           options.contextCache.apiKey,
           options.contextCache.supervisorModelName,
@@ -119,22 +138,14 @@ export const createSupervisorNode = (
         promptMessages = stripToolsForSupervisor(rawPromptMessages);
         loggedPromptMessages = rawPromptMessages;
       } else {
-        const supervisorPrompt = buildUncachedSupervisorSystemMessage(
-          staticSupervisorPrompt,
-          dynamicBlock,
-        );
-        const rawPromptMessages = [supervisorPrompt, ...state.messages];
-        promptMessages = stripToolsForSupervisor(rawPromptMessages);
-        loggedPromptMessages = rawPromptMessages;
+        const uncached = buildUncachedPromptBundle();
+        promptMessages = uncached.promptMessages;
+        loggedPromptMessages = uncached.loggedPromptMessages;
       }
     } else {
-      const supervisorPrompt = buildUncachedSupervisorSystemMessage(
-        staticSupervisorPrompt,
-        dynamicBlock,
-      );
-      const rawPromptMessages = [supervisorPrompt, ...state.messages];
-      promptMessages = stripToolsForSupervisor(rawPromptMessages);
-      loggedPromptMessages = rawPromptMessages;
+      const uncached = buildUncachedPromptBundle();
+      promptMessages = uncached.promptMessages;
+      loggedPromptMessages = uncached.loggedPromptMessages;
     }
 
     await promptLogging("supervisor-system-prompt", loggedPromptMessages);
@@ -145,10 +156,6 @@ export const createSupervisorNode = (
     const routableAgents = filterRoutableRuntimeAgents(runtimeAgents, options.wiredAgentIds);
     const enabledAgentIds = new Set(routableAgents.map((agent) => agent.id));
     const routingSchema = buildSupervisorRoutingSchema(runtimeAgents, options.wiredAgentIds);
-    const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(
-      routingSchema,
-      routingModel ? { model: routingModel } : undefined,
-    );
 
     const buildFailureUpdate = async (failureContext: string): Promise<AgentStateUpdate> => ({
       next: FAILURE_REPLY_ROUTE,
@@ -158,15 +165,94 @@ export const createSupervisorNode = (
       delegationPrompt: null,
     });
 
+    const invokeRouting = (messages: BaseMessage[], model?: BaseChatModel) => {
+      const routingChain = llmConnector.bindRoutingTools<RoutingDecision>(
+        routingSchema,
+        model ? { model } : undefined,
+      );
+      return routingChain.invoke(messages, config);
+    };
+
+    const recoverFromCachedContentMiss = async (): Promise<
+      { ok: true; response: RoutingDecision } | { ok: false; update: AgentStateUpdate }
+    > => {
+      if (!options.contextCache || !cacheHandle || !supervisorCacheSpec) {
+        return {
+          ok: false,
+          update: await buildFailureUpdate("Structured routing failed: cached content missing."),
+        };
+      }
+
+      options.contextCache.cacheManager.invalidate(cacheHandle.cacheName);
+      console.warn("Supervisor routing cached content missing; recreating cache.");
+
+      const recreatedHandle = await options.contextCache.cacheManager.getOrCreate(
+        supervisorCacheSpec,
+      );
+
+      if (recreatedHandle) {
+        try {
+          const recreatedModel = options.contextCache.createCachedModel(
+            options.contextCache.apiKey,
+            options.contextCache.supervisorModelName,
+            recreatedHandle,
+          );
+          return {
+            ok: true,
+            response: await invokeRouting(promptMessages, recreatedModel),
+          };
+        } catch (recreateError) {
+          console.warn(
+            "Supervisor routing cached recreate failed; retrying without cache:",
+            recreateError,
+          );
+        }
+      }
+
+      const uncached = buildUncachedPromptBundle();
+      promptMessages = uncached.promptMessages;
+      try {
+        return {
+          ok: true,
+          response: await invokeRouting(promptMessages),
+        };
+      } catch (retryError) {
+        console.warn("Supervisor routing structured output failed:", retryError);
+        const failureMessage = retryError instanceof Error
+          ? retryError.message
+          : String(retryError);
+
+        return {
+          ok: false,
+          update: await buildFailureUpdate(`Structured routing failed: ${failureMessage}`),
+        };
+      }
+    };
+
     let response: RoutingDecision;
 
     try {
-      response = await routingChain.invoke(promptMessages, config);
+      response = await invokeRouting(promptMessages, routingModel);
     } catch (error) {
-      console.warn("Supervisor routing structured output failed:", error);
-      const failureMessage = error instanceof Error ? error.message : String(error);
+      if (
+        !isCachedContentNotFoundError(error)
+        || !routingModel
+        || !cacheHandle
+        || !options.contextCache
+      ) {
+        console.warn("Supervisor routing structured output failed:", error);
+        const failureMessage = error instanceof Error ? error.message : String(error);
 
-      return buildFailureUpdate(`Structured routing failed: ${failureMessage}`);
+        return buildFailureUpdate(`Structured routing failed: ${failureMessage}`);
+      }
+
+      console.warn("Supervisor routing cached content missing; recovering:", error);
+      const recovered = await recoverFromCachedContentMiss();
+      if (!recovered.ok) {
+        return recovered.update;
+      }
+
+      response = recovered.response;
     }
 
     if (response.next === "FINISH") {
