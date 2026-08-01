@@ -3,10 +3,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { resolveAgentSkillModule } from "../../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
-import {
-  appendRuntimeExecutionModel,
-  SKILL_USAGE_GUIDE,
-} from "../../core/skills/prompt-enrichment.js";
+import { appendRuntimeExecutionModel } from "../../core/skills/prompt-enrichment.js";
 
 export type RuntimePromptParts = {
   staticPrompt: string;
@@ -31,8 +28,6 @@ export const buildDynamicRuntimePrompt = (
   if (skillsBlock.length > 0) {
     sections.push(skillsBlock);
   }
-  // Dynamic so Gemini context-cache static prompts still see the skill contract each turn.
-  sections.push(SKILL_USAGE_GUIDE);
 
   // Skill auto-attachment disabled; agents use read_skill. Re-enable via appendConfiguredSkillAttachments.
   void messages;

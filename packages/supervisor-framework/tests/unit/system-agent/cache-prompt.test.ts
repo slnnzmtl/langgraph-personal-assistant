@@ -7,12 +7,10 @@ import {
   buildStaticRuntimePrompt,
   buildTurnContextMessage,
 } from "../../../src/framework/system-agent/cache-prompt.js";
-import {
-  RUNTIME_EXECUTION_MODEL,
-  SKILL_USAGE_GUIDE,
-} from "../../../src/core/skills/prompt-enrichment.js";
+import { RUNTIME_EXECUTION_MODEL } from "../../../src/core/skills/prompt-enrichment.js";
 import { createSkillCatalog } from "../../../src/core/skills/skill-catalog.js";
 import type { RuntimeAgentDefinition } from "../../../src/core/types/agent.js";
+import { APP_SKILLS_DIR } from "../../helpers/app-skills-dir.js";
 
 const configurationDefinition: RuntimeAgentDefinition = {
   id: "configuration",
@@ -30,6 +28,7 @@ const configurationDefinition: RuntimeAgentDefinition = {
 
 describe("runtime cache prompt helpers", () => {
   const skillCatalog = createSkillCatalog({
+    skillsDir: APP_SKILLS_DIR,
     approvedModules: ["configuration", "finance", "obsidian"],
   });
 
@@ -38,10 +37,10 @@ describe("runtime cache prompt helpers", () => {
 
     expect(prompt).toContain("Base configuration prompt");
     expect(prompt).toContain(RUNTIME_EXECUTION_MODEL);
-    expect(prompt).not.toContain(SKILL_USAGE_GUIDE);
+    expect(prompt).not.toContain("<skill_usage>");
   });
 
-  it("buildRuntimePromptParts puts skill usage in dynamic turn context", () => {
+  it("buildRuntimePromptParts puts skills and metadata in dynamic turn context", () => {
     const parts = buildRuntimePromptParts(
       "Base configuration prompt",
       configurationDefinition,
@@ -52,8 +51,8 @@ describe("runtime cache prompt helpers", () => {
     );
 
     expect(parts.staticPrompt).toContain(RUNTIME_EXECUTION_MODEL);
-    expect(parts.staticPrompt).not.toContain(SKILL_USAGE_GUIDE);
-    expect(parts.dynamicPrompt).toContain(SKILL_USAGE_GUIDE);
+    expect(parts.staticPrompt).not.toContain("<skill_usage>");
+    expect(parts.dynamicPrompt).not.toContain("<skill_usage>");
     expect(parts.dynamicPrompt).toContain("<available_skills>");
     expect(parts.dynamicPrompt).toContain("<system_metadata>");
     expect(parts.dynamicPrompt).toContain("Vault directory tree");

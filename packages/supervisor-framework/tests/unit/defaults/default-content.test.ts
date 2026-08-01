@@ -44,7 +44,7 @@ describe("framework default content", () => {
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("<output_templates>");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("preview_skill(module, name)");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain('preview_skill("configuration", "cron")');
-    // Universal skill-usage contract lives in SKILL_USAGE_GUIDE, not per-agent prompts.
+    // Skill-usage contract lives on the read_skill tool description, not per-agent prompts.
     expect(DEFAULT_CONFIGURATION_PROMPT).not.toContain("<skill_usage>");
     expect(DEFAULT_CONFIGURATION_PROMPT).not.toContain("Never stop with an empty turn");
   });

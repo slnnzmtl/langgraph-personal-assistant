@@ -12,13 +12,6 @@ export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - Never return an empty turn (no text and no tool calls).
 </runtime_execution>`;
 
-/** Universal skill-usage contract injected for every runtime agent. */
-export const SKILL_USAGE_GUIDE = `<skill_usage>
-- Skills in <available_skills> are catalog entries only. Load full instructions with read_skill(skill_name) before multi-step work unless the skill body is already in <attached_skills>.
-- When a skill is already in <attached_skills>, follow it immediately; do not call read_skill again unless the instructions are missing or stale.
-- read_skill is internal only: it loads execution instructions. Never use it to display a skill definition to the user.
-</skill_usage>`;
-
 export const appendAvailableSkills = (
   basePrompt: string,
   module: string,
@@ -31,7 +24,7 @@ export const appendAvailableSkills = (
     return basePrompt;
   }
 
-  return `${basePrompt.trim()}\n\n${skillsBlock}\n\n${SKILL_USAGE_GUIDE}`;
+  return `${basePrompt.trim()}\n\n${skillsBlock}`;
 };
 
 export const appendRuntimeExecutionModel = (prompt: string): string =>

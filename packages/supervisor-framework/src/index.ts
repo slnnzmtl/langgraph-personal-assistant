@@ -240,7 +240,6 @@ export {
   appendAvailableSkills,
   appendRuntimeExecutionModel,
   RUNTIME_EXECUTION_MODEL,
-  SKILL_USAGE_GUIDE,
 } from "./core/skills/prompt-enrichment.js";
 export {
   appendConfiguredSkillAttachments,

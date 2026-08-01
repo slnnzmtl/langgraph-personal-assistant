@@ -60,10 +60,12 @@ describe("createReadSkillTool", () => {
     expect(result).not.toContain("<available_tools>");
   });
 
-  it("exposes the shared read_skill tool name", () => {
+  it("exposes the shared read_skill tool name and usage contract", () => {
     const readSkill = createReadSkillTool("obsidian", "xml", { skillCatalog: productSkillCatalog() });
 
     expect(readSkill.name).toBe("read_skill");
+    expect(readSkill.description).toContain("available_skills");
+    expect(readSkill.description).toContain("Internal use only");
   });
 
   it("does not run actions when the skill read fails", async () => {

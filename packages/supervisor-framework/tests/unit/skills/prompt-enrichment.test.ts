@@ -6,7 +6,6 @@ import {
   appendAvailableSkills,
   appendRuntimeExecutionModel,
   RUNTIME_EXECUTION_MODEL,
-  SKILL_USAGE_GUIDE,
   resolveAgentSkillModule,
   type RuntimeAgentDefinition,
 } from "../../../src/index.js";
@@ -32,13 +31,13 @@ describe("prompt enrichment", () => {
     approvedModules: ["finance", "obsidian", "configuration"],
   });
 
-  it("appendAvailableSkills adds available_skills and universal skill usage guide", () => {
+  it("appendAvailableSkills adds available_skills catalog", () => {
     const prompt = appendAvailableSkills("Base prompt", "finance", skillCatalog);
 
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toContain("expense-view");
-    expect(prompt).toContain(SKILL_USAGE_GUIDE);
+    expect(prompt).not.toContain("<skill_usage>");
   });
 
   it("appendRuntimeExecutionModel appends the shared runtime execution block", () => {
@@ -57,7 +56,7 @@ describe("prompt enrichment", () => {
 
     expect(prompt).toContain("Financial Assistant base prompt");
     expect(prompt).toContain("<available_skills>");
-    expect(prompt).toContain(SKILL_USAGE_GUIDE);
+    expect(prompt).not.toContain("<skill_usage>");
     expect(prompt).toContain("<runtime_execution>");
     expect(prompt).toContain("Never return an empty turn");
     expect(resolveAgentSkillModule(financeDefinition)).toBe("finance");
