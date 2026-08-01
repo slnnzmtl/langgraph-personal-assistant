@@ -22,7 +22,28 @@ export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
 const isHumanMessage = (message: BaseMessage): boolean =>
   message instanceof HumanMessage || message._getType() === "human";
 
-export const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[] => {
+const isAiMessage = (message: BaseMessage): boolean =>
+  message instanceof AIMessage || message._getType() === "ai";
+
+/** Keep latest of consecutive AI turns (handoff + supervisor FINISH duplicates). */
+const collapseConsecutiveAssistantMessages = (
+  messages: BaseMessage[],
+): BaseMessage[] => {
+  const result: BaseMessage[] = [];
+
+  for (const message of messages) {
+    const last = result[result.length - 1];
+    if (last && isAiMessage(last) && isAiMessage(message)) {
+      result[result.length - 1] = message;
+      continue;
+    }
+    result.push(message);
+  }
+
+  return result;
+};
+
+const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[] => {
   let lastHumanIndex = -1;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -51,6 +72,7 @@ export const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseM
  * Keep recent conversational context for the runtime agent: the last N human
  * turns plus any assistant messages between/after them. This preserves
  * clarification follow-ups without sending the full thread.
+ * Also collapses consecutive assistant turns (handoff then FINISH).
  */
 export const scopeSubAgentMessages = (
   messages: BaseMessage[],
@@ -65,49 +87,15 @@ export const scopeSubAgentMessages = (
     }
   }
 
-  if (humanIndexes.length === 0) {
-    return messages;
-  }
+  const recent = humanIndexes.length === 0
+    ? messages
+    : stripStaleNonTextFromOlderHumans(
+      messages.slice(
+        humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!,
+      ),
+    );
 
-  const startIndex = humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!;
-  return stripStaleNonTextFromOlderHumans(messages.slice(startIndex));
-};
-
-/**
- * When the supervisor delegates, pass only the delegation prompt (plus any
- * multimodal parts from the latest human turn) instead of the full thread.
- */
-export const scopeDelegatedSubAgentMessages = (
-  parentMessages: BaseMessage[],
-  delegationPrompt: string,
-): BaseMessage[] => {
-  const trimmed = delegationPrompt.trim();
-  if (trimmed.length === 0) {
-    return [];
-  }
-
-  let lastHuman: BaseMessage | undefined;
-
-  for (let index = parentMessages.length - 1; index >= 0; index -= 1) {
-    const message = parentMessages[index];
-    if (message && isHumanMessage(message)) {
-      lastHuman = message;
-      break;
-    }
-  }
-
-  const preservedParts = lastHuman
-    ? extractNonTextContentParts(lastHuman.content)
-    : [];
-
-  if (preservedParts.length === 0) {
-    return [new HumanMessage(trimmed)];
-  }
-
-  return [new HumanMessage([
-    { type: "text", text: trimmed },
-    ...preservedParts,
-  ])];
+  return collapseConsecutiveAssistantMessages(recent);
 };
 
 export const applyDelegationPrompt = (

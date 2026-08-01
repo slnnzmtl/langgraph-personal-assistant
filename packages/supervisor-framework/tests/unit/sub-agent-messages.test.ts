@@ -7,7 +7,6 @@ import {
   buildRuntimeAgentPromptMessages,
   EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
   isEmptyModelResponse,
-  scopeDelegatedSubAgentMessages,
   TOOL_RESULT_RECOVERY_DIRECTIVE,
   scopeSubAgentMessages,
 } from "../../src/core/execution/sub-agent-messages.js";
@@ -24,6 +23,22 @@ describe("scopeSubAgentMessages", () => {
     ];
 
     expect(scopeSubAgentMessages(messages)).toEqual(messages);
+  });
+
+  it("collapses consecutive assistant replies from handoff then FINISH", () => {
+    const expenses = "Here are your latest 10 expenses:\n\n* ID: 1725";
+    const messages = [
+      new HumanMessage("show expenses"),
+      new AIMessage(expenses),
+      new AIMessage(expenses),
+      new HumanMessage("july 30 is missed"),
+    ];
+
+    expect(scopeSubAgentMessages(messages)).toEqual([
+      new HumanMessage("show expenses"),
+      new AIMessage(expenses),
+      new HumanMessage("july 30 is missed"),
+    ]);
   });
 
   it("keeps at most the configured number of human turns", () => {
@@ -49,44 +64,35 @@ describe("scopeSubAgentMessages", () => {
 
     expect(scopeSubAgentMessages(messages)).toEqual(messages);
   });
-});
 
-describe("scopeDelegatedSubAgentMessages", () => {
-  it("returns only the delegation prompt without prior thread turns", () => {
-    const messages = [
-      new HumanMessage("hi"),
-      new AIMessage("Hello!"),
-      new HumanMessage("show me today's plan and expenses"),
-      new AIMessage("Which day?"),
-      new HumanMessage("today"),
-    ];
-
-    const result = scopeDelegatedSubAgentMessages(messages, "Show today's plan.");
-
-    expect(result).toHaveLength(1);
-    expect(String(result[0]?.content)).toBe("Show today's plan.");
-  });
-
-  it("preserves multimodal parts from the latest human turn", () => {
-    const imagePart = {
+  it("removes image parts from older human turns but keeps the latest multimodal human", () => {
+    const olderImage = {
       type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+      image_url: { url: "data:image/jpeg;base64,old" },
+    };
+    const latestImage = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,new" },
     };
     const messages = [
-      new HumanMessage("where is the note?"),
-      new AIMessage("Checking."),
       new HumanMessage([
-        { type: "text", text: "add this screenshot to my plan" },
-        imagePart,
+        { type: "text", text: "first screenshot" },
+        olderImage,
+      ]),
+      new AIMessage("Updated note."),
+      new HumanMessage([
+        { type: "text", text: "second screenshot" },
+        latestImage,
       ]),
     ];
 
-    const result = scopeDelegatedSubAgentMessages(messages, "Append screenshot to today's plan.");
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.content).toEqual([
-      { type: "text", text: "Append screenshot to today's plan." },
-      imagePart,
+    expect(scopeSubAgentMessages(messages)).toEqual([
+      new HumanMessage("first screenshot"),
+      new AIMessage("Updated note."),
+      new HumanMessage([
+        { type: "text", text: "second screenshot" },
+        latestImage,
+      ]),
     ]);
   });
 });
@@ -137,38 +143,26 @@ describe("applyDelegationPrompt", () => {
       imagePart,
     ]);
   });
-});
 
-describe("stripStaleNonTextFromOlderHumans", () => {
-  it("removes image parts from older human turns but keeps the latest multimodal human", () => {
-    const olderImage = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,old" },
-    };
-    const latestImage = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,new" },
-    };
-    const messages = [
-      new HumanMessage([
-        { type: "text", text: "first screenshot" },
-        olderImage,
-      ]),
-      new AIMessage("Updated note."),
-      new HumanMessage([
-        { type: "text", text: "second screenshot" },
-        latestImage,
-      ]),
+  it("keeps prior July context when accepting a sync offer after scope", () => {
+    const offer =
+      "No matching expenses were found for July 30th. Would you like to sync your transactions?";
+    const parentMessages = [
+      new HumanMessage("30 july is missed"),
+      new AIMessage(offer),
+      new AIMessage(offer),
+      new HumanMessage("yes"),
     ];
 
-    expect(scopeSubAgentMessages(messages)).toEqual([
-      new HumanMessage("first screenshot"),
-      new AIMessage("Updated note."),
-      new HumanMessage([
-        { type: "text", text: "second screenshot" },
-        latestImage,
-      ]),
-    ]);
+    const result = applyDelegationPrompt(
+      scopeSubAgentMessages(parentMessages),
+      "Sync transactions.",
+    );
+
+    expect(result).toHaveLength(3);
+    expect(String(result[0]?.content)).toBe("30 july is missed");
+    expect(String(result[1]?.content)).toContain("July 30th");
+    expect(String(result[2]?.content)).toBe("Sync transactions.");
   });
 });
 
