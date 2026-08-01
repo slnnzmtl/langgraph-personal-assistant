@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { toJsonSchema } from "@langchain/core/utils/json_schema";
 import { isInteropZodSchema } from "@langchain/core/utils/types";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   GoogleAICacheManager,
   SchemaType,
@@ -19,6 +18,11 @@ import type {
   ContextCacheSpec,
 } from "@personal-assistant/supervisor-framework";
 import { getLogger } from "@personal-assistant/supervisor-framework";
+
+import {
+  createGeminiChatModel,
+  DEFAULT_GEMINI_TEMPERATURE,
+} from "./gemini-connector.js";
 
 const DEFAULT_TTL_SECONDS = 3600;
 /** Refresh before Gemini's expireTime so generateContent never races TTL deletion. */
@@ -348,13 +352,9 @@ export const createCachedGeminiModel = (
   apiKey: string,
   modelName: string,
   handle: Pick<ContextCacheHandle, "cacheName" | "model">,
-  temperature = 0,
-): ChatGoogleGenerativeAI => {
-  const model = new ChatGoogleGenerativeAI({
-    apiKey,
-    model: modelName,
-    temperature,
-  });
+  temperature = DEFAULT_GEMINI_TEMPERATURE,
+): ReturnType<typeof createGeminiChatModel> => {
+  const model = createGeminiChatModel(apiKey, modelName, temperature);
 
   // Gemini's getGenerativeModelFromCachedContent requires both name and model.
   model.useCachedContent({

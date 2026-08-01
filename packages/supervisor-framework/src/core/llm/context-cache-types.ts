@@ -46,6 +46,7 @@ export type CreateCachedModel = (
   apiKey: string,
   modelName: string,
   handle: Pick<ContextCacheHandle, "cacheName" | "model">,
+  temperature?: number,
 ) => BaseChatModel;
 
 /** Shared cache wiring for supervisor routing and runtime agent turns. */

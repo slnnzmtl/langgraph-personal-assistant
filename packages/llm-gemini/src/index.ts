@@ -1,4 +1,9 @@
-export { DEFAULT_GEMINI_MODEL, GeminiConnector } from "./gemini-connector.js";
+export {
+  createGeminiChatModel,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_TEMPERATURE,
+  GeminiConnector,
+} from "./gemini-connector.js";
 export {
   buildCacheSeedContents,
   createCachedGeminiModel,

@@ -8,6 +8,18 @@ import type {
 } from "@personal-assistant/supervisor-framework";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+export const DEFAULT_GEMINI_TEMPERATURE = 0.2;
+
+export const createGeminiChatModel = (
+  apiKey: string,
+  modelName: string,
+  temperature = DEFAULT_GEMINI_TEMPERATURE,
+): ChatGoogleGenerativeAI =>
+  new ChatGoogleGenerativeAI({
+    apiKey,
+    model: modelName,
+    temperature,
+  });
 
 export class GeminiConnector implements ILLMConnector {
   private readonly model: ChatGoogleGenerativeAI;
@@ -17,11 +29,7 @@ export class GeminiConnector implements ILLMConnector {
   constructor(apiKey: string, modelName = DEFAULT_GEMINI_MODEL) {
     this.apiKey = apiKey;
     this.modelName = modelName;
-    this.model = new ChatGoogleGenerativeAI({
-      apiKey,
-      model: modelName,
-      temperature: 0,
-    });
+    this.model = createGeminiChatModel(apiKey, modelName);
   }
 
   getModel(): BaseChatModel {
