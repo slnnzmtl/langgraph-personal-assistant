@@ -37,6 +37,43 @@ describe("tool completion summary", () => {
     expect(response.content).toBe("Created skill foo");
   });
 
+  it("keeps blank first-turn replies empty when emptyWhenNoToolResults is set", () => {
+    const response = processBlankToolLoopResponse(
+      {
+        state: {
+          agentMessages: [],
+          stepCount: 0,
+        },
+      },
+      new AIMessage({ content: "" }),
+      {
+        completionFallback: "Completed.",
+        buildSummary: buildLatestToolCompletionSummary,
+        emptyWhenNoToolResults: true,
+      },
+    );
+
+    expect(response.content).toBe("");
+  });
+
+  it("still invents a completion fallback without tools by default", () => {
+    const response = processBlankToolLoopResponse(
+      {
+        state: {
+          agentMessages: [],
+          stepCount: 0,
+        },
+      },
+      new AIMessage({ content: "" }),
+      {
+        completionFallback: "Completed.",
+        buildSummary: buildLatestToolCompletionSummary,
+      },
+    );
+
+    expect(response.content).toBe("Completed.");
+  });
+
   it("detects completed replies excluding fallback text", () => {
     expect(hasCompletedAgentReply(new AIMessage("Done."), "Completed.")).toBe(true);
     expect(hasCompletedAgentReply(new AIMessage("Completed."), "Completed.")).toBe(false);

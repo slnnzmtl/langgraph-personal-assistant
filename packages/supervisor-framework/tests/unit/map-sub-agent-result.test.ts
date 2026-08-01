@@ -104,7 +104,7 @@ describe("mapSubAgentResult", () => {
     expect(result.messages[0]?.content).toBe("Completed the task.");
   });
 
-  it("preserves completionFallback when there is no summary", () => {
+  it("emits empty handoff for completionFallback when emptyHandoffWhenNoSalvage", () => {
     const result = mapSubAgentResult(
       {
         agentMessages: [
@@ -117,6 +117,24 @@ describe("mapSubAgentResult", () => {
       {
         completionFallback: "Completed the task.",
         emptyHandoffWhenNoSalvage: true,
+      },
+    );
+
+    expect(result.messages[0]?.content).toBe("");
+  });
+
+  it("preserves completionFallback when emptyHandoffWhenNoSalvage is off", () => {
+    const result = mapSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("noop"),
+          new AIMessage("Completed the task."),
+        ],
+        stepCount: 1,
+      },
+      { maxSteps: 10, name: "Agent" },
+      {
+        completionFallback: "Completed the task.",
       },
     );
 

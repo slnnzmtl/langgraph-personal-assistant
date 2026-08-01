@@ -51,8 +51,10 @@ describe("prompt loaders", () => {
     expect(obsidianPrompt).not.toContain("Yesterday: routine/");
 
     expect(financePrompt).toContain("Financial Assistant");
-    expect(financePrompt).toContain("<skill_usage>");
-    expect(financePrompt).toContain("call `read_skill` for the matching skill");
+    expect(financePrompt).toContain("<skill_routing>");
+    expect(financePrompt).toContain("`expense-view`");
+    expect(financePrompt).toContain("`expense-ledger-schema`");
+    expect(financePrompt).not.toContain("<skill_usage>");
     expect(financePrompt).toContain("<tool_error_recovery>");
     expect(financePrompt).toContain("ambiguous SQL columns");
     expect(financePrompt).not.toContain("<runtime_execution>");
@@ -62,7 +64,13 @@ describe("prompt loaders", () => {
     expect(configurationPrompt).toContain("Configuration Manager");
     expect(configurationPrompt).toContain("<tool_access>");
     expect(configurationPrompt).toContain("All configuration tools are available from the start");
-    expect(configurationPrompt).toContain("read_skill(skill_name)");
+    expect(configurationPrompt).toContain('preview_skill(module, name)');
+    expect(configurationPrompt).toContain('preview_skill("configuration", "cron")');
+    expect(configurationPrompt).toContain("`list_cron_jobs`");
+    expect(configurationPrompt).toContain("<skill_routing>");
+    expect(configurationPrompt).toContain("→ `cron`");
+    expect(configurationPrompt).not.toContain("<skill_usage>");
+    expect(configurationPrompt).not.toContain("Never stop with an empty turn");
     expect(configurationPrompt).toContain("<output_template>");
     expect(configurationPrompt).toContain("<skill_output_template>");
     expect(configurationPrompt).not.toMatch(/<available_skills>\s*\n/);

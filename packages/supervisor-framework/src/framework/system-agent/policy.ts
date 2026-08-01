@@ -50,6 +50,7 @@ export const createSystemAgentNodeHooks = (
       return processBlankToolLoopResponse(ctx, sanitized, {
         completionFallback: CONFIGURATION_COMPLETION_FALLBACK,
         buildSummary: buildConfigurationSalvageSummary,
+        emptyWhenNoToolResults: true,
       });
     },
   };

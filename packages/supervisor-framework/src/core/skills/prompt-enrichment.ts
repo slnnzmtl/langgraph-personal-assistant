@@ -3,7 +3,6 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { resolveAgentSkillModule } from "../types/agent.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SkillCatalog } from "./catalog.js";
-import { appendConfiguredSkillAttachments } from "./skill-attachments.js";
 
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
@@ -13,8 +12,12 @@ export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - Never return an empty turn (no text and no tool calls).
 </runtime_execution>`;
 
-const READ_SKILL_HINT =
-  "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
+/** Universal skill-usage contract injected for every runtime agent. */
+export const SKILL_USAGE_GUIDE = `<skill_usage>
+- Skills in <available_skills> are catalog entries only. Load full instructions with read_skill(skill_name) before multi-step work unless the skill body is already in <attached_skills>.
+- When a skill is already in <attached_skills>, follow it immediately; do not call read_skill again unless the instructions are missing or stale.
+- read_skill is internal only: it loads execution instructions. Never use it to display a skill definition to the user.
+</skill_usage>`;
 
 export const appendAvailableSkills = (
   basePrompt: string,
@@ -28,7 +31,7 @@ export const appendAvailableSkills = (
     return basePrompt;
   }
 
-  return `${basePrompt.trim()}\n\n${skillsBlock}\n\n${READ_SKILL_HINT}`;
+  return `${basePrompt.trim()}\n\n${skillsBlock}\n\n${SKILL_USAGE_GUIDE}`;
 };
 
 export const appendRuntimeExecutionModel = (prompt: string): string =>
@@ -42,11 +45,13 @@ export const enrichRuntimeAgentPrompt = (
 ): string => {
   let prompt = basePrompt.trim();
 
+  // Skill auto-attachment disabled; agents use read_skill. Re-enable via appendConfiguredSkillAttachments.
+  void messages;
+
   if (skillCatalog) {
     const module = resolveAgentSkillModule(definition);
     const skillModules = new Set(skillCatalog.listModules());
     prompt = appendAvailableSkills(prompt, module, skillCatalog);
-    prompt = appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
 
     if (skillModules.has(module)) {
       prompt = appendRuntimeExecutionModel(prompt);
@@ -55,5 +60,5 @@ export const enrichRuntimeAgentPrompt = (
     return prompt;
   }
 
-  return appendConfiguredSkillAttachments(prompt, definition, messages, skillCatalog);
+  return prompt;
 };

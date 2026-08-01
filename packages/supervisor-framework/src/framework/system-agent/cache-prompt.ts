@@ -3,11 +3,10 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { resolveAgentSkillModule } from "../../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
-import { appendConfiguredSkillAttachments } from "../../core/skills/skill-attachments.js";
-import { appendRuntimeExecutionModel } from "../../core/skills/prompt-enrichment.js";
-
-export const RUNTIME_READ_SKILL_HINT =
-  "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
+import {
+  appendRuntimeExecutionModel,
+  SKILL_USAGE_GUIDE,
+} from "../../core/skills/prompt-enrichment.js";
 
 export type RuntimePromptParts = {
   staticPrompt: string;
@@ -15,9 +14,7 @@ export type RuntimePromptParts = {
 };
 
 export const buildStaticRuntimePrompt = (basePrompt: string): string =>
-  appendRuntimeExecutionModel(
-    `${basePrompt.trim()}\n\n${RUNTIME_READ_SKILL_HINT}`,
-  );
+  appendRuntimeExecutionModel(basePrompt.trim());
 
 export const buildDynamicRuntimePrompt = (
   definition: RuntimeAgentDefinition,
@@ -34,18 +31,11 @@ export const buildDynamicRuntimePrompt = (
   if (skillsBlock.length > 0) {
     sections.push(skillsBlock);
   }
+  // Dynamic so Gemini context-cache static prompts still see the skill contract each turn.
+  sections.push(SKILL_USAGE_GUIDE);
 
-  const withAttachments = appendConfiguredSkillAttachments(
-    sections.join("\n\n"),
-    definition,
-    messages,
-    skillCatalog,
-  ).trim();
-
-  if (withAttachments.length > 0) {
-    sections.length = 0;
-    sections.push(withAttachments);
-  }
+  // Skill auto-attachment disabled; agents use read_skill. Re-enable via appendConfiguredSkillAttachments.
+  void messages;
 
   for (const extra of extraDynamicSections) {
     const trimmed = extra.trim();

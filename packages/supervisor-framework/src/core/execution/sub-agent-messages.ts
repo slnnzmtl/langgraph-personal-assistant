@@ -1,5 +1,7 @@
 import { AIMessage, HumanMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 
+import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
+
 export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "Your previous response was empty after a tool result.",
   "Inspect the latest tool message in history:",
@@ -9,7 +11,10 @@ export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "- A tool error is not a user-facing completion. Never claim a write succeeded unless a successful tool payload proves it.",
 ].join("\n");
 
-import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
+export const EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE = [
+  "Your previous response was empty (no text and no tool calls).",
+  "Continue without stopping silently: call read_skill(skill_name) or another bound tool if needed, otherwise reply in plain text.",
+].join("\n");
 
 /** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
 export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
@@ -161,7 +166,12 @@ export const isEmptyModelResponse = (response: AIMessage): boolean => {
 
 export const buildRecoveryPromptMessages = (
   promptMessages: BaseMessage[],
+  options: { isLoopContinuation?: boolean } = {},
 ): BaseMessage[] => [
   ...promptMessages,
-  new HumanMessage(TOOL_RESULT_RECOVERY_DIRECTIVE),
+  new HumanMessage(
+    options.isLoopContinuation
+      ? TOOL_RESULT_RECOVERY_DIRECTIVE
+      : EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
+  ),
 ];

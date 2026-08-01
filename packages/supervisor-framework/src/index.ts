@@ -240,6 +240,7 @@ export {
   appendAvailableSkills,
   appendRuntimeExecutionModel,
   RUNTIME_EXECUTION_MODEL,
+  SKILL_USAGE_GUIDE,
 } from "./core/skills/prompt-enrichment.js";
 export {
   appendConfiguredSkillAttachments,
@@ -327,7 +328,6 @@ export {
   buildRuntimePromptParts,
   buildStaticRuntimePrompt,
   buildTurnContextMessage,
-  RUNTIME_READ_SKILL_HINT,
   type RuntimePromptParts,
 } from "./framework/system-agent/cache-prompt.js";
 

@@ -306,9 +306,9 @@ export const createRuntimeAgentNode = (
         throw new Error("Runtime agent LLM model must return an AI message.");
       }
 
-      // Domain hooks may salvage an empty response (e.g. Obsidian read_file summaries).
-      // Only use the recovery retry when the response is still empty afterward.
-      if (isEmptyModelResponse(response) && isLoopContinuation) {
+      // Salvage empty responses via processResponse; otherwise retry once with a recovery
+      // directive (first-turn or post-tool). Cached empty turns fall back to bindTools once.
+      if (isEmptyModelResponse(response)) {
         const salvaged = config.processResponse
           ? config.processResponse(ctx, response)
           : response;
@@ -316,15 +316,26 @@ export const createRuntimeAgentNode = (
         if (!isEmptyModelResponse(salvaged)) {
           response = salvaged;
         } else {
-          // Flash-lite and similar models sometimes return empty candidates after tool
-          // results. Retry once with an explicit recovery directive so the agent can
-          // repair recoverable tool errors or reply with status.
-          response = await bindModelForTurn(modelForTurnConfig).invoke(
-            buildRecoveryPromptMessages(promptMessages),
-            runnableConfig,
-          );
-          if (!(response instanceof AIMessage)) {
-            throw new Error("Runtime agent LLM model must return an AI message.");
+          const invokeRecovery = async (): Promise<AIMessage> => {
+            const recovered = await bindModelForTurn(modelForTurnConfig).invoke(
+              buildRecoveryPromptMessages(promptMessages, { isLoopContinuation }),
+              runnableConfig,
+            );
+            if (!(recovered instanceof AIMessage)) {
+              throw new Error("Runtime agent LLM model must return an AI message.");
+            }
+            return recovered;
+          };
+
+          response = await invokeRecovery();
+
+          if (
+            isEmptyModelResponse(response)
+            && modelForTurnConfig.useCachedPromptLayout
+            && toolsForTurn.length > 0
+          ) {
+            await applyModelForTurn(uncachedModelForTurn());
+            response = await invokeRecovery();
           }
         }
       }

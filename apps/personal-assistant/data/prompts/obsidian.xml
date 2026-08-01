@@ -70,8 +70,4 @@
       <action>Verify file presence via search/read, then call `send_file`.</action>
     </intent>
   </intents>
-
-  <skill_usage>
-    If a required skill instruction is not loaded in the prompt, execute `read_skill(skill_name)` before proceeding with the user intent.
-  </skill_usage>
 </system_instructions>

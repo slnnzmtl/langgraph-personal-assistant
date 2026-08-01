@@ -253,4 +253,72 @@ describe("createRuntimeAgentNode cache hooks", () => {
     expect(bindToolsCalls).toHaveLength(1);
     expect(String(result.agentMessages?.[0]?.content)).toBe("uncached recovery reply");
   });
+
+  it("falls back to uncached bindTools when cached turns keep returning empty", async () => {
+    const bindToolsCalls: unknown[][] = [];
+    let cachedInvokeCount = 0;
+    let boundInvokeCount = 0;
+
+    const cachedModel = {
+      invoke: async () => {
+        cachedInvokeCount += 1;
+        return new AIMessage("");
+      },
+    } as unknown as BaseChatModel;
+
+    const boundModel = {
+      invoke: async () => {
+        boundInvokeCount += 1;
+        return new AIMessage({
+          content: "",
+          tool_calls: [{ name: "echo", args: { text: "hi" }, id: "echo-1", type: "tool_call" }],
+        });
+      },
+    } as unknown as BaseChatModel;
+
+    const baseModel = {
+      bindTools: (...args: unknown[]) => {
+        bindToolsCalls.push(args);
+        return boundModel;
+      },
+      invoke: async () => new AIMessage("base model should not be invoked directly"),
+    } as unknown as BaseChatModel;
+
+    const definition = makeTestRuntimeAgent({
+      id: "configuration",
+      name: "Configuration",
+      systemPrompt: "base prompt",
+    });
+
+    const node = createRuntimeAgentNode(baseModel, definition, [echoTool], {
+      resolveModelForTurn: () => ({
+        model: cachedModel,
+        bindTools: false,
+        useCachedPromptLayout: true,
+      }),
+      buildSystemPrompt: (ctx) =>
+        ctx.useCachedPromptLayout ? "dynamic only" : "static\n\ndynamic only",
+      buildPromptMessages: (ctx, systemPromptText, stateMessages) => {
+        if (ctx.useCachedPromptLayout) {
+          return [
+            new HumanMessage(`<turn_context>${systemPromptText}</turn_context>`),
+            ...stateMessages,
+          ];
+        }
+
+        return [new SystemMessage(systemPromptText), ...stateMessages];
+      },
+    });
+
+    const result = await node({
+      agentMessages: [new HumanMessage("list cron jobs")],
+      stepCount: 0,
+    });
+
+    // initial cached empty + cached recovery empty + uncached recovery tool call
+    expect(cachedInvokeCount).toBe(2);
+    expect(boundInvokeCount).toBe(1);
+    expect(bindToolsCalls).toHaveLength(1);
+    expect(result.agentMessages?.[0]?.tool_calls?.[0]?.name).toBe("echo");
+  });
 });

@@ -49,6 +49,11 @@ export const processBlankToolLoopResponse = (
   options: {
     completionFallback: string;
     buildSummary: (messages: BaseMessage[]) => string | undefined;
+    /**
+     * When true, blank first-turn replies with no tool results stay empty
+     * (finalize can emit an empty handoff instead of a synthetic success string).
+     */
+    emptyWhenNoToolResults?: boolean;
   },
 ): AIMessage => {
   const responseText = extractMessageTextContent(response.content).trim();
@@ -60,6 +65,9 @@ export const processBlankToolLoopResponse = (
 
   const hasToolResults = ctx.state.agentMessages.some((message) => message instanceof ToolMessage);
   if (!hasToolResults) {
+    if (options.emptyWhenNoToolResults) {
+      return new AIMessage({ content: "" });
+    }
     return new AIMessage(options.completionFallback);
   }
 

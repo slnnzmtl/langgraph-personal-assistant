@@ -7,7 +7,10 @@ import {
   buildStaticRuntimePrompt,
   buildTurnContextMessage,
 } from "../../../src/framework/system-agent/cache-prompt.js";
-import { RUNTIME_EXECUTION_MODEL } from "../../../src/core/skills/prompt-enrichment.js";
+import {
+  RUNTIME_EXECUTION_MODEL,
+  SKILL_USAGE_GUIDE,
+} from "../../../src/core/skills/prompt-enrichment.js";
 import { createSkillCatalog } from "../../../src/core/skills/skill-catalog.js";
 import type { RuntimeAgentDefinition } from "../../../src/core/types/agent.js";
 
@@ -35,10 +38,10 @@ describe("runtime cache prompt helpers", () => {
 
     expect(prompt).toContain("Base configuration prompt");
     expect(prompt).toContain(RUNTIME_EXECUTION_MODEL);
-    expect(prompt).toContain("read_skill(skill_name)");
+    expect(prompt).not.toContain(SKILL_USAGE_GUIDE);
   });
 
-  it("buildRuntimePromptParts separates static and dynamic sections", () => {
+  it("buildRuntimePromptParts puts skill usage in dynamic turn context", () => {
     const parts = buildRuntimePromptParts(
       "Base configuration prompt",
       configurationDefinition,
@@ -49,6 +52,9 @@ describe("runtime cache prompt helpers", () => {
     );
 
     expect(parts.staticPrompt).toContain(RUNTIME_EXECUTION_MODEL);
+    expect(parts.staticPrompt).not.toContain(SKILL_USAGE_GUIDE);
+    expect(parts.dynamicPrompt).toContain(SKILL_USAGE_GUIDE);
+    expect(parts.dynamicPrompt).toContain("<available_skills>");
     expect(parts.dynamicPrompt).toContain("<system_metadata>");
     expect(parts.dynamicPrompt).toContain("Vault directory tree");
     expect(parts.staticPrompt).not.toContain("Vault directory tree");

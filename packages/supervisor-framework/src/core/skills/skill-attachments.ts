@@ -217,6 +217,10 @@ export const resolveSkillAttachments = (
   return Array.from(resolved.values());
 };
 
+/**
+ * Appends matching skill bodies from `<skill_attachments>` rules.
+ * Callers currently omit this so agents load skills via `read_skill`; keep for re-enablement.
+ */
 export const appendConfiguredSkillAttachments = (
   basePrompt: string,
   definition: RuntimeAgentDefinition,

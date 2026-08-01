@@ -5,6 +5,7 @@ import {
   applyDelegationPrompt,
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
+  EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
   isEmptyModelResponse,
   scopeDelegatedSubAgentMessages,
   TOOL_RESULT_RECOVERY_DIRECTIVE,
@@ -208,7 +209,7 @@ describe("isEmptyModelResponse", () => {
 });
 
 describe("buildRecoveryPromptMessages", () => {
-  it("appends a recovery directive after the normal prompt history", () => {
+  it("appends a tool-result recovery directive after the normal prompt history", () => {
     const system = new SystemMessage("system");
     const stateMessages = [
       new HumanMessage("uniqlo is clothes"),
@@ -228,12 +229,27 @@ describe("buildRecoveryPromptMessages", () => {
       }),
     ];
     const promptMessages = buildRuntimeAgentPromptMessages(system, stateMessages);
-    const recoveryMessages = buildRecoveryPromptMessages(promptMessages);
+    const recoveryMessages = buildRecoveryPromptMessages(promptMessages, {
+      isLoopContinuation: true,
+    });
 
     expect(recoveryMessages).toHaveLength(promptMessages.length + 1);
     expect(recoveryMessages.at(-1)).toBeInstanceOf(HumanMessage);
     expect(String(recoveryMessages.at(-1)?.content)).toBe(TOOL_RESULT_RECOVERY_DIRECTIVE);
     expect(String(recoveryMessages.at(-1)?.content)).toContain("ambiguous column");
     expect(String(recoveryMessages.at(-2)?.content)).toContain("ambiguous");
+  });
+
+  it("appends a first-turn recovery directive that pushes read_skill or tools", () => {
+    const system = new SystemMessage("system");
+    const promptMessages = buildRuntimeAgentPromptMessages(
+      system,
+      [new HumanMessage("list cron jobs")],
+    );
+    const recoveryMessages = buildRecoveryPromptMessages(promptMessages);
+
+    expect(recoveryMessages).toHaveLength(promptMessages.length + 1);
+    expect(String(recoveryMessages.at(-1)?.content)).toBe(EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE);
+    expect(String(recoveryMessages.at(-1)?.content)).toContain("read_skill(skill_name)");
   });
 });

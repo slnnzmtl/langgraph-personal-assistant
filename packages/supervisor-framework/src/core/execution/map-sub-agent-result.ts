@@ -77,7 +77,7 @@ export const mapSubAgentResult = (
     return createMaxStepsExceededUpdate(name, maxSteps, resolvedMaxStepsMessage);
   }
 
-  if (isCompletionFallbackMessage(lastMessage, completionFallback)) {
+  if (isCompletionFallbackMessage(lastMessage, completionFallback) && !emptyHandoffWhenNoSalvage) {
     return { messages: [lastMessage] };
   }
 
