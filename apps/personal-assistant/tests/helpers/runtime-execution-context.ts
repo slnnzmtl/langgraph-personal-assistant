@@ -8,11 +8,12 @@ import {
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
+import { createPersonalRuntimeAgentPolicy } from "../../src/composition/personal-runtime-policy.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import {
   type PersonalCapabilityDeps,
-} from "../../src/runtime-agents/capabilities.js";
+} from "../../src/runtime-agents/personal-capability-deps.js";
 import { createRuntimeAgentRepositoryFake } from "./fakes.js";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 
@@ -32,6 +33,8 @@ export const createAppRuntimeExecutionContext = (
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog,
+    createRuntimeAgentPolicy: (shellHooks, policyOptions) =>
+      createPersonalRuntimeAgentPolicy(shellHooks, policyOptions, "/tmp/vault"),
   });
   const cronTargetAgentIds = input.capabilityDeps.cronTargetAgentIds
     ?? deriveCronTargetAgentIds(runtimeAgents);

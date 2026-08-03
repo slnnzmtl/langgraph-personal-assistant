@@ -1,4 +1,3 @@
-import { AIMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 
@@ -7,12 +6,12 @@ import {
   type RuntimeAgentGraphBundle,
   type RuntimeAgentLoopNode,
 } from "../agents/runtime-agent-graph-bundle.js";
-import { scopeSubAgentMessages } from "./sub-agent-messages.js";
 import type { SubAgentToolSource } from "./runtime-node.js";
 import {
   type SubAgentState,
   type SubAgentStateUpdate,
 } from "./sub-agent-state.js";
+import { mapSubAgentResult } from "./map-sub-agent-result.js";
 
 export type SubAgentLlmNode = RuntimeAgentLoopNode;
 
@@ -59,43 +58,23 @@ export const createSubAgentGraphBundle = <TDeps>(config: SubAgentConfig<TDeps>):
     maxSteps: config.maxSteps,
     prepare:
       config.buildInitialState
-      ?? ((parentState) => ({
-        agentMessages: scopeSubAgentMessages(parentState.messages),
+      ?? (() => ({
+        // Prepare-node owns agent-scoped history from parent messages.
+        agentMessages: [],
         stepCount: 0,
       })),
     llmNode,
     toolsNode,
     finalize: config.mapResult
       ? (result) => config.mapResult!(result, { maxSteps: config.maxSteps, name: config.name })
-      : (result) => mapDefaultSubAgentResult(result, { maxSteps: config.maxSteps, name: config.name }),
+      : (result) => mapSubAgentResult(result, { maxSteps: config.maxSteps, name: config.name }),
   };
 };
 
-export const createMaxStepsExceededUpdate = (
-  name: string,
-  maxSteps: number,
-  message?: string,
-): AgentStateUpdate => ({
-  messages: [
-    new AIMessage(
-      message ?? `Unable to complete ${name}: exceeded the maximum of ${maxSteps} tool steps.`,
-    ),
-  ],
-});
-
-export const mapDefaultSubAgentResult = (
-  result: SubAgentState,
-  { maxSteps, name }: { maxSteps: number; name: string },
-  options?: { maxStepsMessage?: string },
-): AgentStateUpdate => {
-  if (result.stepCount >= maxSteps) {
-    return createMaxStepsExceededUpdate(name, maxSteps, options?.maxStepsMessage);
-  }
-
-  const lastMessage = result.agentMessages[result.agentMessages.length - 1];
-  return {
-    messages: [lastMessage as AIMessage],
-  };
-};
+export {
+  createMaxStepsExceededUpdate,
+  mapSubAgentResult,
+  type MapSubAgentResultOptions,
+} from "./map-sub-agent-result.js";
 
 export { createDefaultPrepare } from "../agents/runtime-agent-graph-bundle.js";

@@ -115,6 +115,8 @@ Without Supabase credentials the finance agent returns a configuration error ins
 
 Production Docker runs scheduling in the separate `personal-assistant-scheduler` service. When `ENABLE_SCHEDULER` is truthy, that process loads jobs from `data/cron-jobs.json` and executes them via synthetic `SYSTEM_CRON_TRIGGER:` messages. When disabled, the scheduler process stays idle (no jobs run) until it receives SIGINT/SIGTERM. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
+**Laptop / Docker Desktop sleep:** `RuntimeCronService` schedules with a 24h `missedExecutionTolerance`. After the host wakes, node-cron still runs at most one eligible late slot (capped by the gap to the next fire) instead of skipping the job. This does not backfill multi-day sleeps or recover jobs missed because the scheduler process restarted.
+
 ## Skills
 
 Skills are XML playbooks stored in a flat `data/skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
@@ -211,9 +213,9 @@ apps/
   personal-assistant/         # This Telegram deployment
     src/
       composition/            # createSupervisorSystem, personal-pack, runtime-execution
-      policies/               # Domain capability hooks
-      runtime-agents/         # Domain folders (finance/, obsidian/), capabilities, resolve-tools
-      ports/ integrations/    # External I/O clients (Obsidian, Wise, Supabase MCP)
+      policies/               # Default / system-configuration runtime policy
+      runtime-agents/         # Feature folders (finance/, obsidian/), resolve-tools
+      integrations/           # External I/O clients (Obsidian, Wise, Supabase MCP)
       scheduler/ telegram/ models/ ...
     data/prompts/ data/skills/ data/ sql/
     tests/unit/               # Layer-aligned unit tests; e2e in tests/e2e/
@@ -230,4 +232,4 @@ See [docs/PACK_DEVELOPMENT.md](docs/PACK_DEVELOPMENT.md) for building a sibling 
 ### Extending the assistant
 
 - **New specialist (default):** create via the configuration agent with a prompt, optional skills, and grantable `capabilityIds`. Routing picks up automatically after soft graph recompile (~seconds). Step-by-step: [docs/RUNTIME_AGENT_SETUP.md](docs/RUNTIME_AGENT_SETUP.md).
-- **New tool domain (rare):** add a capability descriptor + provider in `capabilities.ts`, implement tools under `runtime-agents/<domain>/`, and register capability behavior in `src/policies/runtime-agent-policy.ts` when that capability is granted.
+- **New tool domain (rare):** follow [docs/RUNTIME_AGENT_SETUP.md — Beyond chat](docs/RUNTIME_AGENT_SETUP.md#beyond-chat-new-tool-domains-rare). Tools-only features need a tools factory plus one provider entry in `personal-pack.ts`; hooks features add an adjacent composition branch (no binders/ports/behavior registries).

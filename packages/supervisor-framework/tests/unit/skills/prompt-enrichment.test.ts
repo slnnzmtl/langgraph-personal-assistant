@@ -1,3 +1,4 @@
+import { HumanMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -31,13 +32,13 @@ describe("prompt enrichment", () => {
     approvedModules: ["finance", "obsidian", "configuration"],
   });
 
-  it("appendAvailableSkills adds available_skills and read_skill hint", () => {
+  it("appendAvailableSkills adds available_skills catalog", () => {
     const prompt = appendAvailableSkills("Base prompt", "finance", skillCatalog);
 
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain("<available_skills>");
     expect(prompt).toContain("expense-view");
-    expect(prompt).toContain("Call read_skill(skill_name)");
+    expect(prompt).not.toContain("<skill_usage>");
   });
 
   it("appendRuntimeExecutionModel appends the shared runtime execution block", () => {
@@ -56,8 +57,21 @@ describe("prompt enrichment", () => {
 
     expect(prompt).toContain("Financial Assistant base prompt");
     expect(prompt).toContain("<available_skills>");
+    expect(prompt).not.toContain("<skill_usage>");
     expect(prompt).toContain("<runtime_execution>");
     expect(prompt).toContain("Never return an empty turn");
     expect(resolveAgentSkillModule(financeDefinition)).toBe("finance");
+  });
+
+  it("enrichRuntimeAgentPrompt attaches matching configured skills", () => {
+    const prompt = enrichRuntimeAgentPrompt(
+      "Financial Assistant base prompt",
+      financeDefinition,
+      [new HumanMessage("what the last expense date in db?")],
+      skillCatalog,
+    );
+
+    expect(prompt).toContain("<attached_skills>");
+    expect(prompt).toContain('<attached_skill name="expense-view">');
   });
 });

@@ -62,7 +62,7 @@ const createFlattenedRuntimeAgentGraph = () => {
   const agentStateAnnotation = createAgentStateAnnotation({ messageHistoryMaxTokens: 8_000 });
 
   return new StateGraph(agentStateAnnotation)
-    .addNode("finance__prepare", createRuntimeAgentPrepareNode(bundle as never))
+    .addNode("finance__prepare", createRuntimeAgentPrepareNode(bundle as never, "finance"))
     .addNode("finance__llm", bundle.llmNode)
     .addNode("finance__tools", bundle.toolsNode)
     .addNode("finance__finalize", createRuntimeAgentFinalizeNode(bundle as never, "finance"))

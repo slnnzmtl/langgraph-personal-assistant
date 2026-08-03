@@ -151,7 +151,7 @@ describe("createRuntimeAgentRepository", () => {
     expect(repository.describePromptLocation?.("daily-summary")).toBe("data/prompts/daily-summary.xml");
   });
 
-  it("migrates legacy inline prompts on update when a prompt store is configured", async () => {
+  it("keeps inline prompts on update when promptSourceKey is unset", async () => {
     const rootDir = await createTempRoot();
     const promptStore = createFakePromptStore();
     const repository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json", promptStore);
@@ -173,9 +173,9 @@ describe("createRuntimeAgentRepository", () => {
       systemPrompt: "You are a personal trainer.",
     });
 
-    expect(updated.promptSourceKey).toBe("trainer");
-    expect(updated.systemPrompt).toBe(formatDataAgentPromptBootstrap("trainer"));
-    expect(promptStore.files.get("trainer")).toBe("You are a personal trainer.");
+    expect(updated.promptSourceKey).toBeUndefined();
+    expect(updated.systemPrompt).toBe("You are a personal trainer.");
+    expect(promptStore.files.has("trainer")).toBe(false);
   });
 
   it("updates data-managed prompt files without storing full prompt text in JSON", async () => {

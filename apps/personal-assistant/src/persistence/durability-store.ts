@@ -11,7 +11,7 @@ import type {
   CronRunRecord,
 } from "@personal-assistant/supervisor-framework";
 
-import type { AppConfig } from "../config.js";
+import type { PersistenceConfig } from "../config.js";
 
 const CRON_RUNS_SCHEMA = `
 CREATE TABLE IF NOT EXISTS cron_runs (
@@ -126,7 +126,7 @@ export type DurabilityStore = {
   close(): void;
 };
 
-export const openDurabilityStore = (config: AppConfig): DurabilityStore => {
+export const openDurabilityStore = (config: PersistenceConfig): DurabilityStore => {
   mkdirSync(path.dirname(config.stateDbPath), { recursive: true });
 
   const db = new Database(config.stateDbPath);

@@ -8,7 +8,7 @@ import {
   type RuntimeAgentRepository,
 } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import type { IFileSender } from "../../src/ports/file-sender.js";
+import type { AppConfig } from "../../src/config.js";
 import { prepareRuntimeAgents } from "../../src/composition/runtime-agent-defaults.js";
 import {
   buildPersonalCapabilityDeps,
@@ -16,9 +16,10 @@ import {
   buildPersonalSkillCatalog,
 } from "../../src/composition/personal-pack.js";
 import { buildAppRuntimeExecution } from "../../src/composition/runtime-execution.js";
+import { createPersonalRuntimeAgentPolicy } from "../../src/composition/personal-runtime-policy.js";
 import type { ILLMConnector } from "@personal-assistant/supervisor-framework";
 import type { CronJobRepository } from "@personal-assistant/supervisor-framework";
-import type { SqlSession } from "../../src/ports/sql-session.js";
+import type { SqlSession } from "../../src/integrations/mcp/sql-session.js";
 import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { buildTestRuntimeAgents } from "./runtime-agent-fixtures.js";
 import { createRuntimeAgentRepositoryFake, FakeLLMConnector } from "./fakes.js";
@@ -32,8 +33,8 @@ export type TestWorkflowGraphOptions = {
   obsidianVaultPath?: string;
   cronJobRepository?: CronJobRepository;
   runtimeAgentRepository?: RuntimeAgentRepository;
-  supabaseSession?: SqlSession;
-  fileSender?: IFileSender;
+  supabaseReadSession?: SqlSession;
+  supabaseWriteSession?: SqlSession;
 };
 
 export const createTestWorkflowGraph = ({
@@ -45,11 +46,11 @@ export const createTestWorkflowGraph = ({
   obsidianVaultPath = "/tmp/vault",
   cronJobRepository,
   runtimeAgentRepository,
-  supabaseSession,
-  fileSender,
+  supabaseReadSession,
+  supabaseWriteSession,
 }: TestWorkflowGraphOptions): CompiledSupervisorGraph => {
   runtimeAgents = prepareRuntimeAgents(runtimeAgents, {
-    supabaseAvailable: supabaseSession !== undefined,
+    supabaseAvailable: supabaseReadSession !== undefined || supabaseWriteSession !== undefined,
   });
   const modelKeys = deriveModelKeys(runtimeAgents, defaultModelKey as "generic");
   const sharedRuntimeModel = supervisorLlm instanceof FakeLLMConnector
@@ -64,29 +65,35 @@ export const createTestWorkflowGraph = ({
     ]),
   );
 
-  const capabilityCatalog = createPersonalCapabilityCatalog();
+  const adapters = {
+    ...(supabaseReadSession ? { supabaseReadSession } : {}),
+    ...(supabaseWriteSession ? { supabaseWriteSession } : {}),
+  };
+  const capabilityCatalog = createPersonalCapabilityCatalog({
+    config: { obsidianVaultPath } as AppConfig,
+    adapters,
+  });
   const skillCatalog = buildPersonalSkillCatalog(runtimeAgents);
   const { loadPromptByKey, runtimeAgentPolicy } = buildAppRuntimeExecution({
     skillCatalog,
     capabilityCatalog,
+    createRuntimeAgentPolicy: (shellHooks, policyOptions) =>
+      createPersonalRuntimeAgentPolicy(
+        shellHooks,
+        policyOptions,
+        obsidianVaultPath || undefined,
+      ),
   });
   const cronTargetAgentIds = deriveCronTargetAgentIds(runtimeAgents);
   const resolvedRuntimeAgentRepository =
     runtimeAgentRepository ?? createRuntimeAgentRepositoryFake(runtimeAgents);
 
-  const capabilityDeps = buildPersonalCapabilityDeps(obsidianVaultPath, {
+  const capabilityDeps = buildPersonalCapabilityDeps({
     capabilityCatalog,
     skillCatalog,
     cronTargetAgentIds,
     runtimeAgentRepository: resolvedRuntimeAgentRepository,
     ...(cronJobRepository ? { cronJobRepository } : {}),
-    ...(supabaseSession
-      ? {
-          supabaseReadSession: supabaseSession,
-          supabaseWriteSession: supabaseSession,
-        }
-      : {}),
-    ...(fileSender ? { fileSender } : {}),
   });
 
   const { cronTriggerResolver } = buildPersonalCronGraphHooks(cronTargetAgentIds);

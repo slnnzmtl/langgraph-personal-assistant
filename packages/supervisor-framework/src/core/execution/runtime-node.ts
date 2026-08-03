@@ -1,4 +1,4 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { RunnableConfig } from "@langchain/core/runnables";
 import type { StructuredToolInterface } from "@langchain/core/tools";
@@ -12,11 +12,13 @@ import { hasPendingToolCalls } from "./tool-routing.js";
 import { extractMessageTextContent } from "../message-content.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { SubAgentState, SubAgentStateUpdate } from "./sub-agent-state.js";
+import type { MapSubAgentResultOptions } from "./map-sub-agent-result.js";
 import {
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   isEmptyModelResponse,
 } from "./sub-agent-messages.js";
+import { isCachedContentNotFoundError } from "../llm/context-cache-types.js";
 
 export type SubAgentToolSource = StructuredToolInterface[];
 
@@ -83,6 +85,8 @@ export type RuntimeAgentNodeHooks = {
     systemPromptText: string,
     stateMessages: BaseMessage[],
   ) => BaseMessage[];
+  /** Finalize options for mapSubAgentResult — product salvage lives next to processResponse. */
+  resultMapping?: MapSubAgentResultOptions;
 };
 
 export type ModelForTurn = {
@@ -90,6 +94,8 @@ export type ModelForTurn = {
   bindTools: boolean;
   /** When true, dynamic prompt goes in `<turn_context>` instead of a SystemMessage. */
   useCachedPromptLayout?: boolean;
+  /** Invalidate + recreate (or uncached). Omit on recovered results to prevent retry loops. */
+  recoverFromCachedContentMiss?: () => Promise<ModelForTurn | null>;
 };
 
 export type RuntimeAgentNodeConfig = RuntimeAgentNodeHooks & {
@@ -223,25 +229,86 @@ export const createRuntimeAgentNode = (
         ? await config.buildSystemPrompt(ctx)
         : defaultBuildSystemPrompt(definition, basePrompt);
 
-      const promptMessages = config.buildPromptMessages
+      let promptMessages = config.buildPromptMessages
         ? config.buildPromptMessages(ctx, systemPromptText, state.agentMessages)
         : buildRuntimeAgentPromptMessages(new SystemMessage(systemPromptText), state.agentMessages);
 
       await promptLogging(logLabel, promptMessages);
 
-      const modelForTurn = modelForTurnConfig.bindTools && toolsForTurn.length > 0
-        ? bindTools(toolsForTurn)
-        : modelForTurnConfig.model;
+      const bindModelForTurn = (turn: ModelForTurn) =>
+        turn.bindTools && toolsForTurn.length > 0
+          ? bindTools(toolsForTurn)
+          : turn.model;
 
-      let response: AIMessage = await modelForTurn.invoke(promptMessages, runnableConfig);
+      const rebuildPromptMessages = async (): Promise<BaseMessage[]> => {
+        const nextSystemPrompt = config.buildSystemPrompt
+          ? await config.buildSystemPrompt(ctx)
+          : defaultBuildSystemPrompt(definition, basePrompt);
+        return config.buildPromptMessages
+          ? config.buildPromptMessages(ctx, nextSystemPrompt, state.agentMessages)
+          : buildRuntimeAgentPromptMessages(
+            new SystemMessage(nextSystemPrompt),
+            state.agentMessages,
+          );
+      };
+
+      const applyModelForTurn = async (turn: ModelForTurn): Promise<void> => {
+        modelForTurnConfig = turn;
+        ctx.useCachedPromptLayout =
+          turn.useCachedPromptLayout ?? !turn.bindTools;
+        promptMessages = await rebuildPromptMessages();
+      };
+
+      const uncachedModelForTurn = (): ModelForTurn => ({
+        model,
+        bindTools: toolsForTurn.length > 0,
+        useCachedPromptLayout: false,
+      });
+
+      const invokeBoundModel = () =>
+        bindModelForTurn(modelForTurnConfig).invoke(promptMessages, runnableConfig);
+
+      let response: AIMessage;
+      try {
+        response = await invokeBoundModel();
+      } catch (error) {
+        if (
+          !isCachedContentNotFoundError(error)
+          || !modelForTurnConfig.recoverFromCachedContentMiss
+        ) {
+          throw error;
+        }
+
+        console.warn("Runtime agent cached content missing; recovering:", error);
+        const recovered = await modelForTurnConfig.recoverFromCachedContentMiss();
+        await applyModelForTurn(recovered ?? uncachedModelForTurn());
+
+        try {
+          response = await invokeBoundModel();
+        } catch (retryError) {
+          if (
+            !isCachedContentNotFoundError(retryError)
+            || !modelForTurnConfig.useCachedPromptLayout
+          ) {
+            throw retryError;
+          }
+
+          console.warn(
+            "Runtime agent cached content still missing; retrying without cache:",
+            retryError,
+          );
+          await applyModelForTurn(uncachedModelForTurn());
+          response = await invokeBoundModel();
+        }
+      }
 
       if (!(response instanceof AIMessage)) {
         throw new Error("Runtime agent LLM model must return an AI message.");
       }
 
-      // Domain hooks may salvage an empty response (e.g. Obsidian read_file summaries).
-      // Only use the recovery retry when the response is still empty afterward.
-      if (isEmptyModelResponse(response) && isLoopContinuation) {
+      // Salvage empty responses via processResponse; otherwise retry once with a recovery
+      // directive (first-turn or post-tool). Cached empty turns fall back to bindTools once.
+      if (isEmptyModelResponse(response)) {
         const salvaged = config.processResponse
           ? config.processResponse(ctx, response)
           : response;
@@ -249,12 +316,26 @@ export const createRuntimeAgentNode = (
         if (!isEmptyModelResponse(salvaged)) {
           response = salvaged;
         } else {
-          // Flash-lite and similar models sometimes return empty candidates after tool
-          // results. Retry once with an explicit recovery directive so the agent can
-          // repair recoverable tool errors or reply with status.
-          response = await modelForTurn.invoke(buildRecoveryPromptMessages(promptMessages), runnableConfig);
-          if (!(response instanceof AIMessage)) {
-            throw new Error("Runtime agent LLM model must return an AI message.");
+          const invokeRecovery = async (): Promise<AIMessage> => {
+            const recovered = await bindModelForTurn(modelForTurnConfig).invoke(
+              buildRecoveryPromptMessages(promptMessages, { isLoopContinuation }),
+              runnableConfig,
+            );
+            if (!(recovered instanceof AIMessage)) {
+              throw new Error("Runtime agent LLM model must return an AI message.");
+            }
+            return recovered;
+          };
+
+          response = await invokeRecovery();
+
+          if (
+            isEmptyModelResponse(response)
+            && modelForTurnConfig.useCachedPromptLayout
+            && toolsForTurn.length > 0
+          ) {
+            await applyModelForTurn(uncachedModelForTurn());
+            response = await invokeRecovery();
           }
         }
       }

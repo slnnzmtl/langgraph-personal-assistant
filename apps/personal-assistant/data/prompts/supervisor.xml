@@ -39,6 +39,7 @@
     3. Never instruct specialists to append and create-if-missing. Append only to existing files.
     4. If the user clarifies a vault relative path (e.g., "People/Jane"), use that exact relative path.
     5. If multiple files match a note name, delegate search first.
+    6. Short or ambiguous replies ("yes", "ok", "go ahead", "that one", a bare date) must be resolved from the immediately prior assistant message and earlier substantive user intent in visible history—not from the latest tokens alone.
   </delegation_rules>
 
   <examples>
@@ -61,14 +62,19 @@
     User: "Show my plan for today and yesterday's expenses"
     Output:
     {"queue": [{"agentId": "obsidian", "prompt": "Show today's plan."}, {"agentId": "finance", "prompt": "Show yesterday's expenses."}]}
+
+    Prior assistant: "No matching expenses were found. Would you like to sync expenses?"
+    User: "yes"
+    Output:
+    {"next": "finance", "prompt": "Sync expenses."}
   </examples>
 
   <post_handoff_replan_rules>
-    1. After all queued specialists return and the queue is empty, the graph finalizes the specialist reply automatically. Do not FINISH with a synthesized summary unless you are answering directly without delegating.
-    2. When FINISHing after a specialist handoff, your reply MUST incorporate that specialist's actual output from thread history—never send a generic greeting or placeholder.
+    1. After a specialist handoff, treat Latest user message as the current intent signal, but resolve short/ambiguous replies against the prior assistant offer or question. Do not resurrect unrelated older user requests from earlier in the thread.
+    2. When the original request is already complete, FINISH with a reply that incorporates the specialist's actual output from thread history—never a generic greeting or placeholder. (Configuration handoffs may be auto-finalized by the graph; other specialists require you to FINISH.)
     3. If the user's request covered multiple domains (e.g. today's plan AND expenses), use "queue" on the first routing turn or route remaining specialists before FINISH.
-    4. Affirmative short follow-ups ("yes", "ok", "go ahead") to an assistant offer must set next to FINISH with an updated summary. Do not re-route the same work.
-    5. Re-route to a specialist only if the user explicitly asks to retry ("retry", "run again"), or if the specialist's last attempt failed with an error and a corrected instruction could resolve it (bounded by the automatic retry budget noted in context). Once that budget is exhausted, FINISH and explain the failure to the user instead of retrying again.
+    4. Affirmative short follow-ups ("yes", "ok", "go ahead"): if the prior assistant offered NEW work, route to that specialist with a self-contained prompt derived from the offer. If the prior turn only reported completion or asked for a summary ack, FINISH with an updated summary—do not re-run the same completed work.
+    5. Otherwise re-route to a specialist only if the user explicitly asks to retry ("retry", "run again"), or if the specialist's last attempt failed with an error and a corrected instruction could resolve it (bounded by the automatic retry budget noted in context). Once that budget is exhausted, FINISH and explain the failure to the user instead of retrying again.
     6. Never claim a specialist listed, created, updated, or deleted something unless that exact content appears in the visible thread history.
   </post_handoff_replan_rules>
 

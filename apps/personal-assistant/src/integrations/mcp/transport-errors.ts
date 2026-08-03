@@ -58,5 +58,5 @@ const hasTransportErrorMessage = (error: unknown): boolean => {
   return TRANSPORT_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 };
 
-export const isMcpTransportError = (error: unknown): boolean =>
+export const isTransportError = (error: unknown): boolean =>
   collectErrors(error).some((entry) => hasTransportErrorCode(entry) || hasTransportErrorMessage(entry));

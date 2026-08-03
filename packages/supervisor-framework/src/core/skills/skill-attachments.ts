@@ -1,4 +1,4 @@
-import { HumanMessage, type BaseMessage } from "@langchain/core/messages";
+import { HumanMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
 
 import { extractMessageTextContent } from "../message-content.js";
 import { resolveAgentSkillModule } from "../types/agent.js";
@@ -223,6 +223,11 @@ export const appendConfiguredSkillAttachments = (
   messages: BaseMessage[],
   skillCatalog?: SkillCatalog,
 ): string => {
+  const lastMessage = messages.at(-1);
+  if (lastMessage instanceof ToolMessage) {
+    return basePrompt;
+  }
+
   const module = resolveAgentSkillModule(definition);
   const rules = resolveSkillAttachmentRulesForModule(module, skillCatalog);
   if (rules.length === 0) {

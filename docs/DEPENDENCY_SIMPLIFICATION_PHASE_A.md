@@ -64,4 +64,6 @@ pnpm check
 
 ## Out of scope (Phase B/C)
 
-Splitting `personal-pack.ts`, decoupling runtime-agents from integrations, framework barrel split, config slice refactor.
+See [DEPENDENCY_SIMPLIFICATION_PHASE_B.md](./DEPENDENCY_SIMPLIFICATION_PHASE_B.md) for config slices and the move-only `personal-pack` / `buildPersonalCapabilityProviders` extract (done in Phase B).
+
+Still deferred to Phase C: framework public API barrel / subpath split, optional `core/types/agent.ts` split. Runtime-agents ↛ integrations is already enforced by cruiser (not a Phase B code change).

@@ -5,140 +5,108 @@ import {
   applyDelegationPrompt,
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
+  EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
+  getRuntimeAgentIdFromMessage,
   isEmptyModelResponse,
-  scopeDelegatedSubAgentMessages,
   TOOL_RESULT_RECOVERY_DIRECTIVE,
   scopeSubAgentMessages,
+  tagRuntimeAgentMessage,
 } from "../../src/core/execution/sub-agent-messages.js";
 import { SystemMessage } from "@langchain/core/messages";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../../src/core/types/agent.js";
+
+const taggedAi = (content: string, agentId: string): AIMessage =>
+  tagRuntimeAgentMessage(new AIMessage(content), agentId);
+
+describe("tagRuntimeAgentMessage", () => {
+  it("stamps runtimeAgentId on additional_kwargs", () => {
+    const tagged = tagRuntimeAgentMessage(new AIMessage("done"), "finance");
+
+    expect(getRuntimeAgentIdFromMessage(tagged)).toBe("finance");
+    expect(tagged.additional_kwargs[RUNTIME_AGENT_CONTEXT_KEY]).toBe("finance");
+    expect(String(tagged.content)).toBe("done");
+  });
+});
 
 describe("scopeSubAgentMessages", () => {
-  it("keeps recent human turns so clarification follow-ups retain context", () => {
+  it("keeps same-agent clarification follow-ups", () => {
     const messages = [
       new HumanMessage("Create english learning note and save this link\n\nhttps://example.com/a"),
-      new AIMessage("What content should I save?"),
+      taggedAi("What content should I save?", "obsidian"),
       new HumanMessage("Only the link: https://example.com/a"),
-      new AIMessage("I can't open external links."),
+      taggedAi("I can't open external links.", "obsidian"),
       new HumanMessage("DO NOT OPEN JUST SAVE"),
     ];
 
-    expect(scopeSubAgentMessages(messages)).toEqual(messages);
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual(messages);
   });
 
-  it("keeps at most the configured number of human turns", () => {
+  it("drops foreign agent turns so Obsidian does not see finance history", () => {
+    const messages = [
+      new HumanMessage("sync expenses"),
+      taggedAi("No new transactions to sync for today.", "finance"),
+      new HumanMessage("sync for yesterday"),
+      taggedAi("I've synced 2 new expenses for yesterday.", "finance"),
+      new HumanMessage("Show today's plan."),
+    ];
+
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
+      new HumanMessage("Show today's plan."),
+    ]);
+  });
+
+  it("keeps finance-owned context and drops untagged FINISH duplicates", () => {
+    const expenses = "Here are your latest 10 expenses:\n\n* ID: 1725";
+    const messages = [
+      new HumanMessage("show expenses"),
+      taggedAi(expenses, "finance"),
+      new AIMessage(expenses),
+      new HumanMessage("july 30 is missed"),
+    ];
+
+    expect(scopeSubAgentMessages(messages, "finance")).toEqual([
+      new HumanMessage("show expenses"),
+      taggedAi(expenses, "finance"),
+      new HumanMessage("july 30 is missed"),
+    ]);
+  });
+
+  it("keeps at most the configured number of same-agent human turns", () => {
     const messages = [
       new HumanMessage("turn-1"),
-      new AIMessage("a1"),
+      taggedAi("a1", "finance"),
       new HumanMessage("turn-2"),
-      new AIMessage("a2"),
+      taggedAi("a2", "finance"),
       new HumanMessage("turn-3"),
-      new AIMessage("a3"),
+      taggedAi("a3", "finance"),
       new HumanMessage("turn-4"),
     ];
 
-    expect(scopeSubAgentMessages(messages, 2)).toEqual([
+    expect(scopeSubAgentMessages(messages, "finance", 2)).toEqual([
       new HumanMessage("turn-3"),
-      new AIMessage("a3"),
+      taggedAi("a3", "finance"),
       new HumanMessage("turn-4"),
     ]);
   });
 
-  it("returns the original list when no human message exists", () => {
-    const messages = [new AIMessage("orphan reply")];
-
-    expect(scopeSubAgentMessages(messages)).toEqual(messages);
-  });
-});
-
-describe("scopeDelegatedSubAgentMessages", () => {
-  it("returns only the delegation prompt without prior thread turns", () => {
+  it("returns only trailing context when history has no owned AI", () => {
     const messages = [
-      new HumanMessage("hi"),
-      new AIMessage("Hello!"),
-      new HumanMessage("show me today's plan and expenses"),
-      new AIMessage("Which day?"),
-      new HumanMessage("today"),
+      new HumanMessage("sync expenses"),
+      new AIMessage("No new transactions."),
+      new HumanMessage("Show today's plan."),
     ];
 
-    const result = scopeDelegatedSubAgentMessages(messages, "Show today's plan.");
-
-    expect(result).toHaveLength(1);
-    expect(String(result[0]?.content)).toBe("Show today's plan.");
-  });
-
-  it("preserves multimodal parts from the latest human turn", () => {
-    const imagePart = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
-    };
-    const messages = [
-      new HumanMessage("where is the note?"),
-      new AIMessage("Checking."),
-      new HumanMessage([
-        { type: "text", text: "add this screenshot to my plan" },
-        imagePart,
-      ]),
-    ];
-
-    const result = scopeDelegatedSubAgentMessages(messages, "Append screenshot to today's plan.");
-
-    expect(result).toHaveLength(1);
-    expect(result[0]?.content).toEqual([
-      { type: "text", text: "Append screenshot to today's plan." },
-      imagePart,
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
+      new HumanMessage("Show today's plan."),
     ]);
   });
-});
 
-describe("applyDelegationPrompt", () => {
-  it("replaces the latest human message with the delegated prompt", () => {
-    const messages = [
-      new HumanMessage("where is the note?"),
-      new AIMessage("Checking."),
-      new HumanMessage("show me today's plan and yesterday expenses"),
-    ];
-
-    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
-
-    expect(result).toHaveLength(3);
-    expect(String(result[0]?.content)).toBe("where is the note?");
-    expect(String(result.at(-1)?.content)).toBe("Show yesterday's expenses.");
-  });
-
-  it("prepends a human message when no human message exists", () => {
+  it("returns empty when no human message and no owned AI exists", () => {
     const messages = [new AIMessage("orphan reply")];
 
-    const result = applyDelegationPrompt(messages, "Show today's plan.");
-
-    expect(result).toHaveLength(2);
-    expect(String(result[0]?.content)).toBe("Show today's plan.");
+    expect(scopeSubAgentMessages(messages, "finance")).toEqual([]);
   });
 
-  it("preserves non-text parts when replacing the latest human message", () => {
-    const imagePart = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
-    };
-    const messages = [
-      new HumanMessage("where is the note?"),
-      new AIMessage("Checking."),
-      new HumanMessage([
-        { type: "text", text: "show me today's plan and yesterday expenses" },
-        imagePart,
-      ]),
-    ];
-
-    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
-
-    expect(result).toHaveLength(3);
-    expect(result.at(-1)?.content).toEqual([
-      { type: "text", text: "Show yesterday's expenses." },
-      imagePart,
-    ]);
-  });
-});
-
-describe("stripStaleNonTextFromOlderHumans", () => {
   it("removes image parts from older human turns but keeps the latest multimodal human", () => {
     const olderImage = {
       type: "image_url" as const,
@@ -153,21 +121,144 @@ describe("stripStaleNonTextFromOlderHumans", () => {
         { type: "text", text: "first screenshot" },
         olderImage,
       ]),
-      new AIMessage("Updated note."),
+      taggedAi("Updated note.", "obsidian"),
       new HumanMessage([
         { type: "text", text: "second screenshot" },
         latestImage,
       ]),
     ];
 
-    expect(scopeSubAgentMessages(messages)).toEqual([
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
       new HumanMessage("first screenshot"),
-      new AIMessage("Updated note."),
+      taggedAi("Updated note.", "obsidian"),
       new HumanMessage([
         { type: "text", text: "second screenshot" },
         latestImage,
       ]),
     ]);
+  });
+
+  it("moves a prior-turn image onto a text-only follow-up human", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage([
+        { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
+        imagePart,
+      ]),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage("What the hell? I asked to summarize text from the image"),
+    ];
+
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
+      new HumanMessage("Summarize and save in note \"ideas for a startup\""),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage([
+        { type: "text", text: "What the hell? I asked to summarize text from the image" },
+        imagePart,
+      ]),
+    ]);
+  });
+
+  it("keeps the moved image available for applyDelegationPrompt on follow-up", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage([
+        { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
+        imagePart,
+      ]),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage("Summarize the content of the provided image"),
+    ];
+
+    const result = applyDelegationPrompt(
+      scopeSubAgentMessages(messages, "obsidian"),
+      "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
+    );
+
+    expect(result.at(-1)?.content).toEqual([
+      {
+        type: "text",
+        text: "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
+      },
+      imagePart,
+    ]);
+    expect(String(result[0]?.content)).toBe("Summarize and save in note \"ideas for a startup\"");
+  });
+});
+
+describe("applyDelegationPrompt", () => {
+  it("replaces the latest human message with the delegated prompt", () => {
+    const messages = [
+      new HumanMessage("where is the note?"),
+      taggedAi("Checking.", "obsidian"),
+      new HumanMessage("show me today's plan and yesterday expenses"),
+    ];
+
+    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
+
+    expect(result).toHaveLength(3);
+    expect(String(result[0]?.content)).toBe("where is the note?");
+    expect(String(result.at(-1)?.content)).toBe("Show yesterday's expenses.");
+  });
+
+  it("prepends a human message when no human message exists", () => {
+    const messages = [taggedAi("orphan reply", "finance")];
+
+    const result = applyDelegationPrompt(messages, "Show today's plan.");
+
+    expect(result).toHaveLength(2);
+    expect(String(result[0]?.content)).toBe("Show today's plan.");
+  });
+
+  it("preserves non-text parts when replacing the latest human message", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage("where is the note?"),
+      taggedAi("Checking.", "obsidian"),
+      new HumanMessage([
+        { type: "text", text: "show me today's plan and yesterday expenses" },
+        imagePart,
+      ]),
+    ];
+
+    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
+
+    expect(result).toHaveLength(3);
+    expect(result.at(-1)?.content).toEqual([
+      { type: "text", text: "Show yesterday's expenses." },
+      imagePart,
+    ]);
+  });
+
+  it("keeps prior July context when accepting a sync offer after scope", () => {
+    const offer =
+      "No matching expenses were found for July 30th. Would you like to sync your transactions?";
+    const parentMessages = [
+      new HumanMessage("30 july is missed"),
+      taggedAi(offer, "finance"),
+      new AIMessage(offer),
+      new HumanMessage("yes"),
+    ];
+
+    const result = applyDelegationPrompt(
+      scopeSubAgentMessages(parentMessages, "finance"),
+      "Sync transactions.",
+    );
+
+    expect(result).toHaveLength(3);
+    expect(String(result[0]?.content)).toBe("30 july is missed");
+    expect(String(result[1]?.content)).toContain("July 30th");
+    expect(getRuntimeAgentIdFromMessage(result[1]!)).toBe("finance");
+    expect(String(result[2]?.content)).toBe("Sync transactions.");
   });
 });
 
@@ -208,7 +299,7 @@ describe("isEmptyModelResponse", () => {
 });
 
 describe("buildRecoveryPromptMessages", () => {
-  it("appends a recovery directive after the normal prompt history", () => {
+  it("appends a tool-result recovery directive after the normal prompt history", () => {
     const system = new SystemMessage("system");
     const stateMessages = [
       new HumanMessage("uniqlo is clothes"),
@@ -228,12 +319,27 @@ describe("buildRecoveryPromptMessages", () => {
       }),
     ];
     const promptMessages = buildRuntimeAgentPromptMessages(system, stateMessages);
-    const recoveryMessages = buildRecoveryPromptMessages(promptMessages);
+    const recoveryMessages = buildRecoveryPromptMessages(promptMessages, {
+      isLoopContinuation: true,
+    });
 
     expect(recoveryMessages).toHaveLength(promptMessages.length + 1);
     expect(recoveryMessages.at(-1)).toBeInstanceOf(HumanMessage);
     expect(String(recoveryMessages.at(-1)?.content)).toBe(TOOL_RESULT_RECOVERY_DIRECTIVE);
     expect(String(recoveryMessages.at(-1)?.content)).toContain("ambiguous column");
     expect(String(recoveryMessages.at(-2)?.content)).toContain("ambiguous");
+  });
+
+  it("appends a first-turn recovery directive that pushes read_skill or tools", () => {
+    const system = new SystemMessage("system");
+    const promptMessages = buildRuntimeAgentPromptMessages(
+      system,
+      [new HumanMessage("list cron jobs")],
+    );
+    const recoveryMessages = buildRecoveryPromptMessages(promptMessages);
+
+    expect(recoveryMessages).toHaveLength(promptMessages.length + 1);
+    expect(String(recoveryMessages.at(-1)?.content)).toBe(EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE);
+    expect(String(recoveryMessages.at(-1)?.content)).toContain("read_skill(skill_name)");
   });
 });

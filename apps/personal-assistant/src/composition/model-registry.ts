@@ -1,11 +1,11 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-import type { AppConfig } from "../config.js";
+import type { ModelConfig } from "../config.js";
 import { GeminiConnector } from "@personal-assistant/llm-gemini";
 import { resolveBuiltinModelName } from "./runtime-agent-defaults.js";
 
 export const buildModelRegistry = (
-  config: AppConfig,
+  config: ModelConfig,
   requiredKeys: Iterable<string>,
 ): Record<string, BaseChatModel> => {
   const models: Record<string, BaseChatModel> = {};

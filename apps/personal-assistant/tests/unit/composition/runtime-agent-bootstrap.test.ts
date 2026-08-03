@@ -5,7 +5,6 @@ import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  createSystemAgentDefinition,
   createRuntimeAgentRepository,
   isRuntimeAgentBuiltin,
   wrapRepositoryWithSystemAgent,
@@ -53,7 +52,7 @@ describe("wrapRepositoryWithSystemAgent", () => {
     await expect(access(filePath)).rejects.toThrow();
   });
 
-  it("normalizes legacy executors when loading persisted agents", async () => {
+  it("loads persisted agents with modelKey", async () => {
     const { rootDir, repository } = await createWrappedRepository();
 
     await mkdir(path.join(rootDir, "data"), { recursive: true });
@@ -67,8 +66,7 @@ describe("wrapRepositoryWithSystemAgent", () => {
           description: "Vault agent",
           systemPrompt: "Obsidian prompt",
           capabilityIds: ["obsidian-vault"],
-          executor: "obsidian",
-          builtin: false,
+          modelKey: "obsidian",
           maxSteps: 8,
           enabled: true,
           createdAt: "2026-07-15T00:00:00.000Z",
@@ -81,7 +79,6 @@ describe("wrapRepositoryWithSystemAgent", () => {
     const obsidian = agents.find((agent) => agent.id === "obsidian");
 
     expect(obsidian?.modelKey).toBe("obsidian");
-    expect("executor" in (obsidian ?? {})).toBe(false);
   });
 
   it("preserves local module agents from persistence", async () => {
@@ -95,61 +92,23 @@ describe("wrapRepositoryWithSystemAgent", () => {
     expect(agents.find((agent) => agent.id === "finance")?.modelKey).toBe("finance");
   });
 
-  it("does not purge legacy configuration rows until purgeLegacySystemAgent runs", async () => {
+  it("injects the virtual configuration agent without persisting it", async () => {
     const { rootDir, repository } = await createWrappedRepository();
     const rawRepository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
 
-    await rawRepository.saveAgents([createSystemAgentDefinition({
-      modelKey: "configuration",
-    })]);
+    await rawRepository.saveAgents([{
+      id: "obsidian",
+      name: "Obsidian",
+      description: "local description",
+      systemPrompt: "local prompt",
+      capabilityIds: ["obsidian-vault"],
+      modelKey: "obsidian",
+      maxSteps: 8,
+      enabled: true,
+      createdAt: "2026-07-15T00:00:00.000Z",
+      updatedAt: "2026-07-15T00:00:00.000Z",
+    }]);
 
-    await repository.loadAgents();
-    expect((await rawRepository.loadAgents()).map((agent) => agent.id)).toEqual(["configuration"]);
-  });
-
-  it("strips legacy configuration rows from persistence without touching local modules", async () => {
-    const { rootDir, repository } = await createWrappedRepository();
-    const rawRepository = createRuntimeAgentRepository(rootDir, "data/runtime-agents.json");
-
-    await mkdir(path.join(rootDir, "data"), { recursive: true });
-    await writeFile(
-      path.join(rootDir, "data/runtime-agents.json"),
-      `${JSON.stringify({
-        version: 1,
-        agents: [
-          {
-            id: "configuration",
-            name: "Configuration",
-            description: "legacy",
-            systemPrompt: "legacy",
-            capabilityIds: ["system-config"],
-            executor: "configuration",
-            modelKey: "configuration",
-            builtin: true,
-            maxSteps: 10,
-            enabled: true,
-            createdAt: "1970-01-01T00:00:00.000Z",
-            updatedAt: "1970-01-01T00:00:00.000Z",
-          },
-          {
-            id: "obsidian",
-            name: "Obsidian",
-            description: "local description",
-            systemPrompt: "local prompt",
-            capabilityIds: ["obsidian-vault"],
-            executor: "obsidian",
-            builtin: false,
-            maxSteps: 8,
-            enabled: true,
-            createdAt: "2026-07-15T00:00:00.000Z",
-            updatedAt: "2026-07-15T00:00:00.000Z",
-          },
-        ],
-      }, null, 2)}\n`,
-      { flag: "w" },
-    );
-
-    await repository.purgeLegacySystemAgent();
     const agents = await repository.loadAgents();
     const configuration = agents.find((agent) => agent.id === "configuration");
     const obsidian = agents.find((agent) => agent.id === "obsidian");

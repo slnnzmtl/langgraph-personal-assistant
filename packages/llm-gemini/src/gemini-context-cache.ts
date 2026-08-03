@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { toJsonSchema } from "@langchain/core/utils/json_schema";
 import { isInteropZodSchema } from "@langchain/core/utils/types";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   GoogleAICacheManager,
   SchemaType,
@@ -20,7 +19,33 @@ import type {
 } from "@personal-assistant/supervisor-framework";
 import { getLogger } from "@personal-assistant/supervisor-framework";
 
+import {
+  createGeminiChatModel,
+  DEFAULT_GEMINI_TEMPERATURE,
+} from "./gemini-connector.js";
+
 const DEFAULT_TTL_SECONDS = 3600;
+/** Refresh before Gemini's expireTime so generateContent never races TTL deletion. */
+const CACHE_EXPIRY_SKEW_MS = 60_000;
+
+type CachedEntry = {
+  cached: CachedContent;
+  expireAtMs: number;
+};
+
+const resolveExpireAtMs = (cached: CachedContent, ttlSeconds: number): number => {
+  if (cached.expireTime) {
+    const parsed = Date.parse(cached.expireTime);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Date.now() + ttlSeconds * 1000;
+};
+
+const isFreshEntry = (entry: CachedEntry, nowMs = Date.now()): boolean =>
+  Boolean(entry.cached.name) && nowMs < entry.expireAtMs - CACHE_EXPIRY_SKEW_MS;
 
 const normalizeModelName = (modelName: string): string =>
   modelName.startsWith("models/") ? modelName : `models/${modelName}`;
@@ -76,16 +101,8 @@ export const buildCacheSeedContents = (
     estimateTokenCount(CACHE_SEED_EPILOGUE) +
     estimateTokenCount(CACHE_SEED_ACK);
 
-  // extraDeficitTokens (used on retry, sourced from Gemini's reported shortfall) must
-  // add on top of the clamped estimate-based deficit, not inside the clamp — otherwise
-  // an inflated initial estimate (common for dense XML prompts, where chars/4 overshoots
-  // the real tokenizer) makes the inner sum negative and silently swallows the retry's
-  // padding, causing every retry to fail identically forever.
-  // extraDeficitTokens (used on retry, sourced from Gemini's reported shortfall) must
-  // add on top of the clamped estimate-based deficit, not inside the clamp — otherwise
-  // an inflated initial estimate (common for dense XML prompts, where chars/4 overshoots
-  // the real tokenizer) makes the inner sum negative and silently swallows the retry's
-  // padding, causing every retry to fail identically forever.
+  // extraDeficitTokens (retry shortfall from Gemini) must add outside the clamp — an
+  // inflated chars/4 estimate can make the inner deficit zero and swallow retry padding.
   const estimateDeficitTokens = Math.max(
     0,
     minTokens - fixedEstimate + computeSafetyMarginTokens(fixedEstimate),
@@ -194,8 +211,35 @@ export const createGeminiContextCacheManager = (
   apiKey: string,
   enabled = true,
 ): ContextCacheManager => {
-  const caches = new Map<string, CachedContent>();
+  const caches = new Map<string, CachedEntry>();
   const pendingCreates = new Map<string, Promise<ContextCacheHandle | null>>();
+  // Bumped on invalidate so in-flight creates do not re-insert stale rows.
+  const generations = new Map<string, number>();
+  // Retained across stale-entry drops so invalidate(oldName) can still bump generation.
+  const fingerprintByCacheName = new Map<string, string>();
+
+  const bumpGeneration = (fingerprint: string): void => {
+    generations.set(fingerprint, (generations.get(fingerprint) ?? 0) + 1);
+  };
+
+  const clearFingerprintNames = (fingerprint: string): void => {
+    for (const [name, mappedFingerprint] of fingerprintByCacheName) {
+      if (mappedFingerprint === fingerprint) {
+        fingerprintByCacheName.delete(name);
+      }
+    }
+  };
+
+  const invalidate = (cacheName: string): void => {
+    const fingerprint = fingerprintByCacheName.get(cacheName);
+    if (!fingerprint) {
+      return;
+    }
+
+    caches.delete(fingerprint);
+    pendingCreates.delete(fingerprint);
+    bumpGeneration(fingerprint);
+  };
 
   const createCache = async (
     spec: ContextCacheSpec,
@@ -205,9 +249,14 @@ export const createGeminiContextCacheManager = (
       return null;
     }
 
+    const generationAtStart = generations.get(fingerprint) ?? 0;
     const existing = caches.get(fingerprint);
-    if (existing?.name) {
-      return toCacheHandle(existing, spec.modelName);
+    if (existing && isFreshEntry(existing)) {
+      return toCacheHandle(existing.cached, spec.modelName);
+    }
+
+    if (existing) {
+      caches.delete(fingerprint);
     }
 
     const cacheManager = new GoogleAICacheManager(apiKey);
@@ -217,6 +266,7 @@ export const createGeminiContextCacheManager = (
       functionDeclarations.length > 0
         ? [{ functionDeclarations }]
         : undefined;
+    const ttlSeconds = spec.ttlSeconds ?? DEFAULT_TTL_SECONDS;
 
     const attemptCreate = async (extraDeficitTokens: number): Promise<CachedContent> =>
       cacheManager.create({
@@ -225,7 +275,7 @@ export const createGeminiContextCacheManager = (
         systemInstruction: spec.staticSystemInstruction,
         contents: buildCacheSeedContents(spec, functionDeclarationsJson, extraDeficitTokens),
         ...(tools ? { tools } : {}),
-        ttlSeconds: spec.ttlSeconds ?? DEFAULT_TTL_SECONDS,
+        ttlSeconds,
       });
 
     try {
@@ -248,8 +298,19 @@ export const createGeminiContextCacheManager = (
         return null;
       }
 
-      caches.set(fingerprint, created);
-      return toCacheHandle(created, spec.modelName);
+      const handle = toCacheHandle(created, spec.modelName);
+      if ((generations.get(fingerprint) ?? 0) !== generationAtStart) {
+        // Lost an invalidate race — return handle for this caller but do not store.
+        return handle;
+      }
+
+      clearFingerprintNames(fingerprint);
+      caches.set(fingerprint, {
+        cached: created,
+        expireAtMs: resolveExpireAtMs(created, ttlSeconds),
+      });
+      fingerprintByCacheName.set(created.name, fingerprint);
+      return handle;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       getLogger().warn(`Gemini context cache creation failed; using uncached path. ${message}`);
@@ -265,8 +326,12 @@ export const createGeminiContextCacheManager = (
 
       const fingerprint = fingerprintContextCacheSpec(spec);
       const existing = caches.get(fingerprint);
-      if (existing?.name) {
-        return toCacheHandle(existing, spec.modelName);
+      if (existing && isFreshEntry(existing)) {
+        return toCacheHandle(existing.cached, spec.modelName);
+      }
+
+      if (existing) {
+        caches.delete(fingerprint);
       }
 
       let pending = pendingCreates.get(fingerprint);
@@ -279,6 +344,7 @@ export const createGeminiContextCacheManager = (
 
       return pending;
     },
+    invalidate,
   };
 };
 
@@ -286,13 +352,9 @@ export const createCachedGeminiModel = (
   apiKey: string,
   modelName: string,
   handle: Pick<ContextCacheHandle, "cacheName" | "model">,
-  temperature = 0,
-): ChatGoogleGenerativeAI => {
-  const model = new ChatGoogleGenerativeAI({
-    apiKey,
-    model: modelName,
-    temperature,
-  });
+  temperature = DEFAULT_GEMINI_TEMPERATURE,
+): ReturnType<typeof createGeminiChatModel> => {
+  const model = createGeminiChatModel(apiKey, modelName, temperature);
 
   // Gemini's getGenerativeModelFromCachedContent requires both name and model.
   model.useCachedContent({

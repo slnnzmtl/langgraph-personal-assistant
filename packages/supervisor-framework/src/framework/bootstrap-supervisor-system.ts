@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { createCapabilityCatalog } from "../capabilities/index.js";
+import { createCapabilityCatalog } from "../capabilities/catalog.js";
 import { validatePersistedAgentCapabilities } from "../capabilities/validate-persisted-agents.js";
 import { createAssistant } from "../core/create-assistant.js";
 import { createRuntimeAgentRepository } from "../core/agents/repository.js";
@@ -14,7 +14,6 @@ import { createEmptySkillCatalog, createNoopCronJobRepository } from "./defaults
 import { deriveCronTargetAgentIds } from "./derive-agents.js";
 import {
   createSystemConfigCapabilityProviders,
-  type SystemAgentRepository,
   wrapRepositoryWithSystemAgent,
 } from "./system-agent/index.js";
 import type { SystemAgentOptions } from "./system-agent/definition.js";
@@ -60,10 +59,6 @@ export const bootstrapSupervisorSystem = async <
     ? wrapRepositoryWithSystemAgent(baseRuntimeAgentRepository, pack.systemAgent as SystemAgentOptions)
     : baseRuntimeAgentRepository;
 
-  if (systemAgentEnabled && allowDataWrites) {
-    await (runtimeAgentRepository as SystemAgentRepository).purgeLegacySystemAgent();
-  }
-
   if (!allowDataWrites) {
     runtimeAgentRepository = createReadOnlyRuntimeAgentRepository(runtimeAgentRepository);
   }
@@ -81,16 +76,30 @@ export const bootstrapSupervisorSystem = async <
     : baseCronJobRepository;
   const skillCatalog = pack.buildSkillCatalog?.(runtimeAgents) ?? createEmptySkillCatalog();
 
-  const capabilityCatalog = pack.capabilityProviders
+  const providersContext = {
+    config: pack.config,
+    adapters,
+    runtimeAgentRepository,
+    runtimeAgents,
+    cronTargetAgentIds,
+    cronJobRepository,
+    skillCatalog,
+  };
+
+  const hasBuildProviders = pack.buildCapabilityProviders !== undefined;
+  const hasCatalog = pack.capabilityCatalog !== undefined;
+  if (hasBuildProviders === hasCatalog) {
+    throw new Error(
+      "SupervisorPackBootstrap requires exactly one of buildCapabilityProviders or capabilityCatalog.",
+    );
+  }
+
+  const capabilityCatalog = hasBuildProviders
     ? createCapabilityCatalog([
-        ...pack.capabilityProviders,
+        ...pack.buildCapabilityProviders!(providersContext),
         ...(systemAgentEnabled ? createSystemConfigCapabilityProviders() : []),
       ])
-    : pack.capabilityCatalog;
-
-  if (!capabilityCatalog) {
-    throw new Error("SupervisorPackBootstrap requires capabilityProviders or capabilityCatalog.");
-  }
+    : pack.capabilityCatalog!;
 
   const bootstrapContext = {
     config: pack.config,
@@ -112,9 +121,6 @@ export const bootstrapSupervisorSystem = async <
       runtimeAgents,
       capabilityCatalog,
       capabilityDeps,
-      pack.reservedCapabilitiesByAgentId
-        ? { reservedCapabilitiesByAgentId: pack.reservedCapabilitiesByAgentId }
-        : {},
     );
   }
 
@@ -127,7 +133,7 @@ export const bootstrapSupervisorSystem = async <
     contextCache,
   } = pack.buildRuntimeExecution(runtimeAgents, skillCatalog, bootstrapContext);
 
-  const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? pack.graphHooks ?? {};
+  const graphHooks = pack.buildGraphHooks?.(bootstrapContext) ?? {};
   const messageHistoryMaxTokens =
     graphHooks.messageHistoryMaxTokens ?? pack.config.messageHistoryMaxTokens;
 

@@ -578,7 +578,7 @@ describe("createSupervisorNode", () => {
     expect(routingInvoke).not.toHaveBeenCalled();
   });
 
-  it("blocks an immediate repeat route to the same agent after handoff", async () => {
+  it("allows same-agent routing when the user accepts an offered action", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "finance",
       prompt: "Sync expenses.",
@@ -600,6 +600,41 @@ describe("createSupervisorNode", () => {
         new HumanMessage("show yesterday's expenses"),
         new AIMessage("No matching expenses were found for yesterday. Would you like to sync your expenses?"),
         new HumanMessage("yes"),
+      ],
+      lastHandoff: completeHandoff("Finance", "finance"),
+      executionQueue: [],
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe("finance");
+    expect(result.delegationPrompt).toBe("Sync expenses.");
+    expect(result.lastHandoff).toBeNull();
+    expect(result.routingFailureContext).toBeNull();
+    expect(routingInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks an immediate non-affirmative repeat route to the same agent after handoff", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "finance",
+      prompt: "Show yesterday's expenses.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("Handled"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("show yesterday's expenses"),
+        new AIMessage("No matching expenses were found for yesterday."),
       ],
       lastHandoff: completeHandoff("Finance", "finance"),
       executionQueue: [],

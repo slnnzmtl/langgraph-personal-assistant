@@ -36,6 +36,7 @@ export type {
   SupervisorPaths,
   SupervisorGraphHooks,
   SupervisorBootstrapContext,
+  CapabilityProvidersBootstrapContext,
   InitializeDefaultsContext,
   SupervisorPackBootstrap,
   SupervisorSystemContext,
@@ -59,8 +60,9 @@ export {
   SYSTEM_CONFIG_UNAVAILABLE_MESSAGE,
   createSystemAgentNodeHooks,
   CONFIGURATION_COMPLETION_FALLBACK,
+  CONFIGURATION_RESULT_MAPPING,
   buildConfigurationCompletionSummary,
-  mapConfigurationSubAgentResult,
+  buildConfigurationSalvageSummary,
   buildDeleteSkillConfirmToken,
   buildDeleteRuntimeAgentConfirmToken,
   buildDeleteCronJobConfirmToken,
@@ -68,7 +70,6 @@ export {
 } from "./framework/system-agent/index.js";
 export type {
   SystemAgentOptions,
-  SystemAgentRepository,
   SystemConfigDeps,
   SystemConfigToolsOptions,
 } from "./framework/system-agent/index.js";
@@ -186,11 +187,9 @@ export {
   type CapabilityCatalog,
   type CapabilityDescriptor,
   type CapabilityProvider,
-  type ValidatePersistedAgentCapabilitiesOptions,
 } from "./capabilities/index.js";
 
 // --- Kernel: skills ---
-export { buildSkillModuleOwnerPattern } from "./core/skills/skill-patterns.js";
 export {
   createSkillCatalog,
   type SkillCatalogOptions,
@@ -286,6 +285,9 @@ export {
 export {
   createSubAgentGraphBundle,
   createSubAgentToolsNode,
+  createMaxStepsExceededUpdate,
+  mapSubAgentResult,
+  type MapSubAgentResultOptions,
   type SubAgentLlmNode,
 } from "./core/execution/create-sub-agent.js";
 export {
@@ -310,7 +312,12 @@ export {
   processBlankToolLoopResponse,
   type ToolBodyPredicate,
 } from "./core/execution/tool-completion-summary.js";
-export { SUB_AGENT_CONTEXT_HUMAN_TURNS, buildRuntimeAgentPromptMessages } from "./core/execution/sub-agent-messages.js";
+export {
+  SUB_AGENT_CONTEXT_HUMAN_TURNS,
+  buildRuntimeAgentPromptMessages,
+  getRuntimeAgentIdFromMessage,
+  tagRuntimeAgentMessage,
+} from "./core/execution/sub-agent-messages.js";
 export type {
   ContextCacheHandle,
   ContextCacheKit,
@@ -318,12 +325,12 @@ export type {
   ContextCacheSpec,
   CreateCachedModel,
 } from "./core/llm/context-cache-types.js";
+export { isCachedContentNotFoundError } from "./core/llm/context-cache-types.js";
 export {
   buildCachedRuntimePromptMessages,
   buildRuntimePromptParts,
   buildStaticRuntimePrompt,
   buildTurnContextMessage,
-  RUNTIME_READ_SKILL_HINT,
   type RuntimePromptParts,
 } from "./framework/system-agent/cache-prompt.js";
 

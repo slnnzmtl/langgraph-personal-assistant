@@ -112,15 +112,23 @@ export const buildFailureReplyText = async (
   replyUx: ReplyUxConfig = defaultReplyUxConfig,
   config?: RunnableConfig,
 ): Promise<string> => {
+  const safeFallback = replyUx.buildFailureReplySafeFallback(failureContext);
+
   try {
-    return await buildPlainTextReply(
+    const text = await buildPlainTextReply(
       llmConnector,
       promptMessages,
       supervisorPromptText,
       replyUx.buildFailureReplyInstruction(failureContext),
       config,
     );
+
+    if (text.length > 0 && !isRoutingJson(text)) {
+      return text;
+    }
+
+    return safeFallback;
   } catch {
-    return `I couldn't finish routing your request. ${failureContext}`;
+    return safeFallback;
   }
 };

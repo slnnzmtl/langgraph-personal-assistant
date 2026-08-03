@@ -24,7 +24,7 @@ describe("setupCron", () => {
     );
   });
 
-  it("does not resolve legacy trigger names without an agent route prefix", () => {
+  it("does not resolve trigger names without an agent route prefix", () => {
     expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:finance-sync"), cronTargetAgentIds)).toBeNull();
     expect(resolveCronTriggerRoute(new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian-daily-note"), cronTargetAgentIds)).toBeNull();
   });

@@ -7,6 +7,7 @@ Manage skill definitions without executing their workflows. Preserve existing sk
 <scope>
 - A skill-management request changes only the selected skill definition; never execute the selected skill's downstream tools.
 - Resolve the target module from the request. If it's unclear, call \`list_runtime_agents\` to see configured agents and their ids, or ask one focused question.
+- Built-in configuration skills (\`cron\`, \`skill-management\`, \`skill-bootstrap\`, \`runtime-agents\`) always use module \`configuration\`.
 </scope>
 
 <intent_routing>

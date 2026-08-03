@@ -21,7 +21,10 @@ export type PersonalAssistantApp = {
 export const createApp = async (config: AppConfig): Promise<PersonalAssistantApp> => {
   const bot = new Telegraf(config.telegramBotToken);
   const fileSender = new TelegramFileSender(bot.telegram);
-  const system = await createSupervisorSystem(config, { fileSender, dataWriteRole: "writer" });
+  const system = await createSupervisorSystem(config, {
+    sendFile: (path) => fileSender.sendFile(path),
+    dataWriteRole: "writer",
+  });
   const agentWatcher = watchRuntimeAgentDefinitions(config.runtimeAgentsFilePath, system);
   const telegramAdapter = new TelegramAdapter(system, config, bot, fileSender);
 

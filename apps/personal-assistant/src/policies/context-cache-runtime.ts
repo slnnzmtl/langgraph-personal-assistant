@@ -6,7 +6,9 @@ import {
   buildRuntimeAgentPromptMessages,
   buildRuntimePromptParts,
   type ContextCacheKit,
+  type RuntimeAgentDefinition,
   type RuntimeAgentNodeConfig,
+  type RuntimeAgentNodeHooks,
   type RuntimeAgentTurnContext,
   type RuntimeShellFormatters,
   type SkillCatalog,
@@ -79,25 +81,65 @@ export const createContextCacheRuntimeConfig = (
   },
   resolveModelForTurn: async (ctx, baseModel, toolsForTurn: StructuredToolInterface[]) => {
     const parts = await getPromptParts(ctx, kit, options);
-    const handle = await kit.cacheManager.getOrCreate({
+    const cacheSpec = {
       modelName: options.modelName,
       staticSystemInstruction: parts.staticPrompt,
       tools: toolsForTurn,
       displayName: options.displayName,
+    };
+    const uncachedTurn = () => ({
+      model: baseModel,
+      bindTools: toolsForTurn.length > 0,
+      useCachedPromptLayout: false,
     });
+    const handle = await kit.cacheManager.getOrCreate(cacheSpec);
 
     if (!handle) {
-      return {
-        model: baseModel,
-        bindTools: toolsForTurn.length > 0,
-        useCachedPromptLayout: false,
-      };
+      return uncachedTurn();
     }
 
     return {
       model: kit.createCachedModel(kit.apiKey, options.modelName, handle),
       bindTools: false,
       useCachedPromptLayout: true,
+      recoverFromCachedContentMiss: async () => {
+        kit.cacheManager.invalidate(handle.cacheName);
+        const recreated = await kit.cacheManager.getOrCreate(cacheSpec);
+        if (!recreated) {
+          return uncachedTurn();
+        }
+
+        return {
+          model: kit.createCachedModel(kit.apiKey, options.modelName, recreated),
+          bindTools: false,
+          useCachedPromptLayout: true,
+        };
+      },
     };
   },
 });
+
+/** Overlay Gemini context-cache prompt/model hooks onto base runtime shell hooks. */
+export const mergeRuntimeCacheHooks = (
+  baseHooks: RuntimeAgentNodeHooks,
+  definition: RuntimeAgentDefinition,
+  shellFormatters: RuntimeShellFormatters,
+  skillCatalog: SkillCatalog | undefined,
+  contextCache: ContextCacheKit | undefined,
+  resolveExtraDynamicSections?: ContextCacheRuntimeAgentOptions["resolveExtraDynamicSections"],
+): RuntimeAgentNodeHooks => {
+  if (!contextCache || !skillCatalog) {
+    return baseHooks;
+  }
+
+  return {
+    ...baseHooks,
+    ...createContextCacheRuntimeConfig(contextCache, {
+      modelName: contextCache.resolveRuntimeModelName(definition),
+      skillCatalog,
+      shellFormatters,
+      displayName: `runtime-agent-${definition.id}`,
+      ...(resolveExtraDynamicSections ? { resolveExtraDynamicSections } : {}),
+    }),
+  };
+};

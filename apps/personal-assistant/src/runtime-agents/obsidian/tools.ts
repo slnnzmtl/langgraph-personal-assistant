@@ -1,8 +1,11 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import type { IFileSender } from "../../ports/file-sender.js";
-import type { ObsidianVault } from "../../ports/obsidian-vault.js";
-import { RelativePathSchema } from "../../ports/obsidian-vault.js";
+import type { ObsidianVault } from "./types.js";
+import { RelativePathSchema } from "./types.js";
+
+export const OBSIDIAN_VAULT_CAPABILITY_ID = "obsidian-vault" as const;
+
+export type SendFile = (absolutePath: string) => Promise<void>;
 
 const MarkdownContentSchema = z
   .string()
@@ -48,7 +51,7 @@ export const SendFileToolSchema = z.object({
   caption: z.string().optional().describe("Optional caption to attach to the file."),
 }).describe("Send a file from the vault as a Telegram document.");
 
-export const createObsidianVaultTools = (vault: ObsidianVault, fileSender?: IFileSender) => {
+export const createObsidianVaultTools = (vault: ObsidianVault, sendFile?: SendFile) => {
   const baseTools = [
     tool(
       async ({ relativePath }) => {
@@ -125,7 +128,7 @@ export const createObsidianVaultTools = (vault: ObsidianVault, fileSender?: IFil
     ),
   ] as const;
 
-  if (fileSender) {
+  if (sendFile) {
     return [
       ...baseTools,
       tool(
@@ -135,7 +138,7 @@ export const createObsidianVaultTools = (vault: ObsidianVault, fileSender?: IFil
               return `Error: File does not exist at ${relativePath}`;
             }
             const absolutePath = vault.resolvePath(relativePath);
-            await fileSender.sendFile(absolutePath);
+            await sendFile(absolutePath);
             return `File sent: ${relativePath}`;
           } catch (e: any) {
             return `Error: ${e.message}`;

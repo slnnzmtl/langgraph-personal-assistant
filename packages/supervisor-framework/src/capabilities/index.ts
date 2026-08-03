@@ -8,7 +8,6 @@ export {
 } from "./none-capability.js";
 export {
   validatePersistedAgentCapabilities,
-  type ValidatePersistedAgentCapabilitiesOptions,
 } from "./validate-persisted-agents.js";
 export {
   configurationReposAvailable,

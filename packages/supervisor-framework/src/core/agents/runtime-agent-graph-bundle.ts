@@ -2,7 +2,6 @@ import { AIMessage, type BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
 import type { AgentState, AgentStateUpdate } from "../state.js";
-import { scopeSubAgentMessages } from "../execution/sub-agent-messages.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../execution/sub-agent-state.js";
 
 export type RuntimeAgentLoopNode = (
@@ -25,8 +24,8 @@ export type RuntimeAgentGraphBundle = {
   finalize: (result: SubAgentState) => AgentStateUpdate;
 };
 
-export const createDefaultPrepare = (parentState: AgentState): SubAgentState => ({
-  agentMessages: scopeSubAgentMessages(parentState.messages),
+export const createDefaultPrepare = (_parentState: AgentState): SubAgentState => ({
+  agentMessages: [],
   stepCount: 0,
 });
 

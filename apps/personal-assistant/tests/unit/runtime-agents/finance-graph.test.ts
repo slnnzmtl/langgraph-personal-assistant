@@ -1,12 +1,12 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it, vi } from "vitest";
 
-import type { SupabaseMcpSession } from "../../../../src/integrations/mcp/supabase.js";
-import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import type { SqlSession } from "../../../src/integrations/mcp/sql-session.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
 import { resolveAgentSkillModule } from "@personal-assistant/supervisor-framework";
-import { createFinanceTestTools } from "../../../helpers/finance-tools.js";
-import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+import { createFinanceTestTools } from "../../helpers/finance-tools.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const financeDefinition = getRuntimeAgentFixture("finance");
 const financeSkillModule = resolveAgentSkillModule(financeDefinition);
@@ -51,11 +51,11 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("prompts the model once after all parallel tool calls finish", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {
@@ -95,11 +95,11 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("hands empty replies to the supervisor with last tool context", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector(() => {
@@ -127,11 +127,11 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("retries the model when it returns empty after exec_sql so the agent answers", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([{ max: "2026-07-16" }]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
     const invokeInputs: unknown[] = [];
 
@@ -173,11 +173,11 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("recovers from ambiguous verification SQL after an empty candidate", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
     const ambiguousError = JSON.stringify({
       error: {
@@ -248,11 +248,11 @@ describe("finance subgraph tool batching", () => {
   });
 
   it("completes the remaining tool call before prompting the model", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue([]),
       close: vi.fn(),
     };
-    const tools = createFinanceTestTools(mockSession, financeSkillModule);
+    const tools = createFinanceTestTools(mockSession.executeSql, financeSkillModule);
     let financeCalls = 0;
 
     const model = new FakeLLMConnector((input) => {

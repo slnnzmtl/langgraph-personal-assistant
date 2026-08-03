@@ -9,7 +9,11 @@ import type { AgentState, AgentStateUpdate } from "../state.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentGraphBundle } from "./runtime-agent-graph-bundle.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../execution/tool-routing.js";
-import { scopeDelegatedSubAgentMessages } from "../execution/sub-agent-messages.js";
+import {
+  applyDelegationPrompt,
+  scopeSubAgentMessages,
+  tagRuntimeAgentMessage,
+} from "../execution/sub-agent-messages.js";
 import type { SubAgentState } from "../execution/sub-agent-state.js";
 
 export const runtimeAgentPrepareNodeName = (agentId: string): string => `${agentId}__prepare`;
@@ -46,13 +50,17 @@ export const buildRuntimeAgentGraphNodeSets = (
       };
     });
 
-export const createRuntimeAgentPrepareNode = (bundle: RuntimeAgentGraphBundle) =>
+export const createRuntimeAgentPrepareNode = (
+  bundle: RuntimeAgentGraphBundle,
+  agentId: string,
+) =>
   (state: AgentState): AgentStateUpdate => {
     const prepared = bundle.prepare(state);
+    const scoped = scopeSubAgentMessages(state.messages, agentId);
     const delegationPrompt = state.delegationPrompt?.trim();
     const agentMessages = delegationPrompt
-      ? scopeDelegatedSubAgentMessages(state.messages, delegationPrompt)
-      : prepared.agentMessages;
+      ? applyDelegationPrompt(scoped, delegationPrompt)
+      : scoped;
 
     return {
       agentMessages: new Overwrite(agentMessages),
@@ -80,7 +88,10 @@ export const createRuntimeAgentFinalizeNode = (
       };
     }
 
-    const lastMessage = handoffMessages[handoffMessages.length - 1];
+    const taggedHandoffMessages = handoffMessages.map((message) =>
+      message instanceof AIMessage ? tagRuntimeAgentMessage(message, agentId) : message,
+    );
+    const lastMessage = taggedHandoffMessages[taggedHandoffMessages.length - 1];
 
     if (!(lastMessage instanceof AIMessage)) {
       return {
@@ -118,7 +129,7 @@ export const createRuntimeAgentFinalizeNode = (
       ...finalized,
       ...clearedWorkspace,
       lastHandoff,
-      messages: handoffMessages,
+      messages: taggedHandoffMessages,
     };
   };
 

@@ -1,5 +1,8 @@
 import { AIMessage, HumanMessage, mergeMessageRuns, type BaseMessage } from "@langchain/core/messages";
 
+import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
+import { RUNTIME_AGENT_CONTEXT_KEY } from "../types/agent.js";
+
 export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "Your previous response was empty after a tool result.",
   "Inspect the latest tool message in history:",
@@ -9,7 +12,10 @@ export const TOOL_RESULT_RECOVERY_DIRECTIVE = [
   "- A tool error is not a user-facing completion. Never claim a write succeeded unless a successful tool payload proves it.",
 ].join("\n");
 
-import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
+export const EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE = [
+  "Your previous response was empty (no text and no tool calls).",
+  "Continue without stopping silently: call read_skill(skill_name) or another bound tool if needed, otherwise reply in plain text.",
+].join("\n");
 
 /** How many recent human turns (with intervening assistant replies) to keep for sub-agents. */
 export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
@@ -17,7 +23,42 @@ export const SUB_AGENT_CONTEXT_HUMAN_TURNS = 3;
 const isHumanMessage = (message: BaseMessage): boolean =>
   message instanceof HumanMessage || message._getType() === "human";
 
-export const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[] => {
+const isAiMessage = (message: BaseMessage): boolean =>
+  message instanceof AIMessage || message._getType() === "ai";
+
+export const getRuntimeAgentIdFromMessage = (message: BaseMessage): string | undefined => {
+  const value = message.additional_kwargs?.[RUNTIME_AGENT_CONTEXT_KEY];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+};
+
+/** Stamp a handoff AI reply so later prepare can keep only this agent's turns. */
+export const tagRuntimeAgentMessage = (message: AIMessage, agentId: string): AIMessage => {
+  message.additional_kwargs = {
+    ...message.additional_kwargs,
+    [RUNTIME_AGENT_CONTEXT_KEY]: agentId,
+  };
+  return message;
+};
+
+/** Keep latest of consecutive AI turns (handoff + supervisor FINISH duplicates). */
+const collapseConsecutiveAssistantMessages = (
+  messages: BaseMessage[],
+): BaseMessage[] => {
+  const result: BaseMessage[] = [];
+
+  for (const message of messages) {
+    const last = result[result.length - 1];
+    if (last && isAiMessage(last) && isAiMessage(message)) {
+      result[result.length - 1] = message;
+      continue;
+    }
+    result.push(message);
+  }
+
+  return result;
+};
+
+const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[] => {
   let lastHumanIndex = -1;
 
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -32,77 +73,108 @@ export const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseM
     return messages;
   }
 
+  const lastHuman = messages[lastHumanIndex]!;
+  const lastHumanNonText = extractNonTextContentParts(lastHuman.content);
+  let sourceNonTextIndex = -1;
+  let movedParts = lastHumanNonText;
+
+  if (lastHumanNonText.length === 0) {
+    for (let index = lastHumanIndex - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!message || !isHumanMessage(message)) {
+        continue;
+      }
+
+      const parts = extractNonTextContentParts(message.content);
+      if (parts.length > 0) {
+        sourceNonTextIndex = index;
+        movedParts = parts;
+        break;
+      }
+    }
+  }
+
   return messages.map((message, index) => {
-    if (!isHumanMessage(message) || index === lastHumanIndex) {
+    if (!isHumanMessage(message)) {
       return message;
     }
 
-    const text = extractMessageTextContent(message.content).trim();
-    return text.length > 0 ? new HumanMessage(text) : message;
+    if (index === lastHumanIndex) {
+      if (movedParts.length === 0 || lastHumanNonText.length > 0) {
+        return message;
+      }
+
+      const text = extractMessageTextContent(message.content).trim();
+      return new HumanMessage([{ type: "text", text }, ...movedParts]);
+    }
+
+    if (index === sourceNonTextIndex || extractNonTextContentParts(message.content).length > 0) {
+      return new HumanMessage(extractMessageTextContent(message.content).trim());
+    }
+
+    return message;
   });
 };
 
 /**
- * Keep recent conversational context for the runtime agent: the last N human
- * turns plus any assistant messages between/after them. This preserves
- * clarification follow-ups without sending the full thread.
+ * Keep only turns owned by this runtime agent: (human → tagged AI) pairs plus the
+ * trailing human for the current delegation. Then collapse consecutive AI and
+ * window to the last N human turns.
+ *
+ * Filter runs before collapse so a tagged handoff is not replaced by an untagged
+ * supervisor FINISH duplicate.
  */
 export const scopeSubAgentMessages = (
   messages: BaseMessage[],
+  agentId: string,
   humanTurns = SUB_AGENT_CONTEXT_HUMAN_TURNS,
 ): BaseMessage[] => {
+  const owned: BaseMessage[] = [];
+  let pendingHuman: BaseMessage | undefined;
+
+  for (const message of messages) {
+    if (isHumanMessage(message)) {
+      pendingHuman = message;
+      continue;
+    }
+
+    if (isAiMessage(message) && getRuntimeAgentIdFromMessage(message) === agentId) {
+      if (pendingHuman) {
+        owned.push(pendingHuman);
+        pendingHuman = undefined;
+      }
+      owned.push(message);
+      continue;
+    }
+
+    if (isAiMessage(message)) {
+      // Foreign or untagged AI — drop the human that belonged to that turn.
+      pendingHuman = undefined;
+    }
+  }
+
+  if (pendingHuman) {
+    owned.push(pendingHuman);
+  }
+
   const humanIndexes: number[] = [];
 
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index];
+  for (let index = 0; index < owned.length; index += 1) {
+    const message = owned[index];
     if (message && isHumanMessage(message)) {
       humanIndexes.push(index);
     }
   }
 
-  if (humanIndexes.length === 0) {
-    return messages;
-  }
+  const recent = humanIndexes.length === 0
+    ? owned
+    : stripStaleNonTextFromOlderHumans(
+      owned.slice(
+        humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!,
+      ),
+    );
 
-  const startIndex = humanIndexes[Math.max(0, humanIndexes.length - Math.max(1, humanTurns))]!;
-  return stripStaleNonTextFromOlderHumans(messages.slice(startIndex));
-};
-
-/**
- * When the supervisor delegates, pass only the delegation prompt (plus any
- * multimodal parts from the latest human turn) instead of the full thread.
- */
-export const scopeDelegatedSubAgentMessages = (
-  parentMessages: BaseMessage[],
-  delegationPrompt: string,
-): BaseMessage[] => {
-  const trimmed = delegationPrompt.trim();
-  if (trimmed.length === 0) {
-    return [];
-  }
-
-  let lastHuman: BaseMessage | undefined;
-
-  for (let index = parentMessages.length - 1; index >= 0; index -= 1) {
-    const message = parentMessages[index];
-    if (message && isHumanMessage(message)) {
-      lastHuman = message;
-      break;
-    }
-  }
-
-  const preservedParts = lastHuman
-    ? extractNonTextContentParts(lastHuman.content)
-    : [];
-
-  if (preservedParts.length === 0) {
-    return [new HumanMessage(trimmed)];
-  }
-
-  return [new HumanMessage([
-    { type: "text", text: trimmed },
-    ...preservedParts,
-  ])];
+  return collapseConsecutiveAssistantMessages(recent);
 };
 
 export const applyDelegationPrompt = (
@@ -161,7 +233,12 @@ export const isEmptyModelResponse = (response: AIMessage): boolean => {
 
 export const buildRecoveryPromptMessages = (
   promptMessages: BaseMessage[],
+  options: { isLoopContinuation?: boolean } = {},
 ): BaseMessage[] => [
   ...promptMessages,
-  new HumanMessage(TOOL_RESULT_RECOVERY_DIRECTIVE),
+  new HumanMessage(
+    options.isLoopContinuation
+      ? TOOL_RESULT_RECOVERY_DIRECTIVE
+      : EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
+  ),
 ];

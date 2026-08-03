@@ -4,14 +4,15 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildConfigurationCompletionSummary,
   CONFIGURATION_COMPLETION_FALLBACK,
-  mapConfigurationSubAgentResult,
+  CONFIGURATION_RESULT_MAPPING,
+  mapSubAgentResult,
 } from "@personal-assistant/supervisor-framework";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
 import {
   createConfigurationTools,
   createCronRepositoryFake,
-} from "../../../helpers/configuration-tools.js";
-import { getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+} from "../../helpers/configuration-tools.js";
+import { getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const configurationDefinition = getRuntimeAgentFixture("configuration");
 
@@ -325,7 +326,45 @@ describe("configuration runtime node hooks", () => {
     expect(invokeSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to a non-empty completion when the model returns blank text with no tools", async () => {
+  it("retries a blank initial response so the model can call read_skill or tools", async () => {
+    const repository = createCronRepositoryFake(defaultCronJobs);
+    const invokeSpy = vi.fn()
+      .mockResolvedValueOnce(new AIMessage(""))
+      .mockResolvedValueOnce(new AIMessage({
+        content: "",
+        tool_calls: [
+          {
+            name: "read_skill",
+            args: { name: "cron" },
+            id: "read-1",
+            type: "tool_call",
+          },
+        ],
+      }));
+
+    const node = createTestRuntimeAgentNode(
+      {
+        invoke: async (input: unknown) => invokeSpy(input),
+        bindTools: () => ({ invoke: async (input: unknown) => invokeSpy(input) }),
+      } as never,
+      configurationDefinition,
+      createConfigurationTools(repository),
+      buildNodeConfigForTest(configurationDefinition),
+    );
+
+    const result = await node({
+      agentMessages: [new HumanMessage("list cron jobs")],
+      stepCount: 0,
+    });
+
+    expect(result.agentMessages?.[0]?.tool_calls?.[0]?.name).toBe("read_skill");
+    expect(result.agentMessages?.[0]?.tool_calls?.[0]?.args).toEqual({ name: "cron" });
+    expect(invokeSpy).toHaveBeenCalledTimes(2);
+    const recoveryInput = invokeSpy.mock.calls[1]?.[0] as Array<{ content?: unknown }>;
+    expect(String(recoveryInput.at(-1)?.content ?? "")).toContain("read_skill(skill_name)");
+  });
+
+  it("keeps a blank initial response empty when recovery also returns empty", async () => {
     const repository = createCronRepositoryFake(defaultCronJobs);
     const invokeSpy = vi.fn(async (_input: unknown) => new AIMessage(""));
 
@@ -344,8 +383,9 @@ describe("configuration runtime node hooks", () => {
       stepCount: 0,
     });
 
-    expect(result.agentMessages?.[0]?.content).toBe(CONFIGURATION_COMPLETION_FALLBACK);
-    expect(invokeSpy).toHaveBeenCalledTimes(1);
+    expect(result.agentMessages?.[0]?.content).toBe("");
+    expect(result.agentMessages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(invokeSpy).toHaveBeenCalledTimes(2);
   });
 
   it("summarizes list_cron_jobs results when the model returns a blank final response", async () => {
@@ -484,11 +524,11 @@ describe("buildConfigurationCompletionSummary", () => {
   });
 });
 
-describe("mapConfigurationSubAgentResult", () => {
+describe("CONFIGURATION_RESULT_MAPPING", () => {
   it("salvages tool output when the last reply is the generic fallback", () => {
     const cronListing = "Job name: finance-sync\nSchedule: 59 23 * * *";
 
-    const result = mapConfigurationSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("list cron jobs"),
@@ -501,15 +541,32 @@ describe("mapConfigurationSubAgentResult", () => {
         ],
         stepCount: 2,
       },
-      10,
-      "Configuration",
+      { maxSteps: 10, name: "Configuration" },
+      CONFIGURATION_RESULT_MAPPING,
     );
 
     expect(result.messages?.[0]?.content).toBe(cronListing);
   });
 
-  it("preserves the completion fallback instead of emitting an empty handoff", () => {
-    const result = mapConfigurationSubAgentResult(
+  it("emits an empty handoff for a blank initial response with no tools", () => {
+    const result = mapSubAgentResult(
+      {
+        agentMessages: [
+          new HumanMessage("list agents"),
+          new AIMessage({ content: "" }),
+        ],
+        stepCount: 1,
+      },
+      { maxSteps: 10, name: "Configuration" },
+      CONFIGURATION_RESULT_MAPPING,
+    );
+
+    expect(result.messages?.[0]?.content).toBe("");
+    expect(result.messages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
+  });
+
+  it("rejects a synthetic completion fallback without tools as an empty handoff", () => {
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("list agents"),
@@ -517,17 +574,18 @@ describe("mapConfigurationSubAgentResult", () => {
         ],
         stepCount: 1,
       },
-      10,
-      "Configuration",
+      { maxSteps: 10, name: "Configuration" },
+      CONFIGURATION_RESULT_MAPPING,
     );
 
-    expect(result.messages?.[0]?.content).toBe(CONFIGURATION_COMPLETION_FALLBACK);
+    expect(result.messages?.[0]?.content).toBe("");
+    expect(result.messages?.[0]?.content).not.toBe(CONFIGURATION_COMPLETION_FALLBACK);
   });
 
   it("surfaces tool errors when the model returns a blank final response", () => {
     const errorBody = "Error: Invalid runtime agent data in persistence file";
 
-    const result = mapConfigurationSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("list agents"),
@@ -540,8 +598,8 @@ describe("mapConfigurationSubAgentResult", () => {
         ],
         stepCount: 2,
       },
-      10,
-      "Configuration",
+      { maxSteps: 10, name: "Configuration" },
+      CONFIGURATION_RESULT_MAPPING,
     );
 
     expect(result.messages?.[0]?.content).toBe(errorBody);

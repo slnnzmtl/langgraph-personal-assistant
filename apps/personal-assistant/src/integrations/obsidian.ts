@@ -10,14 +10,12 @@ import {
   RelativePathSchema,
   type ObsidianFileWriteRequest,
   type ObsidianVault,
-} from "../ports/obsidian-vault.js";
-
-export { RelativePathSchema } from "../ports/obsidian-vault.js";
+} from "../runtime-agents/obsidian/types.js";
 
 /**
  * Validates the relative path schema and resolves it to a safe physical absolute path.
  */
-export const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
+const resolveVaultPath = (vaultRoot: string, relativePath: string): string => {
   const result = RelativePathSchema.safeParse(relativePath);
   if (!result.success) {
     throw new Error(`Invalid path: ${result.error.issues[0]?.message}`);
@@ -37,7 +35,7 @@ const normalizeRelativeDir = (relativeDir: string): string => {
   return clean === "" ? "." : clean;
 };
 
-export const applyFileWrite = async (
+const applyFileWrite = async (
   vaultRoot: string,
   operationRequest: ObsidianFileWriteRequest,
 ): Promise<string> => {
@@ -89,7 +87,7 @@ export const applyFileWrite = async (
   return relativePath;
 };
 
-export const readVaultFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
+const readVaultFile = async (vaultRoot: string, relativePath: string): Promise<string> => {
   resolveVaultPath(vaultRoot, relativePath);
   try {
     return await readTextFile(vaultRoot, relativePath);
@@ -101,18 +99,12 @@ export const readVaultFile = async (vaultRoot: string, relativePath: string): Pr
   }
 };
 
-export const checkFileExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
+const checkFileExists = async (vaultRoot: string, relativePath: string): Promise<boolean> => {
   resolveVaultPath(vaultRoot, relativePath);
   return fileExists(vaultRoot, relativePath);
 };
 
-export const listFiles = async (vaultRoot: string, relativeDir: string): Promise<string[]> => {
-  const cleanDir = normalizeRelativeDir(relativeDir);
-  const { files } = await listDirectoryContents(vaultRoot, cleanDir);
-  return files;
-};
-
-export const listDirContents = async (
+const listDirContents = async (
   vaultRoot: string,
   relativeDir: string,
 ): Promise<{ files: string[]; dirs: string[] }> => {
@@ -153,7 +145,7 @@ const normalizeSearchQueries = (queries: string[]): string[] => {
   return Array.from(new Set(normalized));
 };
 
-export const searchFiles = async (
+const searchFiles = async (
   vaultRoot: string,
   queries: string[],
   relativeDir: string,
@@ -175,7 +167,7 @@ export const searchFiles = async (
   return Array.from(new Set([...contentMatches, ...filenameMatches]));
 };
 
-export const searchFilesByName = async (
+const searchFilesByName = async (
   vaultRoot: string,
   queries: string[],
   relativeDir: string,

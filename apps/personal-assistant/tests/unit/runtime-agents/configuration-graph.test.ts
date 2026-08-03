@@ -1,22 +1,22 @@
 import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
-import { createDefaultRuntimeShellFormatters } from "../../../../src/composition/runtime-execution.js";
-import { createDefaultRuntimeAgentPolicy } from "../../../../src/policies/runtime-agent-policy.js";
-import { createPersonalResolveTools } from "../../../../src/runtime-agents/resolve-tools.js";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
-import { createConfigurationTools, createCronRepositoryFake } from "../../../helpers/configuration-tools.js";
-import { createCompiledSubAgentGraph } from "../../../helpers/compiled-sub-agent.js";
+import { createDefaultRuntimeShellFormatters } from "../../../src/composition/runtime-execution.js";
+import { createDefaultRuntimeAgentPolicy } from "../../../src/policies/runtime-agent-policy.js";
+import { createPersonalResolveTools } from "../../../src/runtime-agents/resolve-tools.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
+import { createConfigurationTools, createCronRepositoryFake } from "../../helpers/configuration-tools.js";
+import { createCompiledSubAgentGraph } from "../../helpers/compiled-sub-agent.js";
 import {
   FakeLLMConnector,
   asAgentState,
   createRuntimeExecutionContextFake,
   getRuntimeAgentFixture,
-} from "../../../helpers/fakes.js";
+} from "../../helpers/fakes.js";
 
 import { createRuntimeShellHooks } from "@personal-assistant/supervisor-framework";
-import { createPersonalCapabilityCatalog } from "../../../helpers/capability-catalog.js";
-import { createTestSkillCatalog } from "../../../helpers/test-skills-dir.js";
+import { createPersonalCapabilityCatalog } from "../../helpers/capability-catalog.js";
+import { createTestSkillCatalog } from "../../helpers/test-skills-dir.js";
 
 const capabilityCatalog = createPersonalCapabilityCatalog();
 const resolveTools = createPersonalResolveTools(capabilityCatalog);

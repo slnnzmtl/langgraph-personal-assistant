@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { buildCronTriggerForJob, createCronJobRepository } from "@personal-assistant/supervisor-framework";
 import { defaultTestCronTargetAgentIds } from "../../helpers/runtime-agent-fixtures.js";
-import type { SupabaseMcpSession } from "../../../src/integrations/mcp/supabase.js";
+import type { SqlSession } from "../../../src/integrations/mcp/sql-session.js";
 import { FakeLLMConnector, createRuntimeAgentRepositoryFake, makeTestRuntimeAgent } from "../../helpers/fakes.js";
 import { buildTestRuntimeAgents } from "../../helpers/runtime-agent-fixtures.js";
 import { createTestWorkflowGraph } from "../../helpers/workflow-graph.js";
@@ -53,7 +53,7 @@ const makeGraph = (
   supervisorHandler: (input: unknown) => unknown,
   obsidianHandler?: (input: unknown) => unknown,
   financeHandler?: (input: unknown) => unknown,
-  supabaseSession?: SupabaseMcpSession,
+  sqlSession?: SqlSession,
   configHandler?: (input: unknown) => unknown,
   runtimeAgentRepository = createRuntimeAgentRepositoryFake(),
   runtimeAgents?: ReturnType<typeof buildTestRuntimeAgents>,
@@ -75,7 +75,12 @@ const makeGraph = (
       defaultTestCronTargetAgentIds(),
     ),
     runtimeAgentRepository,
-    ...(supabaseSession ? { supabaseSession } : {}),
+    ...(sqlSession
+      ? {
+          supabaseReadSession: sqlSession,
+          supabaseWriteSession: sqlSession,
+        }
+      : {}),
   });
 
 describe("supervisor graph compilation", () => {
@@ -131,7 +136,12 @@ describe("supervisor graph compilation", () => {
     const app = makeGraph((input) => {
       calls += 1;
 
-      if (Array.isArray(input) && String(input[0]?.content).includes("Unknown or disabled runtime agent route")) {
+      // failure_reply appends the UX instruction to the supervisor system prompt (internal
+      // route context stays out of the model-facing instruction on purpose).
+      if (
+        Array.isArray(input) &&
+        String(input[0]?.content).includes("The normal supervisor routing failed")
+      ) {
         return new AIMessage("Finance is unavailable in this deployment.");
       }
 
@@ -145,7 +155,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("visits the finance node on finance route (real integration with mock session)", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -172,7 +182,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("preserves every finance tool result when the model emits parallel tool calls", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -322,7 +332,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("executes a multi-agent queue sequentially before re-planning", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };
@@ -378,7 +388,7 @@ describe("supervisor graph compilation", () => {
   });
 
   it("routes scheduled finance triggers to the finance node without supervisor LLM routing", async () => {
-    const mockSession: SupabaseMcpSession = {
+    const mockSession: SqlSession = {
       executeSql: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn(),
     };

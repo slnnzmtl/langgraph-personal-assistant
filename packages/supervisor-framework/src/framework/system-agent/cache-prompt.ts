@@ -6,18 +6,13 @@ import type { SkillCatalog } from "../../core/skills/catalog.js";
 import { appendConfiguredSkillAttachments } from "../../core/skills/skill-attachments.js";
 import { appendRuntimeExecutionModel } from "../../core/skills/prompt-enrichment.js";
 
-export const RUNTIME_READ_SKILL_HINT =
-  "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
-
 export type RuntimePromptParts = {
   staticPrompt: string;
   dynamicPrompt: string;
 };
 
 export const buildStaticRuntimePrompt = (basePrompt: string): string =>
-  appendRuntimeExecutionModel(
-    `${basePrompt.trim()}\n\n${RUNTIME_READ_SKILL_HINT}`,
-  );
+  appendRuntimeExecutionModel(basePrompt.trim());
 
 export const buildDynamicRuntimePrompt = (
   definition: RuntimeAgentDefinition,

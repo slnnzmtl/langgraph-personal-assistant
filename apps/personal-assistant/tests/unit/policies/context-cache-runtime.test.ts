@@ -23,6 +23,7 @@ const makeTestCacheKit = (
 ): ContextCacheKit => ({
   cacheManager: {
     getOrCreate: async () => null,
+    invalidate: () => undefined,
   },
   apiKey: "test-key",
   supervisorModelName: "gemini-2.5-flash-lite",
@@ -95,6 +96,7 @@ describe("createContextCacheRuntimeConfig", () => {
             cacheName: "cachedContents/test",
             model: "models/gemini-2.5-flash",
           }),
+          invalidate: () => undefined,
         },
       }),
       {
@@ -115,6 +117,7 @@ describe("createContextCacheRuntimeConfig", () => {
       bindTools: false,
       useCachedPromptLayout: true,
     });
+    expect(typeof hit.recoverFromCachedContentMiss).toBe("function");
 
     const missHooks = createContextCacheRuntimeConfig(makeTestCacheKit(), {
       modelName: "gemini-2.5-flash",

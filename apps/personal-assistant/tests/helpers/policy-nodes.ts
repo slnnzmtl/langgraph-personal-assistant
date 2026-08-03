@@ -11,13 +11,8 @@ import {
   type SubAgentToolSource,
 } from "@personal-assistant/supervisor-framework";
 import { createDefaultRuntimeShellFormatters } from "../../src/composition/runtime-execution.js";
+import { buildPersonalRuntimeAgentNodeConfig } from "../../src/composition/personal-runtime-policy.js";
 import { loadSystemPromptByKey } from "../../src/prompts/load.js";
-import { createObsidianVault } from "../../src/integrations/obsidian.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
-import {
-  buildRuntimeAgentNodeConfigForDefinition,
-  resolveCapabilityBehavior,
-} from "../../src/policies/runtime-agent-policy.js";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 
 const testSkillCatalog = createTestSkillCatalog();
@@ -46,24 +41,12 @@ const resolveModel = (source: ModelSource): BaseChatModel => {
 export const buildNodeConfigForTest = (
   definition: RuntimeAgentDefinition,
   options: { vaultRoot?: string } = {},
-): RuntimeAgentNodeConfig => {
-  const behavior = resolveCapabilityBehavior(definition, testShellHooks, {
+): RuntimeAgentNodeConfig =>
+  buildPersonalRuntimeAgentNodeConfig(definition, testShellHooks, {
     shellFormatters: testShellFormatters,
+    skillCatalog: testSkillCatalog,
+    vaultRoot: options.vaultRoot ?? "/tmp/vault",
   });
-  const hooks = behavior.createHooks({
-    definition,
-    capabilityDeps: {
-      obsidianVault: createObsidianVault(options.vaultRoot ?? "/tmp/vault"),
-    } as PersonalCapabilityDeps,
-    shellHooks: testShellHooks,
-    shellFormatters: testShellFormatters,
-  });
-
-  return {
-    ...hooks,
-    ...buildRuntimeAgentNodeConfigForDefinition(definition, testShellHooks, testShellFormatters),
-  };
-};
 
 export const createTestRuntimeAgentNode = (
   model: ModelSource,

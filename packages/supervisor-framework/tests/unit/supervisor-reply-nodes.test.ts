@@ -259,4 +259,36 @@ describe("supervisor reply nodes", () => {
     expect(result.routingFailureContext).toBeNull();
     expect(modelInvoke).toHaveBeenCalledOnce();
   });
+
+  it("failure_reply discards routing JSON and uses a safe fallback", async () => {
+    const modelInvoke = vi.fn(async () => new AIMessage(
+      '{"next":"obsidian","prompt":"Create a new note titled \'Today\'s Routines\'"}',
+    ));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: async () => {
+          throw new Error("schema parse failed");
+        },
+      }),
+      getModel: () => ({
+        invoke: modelInvoke,
+      } as unknown as BaseChatModel),
+    };
+    const failureReplyNode = createFailureReplyNode(connector, {
+      loadSupervisorPrompt: loadTestSupervisorPrompt,
+    });
+
+    const result = await failureReplyNode(asAgentState({
+      messages: [new HumanMessage("Create routines for today")],
+      routingFailureContext: "Structured routing failed: CachedContent not found",
+      context: {},
+      next: undefined,
+    }));
+
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(firstStateUpdateMessage(result)?.content).toBe(
+      "I couldn't finish routing your request. Please try again in a moment.",
+    );
+    expect(modelInvoke).toHaveBeenCalledOnce();
+  });
 });

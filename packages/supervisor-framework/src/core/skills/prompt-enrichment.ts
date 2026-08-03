@@ -13,9 +13,6 @@ export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - Never return an empty turn (no text and no tool calls).
 </runtime_execution>`;
 
-const READ_SKILL_HINT =
-  "Call read_skill(skill_name) to load a skill's full step-by-step instructions before performing it.";
-
 export const appendAvailableSkills = (
   basePrompt: string,
   module: string,
@@ -28,7 +25,7 @@ export const appendAvailableSkills = (
     return basePrompt;
   }
 
-  return `${basePrompt.trim()}\n\n${skillsBlock}\n\n${READ_SKILL_HINT}`;
+  return `${basePrompt.trim()}\n\n${skillsBlock}`;
 };
 
 export const appendRuntimeExecutionModel = (prompt: string): string =>

@@ -158,6 +158,7 @@ describe("resolveSkillAttachments", () => {
     ], { skillCatalog });
 
     expect(attachments.map((attachment) => attachment.skillName)).toEqual([
+      "expense-ledger-schema",
       "expense-sync",
       "expense-view",
     ]);
@@ -261,5 +262,45 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toContain('<attached_skill name="skill-bootstrap">');
     expect(prompt).toContain("Create exactly one skill unless the user explicitly requests multiple skills");
     expect(prompt).toContain("list_skills(module)");
+  });
+
+  it("skips attachment bodies after a tool result (tool-loop continuation)", () => {
+    const definition = agentFixture("finance");
+    const firstTurn = appendConfiguredSkillAttachments(
+      "Base prompt",
+      definition,
+      [new HumanMessage("Show last expenses")],
+      skillCatalog,
+    );
+    expect(firstTurn).toContain('<attached_skill name="expense-view">');
+    expect(firstTurn).toContain("call `exec_sql` now");
+
+    const afterTool = appendConfiguredSkillAttachments(
+      "Base prompt",
+      definition,
+      [
+        new HumanMessage("Show last expenses"),
+        new AIMessage({
+          content: "",
+          tool_calls: [{
+            id: "1",
+            name: "exec_sql",
+            args: {
+              sql: "SELECT e.id FROM public.expense AS e ORDER BY e.paid_date DESC LIMIT 10;",
+            },
+          }],
+        }),
+        new ToolMessage({
+          tool_call_id: "1",
+          name: "exec_sql",
+          content: '[{"id":1725,"name":"Grab","amount":8}]',
+        }),
+      ],
+      skillCatalog,
+    );
+
+    expect(afterTool).toBe("Base prompt");
+    expect(afterTool).not.toContain("<attached_skills>");
+    expect(afterTool).not.toContain("call `exec_sql` now");
   });
 });

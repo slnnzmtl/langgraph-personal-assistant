@@ -58,6 +58,7 @@ export const createFailureReplyNode = (
     const supervisorPromptText = options.loadSupervisorPrompt();
     const failureContext = state.routingFailureContext?.trim()
       ?? "Supervisor routing failed without additional context.";
+    console.warn("Supervisor failure_reply context:", failureContext);
     const promptMessages = stripToolsForSupervisor([
       new SystemMessage(supervisorPromptText),
       ...state.messages,

@@ -34,16 +34,23 @@ describe("framework default content", () => {
 
   it("provides a configuration prompt referencing cron, runtime-agents, and skill tools", () => {
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("Configuration Manager");
-    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`cron` skill");
-    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`runtime-agents` skill");
-    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-management` exactly");
-    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-bootstrap` exactly");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("<skill_routing>");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("→ `cron`");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("→ `runtime-agents`");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-management`");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`skill-bootstrap`");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("`list_cron_jobs`");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("restore");
     expect(DEFAULT_CONFIGURATION_PROMPT).toContain("<output_templates>");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("preview_skill(module, name)");
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain('preview_skill("configuration", "cron")');
+    // Skill-usage contract lives on the read_skill tool description, not per-agent prompts.
+    expect(DEFAULT_CONFIGURATION_PROMPT).not.toContain("<skill_usage>");
+    expect(DEFAULT_CONFIGURATION_PROMPT).not.toContain("Never stop with an empty turn");
   });
 
-  it("documents restore-as-create in skill-management write safety", () => {
-    expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("Deleted skills cannot be recovered");
+  it("documents restore-as-create in the configuration prompt", () => {
+    expect(DEFAULT_CONFIGURATION_PROMPT).toContain("Deleted skills cannot be recovered");
   });
 
   it("provides a cron skill that resolves targets via list_runtime_agents", () => {
@@ -68,6 +75,7 @@ describe("framework default content", () => {
     expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("list_runtime_agents");
     expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("list_skills(module)");
     expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain('read_skill("skill-bootstrap")');
+    expect(DEFAULT_SKILL_MANAGEMENT_SKILL_XML).toContain("always use module `configuration`");
   });
 
   it("provides a skill-bootstrap skill with dynamic owner inference", () => {

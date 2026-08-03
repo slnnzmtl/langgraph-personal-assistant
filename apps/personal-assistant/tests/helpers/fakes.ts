@@ -14,8 +14,7 @@ import {
 import type { ILLMConnector, RoutingChain } from "@personal-assistant/supervisor-framework";
 import { resolveCronTriggerRoute, SUPERVISE_CRON_ROUTE, type CronJobRepository } from "@personal-assistant/supervisor-framework";
 import { loadSupervisorSystemPrompt } from "../../src/prompts/load.js";
-import { createObsidianVault } from "../../src/integrations/obsidian.js";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/personal-capability-deps.js";
 import {
   buildTestRuntimeAgents,
   defaultTestCronTargetAgentIds,
@@ -212,7 +211,6 @@ export const createRuntimeAgentRepositoryFake = (
 };
 
 export const defaultConfigurationCapabilityDeps: PersonalCapabilityDeps = {
-  obsidianVault: createObsidianVault("/tmp/pa-unit-vault"),
   cronTargetAgentIds: defaultTestCronTargetAgentIds(),
 };
 
@@ -256,7 +254,6 @@ export const createRuntimeExecutionContextFake = (options?: {
   runtimeAgentRepository?: RuntimeAgentRepository;
   cronJobRepository?: CronJobRepository;
   llmConnector?: FakeLLMConnector;
-  obsidianVaultPath?: string;
   capabilityDeps?: Partial<PersonalCapabilityDeps>;
 }) => {
   const llmConnector = options?.llmConnector ?? new FakeLLMConnector(() => new AIMessage("unused"));
@@ -269,9 +266,6 @@ export const createRuntimeExecutionContextFake = (options?: {
     defaultModel: model,
     repository,
     capabilityDeps: {
-      obsidianVault: createObsidianVault(
-        options?.obsidianVaultPath ?? defaultConfigurationCapabilityDeps.obsidianVault!.rootPath,
-      ),
       cronTargetAgentIds: defaultConfigurationCapabilityDeps.cronTargetAgentIds,
       cronJobRepository,
       runtimeAgentRepository: repository,

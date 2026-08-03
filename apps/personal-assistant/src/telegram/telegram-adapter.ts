@@ -2,9 +2,9 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { HumanMessage } from "@langchain/core/messages";
 import { Telegraf, type Context } from "telegraf";
 
-import type { AppConfig } from "../config.js";
+import type { TelegramConfig } from "../config.js";
 import type { AgentState, CompiledSupervisorGraph } from "@personal-assistant/supervisor-framework";
-import type { IFileSender } from "../ports/file-sender.js";
+import type { TelegramFileSender } from "./file-sender.js";
 import { fetchImageAsDataUrl } from "./image-content.js";
 import {
   DEFAULT_MEDIA_GROUP_DEBOUNCE_MS,
@@ -171,9 +171,9 @@ export class TelegramAdapter implements ITelegramAdapter {
 
   constructor(
     private readonly graphSource: WorkflowGraphSource,
-    config: AppConfig,
+    config: TelegramConfig,
     bot: Telegraf<Context>,
-    private readonly fileSender?: IFileSender,
+    private readonly fileSender?: Pick<TelegramFileSender, "setCurrentChatId">,
   ) {
     this.bot = bot;
     this.allowedTelegramUserId = config.allowedTelegramUserId;

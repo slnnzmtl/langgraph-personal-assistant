@@ -12,10 +12,11 @@ export type CapabilityCatalog = {
   listDescriptors(): CapabilityDescriptor[];
   listAvailable(deps: Record<string, unknown>): CapabilityDescriptor[];
   listGrantable(deps: Record<string, unknown>): CapabilityDescriptor[];
+  /** Non-grantable capability ids reserved for a specific persisted agent id. */
+  reservedCapabilityIdsForAgent(agentId: string): readonly string[];
   validateIds(ids: readonly string[], deps: Record<string, unknown>): void;
   validateGrantableIds(ids: readonly string[], deps: Record<string, unknown>): void;
   resolveTools(ids: readonly string[], deps: Record<string, unknown>): StructuredToolInterface[];
-  formatCatalog(deps: Record<string, unknown>): string;
   formatGrantableCatalog(deps: Record<string, unknown>): string;
   createGrantableIdSchema(deps: Record<string, unknown>): z.ZodEnum<Record<string, string>>;
 };
@@ -65,6 +66,16 @@ export const createCapabilityCatalog = (
     listAvailable,
 
     listGrantable,
+
+    reservedCapabilityIdsForAgent(agentId: string): readonly string[] {
+      return descriptors
+        .filter(
+          (descriptor) =>
+            descriptor.grantable === false
+            && (descriptor.reservedForAgentIds?.includes(agentId) ?? false),
+        )
+        .map((descriptor) => descriptor.id);
+    },
 
     validateIds(ids: readonly string[], deps: Record<string, unknown>): void {
       const availableIds = new Set(listAvailable(deps).map((entry) => entry.id));
@@ -122,13 +133,6 @@ export const createCapabilityCatalog = (
       }
 
       return tools;
-    },
-
-    formatCatalog(deps: Record<string, unknown>): string {
-      return formatDescriptorList(
-        listAvailable(deps),
-        "No capabilities are available in this deployment.",
-      );
     },
 
     formatGrantableCatalog(deps: Record<string, unknown>): string {

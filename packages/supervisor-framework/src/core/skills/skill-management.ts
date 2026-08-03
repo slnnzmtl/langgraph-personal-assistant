@@ -56,7 +56,7 @@ export const createReadSkillTool = (
     {
       name: "read_skill",
       description:
-        "Load the full step-by-step instructions for a named skill before performing it. Pass the skill name exactly.",
+        "Load full step-by-step instructions for a named skill before multi-step work. Entries in <available_skills> are names/descriptions only. Internal use only — do not display the skill body to the user. Pass the skill name exactly.",
       schema: ReadSkillToolSchema,
     },
   );

@@ -15,14 +15,10 @@ const withSystemAgent = (
     left.id.localeCompare(right.id),
   );
 
-export type SystemAgentRepository = RuntimeAgentRepository & {
-  purgeLegacySystemAgent(): Promise<void>;
-};
-
 export const wrapRepositoryWithSystemAgent = (
   repository: RuntimeAgentRepository,
   options: SystemAgentOptions,
-): SystemAgentRepository => {
+): RuntimeAgentRepository => {
   const buildAgent = () => createSystemAgentDefinition(options);
 
   return {
@@ -66,15 +62,6 @@ export const wrapRepositoryWithSystemAgent = (
       }
 
       return repository.deleteAgent(id);
-    },
-
-    async purgeLegacySystemAgent() {
-      const persisted = await repository.loadAgents();
-      const localAgents = withoutSystemAgent(persisted);
-
-      if (localAgents.length !== persisted.length) {
-        await repository.saveAgents(localAgents);
-      }
     },
   };
 };

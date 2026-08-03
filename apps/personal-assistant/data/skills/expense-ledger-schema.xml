@@ -1,4 +1,11 @@
 <skill name="expense-ledger-schema" module="finance" description="Shared expense ledger schema, date rules, and category mapping.">
+<skill_attachments>
+  <attachment>
+    <anyPhrases>sync expenses,sync expense,import transactions,fetch wise,wise transactions</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+
 <shared_schema>
 - Table: `public.expense` (`id`, `name`, `amount`, `category`, `paid_date`, `paid`, `note`).
 - Category join: `LEFT JOIN public.category c ON e.category = c.id`.

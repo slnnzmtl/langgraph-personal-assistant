@@ -5,8 +5,8 @@ import {
   isRuntimeAgentBuiltin,
   SYSTEM_AGENT_ID,
 } from "@personal-assistant/supervisor-framework";
-import { resolveBuiltinModelName } from "../../../../src/composition/runtime-agent-defaults.js";
-import type { AppConfig } from "../../../../src/config.js";
+import { resolveBuiltinModelName } from "../../../src/composition/runtime-agent-defaults.js";
+import type { AppConfig } from "../../../src/config.js";
 
 describe("system admin agent manifest", () => {
   it("defines the configuration system agent id for skill module continuity", () => {

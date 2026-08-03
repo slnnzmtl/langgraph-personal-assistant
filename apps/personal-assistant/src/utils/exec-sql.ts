@@ -75,5 +75,3 @@ export const serializeToolResult = (value: unknown): string => {
 
   return typeof value === "string" ? value : JSON.stringify(value);
 };
-
-export const normalizeExecSqlOutput = normalizeToolOutput;

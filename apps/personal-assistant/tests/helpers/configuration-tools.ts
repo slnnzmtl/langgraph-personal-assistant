@@ -9,7 +9,7 @@ import { createPersonalCapabilityCatalog } from "./capability-catalog.js";
 import { createReadSkillTool } from "@personal-assistant/supervisor-framework";
 import { createTestSkillCatalog } from "./test-skills-dir.js";
 import type { CronJobDefinition, CronJobRepository } from "@personal-assistant/supervisor-framework";
-import type { PersonalCapabilityDeps } from "../../src/runtime-agents/capabilities.js";
+import type { PersonalCapabilityDeps } from "../../src/runtime-agents/personal-capability-deps.js";
 import { createRuntimeAgentRepositoryFake, defaultConfigurationCapabilityDeps } from "./fakes.js";
 
 const defaultConfigurationCatalog = createPersonalCapabilityCatalog();

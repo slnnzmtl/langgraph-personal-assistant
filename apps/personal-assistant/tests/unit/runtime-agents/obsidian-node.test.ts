@@ -6,22 +6,19 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createObsidianVault } from "../../../../src/integrations/obsidian.js";
-import { createObsidianVaultTools } from "../../../../src/runtime-agents/obsidian/tools.js";
+import { createObsidianVault } from "../../../src/integrations/obsidian.js";
+import { createObsidianVaultTools } from "../../../src/runtime-agents/obsidian/tools.js";
 import {
-  applyFileWrite,
-  listDirContents,
-  listFiles,
-  resolveVaultPath,
-  searchFiles,
-} from "../../../../src/integrations/obsidian.js";
-import { mapObsidianSubAgentResult, buildObsidianCompletionSummary, formatObsidianRoutineHint } from "../../../../src/runtime-agents/obsidian/hooks.js";
-import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../../helpers/policy-nodes.js";
-import { extractMessageTextContent } from "@personal-assistant/supervisor-framework";
+  buildObsidianCompletionSummary,
+  formatObsidianRoutineHint,
+  OBSIDIAN_RESULT_MAPPING,
+} from "../../../src/runtime-agents/obsidian/hooks.js";
+import { buildNodeConfigForTest, createTestRuntimeAgentNode } from "../../helpers/policy-nodes.js";
+import { extractMessageTextContent, mapSubAgentResult } from "@personal-assistant/supervisor-framework";
 import {
   createPromptLoader,
-} from "../../../../src/prompts/load.js";
-import { FakeLLMConnector, getRuntimeAgentFixture } from "../../../helpers/fakes.js";
+} from "../../../src/prompts/load.js";
+import { FakeLLMConnector, getRuntimeAgentFixture } from "../../helpers/fakes.js";
 
 const obsidianDefinition = getRuntimeAgentFixture("obsidian");
 
@@ -45,10 +42,10 @@ const createTempVault = async (): Promise<string> => {
   return tempVault;
 };
 
-describe("mapObsidianSubAgentResult", () => {
+describe("OBSIDIAN_RESULT_MAPPING", () => {
   it("returns the final reply even when stepCount equals maxSteps", () => {
     const finalReply = new AIMessage("OK. I've created English learning.md.");
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("Save to note English learning"),
@@ -69,15 +66,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 8,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toBe("OK. I've created English learning.md.");
   });
 
   it("summarizes a successful write when maxSteps is hit without a final reply", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("Save to note English learning"),
@@ -106,15 +106,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 8,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toContain("Create English learning note and add link");
   });
 
   it("reports max steps only when the edit did not complete", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("keep searching forever"),
@@ -134,15 +137,18 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 3,
       },
-      3,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 3, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toBe("exceeded max steps");
   });
 
   it("surfaces read_file content when the model returns a blank final reply", () => {
-    const result = mapObsidianSubAgentResult(
+    const result = mapSubAgentResult(
       {
         agentMessages: [
           new HumanMessage("show me routine"),
@@ -163,8 +169,11 @@ describe("mapObsidianSubAgentResult", () => {
         ],
         stepCount: 2,
       },
-      8,
-      () => ({ messages: [new AIMessage("exceeded max steps")] }),
+      { maxSteps: 8, name: "Obsidian" },
+      {
+        ...OBSIDIAN_RESULT_MAPPING,
+        maxStepsMessage: "exceeded max steps",
+      },
     );
 
     expect(result.messages[0]?.content).toContain("## Summary");
@@ -213,13 +222,13 @@ describe("buildObsidianCompletionSummary", () => {
 
 describe("obsidian node helpers", () => {
   it("prevents path traversal outside the vault", () => {
-    expect(() => resolveVaultPath("/tmp/vault", "../escape.md")).toThrow(
-      "Path traversal is forbidden.",
-    );
+    const vault = createObsidianVault("/tmp/vault");
+    expect(() => vault.resolvePath("../escape.md")).toThrow();
   });
 
   it("lists and searches all file types", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
     const { mkdir, writeFile } = await import("node:fs/promises");
 
     await mkdir(path.join(vaultRoot, "daily"), { recursive: true });
@@ -228,17 +237,12 @@ describe("obsidian node helpers", () => {
     await mkdir(path.join(vaultRoot, "daily", "nested"), { recursive: true });
     await writeFile(path.join(vaultRoot, "daily", "nested", "deep.md"), "gamma", "utf8");
 
-    await expect(listFiles(vaultRoot, "daily")).resolves.toEqual([
-      "daily/note.md",
-      "daily/note.txt",
-    ]);
-
-    await expect(listDirContents(vaultRoot, "daily")).resolves.toEqual({
+    await expect(vault.listDirContents("daily")).resolves.toEqual({
       files: ["daily/note.md", "daily/note.txt"],
       dirs: ["nested"],
     });
 
-    await expect(searchFiles(vaultRoot, ["alpha", "gamma"], ".")).resolves.toEqual([
+    await expect(vault.searchFiles(["alpha", "gamma"], ".")).resolves.toEqual([
       "daily/nested/deep.md",
       "daily/note.md",
       "daily/note.txt",
@@ -247,15 +251,16 @@ describe("obsidian node helpers", () => {
 
   it("creates and appends markdown content safely", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "daily/2024-05-15.md",
       operation: "create_new",
       content: "First entry",
       summary: "Created note",
     });
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "daily/2024-05-15.md",
       operation: "append",
       content: "Second entry",
@@ -292,9 +297,10 @@ describe("obsidian node helpers", () => {
 
   it("rejects append operations on missing files", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
     await expect(
-      applyFileWrite(vaultRoot, {
+      vault.writeFile({
         relativePath: "missing/note.md",
         operation: "append",
         content: "More content",
@@ -305,8 +311,9 @@ describe("obsidian node helpers", () => {
 
   it("reads markdown with plain contents for the model", async () => {
     const vaultRoot = await createTempVault();
+    const vault = createObsidianVault(vaultRoot);
 
-    await applyFileWrite(vaultRoot, {
+    await vault.writeFile({
       relativePath: "notes/read.md",
       operation: "create_new",
       content: "Alpha\nBeta\n",
@@ -922,12 +929,9 @@ describe("obsidian tool: send_file", () => {
     const { writeFile: wf } = await import("node:fs/promises");
     await wf(path.join(vaultRoot, "document.md"), "# Important\nContent here");
 
-    const mockFileSender = {
-      sendFile: vi.fn(async () => undefined),
-      setCurrentChatId: vi.fn(),
-    };
+    const sendFile = vi.fn(async () => undefined);
 
-    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), sendFile) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -936,20 +940,17 @@ describe("obsidian tool: send_file", () => {
     const result = await sendFileTool!.invoke({ relativePath: "document.md" }) as string;
 
     expect(result).toContain("File sent: document.md");
-    expect(mockFileSender.sendFile).toHaveBeenCalledOnce();
-    expect(mockFileSender.sendFile).toHaveBeenCalledWith(
+    expect(sendFile).toHaveBeenCalledOnce();
+    expect(sendFile).toHaveBeenCalledWith(
       expect.stringContaining("document.md"),
     );
   });
 
   it("returns an error when the file does not exist", async () => {
     const vaultRoot = await createTempVault();
-    const mockFileSender = {
-      sendFile: vi.fn(async () => undefined),
-      setCurrentChatId: vi.fn(),
-    };
+    const sendFile = vi.fn(async () => undefined);
 
-    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), sendFile) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;
@@ -959,7 +960,7 @@ describe("obsidian tool: send_file", () => {
 
     expect(result).toContain("Error");
     expect(result).toContain("does not exist");
-    expect(mockFileSender.sendFile).not.toHaveBeenCalled();
+    expect(sendFile).not.toHaveBeenCalled();
   });
 
   it("is absent from the tools array when no fileSender is provided", async () => {
@@ -968,10 +969,10 @@ describe("obsidian tool: send_file", () => {
     await wf(path.join(vaultRoot, "file.md"), "content");
 
     const toolsWithout = createObsidianVaultTools(createObsidianVault(vaultRoot)) as Array<{ name?: string }>;
-    const toolsWith = createObsidianVaultTools(createObsidianVault(vaultRoot), {
-      sendFile: vi.fn(async () => undefined),
-      setCurrentChatId: vi.fn(),
-    }) as Array<{ name?: string }>;
+    const toolsWith = createObsidianVaultTools(
+      createObsidianVault(vaultRoot),
+      vi.fn(async () => undefined),
+    ) as Array<{ name?: string }>;
 
     expect(toolsWithout.length).toBe(5); // read, write, list, search_files, search_files_by_name
     expect(toolsWith.length).toBe(6); // same 5 + send_file
@@ -989,14 +990,11 @@ describe("obsidian tool: send_file", () => {
     await wf(path.join(vaultRoot, "file.md"), "content");
 
     const sendError = new Error("Telegram API: file too large");
-    const mockFileSender = {
-      sendFile: vi.fn(async () => {
-        throw sendError;
-      }),
-      setCurrentChatId: vi.fn(),
-    };
+    const sendFile = vi.fn(async () => {
+      throw sendError;
+    });
 
-    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), mockFileSender) as Array<{
+    const tools = createObsidianVaultTools(createObsidianVault(vaultRoot), sendFile) as Array<{
       name?: string;
       invoke(input: unknown): Promise<unknown>;
     }>;

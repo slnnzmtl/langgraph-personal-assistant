@@ -15,37 +15,83 @@ const REQUIRED_ENV_VARS = [
 
 type RequiredEnvVar = (typeof REQUIRED_ENV_VARS)[number];
 
-export interface AppConfig {
+/** Telegram auth / allowlist fields. */
+export interface TelegramConfig {
   telegramBotToken: string;
   allowedTelegramUserId: string;
   allowedTelegramChatId: string;
+}
+
+/** Gemini model names and API key used by the model registry. */
+export interface ModelConfig {
   googleApiKey: string;
   geminiModel: string;
   supervisorModel: string;
   obsidianModel: string;
   financeModel: string;
   configurationModel: string;
+}
+
+/** Obsidian vault path for tools and personal policy close-overs. */
+export interface ObsidianConfig {
   obsidianVaultPath: string;
-  appTimezone: string;
-  schedulerEnabled: boolean;
-  cronJobsFilePath: string;
-  runtimeAgentsFilePath: string;
-  messageHistoryMaxTokens: number;
-  /** Set at composition time; bot writer, scheduler reader. */
-  allowDataWrites?: boolean;
+}
+
+/** SQLite durability / checkpointer settings. */
+export interface PersistenceConfig {
   stateDbPath: string;
   persistenceEnabled: boolean;
-  healthPort: number;
-  healthEnabled: boolean;
+  /** Set at composition time; bot writer, scheduler reader. */
+  allowDataWrites?: boolean;
+}
+
+/** File / console logging settings. */
+export interface LoggingConfig {
   logsDir: string;
   logToFile: boolean;
+}
+
+/** MCP transport reconnect knobs shared by Supabase sessions. */
+export interface McpReconnectConfig {
   mcpMaxReconnectAttempts: number;
   mcpReconnectBaseDelayMs: number;
   mcpReconnectMaxDelayMs: number;
-  // Optional: Official hosted Supabase MCP server
+}
+
+/** Optional hosted Supabase MCP credentials. */
+export interface SupabaseConfig {
   supabaseMcpUrl?: string | undefined;
   supabaseProjectRef?: string | undefined;
   supabaseAccessToken?: string | undefined;
+}
+
+/** Optional Wise activity API credentials. */
+export interface WiseConfig {
+  wiseApiToken?: string | undefined;
+  wiseProfileId?: string | undefined;
+}
+
+/** Cron / runtime-agent persistence paths and scheduler flag. */
+export interface SchedulerPathsConfig {
+  schedulerEnabled: boolean;
+  cronJobsFilePath: string;
+  runtimeAgentsFilePath: string;
+}
+
+export interface AppConfig
+  extends TelegramConfig,
+    ModelConfig,
+    ObsidianConfig,
+    PersistenceConfig,
+    LoggingConfig,
+    McpReconnectConfig,
+    SupabaseConfig,
+    WiseConfig,
+    SchedulerPathsConfig {
+  appTimezone: string;
+  messageHistoryMaxTokens: number;
+  healthPort: number;
+  healthEnabled: boolean;
 }
 
 export const getDefaultVaultPath = (cwd = process.cwd()): string =>
@@ -172,5 +218,7 @@ export const loadConfig = (): AppConfig => {
     supabaseMcpUrl: process.env.SUPABASE_MCP_URL ?? "https://mcp.supabase.com/mcp",
     supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     supabaseAccessToken: process.env.SUPABASE_ACCESS_TOKEN,
+    wiseApiToken: process.env.WISE_API_TOKEN,
+    wiseProfileId: process.env.WISE_PROFILE_ID,
   };
 };

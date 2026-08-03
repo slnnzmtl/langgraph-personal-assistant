@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CONFIGURATION_AGENT_ID,
   DEFAULT_MODEL_KEY,
   normalizeRuntimeAgentDefinition,
   resolveAgentModelKey,
+  SYSTEM_AGENT_ID,
 } from "../../src/core/types/agent.js";
 
 const baseInput = {
@@ -19,60 +19,41 @@ const baseInput = {
 };
 
 describe("runtime agent normalization", () => {
-  it("strips legacy finance executor while preserving modelKey", () => {
+  it("preserves modelKey when present", () => {
     const normalized = normalizeRuntimeAgentDefinition({
       ...baseInput,
       id: "finance",
       promptSourceKey: "finance",
-      executor: "finance",
       modelKey: "finance",
     });
 
-    expect("executor" in normalized).toBe(false);
     expect(normalized.modelKey).toBe("finance");
   });
 
-  it("infers modelKey from legacy executor when modelKey is absent", () => {
-    const normalized = normalizeRuntimeAgentDefinition({
-      ...baseInput,
-      id: "obsidian",
-      promptSourceKey: "obsidian",
-      capabilityIds: ["obsidian-vault"],
-      executor: "obsidian",
-    });
-
-    expect("executor" in normalized).toBe(false);
-    expect(normalized.modelKey).toBe("obsidian");
-  });
-
-  it("strips legacy builtin field on load", () => {
+  it("omits modelKey when absent", () => {
     const normalized = normalizeRuntimeAgentDefinition({
       ...baseInput,
       id: "finance",
-      builtin: false,
     });
 
-    expect("builtin" in normalized).toBe(false);
+    expect(normalized.modelKey).toBeUndefined();
   });
 
-  it("defaults configuration modelKey when absent", () => {
+  it("preserves system agent modelKey when present", () => {
     const normalized = normalizeRuntimeAgentDefinition({
       ...baseInput,
-      id: CONFIGURATION_AGENT_ID,
+      id: SYSTEM_AGENT_ID,
       capabilityIds: ["system-config"],
-      executor: CONFIGURATION_AGENT_ID,
-      builtin: true,
+      modelKey: SYSTEM_AGENT_ID,
     });
 
-    expect("executor" in normalized).toBe(false);
-    expect(normalized.modelKey).toBe("configuration");
+    expect(normalized.modelKey).toBe(SYSTEM_AGENT_ID);
   });
 
   it("resolves model keys from modelKey only", () => {
     const agent = normalizeRuntimeAgentDefinition({
       ...baseInput,
       id: "finance",
-      executor: "finance",
       modelKey: "finance",
     });
 

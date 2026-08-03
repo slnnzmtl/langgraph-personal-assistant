@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_GEMINI_MODEL, GeminiConnector } from "../../src/gemini-connector.js";
+import {
+  createGeminiChatModel,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_GEMINI_TEMPERATURE,
+  GeminiConnector,
+} from "../../src/gemini-connector.js";
 
 describe("GeminiConnector", () => {
   it("uses the shared default model when none is provided", () => {
@@ -13,5 +18,12 @@ describe("GeminiConnector", () => {
     expect(connector.getApiKey()).toBe("test-key");
     expect(connector.getModelName()).toBe("gemini-2.5-flash");
     expect(connector.getModel()).toBeDefined();
+  });
+});
+
+describe("createGeminiChatModel", () => {
+  it("defaults temperature to DEFAULT_GEMINI_TEMPERATURE", () => {
+    const model = createGeminiChatModel("test-key", "gemini-2.5-flash");
+    expect(model.temperature).toBe(DEFAULT_GEMINI_TEMPERATURE);
   });
 });

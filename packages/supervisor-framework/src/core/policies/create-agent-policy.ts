@@ -5,8 +5,8 @@ import { createUnavailableGraphBundle } from "../agents/runtime-agent-graph-bund
 import { resolveModel, type RuntimeAgentExecutionContext } from "../execution/context.js";
 import {
   createSubAgentGraphBundle,
-  mapDefaultSubAgentResult,
 } from "../execution/create-sub-agent.js";
+import { mapSubAgentResult } from "../execution/map-sub-agent-result.js";
 import {
   createRuntimeAgentNode,
   type RuntimeAgentNodeConfig,
@@ -14,7 +14,6 @@ import {
   type SubAgentToolSource,
 } from "../execution/runtime-node.js";
 import type { SubAgentState, SubAgentStateUpdate } from "../execution/sub-agent-state.js";
-import type { AgentStateUpdate } from "../state.js";
 import type { SkillCatalog } from "../skills/catalog.js";
 import type { RuntimeShellFormatters } from "../system-context.js";
 import type { RuntimeAgentDefinition } from "../types/agent.js";
@@ -57,12 +56,6 @@ export type CreateAgentPolicyConfig<
   logLabel?: string;
   buildErrorMessage?: RuntimeAgentNodeConfig["buildErrorMessage"];
   selectToolsForTurn?: RuntimeAgentNodeConfig["selectToolsForTurn"];
-  resolveMapResult?: (
-    definition: RuntimeAgentDefinition,
-  ) => ((
-    result: SubAgentState,
-    config: { maxSteps: number; name: string },
-  ) => AgentStateUpdate) | undefined;
 };
 
 const createAgentLlmNode = (
@@ -121,9 +114,6 @@ export const createAgentPolicy = <
       ...(config.selectToolsForTurn ? { selectToolsForTurn: config.selectToolsForTurn } : {}),
     };
 
-    const mapResult = config.resolveMapResult?.(definition)
-      ?? ((result, mapConfig) => mapDefaultSubAgentResult(result, mapConfig));
-
     return createSubAgentGraphBundle({
       name: config.displayName ?? definition.name,
       maxSteps: definition.maxSteps,
@@ -134,7 +124,8 @@ export const createAgentPolicy = <
         }),
       createLlmNode: (agentDeps, agentTools) =>
         createAgentLlmNode(agentDeps.model, agentDeps.definition, agentTools, nodeConfig),
-      mapResult,
+      mapResult: (result, mapConfig) =>
+        mapSubAgentResult(result, mapConfig, nodeConfig.resultMapping ?? {}),
     });
   },
 });

@@ -4,6 +4,7 @@ import {
   createConfigurationTools,
   createCronRepositoryFake,
 } from "../helpers/configuration-tools.js";
+import { createPersonalCapabilityCatalog } from "../helpers/capability-catalog.js";
 import { createRuntimeAgentRepositoryFake } from "../helpers/fakes.js";
 
 describe("createConfigurationTools", () => {
@@ -232,7 +233,9 @@ describe("createConfigurationTools", () => {
     const repository = createCronRepositoryFake();
     const runtimeAgentRepository = createRuntimeAgentRepositoryFake();
     const tools = createConfigurationTools(repository, runtimeAgentRepository, "configuration", {
-      obsidianVault: undefined,
+      capabilityCatalog: createPersonalCapabilityCatalog({
+        config: { obsidianVaultPath: "" } as never,
+      }),
     });
     const listCapabilitiesTool = tools.find((tool) => tool.name === "list_capabilities");
     const createTool = tools.find((tool) => tool.name === "create_runtime_agent");
