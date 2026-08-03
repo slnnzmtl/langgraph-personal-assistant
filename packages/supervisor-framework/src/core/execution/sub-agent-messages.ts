@@ -73,13 +73,46 @@ const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[
     return messages;
   }
 
+  const lastHuman = messages[lastHumanIndex]!;
+  const lastHumanNonText = extractNonTextContentParts(lastHuman.content);
+  let sourceNonTextIndex = -1;
+  let movedParts = lastHumanNonText;
+
+  if (lastHumanNonText.length === 0) {
+    for (let index = lastHumanIndex - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!message || !isHumanMessage(message)) {
+        continue;
+      }
+
+      const parts = extractNonTextContentParts(message.content);
+      if (parts.length > 0) {
+        sourceNonTextIndex = index;
+        movedParts = parts;
+        break;
+      }
+    }
+  }
+
   return messages.map((message, index) => {
-    if (!isHumanMessage(message) || index === lastHumanIndex) {
+    if (!isHumanMessage(message)) {
       return message;
     }
 
-    const text = extractMessageTextContent(message.content).trim();
-    return text.length > 0 ? new HumanMessage(text) : message;
+    if (index === lastHumanIndex) {
+      if (movedParts.length === 0 || lastHumanNonText.length > 0) {
+        return message;
+      }
+
+      const text = extractMessageTextContent(message.content).trim();
+      return new HumanMessage([{ type: "text", text }, ...movedParts]);
+    }
+
+    if (index === sourceNonTextIndex || extractNonTextContentParts(message.content).length > 0) {
+      return new HumanMessage(extractMessageTextContent(message.content).trim());
+    }
+
+    return message;
   });
 };
 

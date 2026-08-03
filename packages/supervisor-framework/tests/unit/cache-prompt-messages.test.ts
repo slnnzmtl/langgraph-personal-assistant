@@ -73,6 +73,33 @@ describe("buildCachedRuntimePromptMessages", () => {
     expect(String(messages[2]?.content)).toContain("<turn_context>");
     expect(String(messages[2]?.content)).toContain("sync expenses");
   });
+
+  it("preserves image_url parts when fusing turn_context onto a multimodal latest human", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = buildCachedRuntimePromptMessages(
+      "<system_metadata>now</system_metadata>",
+      [
+        new HumanMessage("list runtime agents"),
+        new AIMessage("Agent ID: obsidian"),
+        new HumanMessage([
+          { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
+          imagePart,
+        ]),
+      ],
+    );
+
+    expect(messages).toHaveLength(3);
+    expect(messages[2]?.content).toEqual([
+      {
+        type: "text",
+        text: expect.stringMatching(/<turn_context>[\s\S]*Summarize and save in note "ideas for a startup"/),
+      },
+      imagePart,
+    ]);
+  });
 });
 
 describe("buildTurnContextMessage", () => {

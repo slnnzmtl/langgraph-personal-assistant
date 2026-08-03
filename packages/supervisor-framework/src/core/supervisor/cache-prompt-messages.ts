@@ -1,7 +1,7 @@
 import { HumanMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
 
-import { extractMessageTextContent } from "../message-content.js";
+import { extractMessageTextContent, extractNonTextContentParts } from "../message-content.js";
 
 export const buildTurnContextMessage = (dynamicContext: string): HumanMessage | null => {
   const trimmed = dynamicContext.trim();
@@ -27,9 +27,11 @@ export const buildCachedRuntimePromptMessages = (
     && (lastMessage instanceof HumanMessage || lastMessage._getType() === "human");
 
   if (lastIsHuman) {
-    const prefixed = new HumanMessage(
-      `${extractMessageTextContent(turnContext.content)}\n${extractMessageTextContent(lastMessage.content)}`.trim(),
-    );
+    const prefixedText = `${extractMessageTextContent(turnContext.content)}\n${extractMessageTextContent(lastMessage.content)}`.trim();
+    const nonTextParts = extractNonTextContentParts(lastMessage.content);
+    const prefixed = nonTextParts.length > 0
+      ? new HumanMessage([{ type: "text", text: prefixedText }, ...nonTextParts])
+      : new HumanMessage(prefixedText);
     return [...stateMessages.slice(0, -1), prefixed];
   }
 

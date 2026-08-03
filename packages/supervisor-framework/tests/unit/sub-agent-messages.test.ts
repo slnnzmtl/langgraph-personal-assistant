@@ -137,6 +137,59 @@ describe("scopeSubAgentMessages", () => {
       ]),
     ]);
   });
+
+  it("moves a prior-turn image onto a text-only follow-up human", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage([
+        { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
+        imagePart,
+      ]),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage("What the hell? I asked to summarize text from the image"),
+    ];
+
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
+      new HumanMessage("Summarize and save in note \"ideas for a startup\""),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage([
+        { type: "text", text: "What the hell? I asked to summarize text from the image" },
+        imagePart,
+      ]),
+    ]);
+  });
+
+  it("keeps the moved image available for applyDelegationPrompt on follow-up", () => {
+    const imagePart = {
+      type: "image_url" as const,
+      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
+    };
+    const messages = [
+      new HumanMessage([
+        { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
+        imagePart,
+      ]),
+      taggedAi("I've appended the conversation summary.", "obsidian"),
+      new HumanMessage("Summarize the content of the provided image"),
+    ];
+
+    const result = applyDelegationPrompt(
+      scopeSubAgentMessages(messages, "obsidian"),
+      "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
+    );
+
+    expect(result.at(-1)?.content).toEqual([
+      {
+        type: "text",
+        text: "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
+      },
+      imagePart,
+    ]);
+    expect(String(result[0]?.content)).toBe("Summarize and save in note \"ideas for a startup\"");
+  });
 });
 
 describe("applyDelegationPrompt", () => {
