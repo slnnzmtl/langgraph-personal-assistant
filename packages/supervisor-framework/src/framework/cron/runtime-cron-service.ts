@@ -3,6 +3,9 @@ import cron, { type ScheduledTask } from "node-cron";
 import { buildCronTriggerForJob } from "./cron-triggers.js";
 import type { CronJobDefinition } from "./types.js";
 
+/** Late wake (e.g. laptop sleep) still runs one eligible slot; node-cron caps by gap to next fire. */
+const MISSED_EXECUTION_TOLERANCE_MS = 24 * 60 * 60 * 1000;
+
 export type RuntimeCronService = {
   addJob(job: CronJobDefinition): Promise<void>;
   removeJob(jobName: string): Promise<void>;
@@ -29,7 +32,9 @@ export const createRuntimeCronService = (options: {
         console.error(`[RuntimeCron] Failed to execute job "${job.jobName}":`, error);
       }
     }, {
+      name: job.jobName,
       timezone: job.timezone ?? options.timezone ?? "UTC",
+      missedExecutionTolerance: MISSED_EXECUTION_TOLERANCE_MS,
     });
 
     return task;

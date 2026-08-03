@@ -115,6 +115,8 @@ Without Supabase credentials the finance agent returns a configuration error ins
 
 Production Docker runs scheduling in the separate `personal-assistant-scheduler` service. When `ENABLE_SCHEDULER` is truthy, that process loads jobs from `data/cron-jobs.json` and executes them via synthetic `SYSTEM_CRON_TRIGGER:` messages. When disabled, the scheduler process stays idle (no jobs run) until it receives SIGINT/SIGTERM. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
+**Laptop / Docker Desktop sleep:** `RuntimeCronService` schedules with a 24h `missedExecutionTolerance`. After the host wakes, node-cron still runs at most one eligible late slot (capped by the gap to the next fire) instead of skipping the job. This does not backfill multi-day sleeps or recover jobs missed because the scheduler process restarted.
+
 ## Skills
 
 Skills are XML playbooks stored in a flat `data/skills/` directory. Each file requires `name`, `module`, and `description` on the root `<skill>` element:
