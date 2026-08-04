@@ -18,8 +18,6 @@ export type CronJobRepository = {
   deleteJob(jobName: string): Promise<CronJobDefinition>;
 };
 
-export type { CronTargetRoute } from "./cron-triggers.js";
-
 export type CronJobRun = {
   jobName: string;
   trigger: string;

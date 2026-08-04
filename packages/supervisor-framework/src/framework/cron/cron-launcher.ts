@@ -1,7 +1,6 @@
 import {
   buildCronTriggerForJob,
   isCronTargetRoute,
-  type CronTargetRoute,
 } from "./cron-triggers.js";
 import type { CronRunner } from "./cron-runner.js";
 import type { CronJobDefinition } from "./types.js";
@@ -69,5 +68,3 @@ export const setupCron = (options: SetupCronOptions): void => {
     );
   }
 };
-
-export type { CronJobDefinition, CronTargetRoute };
