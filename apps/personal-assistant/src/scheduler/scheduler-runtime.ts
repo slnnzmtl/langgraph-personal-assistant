@@ -1,4 +1,3 @@
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Telegram } from "telegraf";
 
 import type { AppConfig } from "../config.js";
@@ -23,7 +22,6 @@ type GraphInvoker = {
 
 export type StartSchedulerRuntimeOptions = {
   getGraph: () => GraphInvoker;
-  summaryModel: BaseChatModel;
   config: AppConfig;
   runtimeCron: LazyCronService;
   cronJobRepository: CronJobRepository;
@@ -34,7 +32,7 @@ export type StartSchedulerRuntimeOptions = {
 };
 
 export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOptions): Promise<void> => {
-  const { getGraph, summaryModel, config, runtimeCron, cronJobRepository, telegram } = options;
+  const { getGraph, config, runtimeCron, cronJobRepository, telegram } = options;
 
   const onJobError = (error: unknown, context: CronJobRun): void => {
     console.error(`[Cron] Job failed: ${context.jobName}`, error);
@@ -47,7 +45,6 @@ export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOption
 
   const cronRunner = createCronRunner({
     getGraph,
-    summaryModel,
     onError: onJobError,
     reporter: cronReporter,
     ...(options.cronRunLedger ? { ledger: options.cronRunLedger } : {}),

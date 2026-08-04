@@ -1,7 +1,6 @@
-import { AIMessage, HumanMessage, SystemMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, type BaseMessage } from "@langchain/core/messages";
 import { randomUUID } from "node:crypto";
 
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import { extractMessageTextContent } from "../../core/message-content.js";
 import type { CronRunLedger } from "./cron-run-ledger.js";
 import type {
@@ -20,7 +19,6 @@ type GraphInvoker = {
 
 type CronRunnerOptions = {
   getGraph: () => GraphInvoker;
-  summaryModel: BaseChatModel;
   onError(error: unknown, context: CronJobRun): void;
   reporter?: CronExecutionReporter;
   ledger?: CronRunLedger;
@@ -38,53 +36,14 @@ const buildCronInputMessage = (job: CronJobRun): HumanMessage => {
   return new HumanMessage(`${job.trigger}\n\nPayload:\n${payloadText}`);
 };
 
-const stripCronTrigger = (text: string): string => {
-  const lines = text.split(/\r?\n/);
-  return lines[0]?.startsWith("SYSTEM_CRON_TRIGGER:") ? lines.slice(1).join("\n").trim() : text.trim();
-};
-
-const formatDialogMessage = (message: BaseMessage): string | null => {
-  const text = extractMessageTextContent(message.content).trim();
-
-  if (message instanceof HumanMessage) {
-    const sanitizedText = stripCronTrigger(text);
-    return sanitizedText ? `User:\n${sanitizedText}` : null;
-  }
-
-  if (message instanceof ToolMessage) {
-    const toolName = message.name ?? message.tool_call_id ?? "tool";
-    return `Tool result (${toolName}):\n${text}`;
-  }
-
-  if (message instanceof AIMessage) {
-    return text ? `Assistant:\n${text}` : null;
-  }
-
-  return text ? `Message:\n${text}` : null;
-};
-
-const buildSummaryDialog = (messages: BaseMessage[]): string =>
-  messages.map(formatDialogMessage).filter((message): message is string => Boolean(message)).join("\n\n");
-
-const summarizeJobResult = async (
-  model: BaseChatModel,
-  job: CronJobRun,
-  messages: BaseMessage[],
-): Promise<string> => {
-  const dialog = buildSummaryDialog(messages);
-  const result = await model.invoke([
-    new SystemMessage(
-      "Write a concise, user-facing summary of the completed scheduled job. " +
-      "Use the full dialog to explain what was requested, what tools actually did, and the final outcome. " +
-      "Do not mention internal routing, cron protocol markers, raw function-call metadata, or that you are summarizing. " +
-      "Return plain text only.",
-    ),
-    new HumanMessage(`Job: ${job.jobName}\n\nCompleted dialog:\n${dialog}`),
-  ]);
-  const summary = extractMessageTextContent(result.content).trim();
+const extractTerminalSummary = (messages: BaseMessage[], jobName: string): string => {
+  const lastMessage = messages.at(-1);
+  const summary = lastMessage instanceof AIMessage
+    ? extractMessageTextContent(lastMessage.content).trim()
+    : "";
 
   if (!summary) {
-    throw new Error(`Summary model returned an empty response for job: ${job.jobName}`);
+    throw new Error(`Scheduled workflow returned an empty terminal message for job: ${jobName}`);
   }
 
   return summary;
@@ -165,7 +124,7 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
           throw new Error(`Scheduled workflow did not reach a terminal result for job: ${job.jobName}`);
         }
 
-        const summary = await summarizeJobResult(options.summaryModel, job, messages);
+        const summary = extractTerminalSummary(messages, job.jobName);
         if (activeRun) {
           options.ledger?.completeRun(activeRun.runId, { status: "succeeded" });
         }

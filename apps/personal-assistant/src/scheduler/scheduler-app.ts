@@ -43,7 +43,6 @@ export const createSchedulerApp = async (
 
   await startSchedulerRuntime({
     getGraph: () => system.getGraph(),
-    summaryModel: system.supervisorConnector.getModel(),
     config,
     runtimeCron,
     cronJobRepository: system.getCronJobRepository(),

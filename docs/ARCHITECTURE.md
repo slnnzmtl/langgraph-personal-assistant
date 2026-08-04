@@ -90,7 +90,7 @@ flowchart TB
     CRON --> WFC
     WFC --> RUNTIME
     CRON -->|graph.invoke| CA
-    CRON -->|summary report| TG
+    CRON -->|terminal reply| TG
     WFC --> KIT --> CA
     KIT --> POL
     BOOT --> SEED
@@ -152,7 +152,7 @@ scheduler/index.ts
        └─ launchScheduler() — blocks until SIGINT/SIGTERM
 ```
 
-Cron jobs invoke the **same compiled graph** via the framework `createCronRunner()` with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post a user-facing summary back to Telegram via `telegram-cron-reporter.ts`. Generic cron mechanics (persistence, triggers, scheduling, reconciliation) live in `packages/supervisor-framework/src/framework/cron/`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
+Cron jobs invoke the **same compiled graph** via the framework `createCronRunner()` with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post the terminal graph reply back to Telegram via `telegram-cron-reporter.ts`. Generic cron mechanics (persistence, triggers, scheduling, reconciliation) live in `packages/supervisor-framework/src/framework/cron/`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
 
 Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. That service passes `missedExecutionTolerance: 24h` (and a job `name`) into node-cron so a late wake after host/Docker sleep still executes one eligible slot; node-cron caps late runs by the gap to the next fire. Missed slots beyond that window are logged as warnings and not backfilled. Process restart / container recreate still starts from the next future fire only. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 

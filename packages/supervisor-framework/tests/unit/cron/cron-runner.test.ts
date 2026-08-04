@@ -20,7 +20,7 @@ const deferred = <T>() => {
 describe("createCronRunner", () => {
   it("creates a unique thread id for each scheduled run", async () => {
     const invoke = vi.fn().mockResolvedValue({ messages: [new AIMessage("Completed")] });
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError: vi.fn() });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
@@ -37,7 +37,7 @@ describe("createCronRunner", () => {
 
   it("sends a synthetic human message with the scheduled trigger content", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError: vi.fn() });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
@@ -51,7 +51,7 @@ describe("createCronRunner", () => {
 
   it("includes cron payload text in the llm input without changing the trigger line", async () => {
     const invoke = vi.fn().mockResolvedValue(undefined);
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError: vi.fn() });
 
     await runner.run({
       jobName: "finance-sync",
@@ -84,7 +84,6 @@ describe("createCronRunner", () => {
     };
     const runner = createCronRunner({
       getGraph: () => ({ invoke }),
-      summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never,
       onError: vi.fn(),
       ledger,
     });
@@ -99,7 +98,7 @@ describe("createCronRunner", () => {
   it("skips overlapping runs for the same job while a prior run is still active", async () => {
     const inFlight = deferred<void>();
     const invoke = vi.fn().mockReturnValue(inFlight.promise);
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError: vi.fn() });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError: vi.fn() });
 
     const firstRun = runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
     await Promise.resolve();
@@ -118,7 +117,7 @@ describe("createCronRunner", () => {
     const error = new Error("graph failed");
     const invoke = vi.fn().mockRejectedValue(error);
     const onError = vi.fn();
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never, onError });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError });
 
     await expect(
       runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger }),
@@ -142,8 +141,7 @@ describe("createCronRunner", () => {
       onSuccess: vi.fn(async () => undefined),
       onError: vi.fn(async () => undefined),
     };
-    const summaryModel = { invoke: vi.fn().mockResolvedValue(new AIMessage("Model summary")) };
-    const runner = createCronRunner({ getGraph: () => ({ invoke }), summaryModel: summaryModel as never, onError: vi.fn(), reporter });
+    const runner = createCronRunner({ getGraph: () => ({ invoke }), onError: vi.fn(), reporter });
 
     await runner.run({ jobName: "finance-sync", trigger: financeSyncTrigger });
 
@@ -164,7 +162,7 @@ describe("createCronRunner", () => {
         jobName: "finance-sync",
         trigger: financeSyncTrigger,
         messages: [expect.any(AIMessage)],
-        summary: "Model summary",
+        summary: "Raw result",
       }),
     );
     expect(reporter.onError).not.toHaveBeenCalled();
@@ -178,7 +176,6 @@ describe("createCronRunner", () => {
       .mockResolvedValueOnce({ messages: [new AIMessage("Completed")] });
     const runner = createCronRunner({
       getGraph: () => ({ invoke }),
-      summaryModel: { invoke: vi.fn().mockResolvedValue(new AIMessage("summary")) } as never,
       onError: vi.fn(),
     });
 
@@ -196,45 +193,50 @@ describe("createCronRunner", () => {
   });
 });
 
-describe("cron summary context", () => {
-  it("sends the full sanitized dialog to the summary model", async () => {
+describe("cron summary passthrough", () => {
+  it("uses the final assistant message as the success summary", async () => {
     const graphInvoke = vi.fn().mockResolvedValue({
       messages: [
-        new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today\'s routine note."),
+        new HumanMessage("SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today's routine note."),
         new AIMessage({ content: "", tool_calls: [{ name: "read_file", args: {}, id: "read-1" }] }),
         new ToolMessage({ content: "Yesterday tasks: - [ ] Review inbox", tool_call_id: "read-1", name: "read_file" }),
         new AIMessage({ content: "", tool_calls: [{ name: "write_file", args: {}, id: "write-1" }] }),
         new ToolMessage({ content: "Success: Updated today's note.", tool_call_id: "write-1", name: "write_file" }),
-        new AIMessage("Updated today\'s routine note with carried-forward tasks."),
+        new AIMessage("Updated today's routine note with carried-forward tasks."),
       ],
     });
-    const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("The routine note was updated."));
-    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+    const reporter = {
+      onSuccess: vi.fn(async () => undefined),
+    };
+    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), onError: vi.fn(), reporter });
 
     await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 
-    const summaryInput = summaryInvoke.mock.calls[0]?.[0]?.[1]?.content as string;
-    expect(summaryInput).toContain("Create today's routine note.");
-    expect(summaryInput).toContain("Yesterday tasks: - [ ] Review inbox");
-    expect(summaryInput).toContain("Success: Updated today's note.");
-    expect(summaryInput).toContain("Updated today's routine note with carried-forward tasks.");
-    expect(summaryInput).not.toContain("SYSTEM_CRON_TRIGGER:");
-    expect(summaryInput).not.toContain("read-1");
+    expect(reporter.onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: "Updated today's routine note with carried-forward tasks.",
+      }),
+    );
   });
 });
 
 describe("cron summary ordering", () => {
-  it("continues a pending tool-call result before summarizing", async () => {
+  it("continues a pending tool-call result before reporting the terminal summary", async () => {
     const graphInvoke = vi.fn()
       .mockResolvedValueOnce({ messages: [new AIMessage({ content: "", tool_calls: [{ name: "read_markdown_file", args: {}, id: "1" }] })] })
       .mockResolvedValueOnce({ messages: [new AIMessage("Completed note update")] });
-    const summaryInvoke = vi.fn().mockResolvedValue(new AIMessage("Updated the routine note."));
-    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), summaryModel: { invoke: summaryInvoke } as never, onError: vi.fn() });
+    const reporter = {
+      onSuccess: vi.fn(async () => undefined),
+    };
+    const runner = createCronRunner({ getGraph: () => ({ invoke: graphInvoke }), onError: vi.fn(), reporter });
 
     await runner.run({ jobName: "routine-note-creation", trigger: "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation" });
 
     expect(graphInvoke).toHaveBeenCalledTimes(2);
-    expect(summaryInvoke).toHaveBeenCalledTimes(1);
-    expect(summaryInvoke.mock.calls[0]?.[0]?.[1]?.content).toContain("Completed note update");
+    expect(reporter.onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: "Completed note update",
+      }),
+    );
   });
 });
