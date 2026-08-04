@@ -95,7 +95,7 @@ export const buildSupervisorRoutingSchema = (
         .string()
         .transform(normalizeDelegationPrompt)
         .describe(
-          "Self-contained task for this specialist. Required and must be non-empty. Preserve the user's operation (replace, overwrite, append, create) and any named note path.",
+          "Self-contained task for this specialist. Required and must be non-empty. Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked.",
         ),
     })
     : z.object({
@@ -110,7 +110,7 @@ export const buildSupervisorRoutingSchema = (
       .optional()
       .transform(normalizeDelegationPrompt)
       .describe(
-        "Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. Preserve replace vs append intent and any explicit note path from the user.",
+        "Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked.",
       ),
     queue: agentRouteNames.length > 0
       ? z

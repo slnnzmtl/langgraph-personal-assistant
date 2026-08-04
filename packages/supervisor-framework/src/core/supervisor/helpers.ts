@@ -49,6 +49,7 @@ export const buildPostHandoffReplanHint = (
     "When the original request is complete, FINISH and synthesize a user-facing reply from the specialist's output in visible thread history.",
     "Quote or summarize the specialist's actual findings—never reply with a generic greeting or filler.",
     "Do not re-route the same completed work unless the user explicitly asks to retry or accepts an offer of new work.",
+    "Never expand a specialist prompt beyond the latest user request (no carry-over, cleanup, or extra tasks unless asked).",
   ];
 
   if (handoff.status === "error") {

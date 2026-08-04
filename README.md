@@ -124,7 +124,8 @@ Skills are XML playbooks stored in a flat `data/skills/` directory. Each file re
 ```
 data/skills/
   cron.xml
-  daily-routine-note-creation.xml
+  daily-routine-note-move-tasks.xml
+  daily-routine-note.xml
   expense-ledger-schema.xml
   expense-sync.xml
   expense-update.xml
@@ -137,7 +138,7 @@ data/skills/
 
 The `module` attribute (`finance`, `obsidian`, or `configuration`) controls which runtime agent lists and auto-attaches the skill. Optional `<skill_attachments>` blocks define phrase/cron triggers for auto-attachment. The finance `expense-sync` skill drives the Wise → categorize → dedup-insert pipeline.
 
-On startup, if `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, or `skill-bootstrap.xml` are missing from `data/skills/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`) are not auto-seeded and must be present in the repo or host volume.
+On startup, if `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, or `skill-bootstrap.xml` are missing from `data/skills/`, the pack's `initializeDefaults` hook seeds them via the framework's `createDefaultContentSeeder()`. Existing files are never overwritten. Domain-specific skills (`expense-*`, `finance-summary`, `daily-routine-note`, `daily-routine-note-move-tasks`) are not auto-seeded and must be present in the repo or host volume.
 
 ## System prompts
 

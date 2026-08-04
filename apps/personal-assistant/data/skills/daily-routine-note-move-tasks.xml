@@ -1,0 +1,31 @@
+<skill name="daily-routine-note-move-tasks" module="obsidian" description="Move unchecked tasks from yesterday's routine note into today's (day-start carry-forward).">
+<skill_attachments>
+  <attachment cronJobName="routine-note-creation">
+  </attachment>
+  <attachment>
+    <allPhrases>task</allPhrases>
+    <anyPhrases>today,yesterday,move,carry,forward,unchecked</anyPhrases>
+  </attachment>
+  <attachment>
+    <anyPhrases>carry forward,carry-over,move unchecked,unchecked tasks</anyPhrases>
+  </attachment>
+</skill_attachments>
+
+<path_rules>
+- Routine notes live at `routine/[Month]/[Month] [Day] - [Weekday].md`.
+</path_rules>
+
+<task_extraction_rules>
+- From yesterday's note, extract only unchecked task lines matching `- [ ] ...`.
+- Ignore checked tasks (`- [x]`), headings, events, notes, and placeholder text.
+- If yesterday's note is missing or has no unchecked tasks, proceed with an empty carry-forward list.
+</task_extraction_rules>
+
+### Move unchecked tasks into today's note
+0. Call `read_file` on today's path. If today's note is missing, call `read_skill("daily-routine-note")` and run that create workflow, then continue.
+1. Call `read_file` on yesterday's note.
+2. Call `read_file` on today's note (if not already read this turn).
+3. Call `write_file` with `append` to add carried-forward tasks from `<task_extraction_rules>`.
+Keep the source note unchanged and do not duplicate a task already present in today's note.
+
+</skill>

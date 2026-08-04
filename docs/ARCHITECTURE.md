@@ -420,7 +420,7 @@ initializeDefaults: () => {
 
 **Seeded when missing:** `supervisor.xml`, `configuration.xml`, `cron.xml`, `runtime-agents.xml`, `skill-management.xml`, `skill-bootstrap.xml`.
 
-**Not auto-seeded:** domain prompts (`finance.xml`, `obsidian.xml`) and domain skills (`expense-*`, `finance-summary`, `daily-routine-note-creation`). Those remain git-tracked app content.
+**Not auto-seeded:** domain prompts (`finance.xml`, `obsidian.xml`) and domain skills (`expense-*`, `finance-summary`, `daily-routine-note`, `daily-routine-note-move-tasks`). Those remain git-tracked app content.
 
 Only the **bot** (writer role) runs `initializeDefaults` on bootstrap; the scheduler (reader role) skips those writes and uses read-only repository wrappers. On first deploy, start the bot once (or ensure the writer process boots first) so framework defaults seed into `./data` before the scheduler reads them.
 
@@ -443,7 +443,7 @@ Flat skill store with XML playbooks (and optional `.md`):
 - Skills are injected into system prompts dynamically (appended at bottom for LLM cache efficiency)
 - `packages/supervisor-framework/src/core/skills/skills-loader.ts` — filesystem read/write/parse; `packages/supervisor-framework/src/core/skills/skill-catalog.ts` — `createSkillCatalog()` implementing the framework `SkillCatalog` interface
 
-Current shipped skills: `cron`, `daily-routine-note-creation`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
+Current shipped skills: `cron`, `daily-routine-note`, `daily-routine-note-move-tasks`, `expense-ledger-schema`, `expense-sync`, `expense-update`, `expense-view`, `finance-summary`, `runtime-agents`, `skill-bootstrap`, `skill-management`.
 
 ---
 
