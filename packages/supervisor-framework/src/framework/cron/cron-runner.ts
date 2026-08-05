@@ -92,13 +92,6 @@ export const createCronRunner = (options: CronRunnerOptions): CronRunner => {
       }
 
       console.log(`[Cron] Running job: ${job.jobName} with trigger: ${job.trigger}`);
-      if (options.reporter?.onStart) {
-        await report(() => options.reporter?.onStart?.(job));
-      }
-
-      if (options.reporter?.onProgress) {
-        await report(() => options.reporter?.onProgress?.(job, "Dispatching scheduled workflow."));
-      }
 
       try {
         const config = { configurable: { thread_id: createThreadId(job.jobName) } };

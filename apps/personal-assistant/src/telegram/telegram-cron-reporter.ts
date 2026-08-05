@@ -33,7 +33,7 @@ export const createTelegramCronReporter = (options: TelegramCronReporterOptions)
     },
 
     async onSuccess(job) {
-      await send(`${formatJobHeader(job)} - Completed\n${summarizeResult(job)}`);
+      await send(`${formatJobHeader(job)}\n${summarizeResult(job)}`);
     },
 
     async onError(error, job) {
