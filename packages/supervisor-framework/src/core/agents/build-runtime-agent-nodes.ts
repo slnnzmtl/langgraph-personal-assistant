@@ -109,6 +109,7 @@ export const createRuntimeAgentFinalizeNode = (
       agentMessages,
       stepCount,
       maxSteps: bundle.maxSteps,
+      delegationPrompt: state.delegationPrompt,
       ...(state.handoffStatus ? { explicitStatus: state.handoffStatus } : {}),
     });
 

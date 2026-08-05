@@ -88,15 +88,17 @@ export const buildSupervisorRoutingSchema = (
 
   const agentRouteNames = routableAgents.map((agent) => agent.id) as [string, ...string[]];
 
+  // Shared across queue-step and top-level prompt fields (different lead-ins, same scope rules).
+  const promptScopeDescribe =
+    "Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked. Undated new expenses or notes must use today; never invent yesterday.";
+
   const executionStepSchema = agentRouteNames.length > 0
     ? z.object({
       agentId: z.enum(agentRouteNames).describe("Runtime agent id to execute."),
       prompt: z
         .string()
         .transform(normalizeDelegationPrompt)
-        .describe(
-          "Self-contained task for this specialist. Required and must be non-empty. Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked.",
-        ),
+        .describe(`Self-contained task for this specialist. Required and must be non-empty. ${promptScopeDescribe}`),
     })
     : z.object({
       agentId: z.string(),
@@ -110,7 +112,7 @@ export const buildSupervisorRoutingSchema = (
       .optional()
       .transform(normalizeDelegationPrompt)
       .describe(
-        "Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked.",
+        `Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. ${promptScopeDescribe}`,
       ),
     queue: agentRouteNames.length > 0
       ? z

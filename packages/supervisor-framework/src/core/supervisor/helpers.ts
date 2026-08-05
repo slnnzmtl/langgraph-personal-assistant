@@ -111,7 +111,14 @@ export const isBlockedRepeatRoute = (
     return false;
   }
 
-  return head.agentId === lastHandoff.agentId;
+  if (head.agentId !== lastHandoff.agentId) {
+    return false;
+  }
+
+  // Legacy handoffs without a stored prompt: keep agent-only blocking.
+  const priorPrompt = normalizeDelegationPrompt(lastHandoff.delegationPrompt);
+  return priorPrompt === undefined
+    || priorPrompt === (normalizeDelegationPrompt(head.prompt) ?? "");
 };
 
 export const isAutoRetryableErrorRoute = (

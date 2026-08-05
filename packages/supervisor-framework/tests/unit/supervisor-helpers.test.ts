@@ -14,11 +14,16 @@ import {
 } from "../../src/core/supervisor/helpers.js";
 import { POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
 
-const completeHandoff = (agentId: string, status: RuntimeAgentHandoff["status"] = "ok"): RuntimeAgentHandoff => ({
+const completeHandoff = (
+  agentId: string,
+  status: RuntimeAgentHandoff["status"] = "ok",
+  delegationPrompt?: string,
+): RuntimeAgentHandoff => ({
   kind: "runtime-agent-handoff",
   agentId,
   agentName: agentId,
   status,
+  ...(delegationPrompt !== undefined ? { delegationPrompt } : {}),
 });
 
 const baseState = {
@@ -84,6 +89,22 @@ describe("supervisor replan helpers", () => {
       { next: "finance", prompt: "Show yesterday's expenses.", reply: undefined },
       "show yesterday's expenses",
     )).toBe(true);
+  });
+
+  it("blocks same-agent routing when the delegation prompt matches the completed handoff", () => {
+    expect(isBlockedRepeatRoute(
+      completeHandoff("finance", "ok", "Show yesterday's expenses."),
+      { next: "finance", prompt: "Show yesterday's expenses.", reply: undefined },
+      "show yesterday's expenses",
+    )).toBe(true);
+  });
+
+  it("allows same-agent routing when the delegation prompt differs from the completed handoff", () => {
+    expect(isBlockedRepeatRoute(
+      completeHandoff("finance", "ok", "Add 115 USD for Donation to Andrii to yesterday's expenses."),
+      { next: "finance", prompt: "Add 115 USD for Donation to Andrii to today's expenses.", reply: undefined },
+      "this is today",
+    )).toBe(false);
   });
 
   it("allows same-agent routing on affirmative follow-ups", () => {

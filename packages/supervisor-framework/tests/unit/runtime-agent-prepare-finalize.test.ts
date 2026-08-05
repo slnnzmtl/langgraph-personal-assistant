@@ -42,6 +42,23 @@ describe("createRuntimeAgentFinalizeNode", () => {
     expect(messages[0]?.additional_kwargs?.[RUNTIME_AGENT_CONTEXT_KEY]).toBe("finance");
   });
 
+  it("copies delegationPrompt onto the completed handoff", () => {
+    const finalize = createRuntimeAgentFinalizeNode(createBundle(), "finance");
+    const update = finalize({
+      messages: [new HumanMessage("add expense")],
+      agentMessages: [new AIMessage("added")],
+      stepCount: 1,
+      delegationPrompt: "Add expense 115 USD for Donation to Andrii for today.",
+      context: {},
+    } as AgentState);
+
+    expect(update.lastHandoff).toMatchObject({
+      agentId: "finance",
+      status: "ok",
+      delegationPrompt: "Add expense 115 USD for Donation to Andrii for today.",
+    });
+  });
+
   it("tags freshly built finalize AI messages from mapResult", () => {
     const finalize = createRuntimeAgentFinalizeNode(
       createBundle({

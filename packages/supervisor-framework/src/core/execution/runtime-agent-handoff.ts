@@ -13,6 +13,8 @@ export type RuntimeAgentHandoff = {
   agentName: string;
   status: RuntimeAgentHandoffStatus;
   toolContext?: string;
+  /** Delegation prompt that produced this handoff, when known. */
+  delegationPrompt?: string;
 };
 
 const truncate = (value: string, max = MAX_TOOL_CONTEXT_CHARS): string =>
@@ -95,6 +97,7 @@ export const buildRuntimeAgentHandoff = (args: {
   stepCount: number;
   maxSteps: number;
   explicitStatus?: RuntimeAgentHandoffStatus;
+  delegationPrompt?: string | null;
 }): RuntimeAgentHandoff => {
   const status = args.explicitStatus
     ?? resolveRuntimeAgentHandoffStatus(
@@ -106,12 +109,14 @@ export const buildRuntimeAgentHandoff = (args: {
 
   const responseText = extractMessageTextContent(args.message.content).trim();
   const toolContext = formatRecentToolResultsForHandoff(args.agentMessages);
+  const delegationPrompt = args.delegationPrompt?.trim() || undefined;
 
   return {
     kind: "runtime-agent-handoff",
     agentId: args.agentId,
     agentName: args.agentName,
     status,
+    ...(delegationPrompt ? { delegationPrompt } : {}),
     ...(status === "empty" || (responseText.length === 0 && toolContext.length > 0)
       ? { toolContext }
       : {}),
