@@ -142,6 +142,7 @@ describe("formatAttachedSkillsPrompt", () => {
     expect(prompt).toContain("<attached_skills>");
     expect(prompt).toContain('<attached_skill name="daily-routine-note-move-tasks">');
     expect(prompt).toContain('read_skill for "daily-routine-note-move-tasks"');
+    expect(prompt).toContain("Independent tool steps from the skill still belong in one turn");
   });
 });
 
@@ -166,8 +167,8 @@ describe("resolveSkillAttachments", () => {
 
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note-move-tasks");
-    expect(attachments[0]?.content).toContain('read_skill("daily-routine-note")');
-    expect(attachments[0]?.content).toContain("read_file` on yesterday's note");
+    expect(attachments[0]?.content).toContain("read_file` on today's path and `read_file` on yesterday's path");
+    expect(attachments[0]?.content).toContain("read_file` on yesterday's path");
   });
 
   it("attaches move-tasks for combined create-and-move requests", () => {
@@ -266,7 +267,7 @@ describe("appendConfiguredSkillAttachments", () => {
     expect(prompt).toContain("Base prompt");
     expect(prompt).toContain("<attached_skills>");
     expect(prompt).toContain('<attached_skill name="daily-routine-note-move-tasks">');
-    expect(prompt).toContain('read_skill("daily-routine-note")');
+    expect(prompt).toContain("Independent tool steps from the skill still belong in one turn");
   });
 
   it("returns the base prompt unchanged when intent does not match", () => {

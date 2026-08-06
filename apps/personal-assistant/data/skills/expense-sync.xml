@@ -6,7 +6,7 @@
 </skill_attachments>
 
 <sync_intent>
-0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` for table names, date bounds, and category mapping.
+0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` in the same turn as step 1 (do not wait for a separate turn).
 1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)`
 2. `exec_sql` multi-row INSERT:
    <insert_sql>

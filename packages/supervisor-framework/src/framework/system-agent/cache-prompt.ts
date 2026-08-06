@@ -4,15 +4,19 @@ import { resolveAgentSkillModule } from "../../core/types/agent.js";
 import type { RuntimeAgentDefinition } from "../../core/types/agent.js";
 import type { SkillCatalog } from "../../core/skills/catalog.js";
 import { appendConfiguredSkillAttachments } from "../../core/skills/skill-attachments.js";
-import { appendRuntimeExecutionModel } from "../../core/skills/prompt-enrichment.js";
+import {
+  appendRuntimeExecutionModel,
+  RUNTIME_EXECUTION_MODEL,
+} from "../../core/skills/prompt-enrichment.js";
 
 export type RuntimePromptParts = {
   staticPrompt: string;
   dynamicPrompt: string;
 };
 
+/** Domain/base prompt only — keep stable for Gemini context cache. */
 export const buildStaticRuntimePrompt = (basePrompt: string): string =>
-  appendRuntimeExecutionModel(basePrompt.trim());
+  basePrompt.trim();
 
 export const buildDynamicRuntimePrompt = (
   definition: RuntimeAgentDefinition,
@@ -54,7 +58,9 @@ export const buildDynamicRuntimePrompt = (
     sections.push(metadata);
   }
 
-  return sections.join("\n\n").trim();
+  // Append last so parallel-tool guidance outranks sequential skill step lists.
+  const body = sections.join("\n\n").trim();
+  return body.length > 0 ? appendRuntimeExecutionModel(body) : RUNTIME_EXECUTION_MODEL;
 };
 
 export const buildRuntimePromptParts = (

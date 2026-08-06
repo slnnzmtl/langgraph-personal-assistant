@@ -125,6 +125,7 @@ export const formatAttachedSkillsPrompt = (
     "</attached_skills>",
     "",
     `Follow the attached skill instructions exactly for this request. Do not call read_skill for ${skillNames} unless the instructions are missing or stale.`,
+    "Independent tool steps from the skill still belong in one turn — batch them unless a later call needs a prior result.",
   ].join("\n");
 };
 

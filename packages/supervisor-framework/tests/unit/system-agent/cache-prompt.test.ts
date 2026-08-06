@@ -46,15 +46,15 @@ describe("runtime cache prompt helpers", () => {
     approvedModules: ["configuration", "finance", "obsidian"],
   });
 
-  it("buildStaticRuntimePrompt includes runtime execution guidance", () => {
+  it("buildStaticRuntimePrompt keeps only the domain base prompt", () => {
     const prompt = buildStaticRuntimePrompt("Base configuration prompt");
 
-    expect(prompt).toContain("Base configuration prompt");
-    expect(prompt).toContain(RUNTIME_EXECUTION_MODEL);
+    expect(prompt).toBe("Base configuration prompt");
+    expect(prompt).not.toContain(RUNTIME_EXECUTION_MODEL);
     expect(prompt).not.toContain("<skill_usage>");
   });
 
-  it("buildRuntimePromptParts puts skills and metadata in dynamic turn context", () => {
+  it("buildRuntimePromptParts puts skills, metadata, and runtime execution in dynamic turn context", () => {
     const parts = buildRuntimePromptParts(
       "Base configuration prompt",
       configurationDefinition,
@@ -64,12 +64,17 @@ describe("runtime cache prompt helpers", () => {
       ["Vault directory tree (folders only):\n- notes"],
     );
 
-    expect(parts.staticPrompt).toContain(RUNTIME_EXECUTION_MODEL);
+    expect(parts.staticPrompt).toBe("Base configuration prompt");
+    expect(parts.staticPrompt).not.toContain(RUNTIME_EXECUTION_MODEL);
     expect(parts.staticPrompt).not.toContain("<skill_usage>");
     expect(parts.dynamicPrompt).not.toContain("<skill_usage>");
     expect(parts.dynamicPrompt).toContain("<available_skills>");
     expect(parts.dynamicPrompt).toContain("<system_metadata>");
     expect(parts.dynamicPrompt).toContain("Vault directory tree");
+    expect(parts.dynamicPrompt).toContain(RUNTIME_EXECUTION_MODEL);
+    expect(parts.dynamicPrompt.indexOf("<available_skills>")).toBeLessThan(
+      parts.dynamicPrompt.indexOf("<runtime_execution>"),
+    );
     expect(parts.staticPrompt).not.toContain("Vault directory tree");
   });
 
@@ -85,6 +90,9 @@ describe("runtime cache prompt helpers", () => {
     expect(parts.dynamicPrompt).toContain("<attached_skills>");
     expect(parts.dynamicPrompt).toContain('<attached_skill name="skill-bootstrap">');
     expect(parts.staticPrompt).not.toContain("<attached_skills>");
+    expect(parts.dynamicPrompt.indexOf("<attached_skills>")).toBeLessThan(
+      parts.dynamicPrompt.indexOf("<runtime_execution>"),
+    );
   });
 
   it("buildRuntimePromptParts omits attachment bodies after a tool result", () => {

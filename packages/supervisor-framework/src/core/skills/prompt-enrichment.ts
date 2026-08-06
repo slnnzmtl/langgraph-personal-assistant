@@ -8,7 +8,8 @@ import { appendConfiguredSkillAttachments } from "./skill-attachments.js";
 export const RUNTIME_EXECUTION_MODEL = `<runtime_execution>
 - You run in an automatic tool loop: after tool results, you are invoked again until you reply with plain text or stop calling tools.
 - Tool schemas define only tool arguments. Never emit extra control flags or parameters not in a tool schema.
-- Parallel tool calls are supported when operations are independent. Sequence calls only when one depends on another's result (e.g., read before overwrite write).
+- Prefer multiple tool calls in the same turn when operations are independent (e.g. load two skills, run two reads/searches, list + preview unrelated resources). Do not wait for a reply turn between independent lookups.
+- Numbered or ordered skill steps that are independent still MUST be emitted together in one turn. Sequence only when a later call needs a prior result (e.g. read/search before overwrite write; list then pick an id then mutate).
 - Prior tool results are already in message history as tool messages — use them directly; do not restate or manually track step state.
 - Never return an empty turn (no text and no tool calls).
 </runtime_execution>`;

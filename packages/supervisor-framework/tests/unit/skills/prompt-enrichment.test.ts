@@ -59,6 +59,8 @@ describe("prompt enrichment", () => {
     expect(prompt).toContain("<available_skills>");
     expect(prompt).not.toContain("<skill_usage>");
     expect(prompt).toContain("<runtime_execution>");
+    expect(prompt).toContain("Prefer multiple tool calls in the same turn");
+    expect(prompt).toContain("Numbered or ordered skill steps");
     expect(prompt).toContain("Never return an empty turn");
     expect(resolveAgentSkillModule(financeDefinition)).toBe("finance");
   });

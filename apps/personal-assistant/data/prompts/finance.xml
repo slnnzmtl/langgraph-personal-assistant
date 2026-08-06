@@ -42,5 +42,5 @@ Never confirm a write unless a successful tool payload in history proves it.
 - view/list/summarize → `expense-view`
 - sync/import Wise → `expense-sync`
 - recategorize/edit/delete → `expense-update`
-- Before any expense SQL, category mapping, or Wise insert mapping, also load `expense-ledger-schema` unless that skill body is already in the prompt or prior tool history.
+- Before any expense SQL, category mapping, or Wise insert mapping, also load `expense-ledger-schema` in the same turn unless that skill body is already in the prompt or prior tool history.
 </skill_routing>

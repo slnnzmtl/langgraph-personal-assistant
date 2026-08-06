@@ -5,22 +5,8 @@
   </attachment>
 </skill_attachments>
 
-<path_rules>
-- Routine notes live at `routine/[Month]/[Month] [Day] - [Weekday].md`.
-</path_rules>
-
-<note_template>
-## Summary
-
-- [ ] [Task 1]
-- [ ] [Task 2]
-...
-</note_template>
-
 ### Create today's routine note
-1. Resolve today's path from `<path_rules>` and the injected datetime.
-2. Call `read_file` on today's path.
-3. If the note is missing, call `write_file` with `create_new` using `<note_template>`.
-4. If the note already exists, stop. Do not carry forward tasks or modify existing content.
-
+1. Call `read_file` on today's path.
+2. If the note is missing, call `write_file` with `create_new` following the same template as yesterday's note.
+3. If the note already exists, stop. Do not carry forward tasks or modify existing content.
 </skill>

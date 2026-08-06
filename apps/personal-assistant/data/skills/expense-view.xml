@@ -6,7 +6,7 @@
 </skill_attachments>
 
 <view_intent>
-0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` for table names, date bounds, and category rules.
+0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` in the same turn as the `exec_sql` below (do not wait for a separate turn).
 For every view, list, search, or summary request, call `exec_sql` now. Use SELECT statements only; do not call `fetch_wise_transactions` and do not write data.
 
 <latest_expenses_with_categories>
