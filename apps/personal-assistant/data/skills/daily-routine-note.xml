@@ -1,12 +1,26 @@
-<skill name="daily-routine-note" module="obsidian" description="Create today's routine note with the standard template when missing.">
+<skill name="daily-routine-note" module="obsidian" description="Create today's routine note with the standard template when missing. Does not carry tasks.">
 <skill_attachments>
   <attachment>
     <anyPhrases>create routine,prepare routine,routine note,daily routine</anyPhrases>
   </attachment>
 </skill_attachments>
 
+<path_rules>
+- Use `Today` and `Last routine note` paths from the routine hint. Do not search the vault for calendar yesterday.
+- Headings = existing `## …` lines from the last routine note only. If there are none, or Last routine note is `Not created`, start with `## Tasks` and invent nothing else.
+</path_rules>
+
+<prohibited>
+- Do not call `read_skill` for `daily-routine-note-move-tasks`.
+- Do not carry forward, copy, or extract task lines.
+- Do not write `- [ ]` or `- [x]` lines.
+- Do not invent headings, sections, or tasks (including `## Summary`, gym, appointment-bot).
+- Do not call `create_new` when today's note already exists.
+</prohibited>
+
 ### Create today's routine note
 1. Call `read_file` on today's path.
-2. If the note is missing, call `write_file` with `create_new` following the same template as yesterday's note.
-3. If the note already exists, stop. Do not carry forward tasks or modify existing content.
+2. If the note exists, stop.
+3. If the note is missing, call `write_file` with `create_new` using headings only from `<path_rules>`.
+4. Stop. Do not read other skills or search for another date.
 </skill>

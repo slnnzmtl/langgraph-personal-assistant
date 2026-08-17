@@ -119,7 +119,6 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
         (state: AgentState) =>
           routeAfterRuntimeAgentLlm(
             state,
-            bundle.maxSteps,
             nodeSet.toolsNodeName,
             nodeSet.finalizeNodeName,
           ),
@@ -131,10 +130,17 @@ export const createAssistant = <TCapabilityDeps extends Record<string, unknown>>
       .addConditionalEdges(
         nodeSet.toolsNodeName,
         (state: AgentState) =>
-          routeAfterRuntimeAgentTools(state, nodeSet.llmNodeName, nodeSet.toolsNodeName),
+          routeAfterRuntimeAgentTools(
+            state,
+            bundle.maxSteps,
+            nodeSet.llmNodeName,
+            nodeSet.toolsNodeName,
+            nodeSet.finalizeNodeName,
+          ),
         {
           [nodeSet.llmNodeName]: nodeSet.llmNodeName,
           [nodeSet.toolsNodeName]: nodeSet.toolsNodeName,
+          [nodeSet.finalizeNodeName]: nodeSet.finalizeNodeName,
         },
       )
       .addEdge(nodeSet.finalizeNodeName, "supervisor");

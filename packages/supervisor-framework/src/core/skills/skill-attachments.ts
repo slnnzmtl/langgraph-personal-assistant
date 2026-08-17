@@ -198,13 +198,20 @@ export const resolveSkillAttachments = (
     rules.map((rule) => [rule.skillName.toLowerCase(), rule]),
   );
 
-  for (const rule of rules) {
-    const matched = triggerTexts.some((text) => matchesSkillAttachmentRule(text, rule));
-    if (!matched) {
-      continue;
-    }
+  for (const text of triggerTexts) {
+    const cronMatchedRules = rules.filter((rule) =>
+      Boolean(rule.cronJobName) && matchesCronJobTrigger(text, rule.cronJobName ?? ""),
+    );
 
-    addSkillAttachment(resolved, rule.module, rule.skillName, skillCatalog);
+    // Cron payloads often reuse user phrasing ("create today's routine note").
+    // Attach only the cron-tagged skill so phrase siblings cannot also bind.
+    const matchingRules = cronMatchedRules.length > 0
+      ? cronMatchedRules
+      : rules.filter((rule) => matchesSkillAttachmentRule(text, rule));
+
+    for (const rule of matchingRules) {
+      addSkillAttachment(resolved, rule.module, rule.skillName, skillCatalog);
+    }
   }
 
   const activeSkill = resolveActiveSkillFromHistory(messages);

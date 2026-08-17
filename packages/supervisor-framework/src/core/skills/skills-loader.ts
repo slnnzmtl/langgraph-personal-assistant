@@ -41,6 +41,15 @@ export const getSkillFileType = (fileName: string): SkillFileType | undefined =>
 const escapeXmlAttr = (value: string): string =>
   value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 
+const parseXmlAttribute = (attrs: string, attrName: string): string | undefined => {
+  const match = attrs.match(new RegExp(`${attrName}=("([^"]*)"|'([^']*)')`));
+  const raw = match?.[2] ?? match?.[3];
+  if (raw === undefined) {
+    return undefined;
+  }
+  return raw.replaceAll("&quot;", '"').replaceAll("&amp;", "&");
+};
+
 const SKILL_ATTACHMENTS_BLOCK_REGEX = /<skill_attachments>[\s\S]*?<\/skill_attachments>\s*/i;
 const ATTACHMENT_BLOCK_REGEX = /<attachment(?:\s+cronJobName=["']([^"']+)["'])?\s*>([\s\S]*?)<\/attachment>/gi;
 const ANY_PHRASES_REGEX = /<anyPhrases>([\s\S]*?)<\/anyPhrases>/i;
@@ -110,9 +119,9 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
   }
 
   const attrs = openTagMatch[1] ?? "";
-  const nameMatch = attrs.match(/name=["']([^"']+)["']/);
-  const descriptionMatch = attrs.match(/description=["']([^"']+)["']/);
-  const moduleMatch = attrs.match(/module=["']([^"']+)["']/);
+  const name = parseXmlAttribute(attrs, "name");
+  const description = parseXmlAttribute(attrs, "description");
+  const module = parseXmlAttribute(attrs, "module");
 
   let body = trimmed.slice(openTagMatch[0].length);
   const closeTagIndex = body.lastIndexOf("</skill>");
@@ -121,14 +130,14 @@ export const parseXmlSkill = (raw: string): FrontmatterResult => {
   }
 
   const data: Record<string, string> = {};
-  if (nameMatch?.[1]) {
-    data.name = nameMatch[1];
+  if (name) {
+    data.name = name;
   }
-  if (descriptionMatch?.[1]) {
-    data.description = descriptionMatch[1];
+  if (description) {
+    data.description = description;
   }
-  if (moduleMatch?.[1]) {
-    data.module = moduleMatch[1];
+  if (module) {
+    data.module = module;
   }
 
   return { data, body: stripSkillAttachmentsBlock(body.trim()) };

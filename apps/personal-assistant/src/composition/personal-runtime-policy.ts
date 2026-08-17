@@ -86,7 +86,7 @@ const createObsidianHooks = (
     contextCache,
     async () => [
       `Vault directory tree (folders only):\n${await buildDirectoryTree(vaultRoot)}`,
-      formatObsidianRoutineHint(),
+      formatObsidianRoutineHint(vaultRoot),
     ],
   );
 

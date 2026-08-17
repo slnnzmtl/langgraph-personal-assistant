@@ -155,7 +155,7 @@ describe("resolveSkillAttachments", () => {
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note");
     expect(attachments[0]?.content).toContain("Create today's routine note");
-    expect(attachments[0]?.content).toContain("Do not carry forward tasks");
+    expect(attachments[0]?.content).toContain("Do not carry forward");
     expect(attachments[0]?.content).not.toContain("read_file` on yesterday");
     expect(attachments[0]?.content).not.toContain("<skill_attachments>");
   });
@@ -167,8 +167,8 @@ describe("resolveSkillAttachments", () => {
 
     expect(attachments).toHaveLength(1);
     expect(attachments[0]?.skillName).toBe("daily-routine-note-move-tasks");
-    expect(attachments[0]?.content).toContain("read_file` on today's path and `read_file` on yesterday's path");
-    expect(attachments[0]?.content).toContain("read_file` on yesterday's path");
+    expect(attachments[0]?.content).toContain("read_file` on today's path");
+    expect(attachments[0]?.content).toContain("Last routine note");
   });
 
   it("attaches move-tasks for combined create-and-move requests", () => {
@@ -181,10 +181,10 @@ describe("resolveSkillAttachments", () => {
     ]);
   });
 
-  it("attaches only move-tasks for the day-start cron trigger", () => {
+  it("attaches only the cron creation skill for the day-start trigger", () => {
     const attachments = resolveSkillAttachments(routineRules(), [
       new HumanMessage(
-        "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\n{}",
+        "SYSTEM_CRON_TRIGGER:obsidian:routine-note-creation\n\nPayload:\nCreate today's routine note.",
       ),
     ], { skillCatalog });
 

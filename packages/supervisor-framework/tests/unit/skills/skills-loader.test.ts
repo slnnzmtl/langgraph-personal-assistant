@@ -98,6 +98,17 @@ Call list_cron_jobs().
       expect(result.body).not.toContain("</skill>");
     });
 
+    it("parses descriptions containing apostrophes", () => {
+      const raw = `<skill name="daily-routine-note" module="obsidian" description="Create today's routine note with the standard template when missing. Does not carry tasks.">
+<body>content</body>
+</skill>`;
+      const result = parseXmlSkill(raw);
+
+      expect(result.data.description).toBe(
+        "Create today's routine note with the standard template when missing. Does not carry tasks.",
+      );
+    });
+
     it("strips skill_attachments metadata from the returned body", () => {
       const raw = `<skill name="routine" description="Routine notes">
 <skill_attachments>

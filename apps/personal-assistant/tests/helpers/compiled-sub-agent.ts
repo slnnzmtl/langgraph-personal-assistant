@@ -29,10 +29,6 @@ export const createCompiledSubAgentGraph = (
     .addNode("tools", toolsNode)
     .addEdge(START, "llm")
     .addConditionalEdges("llm", (state: SubAgentState) => {
-      if (state.stepCount >= maxSteps) {
-        return END;
-      }
-
       if (hasPendingToolCalls(state.agentMessages) || lastMessageRequestsTools(state.agentMessages)) {
         return "tools";
       }
@@ -42,6 +38,10 @@ export const createCompiledSubAgentGraph = (
     .addConditionalEdges("tools", (state: SubAgentState) => {
       if (hasPendingToolCalls(state.agentMessages)) {
         return "tools";
+      }
+
+      if (state.stepCount >= maxSteps) {
+        return END;
       }
 
       return "llm";

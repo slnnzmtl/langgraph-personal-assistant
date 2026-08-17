@@ -130,14 +130,9 @@ export const createRuntimeAgentFinalizeNode = (
 
 export const routeAfterRuntimeAgentLlm = (
   state: SubAgentState,
-  maxSteps: number,
   toolsNodeName: string,
   finalizeNodeName: string,
 ): string => {
-  if (state.stepCount >= maxSteps) {
-    return finalizeNodeName;
-  }
-
   if (hasPendingToolCalls(state.agentMessages) || lastMessageRequestsTools(state.agentMessages)) {
     return toolsNodeName;
   }
@@ -147,11 +142,17 @@ export const routeAfterRuntimeAgentLlm = (
 
 export const routeAfterRuntimeAgentTools = (
   state: SubAgentState,
+  maxSteps: number,
   llmNodeName: string,
   toolsNodeName: string,
+  finalizeNodeName: string,
 ): string => {
   if (hasPendingToolCalls(state.agentMessages)) {
     return toolsNodeName;
+  }
+
+  if (state.stepCount >= maxSteps) {
+    return finalizeNodeName;
   }
 
   return llmNodeName;

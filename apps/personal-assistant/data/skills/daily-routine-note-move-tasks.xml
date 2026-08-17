@@ -1,24 +1,37 @@
-<skill name="daily-routine-note-move-tasks" module="obsidian" description="Move unchecked tasks from yesterday's routine note into today's (day-start carry-forward).">
+<skill name="daily-routine-note-move-tasks" module="obsidian" description="Ensure today's routine note exists and carry unchecked tasks from the last routine note.">
 <skill_attachments>
-  <attachment cronJobName="routine-note-creation">
-  </attachment>
   <attachment>
     <allPhrases>task</allPhrases>
-    <anyPhrases>today,yesterday,move,carry,forward,unchecked</anyPhrases>
+    <anyPhrases>today,yesterday,move,carry,forward,unchecked,last routine</anyPhrases>
   </attachment>
   <attachment>
     <anyPhrases>carry forward,carry-over,move unchecked,unchecked tasks</anyPhrases>
   </attachment>
+  <attachment cronJobName="routine-note-creation">
+  </attachment>
 </skill_attachments>
 
+<path_rules>
+- Use `Today` and `Last routine note` paths from the routine hint. Do not search the vault for calendar yesterday.
+- Headings = existing `## …` lines from the last routine note only. If there are none, or Last routine note is `Not created`, start with `## Tasks` and invent nothing else.
+- If Last routine note is `Not created`, the carry-forward list is empty.
+</path_rules>
+
 <task_extraction_rules>
-- From yesterday's note, extract only unchecked task lines matching `- [ ] ...`.
-- Ignore checked tasks (`- [x]`), headings, events, notes, and placeholder text.
-- If yesterday's note is missing or has no unchecked tasks, proceed with an empty carry-forward list.
+- From the last routine note, extract only unchecked task lines matching `- [ ] ...`.
+- Copy those lines verbatim. Ignore checked tasks (`- [x]`), headings, events, notes, and placeholder text.
 </task_extraction_rules>
 
+<prohibited>
+- Do not call `read_skill` for `daily-routine-note`.
+- Keep the last routine note unchanged.
+- Do not duplicate a task already present in today's note.
+- Do not call `create_new` when today's note already exists.
+</prohibited>
+
 ### Move unchecked tasks into today's note
-0. Call `read_file` on today's path and `read_file` on yesterday's path. If today's note is missing, create a new note with the same template as yesterday's note.
-1. Call `write_file` with `overwrite` to add carried-forward tasks from `<task_extraction_rules>`.
-Keep the source note unchanged and do not duplicate a task already present in today's note.
+1. In one turn, call `read_file` on today's path and, when Last routine note is not `Not created`, `read_file` on that path.
+2. If today's note is missing, call `write_file` with `create_new` using headings from `<path_rules>` plus only the verbatim `- [ ]` lines from `<task_extraction_rules>`.
+3. If today's note exists, call `write_file` with `overwrite` or `append` only to add carried-forward tasks.
+4. Stop after that write, or if there is nothing to add. Do not search the vault or load another routine skill.
 </skill>

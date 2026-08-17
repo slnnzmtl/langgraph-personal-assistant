@@ -1,5 +1,7 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import path from "node:path";
 
 import {
   buildDirectoryTree,
@@ -19,14 +21,39 @@ const formatRoutineFilePath = (date: Date): string => {
 const shiftDateByDays = (date: Date, days: number): Date =>
   new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
 
-export const formatObsidianRoutineHint = (date: Date = new Date()): string => {
-  const yesterdayPath = formatRoutineFilePath(shiftDateByDays(date, -1));
+const LAST_ROUTINE_LOOKBACK_DAYS = 90;
+
+const findLastRoutineRelativePath = (vaultRoot: string, date: Date): string | undefined => {
+  for (let daysAgo = 1; daysAgo <= LAST_ROUTINE_LOOKBACK_DAYS; daysAgo += 1) {
+    const relativePath = formatRoutineFilePath(shiftDateByDays(date, -daysAgo));
+    if (existsSync(path.join(vaultRoot, relativePath))) {
+      return relativePath;
+    }
+  }
+
+  return undefined;
+};
+
+const formatRoutineHintLine = (
+  vaultRoot: string,
+  label: string,
+  relativePath: string,
+): string => {
+  const exists = existsSync(path.join(vaultRoot, relativePath));
+  return `${label}: ${exists ? relativePath : "Not created"}`;
+};
+
+export const formatObsidianRoutineHint = (
+  vaultRoot: string,
+  date: Date = new Date(),
+): string => {
   const todayPath = formatRoutineFilePath(date);
+  const lastRoutinePath = findLastRoutineRelativePath(vaultRoot, date);
 
   return [
     "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
-    `Yesterday: ${yesterdayPath}`,
-    `Today: ${todayPath}`,
+    `Last routine note: ${lastRoutinePath ?? "Not created"}`,
+    formatRoutineHintLine(vaultRoot, "Today", todayPath),
   ].join("\n");
 };
 
@@ -155,7 +182,7 @@ export const composeObsidianCapabilityHooks = (
       return appendSections(
         basePrompt,
         `Vault directory tree (folders only):\n${vaultDirectoryTree}`,
-        formatObsidianRoutineHint(),
+        formatObsidianRoutineHint(vaultRoot),
       );
     },
     processResponse: (ctx, response) =>

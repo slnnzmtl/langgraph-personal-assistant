@@ -346,15 +346,85 @@ describe("obsidian node helpers", () => {
 });
 
 describe("formatObsidianRoutineHint", () => {
-  it("includes yesterday and today routine paths", () => {
+  const todayPath = "routine/July/July 10 - Fri.md";
+  const yesterdayPath = "routine/July/July 9 - Thu.md";
+
+  const writeRoutineNote = async (vaultRoot: string, relativePath: string): Promise<void> => {
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const absolutePath = path.join(vaultRoot, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, "# note\n", "utf8");
+  };
+
+  it("includes last routine note and today paths when both notes exist", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+    await writeRoutineNote(vaultRoot, yesterdayPath);
+    await writeRoutineNote(vaultRoot, todayPath);
 
-    const hint = formatObsidianRoutineHint(new Date());
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
 
     expect(hint).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
-    expect(hint).toContain("Yesterday: routine/July/July 9 - Thu.md");
-    expect(hint).toContain("Today: routine/July/July 10 - Fri.md");
+    expect(hint).toContain(`Last routine note: ${yesterdayPath}`);
+    expect(hint).toContain(`Today: ${todayPath}`);
+
+    vi.useRealTimers();
+  });
+
+  it("uses an older routine note when yesterday's note is missing", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+    const olderPath = "routine/July/July 8 - Wed.md";
+    await writeRoutineNote(vaultRoot, olderPath);
+    await writeRoutineNote(vaultRoot, todayPath);
+
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
+
+    expect(hint).toContain(`Last routine note: ${olderPath}`);
+    expect(hint).toContain(`Today: ${todayPath}`);
+
+    vi.useRealTimers();
+  });
+
+  it("labels last routine note as Not created when no prior note exists", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+    await writeRoutineNote(vaultRoot, todayPath);
+
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
+
+    expect(hint).toContain("Last routine note: Not created");
+    expect(hint).toContain(`Today: ${todayPath}`);
+
+    vi.useRealTimers();
+  });
+
+  it("labels today as Not created when today's note is missing", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+    await writeRoutineNote(vaultRoot, yesterdayPath);
+
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
+
+    expect(hint).toContain(`Last routine note: ${yesterdayPath}`);
+    expect(hint).toContain("Today: Not created");
+
+    vi.useRealTimers();
+  });
+
+  it("labels both as Not created when no routine notes exist", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
+
+    expect(hint).toContain("Last routine note: Not created");
+    expect(hint).toContain("Today: Not created");
 
     vi.useRealTimers();
   });
@@ -411,6 +481,7 @@ describe("obsidian runtime node hooks", () => {
       expect(promptContent).toContain("CURRENT DATETIME:");
       expect(promptContent).toContain(expectedRoutinePath);
       expect(promptContent).toContain("Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.");
+      expect(promptContent).toContain("Last routine note: Not created");
       expect(promptContent).toContain(`Today: ${expectedRoutinePath}`);
       expect(promptContent.indexOf("Obsidian Vault Manager")).toBeLessThan(
         promptContent.indexOf("CURRENT DATETIME:"),
@@ -488,7 +559,7 @@ describe("obsidian runtime node hooks", () => {
 
     await mkdir(path.join(vaultRoot, "routine", "July"), { recursive: true });
     await mkdir(path.join(vaultRoot, "projects", "alpha"), { recursive: true });
-    await writeFile(path.join(vaultRoot, "routine", "July", "July 5 - Sun.md"), "# Today\n", "utf8");
+    await writeFile(path.join(vaultRoot, "routine", "July", "scratch.md"), "# Scratch\n", "utf8");
     await writeFile(path.join(vaultRoot, "inbox.md"), "# Inbox\n", "utf8");
 
     const connector = new FakeLLMConnector((input) => {
@@ -499,7 +570,7 @@ describe("obsidian runtime node hooks", () => {
 
       expect(promptContent).toContain("Vault directory tree (folders only):");
       expect(promptContent).toContain(".\n  projects\n    projects/alpha\n  routine\n    routine/July");
-      expect(promptContent).not.toContain("July 5 - Sun.md");
+      expect(promptContent).not.toContain("scratch.md");
       expect(promptContent).not.toContain("inbox.md");
 
       return new AIMessage("Done.");

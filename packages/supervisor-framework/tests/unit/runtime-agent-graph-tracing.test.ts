@@ -70,7 +70,7 @@ const createFlattenedRuntimeAgentGraph = () => {
     .addEdge("finance__prepare", "finance__llm")
     .addConditionalEdges(
       "finance__llm",
-      (state) => routeAfterRuntimeAgentLlm(state, bundle.maxSteps, "finance__tools", "finance__finalize"),
+      (state) => routeAfterRuntimeAgentLlm(state, "finance__tools", "finance__finalize"),
       {
         finance__tools: "finance__tools",
         finance__finalize: "finance__finalize",
@@ -78,10 +78,17 @@ const createFlattenedRuntimeAgentGraph = () => {
     )
     .addConditionalEdges(
       "finance__tools",
-      (state) => routeAfterRuntimeAgentTools(state, "finance__llm", "finance__tools"),
+      (state) => routeAfterRuntimeAgentTools(
+        state,
+        bundle.maxSteps,
+        "finance__llm",
+        "finance__tools",
+        "finance__finalize",
+      ),
       {
         finance__llm: "finance__llm",
         finance__tools: "finance__tools",
+        finance__finalize: "finance__finalize",
       },
     )
     .addEdge("finance__finalize", END)

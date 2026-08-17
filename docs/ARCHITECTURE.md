@@ -289,7 +289,7 @@ export const createAgentStateAnnotation = ({ messageHistoryMaxTokens }) =>
 
 - **`messages`** — supervisor-visible conversation history; final sub-agent replies land here via finalize.
 - **`agentMessages`** — scoped working set for the active runtime agent loop; cleared after finalize.
-- **`stepCount`** — tool-loop iteration guard (compared to agent `maxSteps`).
+- **`stepCount`** — tool-loop iteration guard (compared to agent `maxSteps` after tools run, so a tool call on the last LLM step still executes).
 - **`next`** — routing target: agent id (e.g. `finance`) or `FINISH`.
 
 ### Message reducer pipeline
