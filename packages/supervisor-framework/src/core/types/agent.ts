@@ -3,6 +3,9 @@ import { z } from "zod";
 export const RUNTIME_AGENT_SCHEMA_VERSION = 1;
 
 export const RUNTIME_AGENT_CONTEXT_KEY = "runtimeAgentId" as const;
+export const DELEGATION_TASK_CONTEXT_KEY = "delegationTask" as const;
+export const PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY = "priorSpecialistSummary" as const;
+export const MULTI_SPECIALIST_TURN_CONTEXT_KEY = "multiSpecialistTurn" as const;
 
 /** Virtual system admin agent id. */
 export const SYSTEM_AGENT_ID = "configuration" as const;

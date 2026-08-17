@@ -12,7 +12,22 @@ export type RuntimeAgentHandoff = {
   agentId: string;
   agentName: string;
   status: RuntimeAgentHandoffStatus;
+  resultSummary?: string;
   toolContext?: string;
+};
+
+export const HANDOFF_RESULT_SUMMARY_MAX_CHARS = 600;
+
+export const summarizeHandoffReply = (
+  text: string,
+  maxChars = HANDOFF_RESULT_SUMMARY_MAX_CHARS,
+): string => {
+  const trimmed = text.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, maxChars)}…`;
 };
 
 const truncate = (value: string, max = MAX_TOOL_CONTEXT_CHARS): string =>
@@ -106,15 +121,17 @@ export const buildRuntimeAgentHandoff = (args: {
 
   const responseText = extractMessageTextContent(args.message.content).trim();
   const toolContext = formatRecentToolResultsForHandoff(args.agentMessages);
+  const resultSummary = responseText.length > 0
+    ? summarizeHandoffReply(responseText)
+    : undefined;
 
   return {
     kind: "runtime-agent-handoff",
     agentId: args.agentId,
     agentName: args.agentName,
     status,
-    ...(status === "empty" || (responseText.length === 0 && toolContext.length > 0)
-      ? { toolContext }
-      : {}),
+    ...(resultSummary ? { resultSummary } : {}),
+    ...(status === "empty" && toolContext.length > 0 ? { toolContext } : {}),
   };
 };
 

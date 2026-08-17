@@ -1,12 +1,16 @@
-import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from "@langchain/core/messages";
 import type { RunnableConfig } from "@langchain/core/runnables";
 
-import { formatRecentToolResultsForHandoff } from "../execution/runtime-agent-handoff.js";
+import {
+  formatRecentToolResultsForHandoff,
+  type RuntimeAgentHandoff,
+} from "../execution/runtime-agent-handoff.js";
 import type { ILLMConnector } from "../ports/llm-connector.js";
 import { extractMessageTextContent } from "../message-content.js";
 import type { AgentState, AgentStateUpdate } from "../state.js";
 import { FINISH_ROUTE } from "../state.js";
 import { stripToolsForSupervisor } from "./message-history.js";
+import { clearDelegationContext } from "./helpers.js";
 import {
   buildFailureReplyText,
   findLatestAiReplySinceLastHuman,
@@ -15,6 +19,14 @@ import {
 } from "./reply-helpers.js";
 import { defaultReplyUxConfig, DEFAULT_GENERIC_COMPLETION_FALLBACKS, type ReplyUxConfig } from "./reply-ux.js";
 
+const resolveHandoffEvidence = (
+  handoff: RuntimeAgentHandoff | null | undefined,
+  messages?: BaseMessage[],
+): string =>
+  handoff?.resultSummary?.trim()
+  || handoff?.toolContext?.trim()
+  || (messages ? formatRecentToolResultsForHandoff(messages) : "");
+
 export const createEmptyReplyNode = (
   llmConnector: ILLMConnector,
   replyUx: ReplyUxConfig = defaultReplyUxConfig,
@@ -22,7 +34,7 @@ export const createEmptyReplyNode = (
   async (state: AgentState, config?: RunnableConfig): Promise<AgentStateUpdate> => {
     const handoff = state.lastHandoff;
     const agentName = handoff?.agentName ?? "runtime agent";
-    const toolContext = handoff?.toolContext?.trim() ?? "";
+    const toolContext = resolveHandoffEvidence(handoff);
     const latestUserRequest = findLatestHumanMessageText(state.messages);
     const replyContext = { agentName, toolContext, latestUserRequest };
     const safeFallback = replyUx.buildEmptyReplySafeFallback(replyContext);
@@ -41,6 +53,7 @@ export const createEmptyReplyNode = (
       lastHandoff: null,
       routingFailureContext: null,
       messages: [new AIMessage(replyText)],
+      context: clearDelegationContext(),
     };
   };
 
@@ -68,6 +81,7 @@ export const createFailureReplyNode = (
       next: FINISH_ROUTE,
       lastHandoff: null,
       routingFailureContext: null,
+      context: clearDelegationContext(),
       messages: [
         new AIMessage(
           await buildFailureReplyText(
@@ -99,11 +113,11 @@ export const createPostHandoffFinishNode = (
         next: FINISH_ROUTE,
         lastHandoff: null,
         routingFailureContext: null,
+        context: clearDelegationContext(),
       };
     }
 
-    const toolContext = handoff?.toolContext?.trim()
-      || formatRecentToolResultsForHandoff(state.messages);
+    const toolContext = resolveHandoffEvidence(handoff, state.messages);
     const replyContext = { agentName, toolContext, latestUserRequest };
     const safeFallback = replyUx.buildPostHandoffFinishSafeFallback(replyContext);
     const finalizerResponse = await llmConnector.getModel().invoke([
@@ -121,5 +135,6 @@ export const createPostHandoffFinishNode = (
       lastHandoff: null,
       routingFailureContext: null,
       messages: [new AIMessage(replyText)],
+      context: clearDelegationContext(),
     };
   };

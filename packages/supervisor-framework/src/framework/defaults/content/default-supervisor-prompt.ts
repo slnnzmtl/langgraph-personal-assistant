@@ -18,6 +18,9 @@ export const DEFAULT_SUPERVISOR_PROMPT = `<system_instructions>
     JSON Schema:
     {
       "next": "FINISH | configuration",
+      "queue": [
+        { "agentId": "configuration", "task": "Optional focused brief for this specialist." }
+      ],
       "reply": "User-facing string. ONLY include this key if next is FINISH."
     }
   </response_protocol>

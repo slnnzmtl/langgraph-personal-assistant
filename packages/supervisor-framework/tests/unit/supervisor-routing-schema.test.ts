@@ -72,8 +72,8 @@ describe("supervisor routing schema", () => {
     })).toEqual({
       next: "finance",
       queue: [
-        { agentId: "finance" },
-        { agentId: "obsidian" },
+        { agentId: "finance", task: undefined },
+        { agentId: "obsidian", task: undefined },
       ],
       reply: undefined,
     });
@@ -99,6 +99,41 @@ describe("supervisor routing schema", () => {
     const schema = buildSupervisorRoutingSchema(agents, wiredAgentIds);
     expect(() => schema.parse({ next: "configuration" })).toThrow();
     expect(schema.parse({ next: "finance" })).toEqual({
+      next: "finance",
+      queue: undefined,
+      reply: undefined,
+    });
+  });
+
+  it("accepts an optional task brief only on queued steps", () => {
+    const schema = buildSupervisorRoutingSchema(buildTestRuntimeAgents());
+
+    const single = schema.parse({
+      next: "finance",
+      queue: [{ agentId: "finance", task: "  only yesterday  " }],
+    });
+    expect(single.next).toBe("finance");
+    expect(single.queue).toEqual([
+      { agentId: "finance", task: "  only yesterday  " },
+    ]);
+
+    const queued = schema.parse({
+      next: "obsidian",
+      queue: [
+        { agentId: "obsidian", task: "Show today's plan only." },
+        { agentId: "finance" },
+      ],
+    });
+    expect(queued.queue).toEqual([
+      { agentId: "obsidian", task: "Show today's plan only." },
+      { agentId: "finance" },
+    ]);
+  });
+
+  it("strips a leftover top-level task field", () => {
+    const schema = buildSupervisorRoutingSchema(buildTestRuntimeAgents());
+
+    expect(schema.parse({ next: "finance", task: "only yesterday" })).toEqual({
       next: "finance",
       queue: undefined,
       reply: undefined,

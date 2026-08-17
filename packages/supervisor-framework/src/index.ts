@@ -153,6 +153,9 @@ export type { RuntimeAgentPolicy } from "./core/types/policy.js";
 export type { PolicyContext } from "./core/types/policy-context.js";
 export {
   RUNTIME_AGENT_CONTEXT_KEY,
+  DELEGATION_TASK_CONTEXT_KEY,
+  PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY,
+  MULTI_SPECIALIST_TURN_CONTEXT_KEY,
   DEFAULT_MODEL_KEY,
   RuntimeAgentDefinitionSchema,
   RuntimeAgentsDocumentSchema,
@@ -340,6 +343,7 @@ export {
   buildSupervisorRoutingSchema,
   filterRoutableRuntimeAgents,
   normalizeSupervisorReply,
+  type ExecutionStep,
 } from "./core/supervisor/routing-schema.js";
 export {
   createEmptyReplyNode,

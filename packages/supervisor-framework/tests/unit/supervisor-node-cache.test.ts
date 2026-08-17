@@ -124,6 +124,7 @@ describe("createSupervisorNode context cache", () => {
         status: "ok",
       },
       executionQueue: [],
+      context: { multiSpecialistTurn: true },
     }));
 
     const messages = invokeInputs[0] as Array<{ content: unknown }>;

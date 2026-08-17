@@ -6,6 +6,7 @@ const PLACEHOLDER_REPLY_VALUES = new Set(["null", "undefined", "none", "n/a"]);
 
 export type ExecutionStep = {
   agentId: string;
+  task?: string;
 };
 
 export const normalizeSupervisorReply = (reply: string | undefined): string | undefined => {
@@ -21,7 +22,27 @@ export const normalizeSupervisorReply = (reply: string | undefined): string | un
   return trimmed;
 };
 
+export const normalizeOptionalTask = (value: string | undefined): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+export const toExecutionStep = (step: {
+  agentId: string;
+  task?: string | undefined;
+}): ExecutionStep => {
+  const task = normalizeOptionalTask(step.task);
+  return task ? { agentId: step.agentId, task } : { agentId: step.agentId };
+};
+
 const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
+
+const formatRoutableAgentList = (routableAgents: RuntimeAgentDefinition[]): string[] =>
+  routableAgents.map((agent) => `- ${agent.id}: ${agent.description}`);
 
 const buildRoutingDescription = (routableAgents: RuntimeAgentDefinition[]): string => {
   const base = [
@@ -31,27 +52,30 @@ const buildRoutingDescription = (routableAgents: RuntimeAgentDefinition[]): stri
 
   if (routableAgents.length > 0) {
     base.push("Route to a runtime agent id when the request clearly matches one of these specialists:");
-    for (const agent of routableAgents) {
-      base.push(`- ${agent.id}: ${agent.description}`);
-    }
+    base.push(...formatRoutableAgentList(routableAgents));
   }
 
   return base.join(" ");
 };
 
+const optionalTaskSchema = z
+  .string()
+  .describe(
+    "Focused brief for this specialist: remaining work, constraints, and what to ignore. Omit when the current user message is already sufficient.",
+  )
+  .optional();
+
 const buildQueueDescription = (routableAgents: RuntimeAgentDefinition[]): string => {
   const base = [
-    "Optional ordered list of runtime agent ids to execute sequentially before the supervisor re-plans.",
-    "Each step includes only agentId. Specialists receive scoped conversation history and the current user message.",
-    "Use when a request clearly needs multiple specialists in order.",
-    "Omit for single-agent routing via next alone.",
+    "Ordered list of specialists to execute sequentially before the supervisor re-plans.",
+    "Each step includes agentId and an optional task brief. Specialists receive scoped conversation history, the current user message, and the task when provided.",
+    "Use a one-item queue when a single specialist needs a task brief. Omit queue when next alone is enough (no brief) or when FINISH.",
+    "When present, queue must include every specialist in order, including the first.",
   ];
 
   if (routableAgents.length > 0) {
     base.push("Each agentId must be one of:");
-    for (const agent of routableAgents) {
-      base.push(`- ${agent.id}: ${agent.description}`);
-    }
+    base.push(...formatRoutableAgentList(routableAgents));
   }
 
   return base.join(" ");
@@ -81,9 +105,11 @@ export const buildSupervisorRoutingSchema = (
   const executionStepSchema = agentRouteNames.length > 0
     ? z.object({
       agentId: z.enum(agentRouteNames).describe("Runtime agent id to execute."),
+      task: optionalTaskSchema,
     })
     : z.object({
       agentId: z.string(),
+      task: optionalTaskSchema,
     });
 
   return z.object({

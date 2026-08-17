@@ -274,7 +274,7 @@ test.describe("workflow graph", () => {
     );
 
     expect(finalState.messages.at(-1)?.content).toBe(
-      "I couldn't finish routing your request. Unknown or disabled runtime agent route: finance",
+      "I couldn't finish routing your request. Please try again in a moment.",
     );
   });
 
@@ -417,12 +417,8 @@ test.describe("workflow graph", () => {
       expect(todayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
-      expect(finalState.messages.at(-1)?.content).toBe(
-        writeSuccessSummary(
-          "Moved unchecked tasks from yesterday into today's routine",
-          todayPath,
-        ),
-      );
+      expect(finalState.messages.at(-1)?.content).toContain("## Yesterday");
+      expect(finalState.messages.at(-1)?.content).toContain("- [ ] Buy milk");
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -505,12 +501,8 @@ test.describe("workflow graph", () => {
       expect(todayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [ ] Buy milk");
       expect(yesterdayContent).toContain("- [x] Archive receipt");
-      expect(finalState.messages.at(-1)?.content).toBe(
-        writeSuccessSummary(
-          "Moved unchecked tasks from yesterday into today's routine",
-          todayPath,
-        ),
-      );
+      expect(finalState.messages.at(-1)?.content).toContain("## Yesterday");
+      expect(finalState.messages.at(-1)?.content).toContain("- [ ] Buy milk");
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -606,9 +598,8 @@ test.describe("workflow graph", () => {
 
       expect(saved).toContain("- [x] Go to sauna after noon");
       expect(saved).toContain("- [ ] Review PRs");
-      expect(finalState.messages.at(-1)?.content).toBe(
-        writeSuccessSummary("Marked 'Go to sauna after noon' as completed", notePath),
-      );
+      expect(finalState.messages.at(-1)?.content).toContain("## Today");
+      expect(finalState.messages.at(-1)?.content).toContain("Go to sauna after noon");
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -670,9 +661,7 @@ test.describe("workflow graph", () => {
 
       expect(saved).toContain("Plan for today");
       expect(saved).toContain("- [ ] Go to sauna after noon");
-      expect(finalState.messages.at(-1)?.content).toBe(
-        writeSuccessSummary("Updated today's note with the sauna plan", notePath),
-      );
+      expect(finalState.messages.at(-1)?.content).toContain("Plan for today");
     } finally {
       await rm(vaultRoot, { recursive: true, force: true });
     }
@@ -809,7 +798,7 @@ test.describe("workflow graph", () => {
       workflowConfig,
     );
 
-    expect(finalState.context?.runtimeAgentId).toBe("daily-summary");
+    expect(finalState.context?.runtimeAgentId).toBeNull();
     expect(finalState.messages.at(-1)?.content).toBe("Here is your daily summary for today.");
   });
 });

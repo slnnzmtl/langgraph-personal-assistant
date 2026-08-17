@@ -3,16 +3,25 @@ import { AIMessage, HumanMessage } from "@langchain/core/messages";
 
 import type { RuntimeAgentHandoff } from "../../src/core/execution/runtime-agent-handoff.js";
 import {
+  buildExecutionContext,
   buildPostHandoffReplanHint,
   DEFAULT_MAX_ERROR_RETRIES,
   detectCompletionState,
+  enqueueAndStart,
   isAffirmativeFollowUp,
   isAutoRetryableErrorRoute,
   isBlockedRepeatRoute,
   isExplicitRetryRequest,
+  resolveEffectiveExecutionPlan,
   resolveRoutingDecision,
 } from "../../src/core/supervisor/helpers.js";
-import { POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
+import {
+  DELEGATION_TASK_CONTEXT_KEY,
+  MULTI_SPECIALIST_TURN_CONTEXT_KEY,
+  PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY,
+  RUNTIME_AGENT_CONTEXT_KEY,
+} from "../../src/core/types/agent.js";
+import { FINISH_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
 
 const completeHandoff = (
   agentId: string,
@@ -75,6 +84,19 @@ describe("supervisor replan helpers", () => {
         lastHandoff: completeHandoff("finance"),
       },
       "yes",
+    );
+
+    expect(hint).toBeNull();
+  });
+
+  it("returns null when the last handoff is empty", () => {
+    const hint = buildPostHandoffReplanHint(
+      {
+        ...baseState,
+        messages: [],
+        lastHandoff: completeHandoff("finance", "empty"),
+      },
+      "show yesterday's expenses",
     );
 
     expect(hint).toBeNull();
@@ -232,11 +254,32 @@ describe("supervisor replan helpers", () => {
     expect(result.retryCount).toBe(0);
   });
 
-  it("returns null when a non-configuration specialist returns in the same turn", () => {
+  it("returns FINISH without a new message when a non-configuration specialist completes a single-agent turn", () => {
     expect(detectCompletionState({
       ...baseState,
       messages: [new HumanMessage("sync expenses"), new AIMessage("Synced 5 transactions.")],
       lastHandoff: completeHandoff("finance"),
+    })).toEqual({
+      next: FINISH_ROUTE,
+      lastHandoff: null,
+      routingFailureContext: null,
+      executionQueue: [],
+      retryCount: 0,
+      context: {
+        [RUNTIME_AGENT_CONTEXT_KEY]: null,
+        [DELEGATION_TASK_CONTEXT_KEY]: null,
+        [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: null,
+        [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: null,
+      },
+    });
+  });
+
+  it("falls through to supervisor synthesis after a multi-specialist turn", () => {
+    expect(detectCompletionState({
+      ...baseState,
+      messages: [new HumanMessage("plan and expenses"), new AIMessage("Note saved.")],
+      lastHandoff: completeHandoff("obsidian"),
+      context: { [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: true },
     })).toBeNull();
   });
 
@@ -250,5 +293,96 @@ describe("supervisor replan helpers", () => {
       ],
       lastHandoff: completeHandoff("configuration"),
     })).toBeNull();
+  });
+
+  it("builds a single-agent plan from next without a task brief", () => {
+    expect(resolveEffectiveExecutionPlan({
+      next: "finance",
+      reply: undefined,
+    })).toEqual([{ agentId: "finance" }]);
+  });
+
+  it("preserves per-step tasks on a queued plan, including a one-item queue", () => {
+    expect(resolveEffectiveExecutionPlan({
+      next: "finance",
+      queue: [{ agentId: "finance", task: "only yesterday" }],
+      reply: undefined,
+    })).toEqual([{ agentId: "finance", task: "only yesterday" }]);
+
+    expect(resolveEffectiveExecutionPlan({
+      next: "obsidian",
+      queue: [
+        { agentId: "obsidian", task: "today's plan" },
+        { agentId: "finance" },
+      ],
+      reply: undefined,
+    })).toEqual([
+      { agentId: "obsidian", task: "today's plan" },
+      { agentId: "finance" },
+    ]);
+  });
+
+  it("always writes delegation context keys, including nulls", () => {
+    expect(buildExecutionContext({ agentId: "finance" }, { multiSpecialistTurn: false })).toEqual({
+      [RUNTIME_AGENT_CONTEXT_KEY]: "finance",
+      [DELEGATION_TASK_CONTEXT_KEY]: null,
+      [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: null,
+      [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: null,
+    });
+  });
+
+  it("pipes the prior specialist summary when dequeuing the next agent", () => {
+    const prior = {
+      ...completeHandoff("finance"),
+      resultSummary: "Synced 5 transactions.",
+    };
+    const update = enqueueAndStart(
+      [{ agentId: "obsidian", task: "Write a note with those expenses." }],
+      { priorHandoff: prior, continuingMultiSpecialistTurn: true },
+    );
+
+    expect(update.next).toBe("obsidian");
+    expect(update.context).toEqual({
+      [RUNTIME_AGENT_CONTEXT_KEY]: "obsidian",
+      [DELEGATION_TASK_CONTEXT_KEY]: "Write a note with those expenses.",
+      [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: "Synced 5 transactions.",
+      [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: true,
+    });
+  });
+
+  it("includes the specialist result summary in the post-handoff replan hint", () => {
+    const hint = buildPostHandoffReplanHint(
+      {
+        ...baseState,
+        messages: [],
+        lastHandoff: {
+          ...completeHandoff("finance"),
+          resultSummary: "Synced 5 transactions.",
+        },
+      },
+      "sync expenses",
+    );
+
+    expect(hint).toContain("Specialist result summary: Synced 5 transactions.");
+  });
+
+  it("dequeues the next queued agent with the prior result summary", () => {
+    const update = detectCompletionState({
+      ...baseState,
+      messages: [new HumanMessage("plan and expenses"), new AIMessage("Synced 5 transactions.")],
+      lastHandoff: {
+        ...completeHandoff("finance"),
+        resultSummary: "Synced 5 transactions.",
+      },
+      executionQueue: [{ agentId: "obsidian", task: "Show today's plan only." }],
+    });
+
+    expect(update?.next).toBe("obsidian");
+    expect(update?.context).toMatchObject({
+      [RUNTIME_AGENT_CONTEXT_KEY]: "obsidian",
+      [DELEGATION_TASK_CONTEXT_KEY]: "Show today's plan only.",
+      [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: "Synced 5 transactions.",
+      [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: true,
+    });
   });
 });

@@ -19,10 +19,11 @@ describe("runtime agent handoff protocol", () => {
       agentId: "finance",
       agentName: "Finance",
       status: "ok",
+      resultSummary: "Done.",
     });
   });
 
-  it("includes tool context on ok handoffs when the final reply is empty", () => {
+  it("omits tool context on ok handoffs and keeps it only for empty status", () => {
     const handoff = buildRuntimeAgentHandoff({
       agentId: "finance",
       agentName: "Finance",
@@ -47,8 +48,8 @@ describe("runtime agent handoff protocol", () => {
     });
 
     expect(handoff.status).toBe("ok");
-    expect(handoff.toolContext).toContain("fetch_wise_transactions:");
-    expect(handoff.toolContext).toContain("Fetched and normalized 5 Wise transactions");
+    expect(handoff.toolContext).toBeUndefined();
+    expect(handoff.resultSummary).toBeUndefined();
   });
 
   it("marks explicit error status from runtime agent failures", () => {
@@ -63,6 +64,7 @@ describe("runtime agent handoff protocol", () => {
     });
 
     expect(handoff.status).toBe("error");
+    expect(handoff.resultSummary).toBe("Unable to run runtime agent Finance: timeout");
   });
 
   it("marks tool-surfaced Error results as error without explicit status", () => {
@@ -87,5 +89,22 @@ describe("runtime agent handoff protocol", () => {
     });
 
     expect(handoff.status).toBe("error");
+    expect(handoff.resultSummary).toBe("I cannot create the agent because the capability is invalid.");
+  });
+
+  it("truncates long replies into resultSummary", () => {
+    const longReply = "A".repeat(650);
+    const handoff = buildRuntimeAgentHandoff({
+      agentId: "finance",
+      agentName: "Finance",
+      message: new AIMessage(longReply),
+      agentMessages: [new AIMessage(longReply)],
+      stepCount: 1,
+      maxSteps: 10,
+    });
+
+    expect(handoff.resultSummary).toHaveLength(601);
+    expect(handoff.resultSummary?.endsWith("…")).toBe(true);
+    expect(handoff.resultSummary).toBe(`${"A".repeat(600)}…`);
   });
 });

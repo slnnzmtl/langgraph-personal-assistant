@@ -176,7 +176,7 @@ describe("supervisor graph compilation", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
 
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
     expect(state.messages.at(-1)?.content).toContain("Finance sync completed");
   });
 
@@ -251,7 +251,7 @@ describe("supervisor graph compilation", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("write a note")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(2);
+    expect(supervisorCalls).toBe(1);
     expect(state.messages.at(-1)?.content).toBe("obsidian result");
   });
 
@@ -378,7 +378,9 @@ describe("supervisor graph compilation", () => {
     expect(financeCalls).toBe(1);
     expect(obsidianCalls).toBe(1);
     expect(financeInput).toBe("show me today's plan and yesterday expenses");
-    expect(obsidianInput).toBe("show me today's plan and yesterday expenses");
+    expect(obsidianInput).toContain("Prior specialist result:");
+    expect(obsidianInput).toContain("Finance sync completed successfully");
+    expect(obsidianInput).toContain("show me today's plan and yesterday expenses");
     expect(state.messages.some((message) => String(message.content).includes("Finance sync completed"))).toBe(true);
     expect(state.messages.some((message) => String(message.content).includes("obsidian note saved"))).toBe(true);
     expect(state.messages.at(-1)?.content).toBe("Finance synced and note written.");
@@ -405,7 +407,7 @@ describe("supervisor graph compilation", () => {
       threadConfig,
     );
 
-    expect(supervisorCalls).toBe(1);
+    expect(supervisorCalls).toBe(0);
     expect(state.messages.some((message) => String(message.content).includes("Finance sync completed successfully"))).toBe(true);
   });
 
@@ -445,8 +447,8 @@ describe("supervisor graph compilation", () => {
 
     const state = await app.invoke({ messages: [new HumanMessage("summarize my day")] }, threadConfig);
 
-    expect(supervisorCalls).toBe(2);
-    expect(state.context?.runtimeAgentId).toBe("daily-summary");
+    expect(supervisorCalls).toBe(1);
+    expect(state.context?.runtimeAgentId).toBeNull();
     expect(state.messages.at(-1)?.content).toContain("daily summary");
   });
 });

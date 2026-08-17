@@ -23,6 +23,7 @@ import {
   tryCronRouteUpdate,
 } from "./helpers.js";
 import { findLatestSubstantiveHumanMessageText } from "./reply-helpers.js";
+import { MULTI_SPECIALIST_TURN_CONTEXT_KEY } from "../types/agent.js";
 import type { ContextCacheKit } from "../llm/context-cache-types.js";
 import { isCachedContentNotFoundError } from "../llm/context-cache-types.js";
 import { buildCachedRuntimePromptMessages } from "./cache-prompt-messages.js";
@@ -272,6 +273,7 @@ export const createSupervisorNode = (
         latestUserText,
         retryCount: state.retryCount,
         maxErrorRetries,
+        multiSpecialistTurn: state.context[MULTI_SPECIALIST_TURN_CONTEXT_KEY] === true,
       },
     );
   };

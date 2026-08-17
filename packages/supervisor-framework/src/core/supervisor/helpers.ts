@@ -5,10 +5,17 @@ import {
   type RuntimeAgentHandoff,
 } from "../execution/runtime-agent-handoff.js";
 import type { AgentState, AgentStateUpdate, ExecutionQueue } from "../state.js";
-import { POST_HANDOFF_FINISH_ROUTE } from "../state.js";
-import { RUNTIME_AGENT_CONTEXT_KEY, SYSTEM_AGENT_ID } from "../types/agent.js";
+import { FINISH_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "../state.js";
+import {
+  DELEGATION_TASK_CONTEXT_KEY,
+  MULTI_SPECIALIST_TURN_CONTEXT_KEY,
+  PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY,
+  RUNTIME_AGENT_CONTEXT_KEY,
+  SYSTEM_AGENT_ID,
+} from "../types/agent.js";
 import {
   normalizeSupervisorReply,
+  toExecutionStep,
   type ExecutionStep,
   type RoutingDecision,
 } from "./routing-schema.js";
@@ -23,6 +30,14 @@ export const isAffirmativeFollowUp = (text: string): boolean =>
 export const isExplicitRetryRequest = (text: string): boolean =>
   /\b(retry|try again|run again|do it again)\b/i.test(text.trim());
 
+const planHeadMatchesHandoff = (
+  handoff: RuntimeAgentHandoff,
+  response: RoutingDecision,
+): boolean => {
+  const head = resolveEffectiveExecutionPlan(response)[0];
+  return head !== undefined && head.agentId === handoff.agentId;
+};
+
 export const buildPostHandoffReplanHint = (
   state: AgentState,
   latestUserText: string,
@@ -30,12 +45,7 @@ export const buildPostHandoffReplanHint = (
 ): string | null => {
   const handoff = state.lastHandoff;
 
-  if (
-    handoff === null
-    || handoff === undefined
-    || handoff.status === "empty"
-    || state.executionQueue.length > 0
-  ) {
+  if (!isRuntimeAgentHandoffComplete(handoff) || state.executionQueue.length > 0) {
     return null;
   }
 
@@ -50,6 +60,10 @@ export const buildPostHandoffReplanHint = (
     "Do not re-route the same completed work unless the user explicitly asks to retry or accepts an offer of new work.",
     "Never invent extra specialist work beyond the latest user request (no carry-over, cleanup, or extra tasks unless asked).",
   ];
+
+  if (handoff.resultSummary) {
+    lines.push(`Specialist result summary: ${handoff.resultSummary}`);
+  }
 
   if (handoff.status === "error") {
     const remaining = Math.max(0, maxErrorRetries - state.retryCount);
@@ -105,12 +119,7 @@ export const isBlockedRepeatRoute = (
     return false;
   }
 
-  const head = resolveEffectiveExecutionPlan(response)[0];
-  if (!head) {
-    return false;
-  }
-
-  return head.agentId === lastHandoff.agentId;
+  return planHeadMatchesHandoff(lastHandoff, response);
 };
 
 export const isAutoRetryableErrorRoute = (
@@ -131,20 +140,53 @@ export const isAutoRetryableErrorRoute = (
     return false;
   }
 
-  const head = resolveEffectiveExecutionPlan(response)[0];
-  if (!head) {
-    return false;
-  }
-
-  return head.agentId === lastHandoff.agentId;
+  return planHeadMatchesHandoff(lastHandoff, response);
 };
 
-export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpdate => {
+export type EnqueueAndStartOptions = {
+  priorHandoff?: RuntimeAgentHandoff | null;
+  continuingMultiSpecialistTurn?: boolean;
+};
+
+export const buildExecutionContext = (
+  step: ExecutionStep,
+  options: {
+    priorHandoff?: RuntimeAgentHandoff | null;
+    multiSpecialistTurn: boolean;
+  },
+): Record<string, unknown> => {
+  const task = step.task ?? null;
+  const priorSummary = options.priorHandoff?.resultSummary?.trim() || null;
+
+  return {
+    [RUNTIME_AGENT_CONTEXT_KEY]: step.agentId,
+    [DELEGATION_TASK_CONTEXT_KEY]: task,
+    [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: priorSummary,
+    [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: options.multiSpecialistTurn ? true : null,
+  };
+};
+
+export const clearDelegationContext = (): Record<string, unknown> => ({
+  [RUNTIME_AGENT_CONTEXT_KEY]: null,
+  [DELEGATION_TASK_CONTEXT_KEY]: null,
+  [PRIOR_SPECIALIST_SUMMARY_CONTEXT_KEY]: null,
+  [MULTI_SPECIALIST_TURN_CONTEXT_KEY]: null,
+});
+
+export const enqueueAndStart = (
+  steps: readonly ExecutionStep[],
+  options: EnqueueAndStartOptions = {},
+): AgentStateUpdate => {
   const [head, ...tail] = steps;
 
   if (head === undefined) {
     throw new Error("enqueueAndStart requires at least one execution step");
   }
+
+  const priorHandoff = options.priorHandoff ?? null;
+  const multiSpecialistTurn =
+    options.continuingMultiSpecialistTurn === true
+    || steps.length > 1;
 
   return {
     next: head.agentId,
@@ -152,9 +194,10 @@ export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpda
     lastHandoff: null,
     routingFailureContext: null,
     retryCount: 0,
-    context: {
-      [RUNTIME_AGENT_CONTEXT_KEY]: head.agentId,
-    },
+    context: buildExecutionContext(head, {
+      priorHandoff,
+      multiSpecialistTurn,
+    }),
   };
 };
 
@@ -181,13 +224,11 @@ export const resolveEffectiveExecutionPlan = (
   response: RoutingDecision,
 ): ExecutionQueue => {
   if (response.queue && response.queue.length > 0) {
-    return response.queue.map((step) => ({
-      agentId: step.agentId,
-    }));
+    return response.queue.map((step) => toExecutionStep(step));
   }
 
   if (response.next !== "FINISH") {
-    return [{ agentId: response.next }];
+    return [toExecutionStep({ agentId: response.next })];
   }
 
   return [];
@@ -206,7 +247,10 @@ export const detectCompletionState = (
   }
 
   if (state.executionQueue.length > 0) {
-    return enqueueAndStart(state.executionQueue);
+    return enqueueAndStart(state.executionQueue, {
+      priorHandoff: state.lastHandoff,
+      continuingMultiSpecialistTurn: true,
+    });
   }
 
   if (
@@ -219,16 +263,32 @@ export const detectCompletionState = (
   const lastMessage = state.messages[state.messages.length - 1];
   const specialistJustFinished = lastMessage instanceof AIMessage;
   const configurationHandoff = state.lastHandoff?.agentId === SYSTEM_AGENT_ID;
+  const isMultiSpecialistTurn = state.context[MULTI_SPECIALIST_TURN_CONTEXT_KEY] === true;
 
-  if (!specialistJustFinished || !configurationHandoff) {
+  if (!specialistJustFinished) {
     return null;
   }
 
-  return {
-    next: POST_HANDOFF_FINISH_ROUTE,
-    routingFailureContext: null,
-    lastHandoff: state.lastHandoff,
-  };
+  if (configurationHandoff) {
+    return {
+      next: POST_HANDOFF_FINISH_ROUTE,
+      routingFailureContext: null,
+      lastHandoff: state.lastHandoff,
+    };
+  }
+
+  if (state.lastHandoff.status === "ok" && !isMultiSpecialistTurn) {
+    return {
+      next: FINISH_ROUTE,
+      lastHandoff: null,
+      routingFailureContext: null,
+      executionQueue: [],
+      retryCount: 0,
+      context: clearDelegationContext(),
+    };
+  }
+
+  return null;
 };
 
 export const resolveRoutingDecision = async (
@@ -240,6 +300,7 @@ export const resolveRoutingDecision = async (
     latestUserText?: string;
     retryCount?: number;
     maxErrorRetries?: number;
+    multiSpecialistTurn?: boolean;
   },
 ): Promise<AgentStateUpdate> => {
   const retryCount = options?.retryCount ?? 0;
@@ -259,6 +320,7 @@ export const resolveRoutingDecision = async (
       executionQueue: [],
       retryCount: 0,
       messages: [new AIMessage(reply)],
+      context: clearDelegationContext(),
     };
   }
 
@@ -269,7 +331,9 @@ export const resolveRoutingDecision = async (
     && isAutoRetryableErrorRoute(options.lastHandoff, response, retryCount, maxErrorRetries)
   ) {
     return {
-      ...enqueueAndStart(effectivePlan),
+      ...enqueueAndStart(effectivePlan, {
+        priorHandoff: options.lastHandoff,
+      }),
       retryCount: retryCount + 1,
     };
   }
@@ -282,7 +346,10 @@ export const resolveRoutingDecision = async (
     const remaining = effectivePlan.slice(1);
 
     if (remaining.length > 0) {
-      return enqueueAndStart(remaining);
+      return enqueueAndStart(remaining, {
+        priorHandoff: options.lastHandoff,
+        continuingMultiSpecialistTurn: true,
+      });
     }
 
     return {
@@ -310,7 +377,9 @@ export const resolveRoutingDecision = async (
     );
   }
 
-  return enqueueAndStart(effectivePlan);
+  return enqueueAndStart(effectivePlan, {
+    continuingMultiSpecialistTurn: options?.multiSpecialistTurn === true,
+  });
 };
 
 export const formatExecutionPlanLog = (

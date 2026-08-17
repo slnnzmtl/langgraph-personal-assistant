@@ -13,6 +13,7 @@ import {
   scopeSubAgentMessages,
   tagRuntimeAgentMessage,
 } from "../execution/sub-agent-messages.js";
+import { buildDelegationBriefMessages } from "../execution/delegation-brief.js";
 import type { SubAgentState } from "../execution/sub-agent-state.js";
 
 export const runtimeAgentPrepareNodeName = (agentId: string): string => `${agentId}__prepare`;
@@ -55,7 +56,9 @@ export const createRuntimeAgentPrepareNode = (
 ) =>
   (state: AgentState): AgentStateUpdate => {
     const prepared = bundle.prepare(state);
-    const agentMessages = scopeSubAgentMessages(state.messages, agentId);
+    const scoped = scopeSubAgentMessages(state.messages, agentId);
+    const brief = buildDelegationBriefMessages(state.context);
+    const agentMessages = [...scoped, ...brief];
 
     return {
       agentMessages: new Overwrite(agentMessages),

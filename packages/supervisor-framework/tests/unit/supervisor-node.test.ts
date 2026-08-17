@@ -15,7 +15,7 @@ import {
 } from "../helpers/supervisor-node-fixtures.js";
 import { buildCronTriggerForJob } from "../../src/index.js";
 import type { RuntimeAgentHandoff } from "../../src/index.js";
-import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "../../src/index.js";
+import { EMPTY_REPLY_ROUTE, FAILURE_REPLY_ROUTE, FINISH_ROUTE, POST_HANDOFF_FINISH_ROUTE } from "../../src/index.js";
 import { trimMessagesToTokenBudgetSync } from "../../src/index.js";
 
 const emptyHandoff = (
@@ -431,8 +431,11 @@ describe("createSupervisorNode", () => {
 
     const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("sync expenses then write a note")],
-      lastHandoff: completeHandoff("Finance", "finance"),
-      executionQueue: [{ agentId: "obsidian" }],
+      lastHandoff: {
+        ...completeHandoff("Finance", "finance"),
+        resultSummary: "Synced 5 transactions.",
+      },
+      executionQueue: [{ agentId: "obsidian", task: "Write a note with those expenses." }],
       context: {},
       next: undefined,
     }));
@@ -441,6 +444,11 @@ describe("createSupervisorNode", () => {
     expect(result.executionQueue).toEqual([]);
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.lastHandoff).toBeNull();
+    expect(result.context).toMatchObject({
+      priorSpecialistSummary: "Synced 5 transactions.",
+      delegationTask: "Write a note with those expenses.",
+      multiSpecialistTurn: true,
+    });
     expect(routingInvoke).not.toHaveBeenCalled();
   });
 
@@ -478,7 +486,7 @@ describe("createSupervisorNode", () => {
     expect(routingInvoke).not.toHaveBeenCalled();
   });
 
-  it("re-invokes the LLM after a complete handoff when the queue is empty", async () => {
+  it("finishes without invoking the LLM after a single-agent specialist completes", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "FINISH",
       reply: "All done.",
@@ -506,8 +514,42 @@ describe("createSupervisorNode", () => {
       next: undefined,
     }));
 
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(result.messages).toBeUndefined();
+    expect(result.lastHandoff).toBeNull();
+    expect(routingInvoke).not.toHaveBeenCalled();
+  });
+
+  it("re-invokes the LLM after a multi-specialist turn so the supervisor can synthesize", async () => {
+    const routingInvoke = vi.fn(async () => ({
+      next: "FINISH",
+      reply: "Finance synced and note written.",
+    }));
+    const connector: ILLMConnector = {
+      bindRoutingTools: () => ({
+        invoke: routingInvoke as never,
+      }),
+      getModel: () => ({
+        invoke: async () => new AIMessage("unused"),
+      } as unknown as BaseChatModel),
+    };
+    const supervisorNode = createTestSupervisorNode(connector, {
+      runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
+    });
+
+    const result = await supervisorNode(asAgentState({
+      messages: [
+        new HumanMessage("show plan and expenses"),
+        new AIMessage("Note saved."),
+      ],
+      lastHandoff: completeHandoff("Obsidian", "obsidian"),
+      executionQueue: [],
+      context: { multiSpecialistTurn: true },
+      next: undefined,
+    }));
+
     expect(result.next).toBe("FINISH");
-    expect(firstStateUpdateMessage(result)?.content).toBe("All done.");
+    expect(firstStateUpdateMessage(result)?.content).toBe("Finance synced and note written.");
     expect(routingInvoke).toHaveBeenCalledTimes(1);
   });
 
@@ -635,10 +677,10 @@ describe("createSupervisorNode", () => {
       next: undefined,
     }));
 
-    expect(result.next).toBe(POST_HANDOFF_FINISH_ROUTE);
-    expect(result.lastHandoff).toEqual(completeHandoff("Finance", "finance"));
-    expect(result.routingFailureContext).toBeNull();
-    expect(routingInvoke).toHaveBeenCalledTimes(1);
+    expect(result.next).toBe(FINISH_ROUTE);
+    expect(result.messages).toBeUndefined();
+    expect(result.lastHandoff).toBeNull();
+    expect(routingInvoke).not.toHaveBeenCalled();
   });
 
   it("skips a blocked repeat head and starts the remaining queue tail", async () => {
