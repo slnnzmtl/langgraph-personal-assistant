@@ -8,7 +8,6 @@ import type { AgentState, AgentStateUpdate, ExecutionQueue } from "../state.js";
 import { POST_HANDOFF_FINISH_ROUTE } from "../state.js";
 import { RUNTIME_AGENT_CONTEXT_KEY, SYSTEM_AGENT_ID } from "../types/agent.js";
 import {
-  normalizeDelegationPrompt,
   normalizeSupervisorReply,
   type ExecutionStep,
   type RoutingDecision,
@@ -49,7 +48,7 @@ export const buildPostHandoffReplanHint = (
     "When the original request is complete, FINISH and synthesize a user-facing reply from the specialist's output in visible thread history.",
     "Quote or summarize the specialist's actual findings—never reply with a generic greeting or filler.",
     "Do not re-route the same completed work unless the user explicitly asks to retry or accepts an offer of new work.",
-    "Never expand a specialist prompt beyond the latest user request (no carry-over, cleanup, or extra tasks unless asked).",
+    "Never invent extra specialist work beyond the latest user request (no carry-over, cleanup, or extra tasks unless asked).",
   ];
 
   if (handoff.status === "error") {
@@ -71,7 +70,7 @@ export const buildPostHandoffReplanHint = (
   if (isAffirmativeFollowUp(latestUserText)) {
     lines.push(
       "The latest user message looks like an affirmative follow-up to a prior assistant offer or question.",
-      "If the prior assistant offered NEW work, route to that specialist with a self-contained prompt derived from the offer.",
+      "If the prior assistant offered NEW work, route to that specialist. The specialist sees the offer in thread history.",
       "If the prior turn only reported completion or asked for a summary ack, FINISH and summarize; do not repeat the same completed task.",
     );
   }
@@ -111,14 +110,7 @@ export const isBlockedRepeatRoute = (
     return false;
   }
 
-  if (head.agentId !== lastHandoff.agentId) {
-    return false;
-  }
-
-  // Legacy handoffs without a stored prompt: keep agent-only blocking.
-  const priorPrompt = normalizeDelegationPrompt(lastHandoff.delegationPrompt);
-  return priorPrompt === undefined
-    || priorPrompt === (normalizeDelegationPrompt(head.prompt) ?? "");
+  return head.agentId === lastHandoff.agentId;
 };
 
 export const isAutoRetryableErrorRoute = (
@@ -156,7 +148,6 @@ export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpda
 
   return {
     next: head.agentId,
-    delegationPrompt: head.prompt,
     executionQueue: [...tail],
     lastHandoff: null,
     routingFailureContext: null,
@@ -167,19 +158,10 @@ export const enqueueAndStart = (steps: readonly ExecutionStep[]): AgentStateUpda
   };
 };
 
-export const routeToRuntimeAgent = (agentId: string, prompt: string): AgentStateUpdate =>
-  enqueueAndStart([{ agentId, prompt }]);
-
-export const clearExecutionQueue = (): Pick<AgentStateUpdate, "executionQueue" | "delegationPrompt"> => ({
-  executionQueue: [],
-  delegationPrompt: null,
-});
-
 export const tryCronRouteUpdate = (
   cronRoute: string | undefined,
   superviseCronRoute: string | undefined,
   wiredAgentIds?: ReadonlySet<string>,
-  delegationPrompt?: string,
 ): AgentStateUpdate | null => {
   if (!cronRoute || cronRoute === superviseCronRoute) {
     return null;
@@ -189,9 +171,7 @@ export const tryCronRouteUpdate = (
     return null;
   }
 
-  const prompt = normalizeDelegationPrompt(delegationPrompt) ?? "Execute the scheduled job.";
-
-  return enqueueAndStart([{ agentId: cronRoute, prompt }]);
+  return enqueueAndStart([{ agentId: cronRoute }]);
 };
 
 export const needsEmptySubAgentSummary = (state: AgentState): boolean =>
@@ -203,14 +183,11 @@ export const resolveEffectiveExecutionPlan = (
   if (response.queue && response.queue.length > 0) {
     return response.queue.map((step) => ({
       agentId: step.agentId,
-      prompt: normalizeDelegationPrompt(step.prompt) ?? "",
     }));
   }
 
   if (response.next !== "FINISH") {
-    const prompt = normalizeDelegationPrompt(response.prompt) ?? "";
-
-    return [{ agentId: response.next, prompt }];
+    return [{ agentId: response.next }];
   }
 
   return [];
@@ -280,7 +257,6 @@ export const resolveRoutingDecision = async (
       lastHandoff: null,
       routingFailureContext: null,
       executionQueue: [],
-      delegationPrompt: null,
       retryCount: 0,
       messages: [new AIMessage(reply)],
     };
@@ -314,22 +290,17 @@ export const resolveRoutingDecision = async (
       lastHandoff: options.lastHandoff,
       routingFailureContext: null,
       executionQueue: [],
-      delegationPrompt: null,
       retryCount: 0,
     };
   }
 
   if (effectivePlan.length === 0) {
-    return onFailure(`Missing delegation prompt for runtime agent: ${response.next}`);
+    return onFailure("Missing runtime agent route.");
   }
 
   for (const step of effectivePlan) {
     if (!enabledAgentIds.has(step.agentId)) {
       return onFailure(`Unknown or disabled runtime agent route: ${step.agentId}`);
-    }
-
-    if (step.prompt.length === 0) {
-      return onFailure(`Missing delegation prompt for runtime agent: ${step.agentId}`);
     }
   }
 
@@ -343,5 +314,5 @@ export const resolveRoutingDecision = async (
 };
 
 export const formatExecutionPlanLog = (
-  steps: ReadonlyArray<{ agentId: string; prompt?: string | null | undefined }>,
-): string => steps.map((step) => `${step.agentId}: ${step.prompt ?? ""}`).join(" → ");
+  steps: ReadonlyArray<{ agentId: string }>,
+): string => steps.map((step) => step.agentId).join(" → ");

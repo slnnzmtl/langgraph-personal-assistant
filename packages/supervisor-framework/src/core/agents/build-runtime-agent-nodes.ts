@@ -10,7 +10,6 @@ import type { RuntimeAgentDefinition } from "../types/agent.js";
 import type { RuntimeAgentGraphBundle } from "./runtime-agent-graph-bundle.js";
 import { hasPendingToolCalls, lastMessageRequestsTools } from "../execution/tool-routing.js";
 import {
-  applyDelegationPrompt,
   scopeSubAgentMessages,
   tagRuntimeAgentMessage,
 } from "../execution/sub-agent-messages.js";
@@ -56,11 +55,7 @@ export const createRuntimeAgentPrepareNode = (
 ) =>
   (state: AgentState): AgentStateUpdate => {
     const prepared = bundle.prepare(state);
-    const scoped = scopeSubAgentMessages(state.messages, agentId);
-    const delegationPrompt = state.delegationPrompt?.trim();
-    const agentMessages = delegationPrompt
-      ? applyDelegationPrompt(scoped, delegationPrompt)
-      : scoped;
+    const agentMessages = scopeSubAgentMessages(state.messages, agentId);
 
     return {
       agentMessages: new Overwrite(agentMessages),
@@ -109,7 +104,6 @@ export const createRuntimeAgentFinalizeNode = (
       agentMessages,
       stepCount,
       maxSteps: bundle.maxSteps,
-      delegationPrompt: state.delegationPrompt,
       ...(state.handoffStatus ? { explicitStatus: state.handoffStatus } : {}),
     });
 

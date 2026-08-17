@@ -116,10 +116,21 @@ const stripStaleNonTextFromOlderHumans = (messages: BaseMessage[]): BaseMessage[
   });
 };
 
+const findLastHumanMessage = (messages: BaseMessage[]): BaseMessage | undefined => {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message && isHumanMessage(message)) {
+      return message;
+    }
+  }
+
+  return undefined;
+};
+
 /**
  * Keep only turns owned by this runtime agent: (human → tagged AI) pairs plus the
- * trailing human for the current delegation. Then collapse consecutive AI and
- * window to the last N human turns.
+ * current user message (the latest human), even if another agent already answered
+ * it in this turn. Then collapse consecutive AI and window to the last N human turns.
  *
  * Filter runs before collapse so a tagged handoff is not replaced by an untagged
  * supervisor FINISH duplicate.
@@ -157,6 +168,12 @@ export const scopeSubAgentMessages = (
     owned.push(pendingHuman);
   }
 
+  const lastHuman = findLastHumanMessage(messages);
+  const lastOwnedHuman = findLastHumanMessage(owned);
+  if (lastHuman && lastHuman !== lastOwnedHuman) {
+    owned.push(lastHuman);
+  }
+
   const humanIndexes: number[] = [];
 
   for (let index = 0; index < owned.length; index += 1) {
@@ -175,43 +192,6 @@ export const scopeSubAgentMessages = (
     );
 
   return collapseConsecutiveAssistantMessages(recent);
-};
-
-export const applyDelegationPrompt = (
-  messages: BaseMessage[],
-  prompt: string,
-): BaseMessage[] => {
-  const trimmed = prompt.trim();
-  if (trimmed.length === 0) {
-    return messages;
-  }
-
-  let lastHumanIndex = -1;
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message && isHumanMessage(message)) {
-      lastHumanIndex = index;
-      break;
-    }
-  }
-
-  if (lastHumanIndex === -1) {
-    return [new HumanMessage(trimmed), ...messages];
-  }
-
-  const previousHumanMessage = messages[lastHumanIndex];
-  const preservedParts = previousHumanMessage
-    ? extractNonTextContentParts(previousHumanMessage.content)
-    : [];
-  const nextMessages = [...messages];
-  nextMessages[lastHumanIndex] = preservedParts.length > 0
-    ? new HumanMessage([
-      { type: "text", text: trimmed },
-      ...preservedParts,
-    ])
-    : new HumanMessage(trimmed);
-  return nextMessages;
 };
 
 export const buildRuntimeAgentPromptMessages = (

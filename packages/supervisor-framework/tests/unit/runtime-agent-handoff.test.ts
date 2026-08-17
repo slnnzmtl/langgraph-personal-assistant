@@ -12,7 +12,6 @@ describe("runtime agent handoff protocol", () => {
       agentMessages: [new AIMessage("Done.")],
       stepCount: 2,
       maxSteps: 10,
-      delegationPrompt: "Sync expenses.",
     });
 
     expect(handoff).toEqual({
@@ -20,7 +19,6 @@ describe("runtime agent handoff protocol", () => {
       agentId: "finance",
       agentName: "Finance",
       status: "ok",
-      delegationPrompt: "Sync expenses.",
     });
   });
 

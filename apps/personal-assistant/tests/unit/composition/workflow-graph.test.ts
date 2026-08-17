@@ -27,7 +27,7 @@ const latestHumanInputText = (input: unknown): string => {
   return "";
 };
 
-const routeOnceThenFinish = (route: string, finishReply?: string, delegationPrompt?: string) => {
+const routeOnceThenFinish = (route: string, finishReply?: string) => {
   let calls = 0;
 
   return () => {
@@ -36,7 +36,6 @@ const routeOnceThenFinish = (route: string, finishReply?: string, delegationProm
     if (calls === 1) {
       return {
         next: route,
-        prompt: delegationPrompt ?? `Handle the ${route} request.`,
       };
     }
 
@@ -145,7 +144,7 @@ describe("supervisor graph compilation", () => {
         return new AIMessage("Finance is unavailable in this deployment.");
       }
 
-      return { next: "finance", prompt: "Show finances." };
+      return { next: "finance" };
     });
 
     const state = await app.invoke({ messages: [new HumanMessage("show finances")] }, threadConfig);
@@ -349,8 +348,8 @@ describe("supervisor graph compilation", () => {
           return {
             next: "finance",
             queue: [
-              { agentId: "finance", prompt: "Show yesterday's expenses." },
-              { agentId: "obsidian", prompt: "Show today's plan." },
+              { agentId: "finance" },
+              { agentId: "obsidian" },
             ],
           };
         }
@@ -378,10 +377,8 @@ describe("supervisor graph compilation", () => {
     expect(supervisorCalls).toBe(2);
     expect(financeCalls).toBe(1);
     expect(obsidianCalls).toBe(1);
-    expect(financeInput).toBe("Show yesterday's expenses.");
-    expect(obsidianInput).toBe("Show today's plan.");
-    expect(financeInput).not.toContain("today's plan");
-    expect(obsidianInput).not.toContain("yesterday expenses");
+    expect(financeInput).toBe("show me today's plan and yesterday expenses");
+    expect(obsidianInput).toBe("show me today's plan and yesterday expenses");
     expect(state.messages.some((message) => String(message.content).includes("Finance sync completed"))).toBe(true);
     expect(state.messages.some((message) => String(message.content).includes("obsidian note saved"))).toBe(true);
     expect(state.messages.at(-1)?.content).toBe("Finance synced and note written.");

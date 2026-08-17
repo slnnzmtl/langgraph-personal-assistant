@@ -160,7 +160,7 @@ describe("createSupervisorNode context cache", () => {
           }
 
           expect(options).toEqual({ model: recreatedModel });
-          return { next: "obsidian", prompt: "Create routines for today" };
+          return { next: "obsidian" };
         },
       }),
     };
@@ -195,7 +195,6 @@ describe("createSupervisorNode context cache", () => {
     const result = await supervisorNode(makeHumanState("Create routines for today"));
 
     expect(result.next).toBe("obsidian");
-    expect(result.delegationPrompt).toBe("Create routines for today");
     expect(invalidate).toHaveBeenCalledWith("cachedContents/stale");
     expect(getOrCreateCount).toBe(2);
     expect(invokeCount).toBe(2);
@@ -222,7 +221,7 @@ describe("createSupervisorNode context cache", () => {
           }
 
           expect(options).toBeUndefined();
-          return { next: "obsidian", prompt: "Create routines for today" };
+          return { next: "obsidian" };
         },
       }),
     };

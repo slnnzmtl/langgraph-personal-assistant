@@ -38,7 +38,6 @@ const makeWorkflowGraph = (
 
 const createRouteSupervisor = (
   route: string | (() => unknown) = "obsidian",
-  delegationPrompt?: string,
 ): FakeLLMConnector => {
   let calls = 0;
 
@@ -52,7 +51,6 @@ const createRouteSupervisor = (
     if (calls === 1) {
       return {
         next: route,
-        prompt: delegationPrompt ?? `Handle the ${route} request.`,
       };
     }
 
@@ -264,7 +262,7 @@ test.describe("workflow graph", () => {
         }
       }
 
-      return { next: "finance", prompt: "Log my coffee expense." };
+      return { next: "finance" };
     });
     const app = makeWorkflowGraph(connector, path.join(os.tmpdir(), "unused-finance-vault"));
 
@@ -290,7 +288,7 @@ test.describe("workflow graph", () => {
           const latestText = getLatestRoutedUserText(input as Array<HumanMessage | AIMessage | ToolMessage>);
 
           if (latestText.includes("save turn 6")) {
-            return { next: "obsidian", prompt: "Save turn 6 to the vault." };
+            return { next: "obsidian" };
           }
 
           return {
@@ -794,7 +792,7 @@ test.describe("workflow graph", () => {
         }
       }
 
-      return { next: "daily-summary", prompt: "Summarize my day." };
+      return { next: "daily-summary" };
     });
     const app = makeWorkflowGraph(
       connector,

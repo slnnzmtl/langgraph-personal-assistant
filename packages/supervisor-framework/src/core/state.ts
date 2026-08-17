@@ -54,10 +54,6 @@ export const createAgentStateAnnotation = ({
       reducer: (_left, right) => right ?? [],
       default: () => [],
     }),
-    delegationPrompt: Annotation<string | null>({
-      reducer: (_left, right) => right ?? null,
-      default: () => null,
-    }),
     context: Annotation<Record<string, unknown>>({
       reducer: (left, right) => ({ ...left, ...right }),
       default: () => ({}),

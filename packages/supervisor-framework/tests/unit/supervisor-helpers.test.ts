@@ -17,13 +17,11 @@ import { POST_HANDOFF_FINISH_ROUTE } from "../../src/core/state.js";
 const completeHandoff = (
   agentId: string,
   status: RuntimeAgentHandoff["status"] = "ok",
-  delegationPrompt?: string,
 ): RuntimeAgentHandoff => ({
   kind: "runtime-agent-handoff",
   agentId,
   agentName: agentId,
   status,
-  ...(delegationPrompt !== undefined ? { delegationPrompt } : {}),
 });
 
 const baseState = {
@@ -31,7 +29,6 @@ const baseState = {
   stepCount: 0,
   next: undefined,
   executionQueue: [],
-  delegationPrompt: null,
   context: {},
   handoffStatus: undefined,
   routingFailureContext: null,
@@ -74,7 +71,7 @@ describe("supervisor replan helpers", () => {
       {
         ...baseState,
         messages: [],
-        executionQueue: [{ agentId: "obsidian", prompt: "Show today's plan." }],
+        executionQueue: [{ agentId: "obsidian" }],
         lastHandoff: completeHandoff("finance"),
       },
       "yes",
@@ -86,31 +83,15 @@ describe("supervisor replan helpers", () => {
   it("blocks an immediate non-affirmative repeat route to the same agent", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "finance", prompt: "Show yesterday's expenses.", reply: undefined },
+      { next: "finance", reply: undefined },
       "show yesterday's expenses",
     )).toBe(true);
-  });
-
-  it("blocks same-agent routing when the delegation prompt matches the completed handoff", () => {
-    expect(isBlockedRepeatRoute(
-      completeHandoff("finance", "ok", "Show yesterday's expenses."),
-      { next: "finance", prompt: "Show yesterday's expenses.", reply: undefined },
-      "show yesterday's expenses",
-    )).toBe(true);
-  });
-
-  it("allows same-agent routing when the delegation prompt differs from the completed handoff", () => {
-    expect(isBlockedRepeatRoute(
-      completeHandoff("finance", "ok", "Add 115 USD for Donation to Andrii to yesterday's expenses."),
-      { next: "finance", prompt: "Add 115 USD for Donation to Andrii to today's expenses.", reply: undefined },
-      "this is today",
-    )).toBe(false);
   });
 
   it("allows same-agent routing on affirmative follow-ups", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "finance", prompt: "Sync expenses.", reply: undefined },
+      { next: "finance", reply: undefined },
       "yes",
     )).toBe(false);
   });
@@ -118,7 +99,7 @@ describe("supervisor replan helpers", () => {
   it("allows FINISH after a complete handoff", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "FINISH", reply: "Synced 5 transactions.", prompt: undefined },
+      { next: "FINISH", reply: "Synced 5 transactions." },
       "yes",
     )).toBe(false);
   });
@@ -126,7 +107,7 @@ describe("supervisor replan helpers", () => {
   it("allows repeat routes when the user explicitly retries", () => {
     expect(isBlockedRepeatRoute(
       completeHandoff("finance"),
-      { next: "finance", prompt: "Retry the sync.", reply: undefined },
+      { next: "finance", reply: undefined },
       "retry finance sync",
     )).toBe(false);
   });
@@ -205,7 +186,7 @@ describe("supervisor replan helpers", () => {
   it("allows auto-retry routing to the same agent after an error handoff", () => {
     expect(isAutoRetryableErrorRoute(
       completeHandoff("configuration", "error"),
-      { next: "configuration", prompt: "Create trainer with valid capabilities.", reply: undefined },
+      { next: "configuration", reply: undefined },
       0,
     )).toBe(true);
   });
@@ -213,14 +194,14 @@ describe("supervisor replan helpers", () => {
   it("blocks auto-retry routing once the retry budget is exhausted", () => {
     expect(isAutoRetryableErrorRoute(
       completeHandoff("configuration", "error"),
-      { next: "configuration", prompt: "Create trainer with valid capabilities.", reply: undefined },
+      { next: "configuration", reply: undefined },
       DEFAULT_MAX_ERROR_RETRIES,
     )).toBe(false);
   });
 
   it("increments retryCount when auto-retrying after an error handoff", async () => {
     const result = await resolveRoutingDecision(
-      { next: "configuration", prompt: "Create trainer with none capability.", reply: undefined },
+      { next: "configuration", reply: undefined },
       new Set(["configuration"]),
       async () => ({ next: "failure" }),
       {
@@ -237,7 +218,7 @@ describe("supervisor replan helpers", () => {
 
   it("resets retryCount to zero on FINISH", async () => {
     const result = await resolveRoutingDecision(
-      { next: "FINISH", reply: "Could not create the trainer agent.", prompt: undefined },
+      { next: "FINISH", reply: "Could not create the trainer agent." },
       new Set(["configuration"]),
       async () => ({ next: "failure" }),
       {

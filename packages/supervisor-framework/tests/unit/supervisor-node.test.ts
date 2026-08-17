@@ -107,7 +107,6 @@ describe("createSupervisorNode", () => {
   it("routes specialized branches even when the model returns a placeholder reply string", async () => {
     const connector = new FakeLLMConnector(() => ({
       next: "obsidian",
-      prompt: "Create today's routine note.",
       reply: "null",
     }));
     const supervisorNode = createTestSupervisorNode(connector, {
@@ -149,7 +148,7 @@ describe("createSupervisorNode", () => {
       expect(Array.isArray(input)).toBe(true);
       expect((input as HumanMessage[]).length).toBeGreaterThan(1);
 
-      return { next: "finance", prompt: "Log the lunch expense." };
+      return { next: "finance" };
     });
     const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
@@ -200,7 +199,7 @@ describe("createSupervisorNode", () => {
         "where is the note?\ngive me a plan for yesterday",
       );
 
-      return { next: "obsidian", prompt: "Give me a plan for yesterday." };
+      return { next: "obsidian" };
     });
     const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
@@ -223,7 +222,7 @@ describe("createSupervisorNode", () => {
     const connector = new FakeLLMConnector((input) => {
       expect(Array.isArray(input)).toBe(true);
 
-      return { next: "configuration", prompt: "Set up a cron message every weekday at 9am." };
+      return { next: "configuration" };
     });
     const supervisorNode = createTestSupervisorNode(connector, {
       runtimeAgentRepository: createRuntimeAgentRepositoryFake(),
@@ -396,10 +395,9 @@ describe("createSupervisorNode", () => {
   it("starts the first queued agent and stores the remaining queue", async () => {
     const connector = new FakeLLMConnector(() => ({
       next: "finance",
-      prompt: "Sync expenses then write a note.",
       queue: [
-        { agentId: "finance", prompt: "Sync yesterday's expenses." },
-        { agentId: "obsidian", prompt: "Write a summary note." },
+        { agentId: "finance" },
+        { agentId: "obsidian" },
       ],
     }));
     const supervisorNode = createTestSupervisorNode(connector, {
@@ -409,9 +407,8 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(makeHumanState("sync expenses then write a note"));
 
     expect(result.next).toBe("finance");
-    expect(result.delegationPrompt).toBe("Sync yesterday's expenses.");
     expect(result.executionQueue).toEqual([
-      { agentId: "obsidian", prompt: "Write a summary note." },
+      { agentId: "obsidian" },
     ]);
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });
@@ -435,13 +432,12 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("sync expenses then write a note")],
       lastHandoff: completeHandoff("Finance", "finance"),
-      executionQueue: [{ agentId: "obsidian", prompt: "Write a summary note." }],
+      executionQueue: [{ agentId: "obsidian" }],
       context: {},
       next: undefined,
     }));
 
     expect(result.next).toBe("obsidian");
-    expect(result.delegationPrompt).toBe("Write a summary note.");
     expect(result.executionQueue).toEqual([]);
     expect(getStateUpdateRuntimeAgentId(result)).toBe("obsidian");
     expect(result.lastHandoff).toBeNull();
@@ -568,7 +564,7 @@ describe("createSupervisorNode", () => {
     const result = await supervisorNode(asAgentState({
       messages: [new HumanMessage("today's plan")],
       lastHandoff: emptyHandoff("Obsidian", "obsidian"),
-      executionQueue: [{ agentId: "finance", prompt: "Sync expenses." }],
+      executionQueue: [{ agentId: "finance" }],
       context: {},
       next: undefined,
     }));
@@ -581,7 +577,6 @@ describe("createSupervisorNode", () => {
   it("allows same-agent routing when the user accepts an offered action", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "finance",
-      prompt: "Sync expenses.",
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
@@ -608,7 +603,6 @@ describe("createSupervisorNode", () => {
     }));
 
     expect(result.next).toBe("finance");
-    expect(result.delegationPrompt).toBe("Sync expenses.");
     expect(result.lastHandoff).toBeNull();
     expect(result.routingFailureContext).toBeNull();
     expect(routingInvoke).toHaveBeenCalledTimes(1);
@@ -617,7 +611,6 @@ describe("createSupervisorNode", () => {
   it("blocks an immediate non-affirmative repeat route to the same agent after handoff", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "finance",
-      prompt: "Show yesterday's expenses.",
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
@@ -652,8 +645,8 @@ describe("createSupervisorNode", () => {
     const routingInvoke = vi.fn(async () => ({
       next: "finance",
       queue: [
-        { agentId: "finance", prompt: "Sync expenses." },
-        { agentId: "obsidian", prompt: "Write a summary note." },
+        { agentId: "finance" },
+        { agentId: "obsidian" },
       ],
     }));
     const connector: ILLMConnector = {
@@ -677,7 +670,6 @@ describe("createSupervisorNode", () => {
     }));
 
     expect(result.next).toBe("obsidian");
-    expect(result.delegationPrompt).toBe("Write a summary note.");
     expect(result.executionQueue).toEqual([]);
     expect(result.lastHandoff).toBeNull();
     expect(result.routingFailureContext).toBeNull();
@@ -687,7 +679,6 @@ describe("createSupervisorNode", () => {
   it("allows repeat routing when the user explicitly asks to retry", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "finance",
-      prompt: "Retry the sync.",
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
@@ -710,7 +701,6 @@ describe("createSupervisorNode", () => {
     }));
 
     expect(result.next).toBe("finance");
-    expect(result.delegationPrompt).toBe("Retry the sync.");
     expect(result.routingFailureContext).toBeNull();
     expect(routingInvoke).toHaveBeenCalledTimes(1);
   });
@@ -718,7 +708,6 @@ describe("createSupervisorNode", () => {
   it("re-invokes the LLM after configuration returns an error with retries remaining", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "configuration",
-      prompt: "Create trainer with none capability.",
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({
@@ -752,7 +741,6 @@ describe("createSupervisorNode", () => {
   it("routes to post_handoff_finish after configuration error retries are exhausted", async () => {
     const routingInvoke = vi.fn(async () => ({
       next: "configuration",
-      prompt: "Create trainer with none capability.",
     }));
     const connector: ILLMConnector = {
       bindRoutingTools: () => ({

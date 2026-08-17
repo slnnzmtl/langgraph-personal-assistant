@@ -18,7 +18,6 @@ export const DEFAULT_SUPERVISOR_PROMPT = `<system_instructions>
     JSON Schema:
     {
       "next": "FINISH | configuration",
-      "prompt": "Self-contained task instruction for the specialist.",
       "reply": "User-facing string. ONLY include this key if next is FINISH."
     }
   </response_protocol>

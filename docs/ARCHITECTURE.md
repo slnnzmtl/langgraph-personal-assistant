@@ -170,7 +170,7 @@ Defined in `create-assistant.ts`. The supervisor is the only shared routing node
 
 ```
 supervisor
-  → {id}__prepare    # scope parent messages into agentMessages (Overwrite)
+  → {id}__prepare    # scope same-agent history + current user message into agentMessages (Overwrite)
   → {id}__llm ⇄ {id}__tools
   → {id}__finalize   # merge final AI into messages, clear agentMessages
   → supervisor
@@ -229,7 +229,7 @@ sequenceDiagram
 1. **Cron bypass** — agent-targeted `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` routes straight to that agent. `supervisor` cron triggers intentionally use normal supervisor routing.
 2. **Empty sub-agent handoff** — when a runtime agent finishes with no user-facing text, the supervisor synthesizes a reply from bounded tool context (up to 2k chars, last 3 tool results).
 3. **Completion detection** — a non-tool AI reply from a sub-agent short-circuits routing and goes to `FINISH`.
-4. **Structured routing** — dynamic Zod schema built from enabled runtime agents; `FINISH` requires a `reply`, delegation omits it.
+4. **Structured routing** — dynamic Zod schema built from enabled runtime agents; `FINISH` requires a `reply`; delegation is agent id (and optional queue) only.
 
 ### Runtime agent loop responsibilities
 
@@ -237,7 +237,7 @@ At graph compile time, each enabled agent's policy produces a **`RuntimeAgentGra
 
 | Phase | Node | Purpose |
 |---|---|---|
-| **prepare** | `{id}__prepare` | Scope last N **same-agent** human turns from parent `messages` into `agentMessages` via `scopeSubAgentMessages` (overrides any custom `bundle.prepare` message choice); reset `stepCount` |
+| **prepare** | `{id}__prepare` | Scope last N **same-agent** human turns from parent `messages` into `agentMessages` via `scopeSubAgentMessages` (current user message included; no supervisor rewrite); reset `stepCount` |
 | **llm** | `{id}__llm` | `createRuntimeAgentNode` — prompt assembly, tool binding, sanitization, recovery retry |
 | **tools** | `{id}__tools` | Execute pending tool calls; results append to `agentMessages` only |
 | **finalize** | `{id}__finalize` | Map sub-agent result to parent `messages` via unified `mapSubAgentResult` (options from `hooks.resultMapping` when set); tag handoff AI with `runtimeAgentId`; clear `agentMessages` |

@@ -78,7 +78,6 @@ export const createSupervisorNode = (
       cronRoute,
       options.cronTriggerResolver?.superviseCronRoute,
       options.wiredAgentIds,
-      latestUserText,
     );
 
     if (cronRouteUpdate) {
@@ -86,7 +85,7 @@ export const createSupervisorNode = (
     }
 
     if (needsEmptySubAgentSummary(state)) {
-      return { next: EMPTY_REPLY_ROUTE, executionQueue: [], delegationPrompt: null };
+      return { next: EMPTY_REPLY_ROUTE, executionQueue: [] };
     }
 
     const completionUpdate = detectCompletionState(state, maxErrorRetries);
@@ -164,7 +163,6 @@ export const createSupervisorNode = (
       routingFailureContext: failureContext,
       lastHandoff: null,
       executionQueue: [],
-      delegationPrompt: null,
     });
 
     const invokeRouting = (messages: BaseMessage[], model?: BaseChatModel) => {
@@ -262,7 +260,7 @@ export const createSupervisorNode = (
     } else if (response.queue && response.queue.length > 0) {
       console.log("Supervisor routing decision:", formatExecutionPlanLog(response.queue));
     } else {
-      console.log("Supervisor routing decision:", response.next, response.prompt);
+      console.log("Supervisor routing decision:", response.next);
     }
 
     return resolveRoutingDecision(

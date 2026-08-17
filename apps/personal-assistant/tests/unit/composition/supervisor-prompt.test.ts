@@ -16,18 +16,18 @@ describe("supervisor prompt", () => {
     expect(prompt).toContain("You are the Root Supervisor for a private personal assistant.");
   });
 
-  it("tells the supervisor not to transcribe screenshot images in delegation prompts", () => {
+  it("tells the supervisor not to transcribe screenshot images when routing", () => {
     const prompt = loadSupervisorSystemPrompt();
 
-    expect(prompt).toContain("<delegation_rules>");
-    expect(prompt).toContain("DO NOT summarize, describe, or transcribe attached images yourself");
-    expect(prompt).toContain("pass the raw image context directly to the specialist");
+    expect(prompt).toContain("<routing_rules>");
+    expect(prompt).toContain("do not summarize, describe, or transcribe attached images yourself");
+    expect(prompt).toContain("Specialists see scoped history plus the current user message");
   });
 
   it("tells the supervisor to route list agents requests to configuration for runtime agents", () => {
     const prompt = loadSupervisorSystemPrompt();
 
-    expect(prompt).toContain("List all runtime agents.");
+    expect(prompt).toContain("list runtime agents");
     expect(prompt).toContain("list, show, create, edit, enable, disable, or delete runtime sub-agents");
   });
 

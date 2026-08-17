@@ -2,7 +2,6 @@ import { AIMessage, HumanMessage, ToolMessage } from "@langchain/core/messages";
 import { describe, expect, it } from "vitest";
 
 import {
-  applyDelegationPrompt,
   buildRecoveryPromptMessages,
   buildRuntimeAgentPromptMessages,
   EMPTY_FIRST_TURN_RECOVERY_DIRECTIVE,
@@ -39,6 +38,17 @@ describe("scopeSubAgentMessages", () => {
     ];
 
     expect(scopeSubAgentMessages(messages, "obsidian")).toEqual(messages);
+  });
+
+  it("keeps the current user message even after a foreign agent answered it", () => {
+    const messages = [
+      new HumanMessage("Show today's plan and yesterday's expenses"),
+      taggedAi("Here are yesterday's expenses.", "finance"),
+    ];
+
+    expect(scopeSubAgentMessages(messages, "obsidian")).toEqual([
+      new HumanMessage("Show today's plan and yesterday's expenses"),
+    ]);
   });
 
   it("drops foreign agent turns so Obsidian does not see finance history", () => {
@@ -162,84 +172,7 @@ describe("scopeSubAgentMessages", () => {
     ]);
   });
 
-  it("keeps the moved image available for applyDelegationPrompt on follow-up", () => {
-    const imagePart = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
-    };
-    const messages = [
-      new HumanMessage([
-        { type: "text", text: "Summarize and save in note \"ideas for a startup\"" },
-        imagePart,
-      ]),
-      taggedAi("I've appended the conversation summary.", "obsidian"),
-      new HumanMessage("Summarize the content of the provided image"),
-    ];
-
-    const result = applyDelegationPrompt(
-      scopeSubAgentMessages(messages, "obsidian"),
-      "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
-    );
-
-    expect(result.at(-1)?.content).toEqual([
-      {
-        type: "text",
-        text: "Summarize the content of the provided image and save it to a note named \"ideas for a startup\".",
-      },
-      imagePart,
-    ]);
-    expect(String(result[0]?.content)).toBe("Summarize and save in note \"ideas for a startup\"");
-  });
-});
-
-describe("applyDelegationPrompt", () => {
-  it("replaces the latest human message with the delegated prompt", () => {
-    const messages = [
-      new HumanMessage("where is the note?"),
-      taggedAi("Checking.", "obsidian"),
-      new HumanMessage("show me today's plan and yesterday expenses"),
-    ];
-
-    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
-
-    expect(result).toHaveLength(3);
-    expect(String(result[0]?.content)).toBe("where is the note?");
-    expect(String(result.at(-1)?.content)).toBe("Show yesterday's expenses.");
-  });
-
-  it("prepends a human message when no human message exists", () => {
-    const messages = [taggedAi("orphan reply", "finance")];
-
-    const result = applyDelegationPrompt(messages, "Show today's plan.");
-
-    expect(result).toHaveLength(2);
-    expect(String(result[0]?.content)).toBe("Show today's plan.");
-  });
-
-  it("preserves non-text parts when replacing the latest human message", () => {
-    const imagePart = {
-      type: "image_url" as const,
-      image_url: { url: "data:image/jpeg;base64,ZmFrZQ==" },
-    };
-    const messages = [
-      new HumanMessage("where is the note?"),
-      taggedAi("Checking.", "obsidian"),
-      new HumanMessage([
-        { type: "text", text: "show me today's plan and yesterday expenses" },
-        imagePart,
-      ]),
-    ];
-
-    const result = applyDelegationPrompt(messages, "Show yesterday's expenses.");
-
-    expect(result).toHaveLength(3);
-    expect(result.at(-1)?.content).toEqual([
-      { type: "text", text: "Show yesterday's expenses." },
-      imagePart,
-    ]);
-  });
-
-  it("keeps prior July context when accepting a sync offer after scope", () => {
+  it("keeps prior July context when the user accepts a sync offer", () => {
     const offer =
       "No matching expenses were found for July 30th. Would you like to sync your transactions?";
     const parentMessages = [
@@ -249,16 +182,13 @@ describe("applyDelegationPrompt", () => {
       new HumanMessage("yes"),
     ];
 
-    const result = applyDelegationPrompt(
-      scopeSubAgentMessages(parentMessages, "finance"),
-      "Sync transactions.",
-    );
+    const result = scopeSubAgentMessages(parentMessages, "finance");
 
     expect(result).toHaveLength(3);
     expect(String(result[0]?.content)).toBe("30 july is missed");
     expect(String(result[1]?.content)).toContain("July 30th");
     expect(getRuntimeAgentIdFromMessage(result[1]!)).toBe("finance");
-    expect(String(result[2]?.content)).toBe("Sync transactions.");
+    expect(String(result[2]?.content)).toBe("yes");
   });
 });
 

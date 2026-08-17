@@ -28,7 +28,7 @@ describe("supervisor runtime routing", () => {
     ]);
 
     const supervisorNode = createTestSupervisorNode(
-      new FakeLLMConnector(() => ({ next: "daily-summary", prompt: "Summarize my day." })),
+      new FakeLLMConnector(() => ({ next: "daily-summary" })),
       {
         runtimeAgentRepository: repository,
         wiredAgentIds: new Set(["finance", "obsidian", "configuration", "daily-summary"]),
@@ -38,14 +38,13 @@ describe("supervisor runtime routing", () => {
     const result = await supervisorNode(makeHumanState("summarize my day"));
 
     expect(result.next).toBe("daily-summary");
-    expect(result.delegationPrompt).toBe("Summarize my day.");
     expect(getStateUpdateRuntimeAgentId(result)).toBe("daily-summary");
   });
 
   it("routes unknown runtime agent ids to failure_reply", async () => {
     const repository = createRuntimeAgentRepositoryFake();
     const supervisorNode = createTestSupervisorNode(
-      new FakeLLMConnector(() => ({ next: "missing-agent", prompt: "Do something." })),
+      new FakeLLMConnector(() => ({ next: "missing-agent" })),
       { runtimeAgentRepository: repository },
     );
 
@@ -72,7 +71,7 @@ describe("supervisor runtime routing", () => {
     ]);
 
     const supervisorNode = createTestSupervisorNode(
-      new FakeLLMConnector(() => ({ next: "unwired-agent", prompt: "Use the unwired agent." })),
+      new FakeLLMConnector(() => ({ next: "unwired-agent" })),
       {
         runtimeAgentRepository: repository,
         wiredAgentIds: new Set(["finance", "obsidian", "configuration"]),
@@ -92,8 +91,8 @@ describe("supervisor runtime routing", () => {
       new FakeLLMConnector(() => ({
         next: "finance",
         queue: [
-          { agentId: "finance", prompt: "Sync expenses." },
-          { agentId: "missing-agent", prompt: "Summarize results." },
+          { agentId: "finance" },
+          { agentId: "missing-agent" },
         ],
       })),
       { runtimeAgentRepository: repository },
@@ -106,7 +105,7 @@ describe("supervisor runtime routing", () => {
     expect(result.executionQueue).toEqual([]);
   });
 
-  it("routes missing single-agent prompts to failure_reply", async () => {
+  it("routes a single next value as a one-item plan", async () => {
     const repository = createRuntimeAgentRepositoryFake();
     const supervisorNode = createTestSupervisorNode(
       new FakeLLMConnector(() => ({ next: "finance" })),
@@ -115,21 +114,7 @@ describe("supervisor runtime routing", () => {
 
     const result = await supervisorNode(makeHumanState("log lunch expense"));
 
-    expect(result.next).toBe(FAILURE_REPLY_ROUTE);
-    expect(result.routingFailureContext).toContain("Missing delegation prompt");
-  });
-
-  it("still routes a single next value with prompt as a one-item plan", async () => {
-    const repository = createRuntimeAgentRepositoryFake();
-    const supervisorNode = createTestSupervisorNode(
-      new FakeLLMConnector(() => ({ next: "finance", prompt: "Log lunch expense." })),
-      { runtimeAgentRepository: repository },
-    );
-
-    const result = await supervisorNode(makeHumanState("log lunch expense"));
-
     expect(result.next).toBe("finance");
-    expect(result.delegationPrompt).toBe("Log lunch expense.");
     expect(result.executionQueue).toEqual([]);
     expect(getStateUpdateRuntimeAgentId(result)).toBe("finance");
   });

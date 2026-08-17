@@ -6,7 +6,6 @@ const PLACEHOLDER_REPLY_VALUES = new Set(["null", "undefined", "none", "n/a"]);
 
 export type ExecutionStep = {
   agentId: string;
-  prompt: string;
 };
 
 export const normalizeSupervisorReply = (reply: string | undefined): string | undefined => {
@@ -20,15 +19,6 @@ export const normalizeSupervisorReply = (reply: string | undefined): string | un
   }
 
   return trimmed;
-};
-
-export const normalizeDelegationPrompt = (prompt: string | undefined): string | undefined => {
-  if (typeof prompt !== "string") {
-    return undefined;
-  }
-
-  const trimmed = prompt.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const BUILTIN_SUPERVISOR_ROUTES = ["FINISH"] as const;
@@ -51,10 +41,10 @@ const buildRoutingDescription = (routableAgents: RuntimeAgentDefinition[]): stri
 
 const buildQueueDescription = (routableAgents: RuntimeAgentDefinition[]): string => {
   const base = [
-    "Optional ordered list of runtime agent steps to execute sequentially before the supervisor re-plans.",
-    "Each step includes agentId and a self-contained prompt for that specialist.",
+    "Optional ordered list of runtime agent ids to execute sequentially before the supervisor re-plans.",
+    "Each step includes only agentId. Specialists receive scoped conversation history and the current user message.",
     "Use when a request clearly needs multiple specialists in order.",
-    "Omit for single-agent routing via next and prompt alone.",
+    "Omit for single-agent routing via next alone.",
   ];
 
   if (routableAgents.length > 0) {
@@ -88,32 +78,16 @@ export const buildSupervisorRoutingSchema = (
 
   const agentRouteNames = routableAgents.map((agent) => agent.id) as [string, ...string[]];
 
-  // Shared across queue-step and top-level prompt fields (different lead-ins, same scope rules).
-  const promptScopeDescribe =
-    "Match the user's scope exactly: preserve operation, dates/targets, note paths, and constraints (only/don't/no other). Do not add carry-over or extra tasks unless asked. Undated new expenses or notes must use today; never invent yesterday.";
-
   const executionStepSchema = agentRouteNames.length > 0
     ? z.object({
       agentId: z.enum(agentRouteNames).describe("Runtime agent id to execute."),
-      prompt: z
-        .string()
-        .transform(normalizeDelegationPrompt)
-        .describe(`Self-contained task for this specialist. Required and must be non-empty. ${promptScopeDescribe}`),
     })
     : z.object({
       agentId: z.string(),
-      prompt: z.string().transform(normalizeDelegationPrompt),
     });
 
   return z.object({
     next: z.enum(routeNames).describe(buildRoutingDescription(routableAgents)),
-    prompt: z
-      .string()
-      .optional()
-      .transform(normalizeDelegationPrompt)
-      .describe(
-        `Self-contained task for the specialist when routing via next alone. Required when next is a runtime agent and queue is omitted. ${promptScopeDescribe}`,
-      ),
     queue: agentRouteNames.length > 0
       ? z
         .array(executionStepSchema)

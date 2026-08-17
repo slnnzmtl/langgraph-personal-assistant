@@ -30,6 +30,7 @@ describe("framework default content", () => {
     expect(DEFAULT_SUPERVISOR_PROMPT).toContain('node="FINISH"');
     expect(DEFAULT_SUPERVISOR_PROMPT).toContain('node="configuration"');
     expect(DEFAULT_SUPERVISOR_PROMPT).toContain('"next": "FINISH | configuration"');
+    expect(DEFAULT_SUPERVISOR_PROMPT).not.toContain('"prompt"');
   });
 
   it("provides a configuration prompt referencing cron, runtime-agents, and skill tools", () => {

@@ -339,7 +339,6 @@ export { createSupervisorNode } from "./core/supervisor/supervisor-node.js";
 export {
   buildSupervisorRoutingSchema,
   filterRoutableRuntimeAgents,
-  normalizeDelegationPrompt,
   normalizeSupervisorReply,
 } from "./core/supervisor/routing-schema.js";
 export {
