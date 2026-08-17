@@ -20,6 +20,9 @@ export class ProcessLockError extends Error {
   }
 }
 
+/** Lock paths acquired by this process; distinguishes a live hold from pid reuse after restart. */
+const heldProcessLockPaths = new Set<string>();
+
 const isProcessRunning = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
@@ -67,37 +70,46 @@ const writeLockFile = async (
   }
 };
 
-const removeStaleLockIfNeeded = async (lockFilePath: string): Promise<boolean> => {
-  const metadata = await readLockMetadata(lockFilePath);
-
-  if (!metadata) {
-    try {
-      await unlink(lockFilePath);
+const unlinkLockFile = async (lockFilePath: string): Promise<boolean> => {
+  try {
+    await unlink(lockFilePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return true;
-      }
-
-      return false;
     }
-  }
 
-  if (metadata.pid === process.pid) {
     return false;
   }
+};
 
-  if (!isProcessRunning(metadata.pid)) {
-    try {
-      await unlink(lockFilePath);
-      return true;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return true;
-      }
+const removeStaleLockIfNeeded = async (
+  lockFilePath: string,
+  metadata?: ProcessLockMetadata,
+): Promise<boolean> => {
+  const lockMetadata = metadata ?? (await readLockMetadata(lockFilePath));
 
+  if (!lockMetadata) {
+    return await unlinkLockFile(lockFilePath);
+  }
+
+  const currentHostname = os.hostname();
+
+  if (lockMetadata.hostname !== currentHostname) {
+    return await unlinkLockFile(lockFilePath);
+  }
+
+  if (lockMetadata.pid === process.pid) {
+    if (heldProcessLockPaths.has(lockFilePath)) {
       return false;
     }
+
+    // Same pid and hostname but not held in-process — previous incarnation (e.g. Docker pid 1 restart).
+    return await unlinkLockFile(lockFilePath);
+  }
+
+  if (!isProcessRunning(lockMetadata.pid)) {
+    return await unlinkLockFile(lockFilePath);
   }
 
   return false;
@@ -121,13 +133,16 @@ export const acquireProcessLock = async (
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       await writeLockFile(options.lockFilePath, metadata);
+      heldProcessLockPaths.add(options.lockFilePath);
 
       return {
         metadata,
         release: async () => {
+          heldProcessLockPaths.delete(options.lockFilePath);
+
           const current = await readLockMetadata(options.lockFilePath);
 
-          if (current?.pid !== process.pid) {
+          if (current?.pid !== process.pid || current.hostname !== metadata.hostname) {
             return;
           }
 
@@ -146,7 +161,7 @@ export const acquireProcessLock = async (
       }
 
       const existing = await readLockMetadata(options.lockFilePath);
-      const removed = await removeStaleLockIfNeeded(options.lockFilePath);
+      const removed = await removeStaleLockIfNeeded(options.lockFilePath, existing);
 
       if (removed && attempt === 0) {
         continue;

@@ -334,7 +334,7 @@ The file repositories validate data and runtime-agent writes use a temporary fil
 |---|---|---|
 | Liveness | `GET /health/live` | Always 200 once the HTTP server is listening. |
 | Readiness | `GET /health/ready` | 503 until bootstrap + graph compile finish; used by Compose `healthcheck`. |
-| Scheduler singleton | `acquireProcessLock` on `data/.scheduler-lock` | Second scheduler exits with an error; stale locks are reclaimed when the recorded pid is dead. |
+| Scheduler singleton | `acquireProcessLock` on `data/.scheduler-lock` | Second scheduler exits with an error; stale locks are reclaimed when the recorded pid is dead, hostname differs (container recreate), or pid matches but this process never acquired (container restart with pid reuse, e.g. Docker pid 1). |
 | Logging | `getLogger()` / `setLogger()` | Console by default; optional append-only file logs under `LOG_DIR` (`logs/`). No rotation yet — mount `logs/` in Docker to persist across recreates. |
 
 ### Authorization (Phase 3)
