@@ -154,7 +154,7 @@ scheduler/index.ts
 
 Cron jobs invoke the **same compiled graph** via the framework `createCronRunner()` with synthetic `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>` messages, then post the terminal graph reply back to Telegram via `telegram-cron-reporter.ts`. Generic cron mechanics (persistence, triggers, scheduling, reconciliation) live in `packages/supervisor-framework/src/framework/cron/`. The configuration agent persists job definitions; bot-side configuration does not schedule jobs in-process.
 
-Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. That service passes `missedExecutionTolerance: 24h` (and a job `name`) into node-cron so a late wake after host/Docker sleep still executes one eligible slot; node-cron caps late runs by the gap to the next fire. Missed slots beyond that window are logged as warnings and not backfilled. Process restart / container recreate still starts from the next future fire only. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
+Startup and file-watcher reconciliation both register jobs through `RuntimeCronService`. That service passes `missedExecutionTolerance: 24h` (and a job `name`) into node-cron, and samples wall clock every 30s. Docker Desktop pauses node-cron’s long next-run `setTimeout` during Mac sleep; on resume a clock jump runs at most one eligible late slot (capped by the gap to the next fire) and re-arms the task so the frozen timer cannot double-fire. Missed slots beyond that window are not backfilled. Process restart / container recreate still starts from the next future fire only. The dedicated scheduler process honors `ENABLE_SCHEDULER`: when disabled it stays idle until shutdown instead of scheduling jobs.
 
 Each process compiles its own graph instance at startup from enabled runtime agents: user agents from `data/runtime-agents.json` plus the virtual **configuration** agent injected from code. `createSupervisorRuntime()` reuses one checkpointer across soft recompiles within a process (SQLite on `state.db` when persistence is enabled, otherwise in-memory `MemorySaver`).
 
@@ -353,7 +353,7 @@ The file repositories validate data and runtime-agent writes use a temporary fil
 | Conversation checkpoints | SQLite `state.db` via LangGraph `SqliteSaver` | Telegram threads use `thread_id = chat id`; survives bot process restarts when `PERSISTENCE_ENABLED=true`. |
 | Cron run ledger | `cron_runs` table in same DB | At-most-once overlap guard across scheduler processes; authoritative vs in-process `inFlightJobs`. |
 | Scheduler singleton | `data/.scheduler-lock` | Kept as belt-and-suspenders; ledger is the primary overlap guard. |
-| Late wake after host sleep | `missedExecutionTolerance: 24h` on `RuntimeCronService` schedule options | One late slot may still run on wake; capped by gap to next fire. Not a multi-day or restart backfill. |
+| Late wake after host sleep | `missedExecutionTolerance: 24h` plus 30s clock-jump catch-up in `RuntimeCronService` | On Docker/Mac resume, one late slot may still run (capped by gap to next fire), then the task is re-armed. Not a multi-day or restart backfill. |
 | Single-writer exception | Scheduler writes ledger rows only | Phase 1 JSON/skill writes remain bot-only; ledger is execution metadata, not agent/cron definitions. |
 
 ---

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { scheduleMock } = vi.hoisted(() => ({
   scheduleMock: vi.fn(),
@@ -10,9 +10,14 @@ vi.mock("node-cron", () => ({
   },
 }));
 
-import { createRuntimeCronService } from "../../../src/framework/cron/runtime-cron-service.js";
+import {
+  createRuntimeCronService,
+  type RuntimeCronService,
+} from "../../../src/framework/cron/runtime-cron-service.js";
 
 describe("createRuntimeCronService", () => {
+  let service: RuntimeCronService | undefined;
+
   beforeEach(() => {
     scheduleMock.mockReset();
     scheduleMock.mockReturnValue({
@@ -21,9 +26,14 @@ describe("createRuntimeCronService", () => {
     });
   });
 
+  afterEach(async () => {
+    await service?.stopAll();
+    service = undefined;
+  });
+
   it("schedules jobs with name, timezone, and a large missedExecutionTolerance", async () => {
     const runner = vi.fn();
-    const service = createRuntimeCronService({
+    service = createRuntimeCronService({
       runner,
       timezone: "Asia/Ho_Chi_Minh",
     });
@@ -47,7 +57,7 @@ describe("createRuntimeCronService", () => {
   });
 
   it("prefers per-job timezone overrides", async () => {
-    const service = createRuntimeCronService({
+    service = createRuntimeCronService({
       runner: vi.fn(),
       timezone: "UTC",
     });
