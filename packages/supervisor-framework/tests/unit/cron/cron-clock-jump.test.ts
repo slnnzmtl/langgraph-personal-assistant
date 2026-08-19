@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  alreadyRanSlot,
   findLastMatchingSlot,
   isClockJump,
   shouldCatchUp,
@@ -81,5 +82,21 @@ describe("shouldCatchUp", () => {
       now: new Date("2026-08-18T04:00:00.000Z"),
       toleranceMs: DAY_MS,
     })).toBe(false);
+  });
+});
+
+describe("alreadyRanSlot", () => {
+  const lastSlot = new Date("2026-08-19T05:00:00.000Z");
+
+  it("is false when the job has never run", () => {
+    expect(alreadyRanSlot(undefined, lastSlot)).toBe(false);
+  });
+
+  it("is true when a later catch-up already executed this slot", () => {
+    expect(alreadyRanSlot(new Date("2026-08-19T12:21:56.000Z"), lastSlot)).toBe(true);
+  });
+
+  it("is false when the only run is from a previous slot", () => {
+    expect(alreadyRanSlot(new Date("2026-08-18T05:00:00.000Z"), lastSlot)).toBe(false);
   });
 });

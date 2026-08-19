@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from "node-cron";
 
 import {
+  alreadyRanSlot,
   findLastMatchingSlot,
   isClockJump,
   shouldCatchUp,
@@ -26,7 +27,9 @@ export const createRuntimeCronService = (options: {
 }): RuntimeCronService => {
   const activeJobs = new Map<string, { job: CronJobDefinition; task: ScheduledTask }>();
   const catchingUp = new Set<string>();
+  const caughtUpSlotMs = new Map<string, number>();
   let lastSeenWallClockMs = Date.now();
+  let catchUpInFlight = false;
 
   const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
     const trigger = buildCronTriggerForJob(job.targetRoute, job.jobName);
@@ -37,6 +40,7 @@ export const createRuntimeCronService = (options: {
           trigger,
           ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
+        caughtUpSlotMs.set(job.jobName, Date.now());
       } catch (error) {
         console.error(`[RuntimeCron] Failed to execute job "${job.jobName}":`, error);
       }
@@ -59,12 +63,20 @@ export const createRuntimeCronService = (options: {
 
       const lastSlot = findLastMatchingSlot(task, now, MISSED_EXECUTION_TOLERANCE_MS);
       const nextRun = task.getNextRun();
-      if (!lastSlot || !shouldCatchUp({
-        lastSlot,
+      const recordedMs = caughtUpSlotMs.get(jobName);
+      const lastRunMs = task.lastRun()?.date.getTime();
+      const lastRunAt = recordedMs !== undefined || lastRunMs !== undefined
+        ? new Date(Math.max(recordedMs ?? 0, lastRunMs ?? 0))
+        : undefined;
+      const alreadyRan = lastSlot ? alreadyRanSlot(lastRunAt, lastSlot) : false;
+      const eligible = Boolean(lastSlot) && shouldCatchUp({
+        lastSlot: lastSlot!,
         nextRun,
         now,
         toleranceMs: MISSED_EXECUTION_TOLERANCE_MS,
-      })) {
+      });
+
+      if (!lastSlot || alreadyRan || !eligible) {
         continue;
       }
 
@@ -76,6 +88,7 @@ export const createRuntimeCronService = (options: {
         await task.stop();
         try {
           await task.execute();
+          caughtUpSlotMs.set(jobName, lastSlot.getTime());
         } finally {
           await task.start();
         }
@@ -95,8 +108,16 @@ export const createRuntimeCronService = (options: {
       return;
     }
 
+    if (catchUpInFlight) {
+      return;
+    }
+
     console.log("[RuntimeCron] Clock jump detected; catching up eligible jobs");
-    void catchUpAfterClockJump();
+    catchUpInFlight = true;
+    void catchUpAfterClockJump().finally(() => {
+      catchUpInFlight = false;
+      lastSeenWallClockMs = Date.now();
+    });
   }, CLOCK_SAMPLE_MS);
   sampler.unref();
 
@@ -124,6 +145,7 @@ export const createRuntimeCronService = (options: {
       entry.task.stop();
       entry.task.destroy();
       activeJobs.delete(jobName);
+      caughtUpSlotMs.delete(jobName);
       console.log(`[RuntimeCron] Removed job: ${jobName}`);
     },
 

@@ -40,5 +40,10 @@ describe("createRuntimeCronService clock-jump catch-up", () => {
       jobName: "noon-summary",
       trigger: "SYSTEM_CRON_TRIGGER:finance:noon-summary",
     });
+
+    vi.setSystemTime(new Date("2026-08-18T19:00:00.000Z"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await Promise.resolve();
+    expect(runner).toHaveBeenCalledTimes(1);
   });
 });

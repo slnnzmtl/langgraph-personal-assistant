@@ -44,3 +44,7 @@ export const shouldCatchUp = (options: {
   const gap = options.nextRun.getTime() - options.lastSlot.getTime();
   return lateBy < gap;
 };
+
+/** True when a run already completed at or after this cron slot (prevents re-catch-up). */
+export const alreadyRanSlot = (lastRunAt: Date | undefined, lastSlot: Date): boolean =>
+  lastRunAt !== undefined && lastRunAt.getTime() >= lastSlot.getTime();
