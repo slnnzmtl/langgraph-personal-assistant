@@ -2,9 +2,11 @@ import { AIMessage } from "@langchain/core/messages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTelegramCronReporter } from "../../../src/telegram/telegram-cron-reporter.js";
+import { formatTelegramMarkdownV2 } from "../../../src/telegram/telegram-adapter.js";
 import { buildCronTriggerForJob } from "@personal-assistant/supervisor-framework";
 
 const financeSyncTrigger = buildCronTriggerForJob("finance", "finance-sync");
+const markdownV2 = { parse_mode: "MarkdownV2" as const };
 
 describe("createTelegramCronReporter", () => {
   const sendMessageMock = vi.fn();
@@ -33,22 +35,26 @@ describe("createTelegramCronReporter", () => {
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       1,
       "42",
-      "Cron job: finance-sync - Started",
+      formatTelegramMarkdownV2("Cron job: finance-sync - Started"),
+      markdownV2,
     );
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       2,
       "42",
-      "Cron job: finance-sync - In Progress\nDispatching scheduled workflow.",
+      formatTelegramMarkdownV2("Cron job: finance-sync - In Progress\nDispatching scheduled workflow."),
+      markdownV2,
     );
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       3,
       "42",
-      "Cron job: finance-sync - Completed\nThe finance sync completed successfully.",
+      formatTelegramMarkdownV2("Cron job: finance-sync\nThe finance sync completed successfully."),
+      markdownV2,
     );
     expect(sendMessageMock).toHaveBeenNthCalledWith(
       4,
       "42",
-      "Cron job: finance-sync - Failed\nError: boom",
+      formatTelegramMarkdownV2("Cron job: finance-sync - Failed\nError: boom"),
+      markdownV2,
     );
   });
 });

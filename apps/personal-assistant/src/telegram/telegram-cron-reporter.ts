@@ -1,6 +1,7 @@
 import { Telegraf } from "telegraf";
 
 import type { CronExecutionReporter, CronJobResult, CronJobRun } from "@personal-assistant/supervisor-framework";
+import { formatTelegramMarkdownV2, splitMessage } from "./telegram-adapter.js";
 
 type TelegramCronReporterOptions = {
   telegram: Telegraf["telegram"];
@@ -20,7 +21,21 @@ export const createTelegramCronReporter = (options: TelegramCronReporterOptions)
   const { telegram, chatId } = options;
 
   const send = async (text: string): Promise<void> => {
-    await telegram.sendMessage(chatId, text);
+    for (const chunk of splitMessage(text)) {
+      try {
+        await telegram.sendMessage(chatId, formatTelegramMarkdownV2(chunk), { parse_mode: "MarkdownV2" });
+      } catch (error) {
+        const isParseError =
+          error instanceof Error &&
+          error.message.includes("can't parse entities");
+
+        if (isParseError) {
+          await telegram.sendMessage(chatId, chunk);
+        } else {
+          throw error;
+        }
+      }
+    }
   };
 
   return {

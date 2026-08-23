@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   alreadyRanSlot,
   findLastMatchingSlot,
+  findNextMatchingSlot,
   isClockJump,
   shouldCatchUp,
 } from "../../../src/framework/cron/cron-clock-jump.js";
@@ -44,6 +45,19 @@ describe("findLastMatchingSlot", () => {
   });
 });
 
+describe("findNextMatchingSlot", () => {
+  const hourlyOnTheHourUtc = {
+    match: (date: Date) => date.getUTCMinutes() === 0 && date.getUTCSeconds() === 0,
+  };
+
+  it("returns the next matching minute after the last slot", () => {
+    const after = new Date("2026-08-18T14:00:00.000Z");
+    const slot = findNextMatchingSlot(hourlyOnTheHourUtc, after, DAY_MS);
+
+    expect(slot?.toISOString()).toBe("2026-08-18T15:00:00.000Z");
+  });
+});
+
 describe("shouldCatchUp", () => {
   const lastSlot = new Date("2026-08-18T00:01:00.000Z");
   const nextRun = new Date("2026-08-19T00:01:00.000Z");
@@ -75,13 +89,20 @@ describe("shouldCatchUp", () => {
     })).toBe(false);
   });
 
-  it("skips when the next run is unknown", () => {
+  it("still catch-up when nextRun is stale or missing after a freeze", () => {
     expect(shouldCatchUp({
-      lastSlot,
-      nextRun: null,
-      now: new Date("2026-08-18T04:00:00.000Z"),
+      lastSlot: new Date("2026-08-21T15:55:00.000Z"),
+      nextRun: new Date("2026-08-21T15:55:00.000Z"),
+      now: new Date("2026-08-21T19:16:00.000Z"),
       toleranceMs: DAY_MS,
-    })).toBe(false);
+    })).toBe(true);
+
+    expect(shouldCatchUp({
+      lastSlot: new Date("2026-08-21T17:01:00.000Z"),
+      nextRun: null,
+      now: new Date("2026-08-21T19:16:00.000Z"),
+      toleranceMs: DAY_MS,
+    })).toBe(true);
   });
 });
 

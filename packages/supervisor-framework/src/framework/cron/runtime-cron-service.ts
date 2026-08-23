@@ -3,6 +3,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import {
   alreadyRanSlot,
   findLastMatchingSlot,
+  findNextMatchingSlot,
   isClockJump,
   shouldCatchUp,
 } from "./cron-clock-jump.js";
@@ -33,14 +34,17 @@ export const createRuntimeCronService = (options: {
 
   const scheduleJob = (job: CronJobDefinition): ScheduledTask => {
     const trigger = buildCronTriggerForJob(job.targetRoute, job.jobName);
-    const task = cron.schedule(job.schedule, async () => {
+    const task = cron.schedule(job.schedule, async (context) => {
       try {
         await options.runner({
           jobName: job.jobName,
           trigger,
           ...(job.payload !== undefined ? { payload: job.payload } : {}),
         });
-        caughtUpSlotMs.set(job.jobName, Date.now());
+        const slotDate = context?.date;
+        if (slotDate instanceof Date) {
+          caughtUpSlotMs.set(job.jobName, slotDate.getTime());
+        }
       } catch (error) {
         console.error(`[RuntimeCron] Failed to execute job "${job.jobName}":`, error);
       }
@@ -62,13 +66,14 @@ export const createRuntimeCronService = (options: {
       }
 
       const lastSlot = findLastMatchingSlot(task, now, MISSED_EXECUTION_TOLERANCE_MS);
-      const nextRun = task.getNextRun();
-      const recordedMs = caughtUpSlotMs.get(jobName);
-      const lastRunMs = task.lastRun()?.date.getTime();
-      const lastRunAt = recordedMs !== undefined || lastRunMs !== undefined
-        ? new Date(Math.max(recordedMs ?? 0, lastRunMs ?? 0))
-        : undefined;
-      const alreadyRan = lastSlot ? alreadyRanSlot(lastRunAt, lastSlot) : false;
+      const nextRun = lastSlot
+        ? findNextMatchingSlot(task, lastSlot, MISSED_EXECUTION_TOLERANCE_MS) ?? task.getNextRun()
+        : task.getNextRun();
+      const recordedSlotMs = caughtUpSlotMs.get(jobName);
+      const alreadyRan = lastSlot ? alreadyRanSlot(
+        recordedSlotMs !== undefined ? new Date(recordedSlotMs) : undefined,
+        lastSlot,
+      ) : false;
       const eligible = Boolean(lastSlot) && shouldCatchUp({
         lastSlot: lastSlot!,
         nextRun,
@@ -77,6 +82,11 @@ export const createRuntimeCronService = (options: {
       });
 
       if (!lastSlot || alreadyRan || !eligible) {
+        if (lastSlot) {
+          console.log(
+            `[RuntimeCron] Skip catch-up "${jobName}" alreadyRan=${alreadyRan} eligible=${eligible} slot=${lastSlot.toISOString()} next=${nextRun?.toISOString() ?? "none"}`,
+          );
+        }
         continue;
       }
 

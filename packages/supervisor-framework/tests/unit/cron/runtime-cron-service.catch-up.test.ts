@@ -46,4 +46,27 @@ describe("createRuntimeCronService clock-jump catch-up", () => {
     await Promise.resolve();
     expect(runner).toHaveBeenCalledTimes(1);
   });
+
+  it("catch-up runs the next day's slot after a later clock jump", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-18T11:00:00.000Z") });
+    const runner = vi.fn().mockResolvedValue(undefined);
+    service = createRuntimeCronService({
+      runner,
+      timezone: "UTC",
+    });
+
+    await service.addJob({
+      jobName: "noon-summary",
+      schedule: "0 12 * * *",
+      targetRoute: "finance",
+    });
+
+    vi.setSystemTime(new Date("2026-08-18T15:00:00.000Z"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(1));
+
+    vi.setSystemTime(new Date("2026-08-19T15:00:00.000Z"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(2));
+  });
 });

@@ -26,22 +26,46 @@ export const findLastMatchingSlot = (
   return undefined;
 };
 
+export const findNextMatchingSlot = (
+  matcher: CronSlotMatcher,
+  after: Date,
+  horizonMs: number,
+): Date | undefined => {
+  const afterMs = after.getTime();
+  const endMs = afterMs + horizonMs;
+  let cursorMs = afterMs - (afterMs % MINUTE_MS) + MINUTE_MS;
+
+  for (; cursorMs <= endMs; cursorMs += MINUTE_MS) {
+    const candidate = new Date(cursorMs);
+    if (matcher.match(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+};
+
 export const shouldCatchUp = (options: {
   lastSlot: Date;
   nextRun: Date | null;
   now: Date;
   toleranceMs: number;
 }): boolean => {
-  if (!options.nextRun) {
-    return false;
-  }
-
   const lateBy = options.now.getTime() - options.lastSlot.getTime();
-  if (lateBy <= 0 || lateBy > options.toleranceMs) {
+  if (lateBy <= 0 || lateBy >= options.toleranceMs) {
     return false;
   }
 
-  const gap = options.nextRun.getTime() - options.lastSlot.getTime();
+  const nextRunMs = options.nextRun?.getTime();
+  if (nextRunMs === undefined || nextRunMs <= options.lastSlot.getTime()) {
+    return true;
+  }
+
+  if (nextRunMs <= options.now.getTime()) {
+    return true;
+  }
+
+  const gap = nextRunMs - options.lastSlot.getTime();
   return lateBy < gap;
 };
 
