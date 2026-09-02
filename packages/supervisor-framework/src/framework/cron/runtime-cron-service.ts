@@ -25,6 +25,8 @@ export type RuntimeCronService = {
 export const createRuntimeCronService = (options: {
   runner: (job: { jobName: string; trigger: string; payload?: unknown }) => Promise<void>;
   timezone?: string;
+  /** Seed per-job catch-up markers so a process restart does not re-fire the last 24h slot. */
+  getLastRunAt?: (jobName: string) => Date | undefined;
 }): RuntimeCronService => {
   const activeJobs = new Map<string, { job: CronJobDefinition; task: ScheduledTask }>();
   const catchingUp = new Set<string>();
@@ -57,7 +59,13 @@ export const createRuntimeCronService = (options: {
     return task;
   };
 
-  const catchUpAfterClockJump = async (): Promise<void> => {
+  /**
+   * Wall-clock due-slot reconcile. node-cron arms a long setTimeout that tracks process
+   * time; Docker Desktop regularly pauses the Linux VM even while the Mac is awake, so
+   * that timer misses ICT slots. Checking every sample tick catches due slots as soon as
+   * the process is running again (jump or not).
+   */
+  const reconcileDueJobs = async (reason: "poll" | "clock-jump"): Promise<void> => {
     const now = new Date();
 
     for (const [jobName, { task }] of activeJobs) {
@@ -82,18 +90,13 @@ export const createRuntimeCronService = (options: {
       });
 
       if (!lastSlot || alreadyRan || !eligible) {
-        if (lastSlot) {
-          console.log(
-            `[RuntimeCron] Skip catch-up "${jobName}" alreadyRan=${alreadyRan} eligible=${eligible} slot=${lastSlot.toISOString()} next=${nextRun?.toISOString() ?? "none"}`,
-          );
-        }
         continue;
       }
 
       catchingUp.add(jobName);
       try {
         console.log(
-          `[RuntimeCron] Clock jump catch-up for job "${jobName}" (slot ${lastSlot.toISOString()})`,
+          `[RuntimeCron] Due-slot catch-up for job "${jobName}" (${reason}, slot ${lastSlot.toISOString()})`,
         );
         await task.stop();
         try {
@@ -103,7 +106,7 @@ export const createRuntimeCronService = (options: {
           await task.start();
         }
       } catch (error) {
-        console.error(`[RuntimeCron] Clock jump catch-up failed for job "${jobName}":`, error);
+        console.error(`[RuntimeCron] Due-slot catch-up failed for job "${jobName}":`, error);
       } finally {
         catchingUp.delete(jobName);
       }
@@ -114,17 +117,17 @@ export const createRuntimeCronService = (options: {
     const nowMs = Date.now();
     const jumped = isClockJump(lastSeenWallClockMs, nowMs, CLOCK_JUMP_THRESHOLD_MS);
     lastSeenWallClockMs = nowMs;
-    if (!jumped) {
-      return;
-    }
 
     if (catchUpInFlight) {
       return;
     }
 
-    console.log("[RuntimeCron] Clock jump detected; catching up eligible jobs");
+    if (jumped) {
+      console.log("[RuntimeCron] Clock jump detected; reconciling due jobs");
+    }
+
     catchUpInFlight = true;
-    void catchUpAfterClockJump().finally(() => {
+    void reconcileDueJobs(jumped ? "clock-jump" : "poll").finally(() => {
       catchUpInFlight = false;
       lastSeenWallClockMs = Date.now();
     });
@@ -140,6 +143,10 @@ export const createRuntimeCronService = (options: {
       try {
         const task = scheduleJob(job);
         activeJobs.set(job.jobName, { job, task });
+        const lastRunAt = options.getLastRunAt?.(job.jobName);
+        if (lastRunAt) {
+          caughtUpSlotMs.set(job.jobName, lastRunAt.getTime());
+        }
         console.log(`[RuntimeCron] Added job: ${job.jobName} (${job.schedule})`);
       } catch (error) {
         throw new Error(`Failed to schedule job "${job.jobName}": ${error instanceof Error ? error.message : String(error)}`);

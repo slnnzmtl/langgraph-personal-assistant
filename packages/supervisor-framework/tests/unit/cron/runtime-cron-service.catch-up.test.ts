@@ -69,4 +69,38 @@ describe("createRuntimeCronService clock-jump catch-up", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await vi.waitFor(() => expect(runner).toHaveBeenCalledTimes(2));
   });
+
+  it("runs a due slot on the regular poll without a clock jump", async () => {
+    let nowMs = Date.parse("2026-08-18T11:00:00.000Z");
+    vi.useFakeTimers({ now: nowMs });
+    const runner = vi.fn().mockResolvedValue(undefined);
+    service = createRuntimeCronService({
+      runner,
+      timezone: "UTC",
+      getLastRunAt: () => new Date("2026-08-17T12:00:05.000Z"),
+    });
+
+    await service.addJob({
+      jobName: "noon-summary",
+      schedule: "0 12 * * *",
+      targetRoute: "finance",
+    });
+
+    // Step wall clock by <60s each sample so reconcile runs as "poll", not "clock-jump".
+    // Do not flush node-cron's long timeout: only advance the 30s sampler.
+    for (let i = 0; i < 90; i += 1) {
+      nowMs += 50_000;
+      vi.setSystemTime(nowMs);
+      await vi.advanceTimersByTimeAsync(30_000);
+      if (runner.mock.calls.length > 0) {
+        break;
+      }
+    }
+
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(runner).toHaveBeenCalledWith({
+      jobName: "noon-summary",
+      trigger: "SYSTEM_CRON_TRIGGER:finance:noon-summary",
+    });
+  });
 });

@@ -55,6 +55,17 @@ export const startSchedulerRuntime = async (options: StartSchedulerRuntimeOption
       await cronRunner.run(job);
     },
     timezone: config.appTimezone,
+    ...(options.cronRunLedger
+      ? {
+          getLastRunAt: (jobName: string) => {
+            const latest = options.cronRunLedger!.getLatestRun(jobName);
+            if (!latest) {
+              return undefined;
+            }
+            return new Date(latest.finishedAt ?? latest.startedAt);
+          },
+        }
+      : {}),
   });
 
   runtimeCron.setService(runtimeCronService);

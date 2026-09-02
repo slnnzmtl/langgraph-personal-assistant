@@ -1,13 +1,8 @@
-<skill name="expense-sync" module="finance" description="Sync Wise transactions into the expense ledger.">
-<skill_attachments>
-  <attachment>
-    <anyPhrases>sync expenses,sync expense,import transactions,fetch wise,wise transactions</anyPhrases>
-  </attachment>
-</skill_attachments>
+<skill name="expense-sync" module="finance" description="Sync Wise transactions into the expense ledger with historical pattern matching and specific merchant overrides.">
 
 <sync_intent>
 0. If `expense-ledger-schema` is not already in the prompt or tool history, call `read_skill("expense-ledger-schema")` in the same turn as step 1 (do not wait for a separate turn).
-1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)`
+1. Parallel: `get_categories()` + `fetch_wise_transactions(since, until)` + `get_historical_patterns()`
 2. `exec_sql` multi-row INSERT:
    <insert_sql>
    INSERT INTO public.expense (name, amount, category, paid_date, paid)
@@ -17,6 +12,10 @@
    - Round amounts up to integer
    - `paid_date` = Wise `createdOn` (`YYYY-MM-DD`); `paid = true` for completed outward
    - Map each row using `<category_matching>` from `expense-ledger-schema`
+   - For uncategorized transactions:
+     - If merchant name contains 'cursor' or 'hetzner', set category to 'Software'.
+     - If merchant name contains 'google' or 'openai', set category to 'Tokens'.
+     - Otherwise, apply category from `get_historical_patterns()` based on merchant name.
 3. Report insert count + range only after INSERT returns.
 
 <prohibited>
