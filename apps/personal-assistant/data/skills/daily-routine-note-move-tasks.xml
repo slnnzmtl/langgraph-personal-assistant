@@ -13,25 +13,32 @@
 
 <path_rules>
 - Use `Today` and `Last routine note` paths from the routine hint. Do not search the vault for calendar yesterday.
-- Headings = existing `## …` lines from the last routine note only. If there are none, or Last routine note is `Not created`, start with `## Tasks` and invent nothing else.
-- If Last routine note is `Not created`, the carry-forward list is empty.
+- If Last routine note is `Not created`, there is nothing to carry; create today's note only if missing, with `## Tasks` and no task lines.
 </path_rules>
 
-<task_extraction_rules>
-- From the last routine note, extract only unchecked task lines matching `- [ ] ...`.
-- Copy those lines verbatim. Ignore checked tasks (`- [x]`), headings, events, notes, and placeholder text.
-</task_extraction_rules>
+<section_carry_rules>
+- Walk the last routine note by `##` section, in file order. Do not flatten tasks across sections.
+- Keep a `## …` heading only if that section has at least one unchecked task line matching `- [ ] ...`. Copy the heading verbatim (`##` included).
+- Under that heading, copy those `- [ ]` lines verbatim. Drop checked tasks (`- [x]`), events, notes, and placeholder text in that section.
+- Omit empty `##` sections (no open `- [ ]` lines). Do not invent headings or rewrite `## Heading` as a bare title.
+- Do not move a task into another heading.
+- Tasks above the first `##` (if any) stay together under `## Tasks` only when they include `- [ ]` lines.
+- If the last routine note has no `##` headings, fall back to `## Tasks` plus the remaining `- [ ]` lines.
+</section_carry_rules>
 
 <prohibited>
 - Do not call `read_skill` for `daily-routine-note`.
 - Keep the last routine note unchanged.
 - Do not duplicate a task already present in today's note.
 - Do not call `create_new` when today's note already exists.
+- Do not flatten open tasks into a single list or dump them under the first heading.
+- Do not drop `##` from carried headings.
 </prohibited>
 
 ### Move unchecked tasks into today's note
 1. In one turn, call `read_file` on today's path and, when Last routine note is not `Not created`, `read_file` on that path.
-2. If today's note is missing, call `write_file` with `create_new` using headings from `<path_rules>` plus only the verbatim `- [ ]` lines from `<task_extraction_rules>`.
-3. If today's note exists, call `write_file` with `overwrite` or `append` only to add carried-forward tasks.
-4. Stop after that write, or if there is nothing to add. Do not search the vault or load another routine skill.
+2. Build the carry-forward body from `<section_carry_rules>` (section tree, not a flat task bag).
+3. If today's note is missing, call `write_file` with `create_new` using that section tree.
+4. If today's note exists, merge by heading: add missing `##` sections that still have open tasks; under an existing heading, append only `- [ ]` lines not already present. Use `overwrite` or `append` as needed. Do not append a flat list at the bottom.
+5. Stop after that write, or if there is nothing to add. Do not search the vault or load another routine skill.
 </skill>

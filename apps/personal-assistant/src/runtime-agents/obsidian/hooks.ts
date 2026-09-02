@@ -1,5 +1,5 @@
 import { AIMessage, ToolMessage, type BaseMessage } from "@langchain/core/messages";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -13,47 +13,108 @@ import {
 } from "@personal-assistant/supervisor-framework";
 import { getZonedDateDetails } from "../../utils/datetime.js";
 
-const formatRoutineFilePath = (date: Date): string => {
-  const { monthName, dayNumber, weekday } = getZonedDateDetails(date);
-  return `routine/${monthName}/${monthName} ${Number(dayNumber)} - ${weekday}.md`;
+const ROUTINE_NOTE_FILENAME = /^(.+?) (\d{1,2}) - .+\.md$/i;
+
+const MONTH_INDEX_BY_NAME: Record<string, number> = {
+  january: 0,
+  february: 1,
+  march: 2,
+  april: 3,
+  may: 4,
+  june: 5,
+  july: 6,
+  august: 7,
+  september: 8,
+  october: 9,
+  november: 10,
+  december: 11,
 };
 
-const shiftDateByDays = (date: Date, days: number): Date =>
-  new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+const toDateSortKey = (year: number, monthIndex: number, day: number): string =>
+  `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-const LAST_ROUTINE_LOOKBACK_DAYS = 90;
+const listRoutineNoteFiles = (vaultRoot: string): Array<{ relativePath: string; monthIndex: number; day: number }> => {
+  const routineRoot = path.join(vaultRoot, "routine");
+  if (!existsSync(routineRoot)) {
+    return [];
+  }
 
-const findLastRoutineRelativePath = (vaultRoot: string, date: Date): string | undefined => {
-  for (let daysAgo = 1; daysAgo <= LAST_ROUTINE_LOOKBACK_DAYS; daysAgo += 1) {
-    const relativePath = formatRoutineFilePath(shiftDateByDays(date, -daysAgo));
-    if (existsSync(path.join(vaultRoot, relativePath))) {
-      return relativePath;
+  const notes: Array<{ relativePath: string; monthIndex: number; day: number }> = [];
+
+  for (const monthDir of readdirSync(routineRoot, { withFileTypes: true })) {
+    if (!monthDir.isDirectory()) {
+      continue;
+    }
+
+    const monthPath = path.join(routineRoot, monthDir.name);
+    for (const file of readdirSync(monthPath, { withFileTypes: true })) {
+      if (!file.isFile()) {
+        continue;
+      }
+
+      const match = ROUTINE_NOTE_FILENAME.exec(file.name);
+      const monthIndex = MONTH_INDEX_BY_NAME[match?.[1]?.toLowerCase() ?? ""];
+      const day = Number(match?.[2]);
+      if (match === null || monthIndex === undefined || !Number.isInteger(day) || day < 1 || day > 31) {
+        continue;
+      }
+
+      notes.push({
+        relativePath: `routine/${monthDir.name}/${file.name}`,
+        monthIndex,
+        day,
+      });
     }
   }
 
-  return undefined;
+  return notes;
 };
 
-const formatRoutineHintLine = (
-  vaultRoot: string,
-  label: string,
-  relativePath: string,
-): string => {
-  const exists = existsSync(path.join(vaultRoot, relativePath));
-  return `${label}: ${exists ? relativePath : "Not created"}`;
+const findRoutinePathForDate = (vaultRoot: string, date: Date): string | undefined => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date);
+  const todayKey = `${year}-${monthNumber}-${dayNumber}`;
+
+  return listRoutineNoteFiles(vaultRoot).find((note) =>
+    toDateSortKey(Number(year), note.monthIndex, note.day) === todayKey
+  )?.relativePath;
+};
+
+const findLastRoutineRelativePath = (vaultRoot: string, date: Date): string | undefined => {
+  const { year, monthNumber, dayNumber } = getZonedDateDetails(date);
+  const todayYear = Number(year);
+  const todayKey = `${year}-${monthNumber}-${dayNumber}`;
+
+  let best: { relativePath: string; sortKey: string } | undefined;
+
+  for (const note of listRoutineNoteFiles(vaultRoot)) {
+    let sortKey = toDateSortKey(todayYear, note.monthIndex, note.day);
+    if (sortKey === todayKey) {
+      continue;
+    }
+
+    if (sortKey > todayKey) {
+      sortKey = toDateSortKey(todayYear - 1, note.monthIndex, note.day);
+    }
+
+    if (best === undefined || sortKey > best.sortKey) {
+      best = { relativePath: note.relativePath, sortKey };
+    }
+  }
+
+  return best?.relativePath;
 };
 
 export const formatObsidianRoutineHint = (
   vaultRoot: string,
   date: Date = new Date(),
 ): string => {
-  const todayPath = formatRoutineFilePath(date);
   const lastRoutinePath = findLastRoutineRelativePath(vaultRoot, date);
+  const todayPath = findRoutinePathForDate(vaultRoot, date);
 
   return [
     "Routine files live under routine/[Month]/[Month] [Day] - [Weekday].md.",
     `Last routine note: ${lastRoutinePath ?? "Not created"}`,
-    formatRoutineHintLine(vaultRoot, "Today", todayPath),
+    `Today: ${todayPath ?? "Not created"}`,
   ].join("\n");
 };
 

@@ -169,6 +169,11 @@ describe("resolveSkillAttachments", () => {
     expect(attachments[0]?.skillName).toBe("daily-routine-note-move-tasks");
     expect(attachments[0]?.content).toContain("read_file` on today's path");
     expect(attachments[0]?.content).toContain("Last routine note");
+    expect(attachments[0]?.content).toContain("Walk the last routine note by `##` section");
+    expect(attachments[0]?.content).toContain("Do not flatten open tasks");
+    expect(attachments[0]?.content).toContain("Omit empty `##` sections");
+    expect(attachments[0]?.content).toContain("Do not move a task into another heading");
+    expect(attachments[0]?.content).toContain("merge by heading");
   });
 
   it("attaches move-tasks for combined create-and-move requests", () => {

@@ -388,6 +388,24 @@ describe("formatObsidianRoutineHint", () => {
     vi.useRealTimers();
   });
 
+  it("prefers a zero-padded previous-day note over an older unpadded note", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-03T12:00:00.000Z"));
+    const vaultRoot = await createTempVault();
+    const yesterdayPath = "routine/September/September 02 - Wed.md";
+    const olderPath = "routine/August/August 30 - Sun.md";
+    await writeRoutineNote(vaultRoot, yesterdayPath);
+    await writeRoutineNote(vaultRoot, olderPath);
+
+    const hint = formatObsidianRoutineHint(vaultRoot, new Date());
+
+    expect(hint).toContain(`Last routine note: ${yesterdayPath}`);
+    expect(hint).not.toContain("August 30");
+    expect(hint).toContain("Today: Not created");
+
+    vi.useRealTimers();
+  });
+
   it("labels last routine note as Not created when no prior note exists", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-10T12:00:00.000Z"));

@@ -115,7 +115,7 @@ Without Supabase credentials the finance agent returns a configuration error ins
 
 Production Docker runs scheduling in the separate `personal-assistant-scheduler` service. When `ENABLE_SCHEDULER` is truthy, that process loads jobs from `data/cron-jobs.json` and executes them via synthetic `SYSTEM_CRON_TRIGGER:` messages. When disabled, the scheduler process stays idle (no jobs run) until it receives SIGINT/SIGTERM. Jobs target runtime agent ids such as `finance`, `obsidian`, or `configuration` using the format `SYSTEM_CRON_TRIGGER:<agentId>:<jobName>`. Create and manage jobs through the configuration agent in Telegram (e.g. "list cron jobs", "schedule a daily finance sync").
 
-**Laptop / Docker Desktop sleep:** `RuntimeCronService` schedules with a 24h `missedExecutionTolerance` and a 30s wall-clock sampler. Docker Desktop pauses node-cron’s long `setTimeout` during Mac sleep; on resume the sampler sees the clock jump and runs at most one eligible late slot (capped by the gap to the next fire), then re-arms so the frozen timer cannot double-fire. This does not backfill multi-day sleeps or recover jobs missed because the scheduler process restarted.
+**Laptop / Docker Desktop sleep:** `RuntimeCronService` schedules with a 24h `missedExecutionTolerance` and a 30s wall-clock poll. Docker Desktop often pauses the Linux VM (even while the Mac is awake), which freezes node-cron’s long `setTimeout`. Every poll checks for a due slot within 24h and runs it once if needed; clock jumps are logged but not required. This does not backfill multi-day freezes or recover jobs missed because the scheduler process restarted.
 
 ## Skills
 
