@@ -1,10 +1,10 @@
 # Personal Assistant
 
-A Telegram-based personal assistant built with [LangGraph](https://langchain-ai.github.io/langgraph/). A root **Supervisor** routes each message to specialized sub-agents for finance, Obsidian notes, or system configuration. The bot runs locally (or in Docker), polls Telegram for updates, and keeps conversation state in a bounded message window.
+Single-user Telegram assistant that routes finance, notes, and configuration work through a reusable [LangGraph](https://langchain-ai.github.io/langgraph/) supervisor runtime. The bot runs locally (or in Docker), polls Telegram for updates, and keeps conversation state in a bounded message window.
 
 ## Architecture
 
-The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/`; this Telegram assistant lives in `apps/personal-assistant/`. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
+The codebase is a **pnpm workspace**. Reusable supervisor runtime lives in `packages/supervisor-framework/`; this Telegram assistant in `apps/personal-assistant/` is the product pack. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
 
 ```mermaid
 graph TD
