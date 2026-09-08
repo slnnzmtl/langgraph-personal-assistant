@@ -4,13 +4,12 @@ Single-user Telegram assistant that routes finance, notes, and configuration wor
 
 ### Related repositories
 
-- **This repo** — applied personal system and reference pack for the supervisor runtime
-- [LangGraph Supervisor Expert Bootstrap](https://github.com/slnnzmtl/langgraph-supervisor-expert-bootstrap) — reusable framework (`@personal-assistant/supervisor-framework`); same runtime as `packages/supervisor-framework/` here
+- **This repo** — applied personal system with an in-repo supervisor runtime (`packages/supervisor-framework/`)
 - [LangGraph Appointment Bot](https://github.com/slnnzmtl/langgraph-appointment-bot) — applied clinic product on the same LangGraph + Telegram + Gemini + MCP stack (separate graph; does not import this framework)
 
 ## Architecture
 
-The codebase is a **pnpm workspace**. Reusable supervisor bootstrap lives in `packages/supervisor-framework/` (published as the bootstrap repo above); this Telegram assistant in `apps/personal-assistant/` is the reference pack. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
+The codebase is a **pnpm workspace**. Reusable supervisor runtime lives in `packages/supervisor-framework/`; this Telegram assistant in `apps/personal-assistant/` is the product pack. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
 
 ```mermaid
 graph TD
