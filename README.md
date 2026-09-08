@@ -2,11 +2,6 @@
 
 Single-user Telegram assistant that routes finance, notes, and configuration work through a reusable [LangGraph](https://langchain-ai.github.io/langgraph/) supervisor runtime. The bot runs locally (or in Docker), polls Telegram for updates, and keeps conversation state in a bounded message window.
 
-### Related repositories
-
-- **This repo** — applied personal system with an in-repo supervisor runtime (`packages/supervisor-framework/`)
-- [LangGraph Appointment Bot](https://github.com/slnnzmtl/langgraph-appointment-bot) — applied clinic product on the same LangGraph + Telegram + Gemini + MCP stack (separate graph; does not import this framework)
-
 ## Architecture
 
 The codebase is a **pnpm workspace**. Reusable supervisor runtime lives in `packages/supervisor-framework/`; this Telegram assistant in `apps/personal-assistant/` is the product pack. Entry point: `createSupervisorSystem()` → `createSupervisorRuntime()` → `bootstrapSupervisorSystem()` → `createAssistant()`.
